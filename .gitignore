@@ -1,0 +1,49 @@
+# Python caches / generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Platform-managed runtimes
+.runtime/
+.venv/
+venv/
+
+# Runtime / process state
+.state/
+logs/
+*.log
+*.pid
+
+# Platform-local secrets
+.webui_secret_key
+
+# Environment / credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Persisted runtime/model artifacts if created inside repo
+/models/
+/checkpoints/
+.cache/
+
+# Package/build artifacts
+build/
+dist/
+*.egg-info/
+
+# Node/frontend generated dependencies
+node_modules/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

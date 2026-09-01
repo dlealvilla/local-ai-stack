@@ -1,0 +1,268 @@
+[platform]
+data_root = "/workspace"
+stage = "bootstrap"
+
+[frontend]
+provider = "openwebui"
+version = "0.11.0"
+enabled = true
+
+[gateway]
+# PROVISIONAL:
+# Minimal built-in proxy used to establish the gateway/analytics spine.
+# Future providers may include LiteLLM or another implementation.
+provider = "builtin_proxy"
+
+[inference]
+provider = "vllm"
+version = "0.10.2"
+served_model_name = "local-llm"
+tool_calling = false
+
+[model]
+# WORKING:
+# Explicit deployment selection prevents new inventory artifacts
+# from changing the active model.
+selection = "qwen3-8b-awq"
+
+[performance]
+profile = "interactive"
+
+# PROVISIONAL: replace later with model/hardware/workload planning.
+context_length = 8192
+
+# PROVISIONAL: replace later with backend-aware capacity planning + validation.
+gpu_memory_utilization = 0.85
+
+# PROVISIONAL: high-level concurrency target.
+# This is not yet mapped intelligently to engine-specific scheduling settings.
+concurrency = 4
+
+[network]
+api_exposure = "private"
+
+frontend_host = "127.0.0.1"
+frontend_port = 3000
+
+inference_host = "127.0.0.1"
+inference_port = 8000
+
+api_host = "127.0.0.1"
+api_port = 4000
+
+[runtime]
+
+# PROVISIONAL BOOTSTRAP DEFAULT:
+# Native process execution is active so the product works without Docker.
+# Docker remains an optional portable/containerized executor.
+# Future deployment logic will select an executor intelligently or by user choice.
+executor = "process"
+
+[platform_api]
+# PROVISIONAL:
+# Local control-plane API for CLI/Admin UI integration.
+provider = "builtin_http"
+enabled = true
+host = "127.0.0.1"
+port = 4100
+
+[analytics]
+# WORKING:
+# UsageEvent persistence is behind a replaceable UsageStore.
+enabled = true
+provider = "partitioned_jsonl"
+
+# LEGACY:
+# Retained temporarily for the old jsonl adapter/backward compatibility.
+usage_events_path = "data/analytics/usage-events.jsonl"
+
+# WORKING:
+# Daily partitioned local UsageEvent storage.
+usage_events_dir = "data/analytics/usage"
+
+# Basic/free product default.
+local_retention_days = 7
+
+# FUTURE optional non-content cloud telemetry export.
+export_enabled = false
+export_provider = "disabled"
+
+[model_catalog]
+# WORKING ModelSource adapters.
+sources = ["local_files", "huggingface"]
+
+# PROVISIONAL catalog query limits.
+default_limit = 10
+max_limit = 50
+
+[model_source.huggingface]
+base_url = "https://huggingface.co"
+timeout_seconds = 15
+
+[model_inventory]
+# WORKING metadata store for locally managed model artifacts.
+provider = "json_file"
+state_path = "data/model-inventory/records.json"
+
+[model_transfer]
+# WORKING:
+# Transfer implementations are separate from ModelSource discovery.
+enabled = true
+providers = ["huggingface", "local_files"]
+
+# Downloads are staged outside model storage so incomplete
+# artifacts are never discovered as installed models.
+staging_root = "data/model-transfers"
+
+[storage_capacity]
+# WORKING:
+# Storage-capacity discovery is behind a replaceable provider.
+provider = "auto"
+
+# WORKING:
+# Optional empirical allocation validation.
+probe_enabled = true
+
+# Safety ceiling for a single probe operation.
+# This is NOT the amount automatically probed.
+probe_max_gb = 64.0
+
+# Temporary probe files live here and are deleted immediately.
+probe_directory = "data/capacity-probes"
+
+# FUTURE:
+# Administrator-provided quota takes precedence over provider
+# discovery when configured.
+quota_override_gb = 0.0
+
+# WORKING:
+# Independent credible remaining-capacity estimates are expected
+# to agree within this relative tolerance.
+consensus_relative_tolerance = 0.10
+
+# Absolute tolerance prevents small disks/estimates from being
+# penalized by percentage-only comparison.
+consensus_absolute_gb = 2.0
+
+# WORKING:
+# Start warning administrators before reaching the protected floor.
+warning_free_fraction = 0.20
+
+# WORKING:
+# Normal AI model/storage planning preserves at least 15% free.
+protected_free_fraction = 0.15
+
+# Absolute floor protects smaller volumes where a percentage alone
+# may leave too little operational breathing room.
+minimum_reserve_gb = 10.0
+
+# If authoritative/local discovery cannot resolve remaining space,
+# automatically escalate to empirical Capacity Sonar.
+sonar_fallback_enabled = true
+
+# Measuring a mounted namespace with du may be useful when a total
+# provider quota is known. It is bounded so huge filesystems do not
+# stall control-plane requests indefinitely.
+namespace_usage_timeout_seconds = 20
+
+# FUTURE:
+# Precise maintenance-mode calibration will require explicit
+# maintenance orchestration and remains disabled until implemented.
+maintenance_sonar_enabled = false
+
+# WORKING:
+# Adaptive Capacity Sonar begins here when no useful external
+# estimate is available.
+sonar_start_mb = 64
+
+# Successful probes grow geometrically.
+sonar_growth_factor = 2.0
+
+# Failed seeded probes back off geometrically.
+sonar_backoff_factor = 0.5
+
+# Once a successful lower bound and failed upper bound exist,
+# binary refinement stops at this bracket width.
+sonar_resolution_mb = 256
+
+# Hard protection against pathological/changing storage behavior.
+sonar_max_attempts = 32
+
+# Normal automatic probing must never blindly search without an
+# upper policy boundary. A later coordinator supplies that boundary.
+sonar_max_automatic_gb = 64.0
+
+# ADVANCED / FUTURE:
+# Exact boundary discovery is allowed only through maintenance-mode
+# orchestration with quiescence, emergency reserve and cleanup.
+boundary_search_enabled = false
+
+# WORKING:
+# Administrator-controlled share of SAFE feasible storage that
+# may be consumed by platform-managed artifacts.
+#
+# Valid range: 1.0 through 100.0.
+#
+# IMPORTANT:
+# 100% means 100% of already safety-adjusted feasible storage.
+# It NEVER bypasses protected_free_fraction or minimum_reserve_gb.
+platform_allocation_percent = 100.0
+
+# PROVISIONAL:
+# Conservative temporary/model-operation allowance above the
+# known or estimated artifact footprint.
+#
+# Future ModelSource / transfer / conversion adapters may supply
+# more precise operation-specific requirements.
+model_operation_overhead_fraction = 0.10
+
+# Absolute minimum operation allowance.
+model_operation_overhead_min_gb = 1.0
+
+# WORKING:
+# Host-local advisory lock used to prevent multiple simultaneous
+# storage-maintenance sessions.
+maintenance_lock_path = "/opt/ai-stack/runtime/locks/storage-capacity.lock"
+
+# WORKING:
+# Emergency reserve lives on the storage target being calibrated.
+maintenance_reserve_directory = "data/capacity-reserve"
+
+# WORKING:
+# Default emergency reserve for future full maintenance calibration.
+#
+# The validation below explicitly uses only 256 MiB.
+maintenance_emergency_reserve_gb = 2.0
+
+# WORKING:
+# Lifecycle operations may include model runtime startup/shutdown.
+maintenance_lifecycle_timeout_seconds = 600
+
+# IMPORTANT:
+# Strong boundary probing remains separately disabled until the
+# maintenance session and lock integration are fully validated.
+
+# WORKING:
+# Reusable empirical capacity evidence cache.
+#
+# This cache supports planning/UI only. Actual large
+# storage mutations will still receive a final current-state
+# admission/verification check.
+capacity_cache_enabled = true
+capacity_cache_path = "data/storage-capacity/calibration.json"
+capacity_generation_path = "data/storage-capacity/generation.json"
+
+# PROVISIONAL:
+# Short planning-cache lifetime. This is deliberately
+# configurable and is not a guarantee that external
+# storage activity cannot occur during this interval.
+capacity_cache_ttl_seconds = 900
+
+# WORKING:
+# Serialize platform-managed storage mutations.
+#
+# This deliberately points at the SAME host-local lock
+# currently used by maintenance capacity calibration so
+# mutations and maintenance sonar cannot overlap.
+storage_operation_lock_path = "/opt/ai-stack/runtime/locks/storage-capacity.lock"
+storage_operation_lock_wait_seconds = 0.0

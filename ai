@@ -1,0 +1,792 @@
+#!/usr/bin/env python3
+
+import sys
+
+from core.hardware import inspect_hardware
+from core.models import list_local_models
+from core.config import load_config
+from core.planner import build_initial_plan
+from core.status import get_runtime_status
+from core.preflight import run_preflight
+from core.runtime_manager import ensure_runtime, required_runtimes
+from core.deployment import build_deployment_manifest
+from adapters.inference import get_inference_adapter
+from adapters.executor import get_executor
+from adapters.gateway import resolve_gateway_endpoint
+from adapters.usage_store import get_usage_store_adapter
+from core.lifecycle import start_service, stop_service, tail_log
+from core.health import check_deployment_health
+from core.acceptance import run_acceptance_test
+from core.platform_state import build_platform_state
+
+
+def print_hardware(profile):
+    print("System inspection")
+    print("-----------------")
+    print(f"Operating system: {profile['operating_system']}")
+    print(f"Architecture:     {profile['architecture']}")
+    print(f"CPU:              {profile['cpu_model']}")
+    print(f"CPU cores:        {profile['cpu_cores']}")
+    print(f"System RAM:       {profile['ram_total_gb']:.1f} GB")
+
+    if profile["gpus"]:
+        print()
+        print("GPUs")
+        print("----")
+
+        for index, gpu in enumerate(profile["gpus"]):
+            print(f"GPU {index}:            {gpu['name']}")
+            print(f"GPU {index} vendor:     {gpu['vendor']}")
+            print(f"GPU {index} VRAM total: {gpu['vram_total_gb']:.1f} GB")
+            print(f"GPU {index} VRAM free:  {gpu['vram_free_gb']:.1f} GB")
+    else:
+        print()
+        print("GPU:              Not detected")
+
+    storage = profile["storage"]
+
+    print()
+    print("Storage filesystem")
+    print("------------------")
+    print("Note: filesystem capacity may not equal provider quota")
+    print(f"Path:             {storage['path']}")
+    print(f"Total:            {storage['total_gb']:.1f} GB")
+    print(f"Used:             {storage['used_gb']:.1f} GB")
+    print(f"Free:             {storage['free_gb']:.1f} GB")
+
+
+if len(sys.argv) < 2:
+    print("AI Platform")
+    print("Usage: ./ai <command>")
+    print()
+    print("Commands:")
+    print("  inspect    Inspect this computer")
+    print("  models     List locally stored models")
+    print("  config     Show current configuration")
+    print("  plan       Build an initial deployment plan")
+    print("  status     Show runtime service status")
+    print("  state      Show normalized platform state")
+    print("  health     Check functional service health")
+    print("  test       Run end-to-end acceptance test")
+    print("  prepare    Prepare local runtimes")
+    print("  preflight  Check deployment readiness")
+    print("  start      Start the AI deployment")
+    print("  stop       Stop the AI deployment")
+    print("  restart    Restart the AI deployment")
+    print("  logs       Show recent service logs")
+
+elif sys.argv[1] == "inspect":
+    hardware = inspect_hardware()
+    print_hardware(hardware)
+
+elif sys.argv[1] == "plan":
+    plan = build_initial_plan()
+
+    print("Initial deployment plan")
+    print("-----------------------")
+
+    print()
+    print("Model:")
+    if plan["selected_model"]:
+        print(f"  {plan['selected_model']['name']}")
+    else:
+        print("  None selected")
+
+    print(f"  Reason: {plan['model_reason']}")
+
+    print()
+    print("Inference:")
+    print(f"  Provider: {plan['inference']['provider']}")
+
+    print()
+    print("Gateway:")
+    print(f"  Provider: {plan['gateway']['provider']}")
+
+    print()
+    print("Frontend:")
+    print(f"  Provider: {plan['frontend']['provider']}")
+    print(f"  Enabled:  {plan['frontend']['enabled']}")
+
+    print()
+    print("Workload:")
+    print(f"  Profile:      {plan['workload']['name']}")
+    print(f"  Description:  {plan['workload'].get('description', 'Unknown')}")
+    print(f"  Latency:      {plan['workload'].get('latency_priority', 'Unknown')}")
+    print(f"  Throughput:   {plan['workload'].get('throughput_priority', 'Unknown')}")
+    print(f"  Concurrency:  {plan['workload'].get('concurrency_priority', 'Unknown')}")
+
+    print()
+    print("Performance settings:")
+    print(f"  Context length:         {plan['performance']['context_length']}")
+    print(f"  GPU memory utilization: {plan['performance']['gpu_memory_utilization']}")
+    print(f"  Concurrency:            {plan['performance']['concurrency']}")
+
+elif sys.argv[1] == "start":
+    config = load_config()
+    plan = build_initial_plan()
+
+    manifest = build_deployment_manifest(
+        plan,
+        config
+    )
+
+    executor_name = config["runtime"]["executor"]
+    executor = get_executor(executor_name)
+
+    if executor_name != "process":
+        print(
+            "Real startup is currently enabled "
+            "for process execution only."
+        )
+        sys.exit(1)
+
+    print("Starting AI Stack")
+    print("=================")
+
+    failed = False
+
+    for service in manifest["services"]:
+        if not service["enabled"]:
+            continue
+
+        service_id = service["id"]
+
+        print()
+        print(
+            f"Starting {service_id}: "
+            f"{service['provider']}"
+        )
+
+        timeout = (
+            240
+            if service["role"] == "inference"
+            else 180
+        )
+
+        result = start_service(
+            service_id,
+            service["spec"],
+            executor,
+            timeout=timeout,
+        )
+
+        status = result["status"]
+
+        if status == "ready":
+            print(
+                f"[PASS] {service_id} running"
+            )
+            print("PID:", result["pid"])
+            print(
+                "Endpoint:",
+                f"http://{result['host']}:"
+                f"{result['port']}"
+            )
+
+        elif status == "already_running":
+            print(
+                f"[PASS] {service_id} "
+                "already running"
+            )
+            print("PID:", result["pid"])
+
+        elif status == "starting":
+            print(
+                f"[INFO] {service_id} "
+                "is still starting"
+            )
+            print("Log:", result["log"])
+
+        else:
+            print(
+                f"[FAIL] {service_id} "
+                "failed to start"
+            )
+            print(result.get("log_tail", ""))
+            failed = True
+            break
+
+    if failed:
+        sys.exit(1)
+elif sys.argv[1] == "stop":
+    config = load_config()
+    plan = build_initial_plan()
+
+    manifest = build_deployment_manifest(
+        plan,
+        config
+    )
+
+    executor_name = config["runtime"]["executor"]
+
+    if executor_name != "process":
+        print(
+            "Real shutdown is currently enabled "
+            "for process execution only."
+        )
+        sys.exit(1)
+
+    print("Stopping AI Stack")
+    print("=================")
+
+    failed = False
+
+    # Stop in reverse dependency order:
+    # frontend first, inference last.
+    for service in reversed(
+        manifest["services"]
+    ):
+        if not service["enabled"]:
+            continue
+
+        service_id = service["id"]
+
+        print()
+        print(
+            f"Stopping {service_id}: "
+            f"{service['provider']}"
+        )
+
+        result = stop_service(
+            service_id,
+            service["spec"],
+        )
+
+        status = result["status"]
+
+        if status == "stopped":
+            print(
+                f"[PASS] {service_id} stopped"
+            )
+
+        elif status == "forced":
+            print(
+                f"[WARN] {service_id} required "
+                "forced shutdown"
+            )
+
+        elif status == "not_running":
+            print(
+                f"[PASS] {service_id} "
+                "was not running"
+            )
+
+        elif status == "stale":
+            print(
+                f"[PASS] {service_id} "
+                "had stale process state; cleared"
+            )
+
+        else:
+            print(
+                f"[FAIL] Could not stop "
+                f"{service_id}"
+            )
+            print(
+                result.get(
+                    "reason",
+                    "Unknown shutdown error",
+                )
+            )
+            failed = True
+
+    if failed:
+        sys.exit(1)
+
+elif sys.argv[1] == "restart":
+    config = load_config()
+    plan = build_initial_plan()
+
+    manifest = build_deployment_manifest(
+        plan,
+        config
+    )
+
+    executor_name = config["runtime"]["executor"]
+    executor = get_executor(executor_name)
+
+    if executor_name != "process":
+        print(
+            "Real restart is currently enabled "
+            "for process execution only."
+        )
+        sys.exit(1)
+
+    print("Restarting AI Stack")
+    print("===================")
+
+    failed = False
+
+    print()
+    print("Stopping services")
+    print("-----------------")
+
+    for service in reversed(
+        manifest["services"]
+    ):
+        if not service["enabled"]:
+            continue
+
+        service_id = service["id"]
+
+        result = stop_service(
+            service_id,
+            service["spec"],
+        )
+
+        status = result["status"]
+
+        if status in {
+            "stopped",
+            "not_running",
+            "stale",
+        }:
+            print(
+                f"[PASS] {service_id} stopped"
+            )
+
+        elif status == "forced":
+            print(
+                f"[WARN] {service_id} required "
+                "forced shutdown"
+            )
+
+        else:
+            print(
+                f"[FAIL] Could not stop "
+                f"{service_id}"
+            )
+            failed = True
+
+    if failed:
+        sys.exit(1)
+
+    print()
+    print("Starting services")
+    print("-----------------")
+
+    for service in manifest["services"]:
+        if not service["enabled"]:
+            continue
+
+        service_id = service["id"]
+
+        print(
+            f"Starting {service_id}: "
+            f"{service['provider']}"
+        )
+
+        timeout = (
+            240
+            if service["role"] == "inference"
+            else 180
+        )
+
+        result = start_service(
+            service_id,
+            service["spec"],
+            executor,
+            timeout=timeout,
+        )
+
+        status = result["status"]
+
+        if status == "ready":
+            print(
+                f"[PASS] {service_id} running"
+            )
+
+        elif status == "already_running":
+            print(
+                f"[PASS] {service_id} "
+                "already running"
+            )
+
+        elif status == "starting":
+            print(
+                f"[INFO] {service_id} "
+                "is still starting"
+            )
+            print("Log:", result["log"])
+
+        else:
+            print(
+                f"[FAIL] {service_id} "
+                "failed to start"
+            )
+            print(
+                result.get(
+                    "log_tail",
+                    "",
+                )
+            )
+            failed = True
+            break
+
+    if failed:
+        sys.exit(1)
+
+elif sys.argv[1] == "logs":
+    config = load_config()
+    plan = build_initial_plan()
+
+    manifest = build_deployment_manifest(
+        plan,
+        config
+    )
+
+    requested_service = (
+        sys.argv[2]
+        if len(sys.argv) >= 3
+        else None
+    )
+
+    enabled_services = [
+        service
+        for service in manifest["services"]
+        if service["enabled"]
+    ]
+
+    if requested_service:
+        enabled_services = [
+            service
+            for service in enabled_services
+            if service["id"] == requested_service
+        ]
+
+        if not enabled_services:
+            print(
+                f"Unknown or disabled service: "
+                f"{requested_service}"
+            )
+            sys.exit(1)
+
+    print("AI Stack logs")
+    print("=============")
+
+    for service in enabled_services:
+        service_id = service["id"]
+
+        print()
+        print(
+            f"{service_id}: "
+            f"{service['provider']}"
+        )
+        print("-" * 50)
+
+        output = tail_log(
+            service_id,
+            lines=40,
+        )
+
+        if output:
+            print(output)
+        else:
+            print(
+                "No log output available."
+            )
+
+elif sys.argv[1] == "prepare":
+    config = load_config()
+
+    runtimes = required_runtimes(config)
+
+    print("Preparing AI Stack")
+    print("==================")
+
+    if not runtimes:
+        print(
+            "No generated runtimes are "
+            "required for this configuration."
+        )
+
+    for runtime_name in runtimes:
+        print()
+        print(
+            f"Preparing runtime: "
+            f"{runtime_name}"
+        )
+
+        result = ensure_runtime(
+            runtime_name
+        )
+
+        if result["status"] == "existing":
+            print(
+                "[PASS] Already available"
+            )
+        else:
+            print(
+                "[PASS] Runtime created"
+            )
+
+        print(
+            "Executable:",
+            result["executable"]
+        )
+
+elif sys.argv[1] == "preflight":
+    config = load_config()
+    plan = build_initial_plan()
+
+    manifest = build_deployment_manifest(
+        plan,
+        config
+    )
+
+    checks = run_preflight(
+        manifest,
+        config
+    )
+
+    print("Deployment preflight")
+    print("====================")
+
+    for check in checks:
+        label = {
+            "pass": "PASS",
+            "fail": "FAIL",
+            "warning": "WARN",
+        }[check["status"]]
+
+        print(
+            f"[{label}] "
+            f"{check['name']}: "
+            f"{check['detail']}"
+        )
+
+    ready = all(
+        check["status"] != "fail"
+        for check in checks
+    )
+
+    print()
+    print("Ready:", ready)
+
+elif sys.argv[1] == "test":
+    config = load_config()
+    plan = build_initial_plan()
+
+    model = plan["selected_model"]
+
+    if not model:
+        print(
+            "[FAIL] No model is selected."
+        )
+        sys.exit(1)
+
+    ai_endpoint = resolve_gateway_endpoint(
+        plan,
+        config,
+    )
+
+    inference_url = (
+        "http://"
+        f"{ai_endpoint['host']}:"
+        f"{ai_endpoint['port']}"
+    )
+
+    frontend_url = (
+        "http://"
+        f"{config['network']['frontend_host']}:"
+        f"{config['network']['frontend_port']}"
+    )
+
+    platform_api_url = (
+        "http://"
+        f"{config['platform_api']['host']}:"
+        f"{config['platform_api']['port']}"
+    )
+
+    model_name = (
+        config["inference"][
+            "served_model_name"
+        ]
+    )
+
+    print("AI Stack acceptance test")
+    print("========================")
+
+    analytics = config.get(
+        "analytics",
+        {},
+    )
+
+    usage_event_lookup = None
+
+    if analytics.get(
+        "enabled",
+        False,
+    ):
+        usage_store = (
+            get_usage_store_adapter(
+                analytics["provider"]
+            )
+        )
+
+        usage_event_lookup = (
+            lambda event_id:
+            usage_store.find_event(
+                event_id,
+                config,
+            )
+        )
+
+    results = run_acceptance_test(
+        inference_url,
+        frontend_url,
+        platform_api_url,
+        model_name,
+        usage_event_lookup=(
+            usage_event_lookup
+        ),
+    )
+
+    passed = True
+
+    for result in results:
+        state = (
+            "PASS"
+            if result["passed"]
+            else "FAIL"
+        )
+
+        print()
+        print(
+            f"[{state}] "
+            f"{result['name']}"
+        )
+
+        print(
+            "       ",
+            result["detail"],
+        )
+
+        usage = result.get("usage")
+
+        if usage:
+            print(
+                "        tokens:",
+                f"input={usage['prompt_tokens']},",
+                f"output={usage['completion_tokens']},",
+                f"total={usage['total_tokens']}",
+            )
+
+        if not result["passed"]:
+            passed = False
+
+    print()
+    print(
+        "Acceptance:",
+        "PASS" if passed else "FAIL",
+    )
+
+    if not passed:
+        sys.exit(1)
+
+elif sys.argv[1] == "health":
+    config = load_config()
+    plan = build_initial_plan()
+
+    manifest = build_deployment_manifest(
+        plan,
+        config
+    )
+
+    results = check_deployment_health(
+        manifest
+    )
+
+    print("Deployment health")
+    print("=================")
+
+    healthy = True
+
+    for result in results:
+        state = (
+            "PASS"
+            if result["healthy"]
+            else "FAIL"
+        )
+
+        print(
+            f"[{state}] "
+            f"{result['service']}: "
+            f"{result['detail']}"
+        )
+
+        if not result["healthy"]:
+            healthy = False
+
+    print()
+    print("Healthy:", healthy)
+
+    if not healthy:
+        sys.exit(1)
+
+elif sys.argv[1] == "state":
+    import json
+
+    state = build_platform_state()
+
+    print(
+        json.dumps(
+            state,
+            indent=2,
+        )
+    )
+
+elif sys.argv[1] == "status":
+    plan = build_initial_plan()
+    config = load_config()
+
+    services = get_runtime_status(plan, config)
+
+    print("Runtime status")
+    print("--------------")
+
+    for service in services:
+        state = "RUNNING" if service["running"] else "STOPPED"
+
+        print(
+            f"{service['role']}: "
+            f"{service['provider']} "
+            f"-> {service['host']}:{service['port']} "
+            f"[{state}]"
+        )
+
+elif sys.argv[1] == "config":
+    config = load_config()
+
+    print("Current configuration")
+    print("---------------------")
+
+    for section, values in config.items():
+        print()
+        print(f"[{section}]")
+
+        for key, value in values.items():
+            print(f"{key}: {value}")
+
+elif sys.argv[1] == "models":
+    models = list_local_models()
+
+    print("Local models")
+    print("------------")
+
+    if not models:
+        print("No local models found.")
+    else:
+        for model in models:
+            print()
+            print(model["name"])
+            print(f"  Architecture:  {model['architecture'] or 'Unknown'}")
+            print(f"  Type:          {model['model_type'] or 'Unknown'}")
+            print(f"  Size:          {model['size_gb']:.1f} GB")
+            print(f"  Weights:       {', '.join(model['weight_formats']) or 'Unknown'}")
+            print(f"  Quantization:  {model['quantization_method'] or 'None detected'}")
+            print(f"  Context:       {model['max_position_embeddings'] or 'Unknown'}")
+            print(f"  Path:          {model['path']}")
+
+else:
+    print(f"Unknown command: {sys.argv[1]}")
