@@ -11,6 +11,17 @@ from core.config import load_config
 STORAGE_PROBE_SCHEMA_VERSION = 1
 
 
+#
+# Sentinel for "resolve the ceiling from configuration", which is what
+# every existing caller wants and gets by not passing the argument.
+#
+# An explicit `max_probe_bytes=None` means no ceiling at all. Host
+# characterization uses that; its bound is an iteration budget rather
+# than a probe size.
+#
+USE_CONFIGURED_PROBE_CEILING = object()
+
+
 def _resolve_probe_directory(
     config,
 ):
@@ -45,6 +56,7 @@ def probe_required_capacity(
     requested_bytes,
     *,
     config=None,
+    max_probe_bytes=USE_CONFIGURED_PROBE_CEILING,
 ):
     """
     Empirically test whether the filesystem can reserve
@@ -101,17 +113,39 @@ def probe_required_capacity(
             "requested_bytes must be positive."
         )
 
-    max_probe_bytes = int(
-        float(
-            settings.get(
-                "probe_max_gb",
-                64.0,
+    #
+    # Ceiling resolution, in order of specificity:
+    #
+    #   argument omitted  -> configured `probe_max_gb`, unchanged
+    #   explicit None     -> no ceiling
+    #   explicit integer  -> that ceiling
+    #
+    if max_probe_bytes is USE_CONFIGURED_PROBE_CEILING:
+        max_probe_bytes = int(
+            float(
+                settings.get(
+                    "probe_max_gb",
+                    64.0,
+                )
             )
+            * (1024 ** 3)
         )
-        * (1024 ** 3)
-    )
 
-    if requested_bytes > max_probe_bytes:
+    elif max_probe_bytes is not None:
+        max_probe_bytes = int(
+            max_probe_bytes
+        )
+
+        if max_probe_bytes <= 0:
+            raise ValueError(
+                "max_probe_bytes must be positive "
+                "or None"
+            )
+
+    if (
+        max_probe_bytes is not None
+        and requested_bytes > max_probe_bytes
+    ):
         return {
             "schema_version": (
                 STORAGE_PROBE_SCHEMA_VERSION
