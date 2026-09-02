@@ -235,13 +235,22 @@ def run_preflight(manifest, config):
             )
         )
 
-    checks.append(
-        check_path(
-            "Open WebUI data",
-            config["platform"]["data_root"]
-            + "/open-webui-data",
+    frontend = config["frontend"]
+
+    # Provider-specific readiness only applies when that frontend
+    # is actually configured. The backend must be deployable with
+    # no end-user frontend at all.
+    if (
+        frontend["enabled"]
+        and frontend["provider"] == "openwebui"
+    ):
+        checks.append(
+            check_path(
+                "Open WebUI data",
+                config["platform"]["data_root"]
+                + "/open-webui-data",
+            )
         )
-    )
 
     network = config["network"]
 

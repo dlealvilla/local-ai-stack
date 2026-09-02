@@ -3,9 +3,13 @@ data_root = "/workspace"
 stage = "bootstrap"
 
 [frontend]
+# The platform backend is independently deployable: gateway, control
+# API and inference need no end-user frontend. A frontend is therefore
+# opt-in. Open WebUI remains a supported replaceable implementation and
+# can be enabled explicitly.
 provider = "openwebui"
 version = "0.11.0"
-enabled = true
+enabled = false
 
 [gateway]
 # PROVISIONAL:
