@@ -12,7 +12,10 @@ substantial architectural changes:
 - @docs/PRODUCT_VISION.md — north star, Company Brain, portability
 - @docs/ROADMAP.md — 17-phase MVP roadmap, Phase 9 contract
 - @docs/DEVELOPMENT_WORKFLOW.md — branch/GPU workflow **and the bounded-step
-  development protocol you must follow**
+ development protocol you must follow**
+- @docs/CAPACITY_ARCHITECTURE.md — authoritative for host characterization,
+ capacity contracts, storage evidence, model requirements, feasibility and
+ selection, plus its migration/versioning/robustness strategy
 
 ## Invariants
 
@@ -25,7 +28,10 @@ substantial architectural changes:
 - Docker, vLLM and LiteLLM are replaceable modules, never permanent
   dependencies. Native process execution is first class.
 - Permission and privacy architecture is non-negotiable. Permission-aware
-  retrieval is required; customer content stays local by default.
+ retrieval is required; customer content stays local by default.
+- Reported capacity never authorizes an allocation or mutation. Only
+ conservative safe capacity backed by verified evidence does, and
+ characterization is decision-bounded rather than accuracy-maximizing.
 
 ## Working rules
 

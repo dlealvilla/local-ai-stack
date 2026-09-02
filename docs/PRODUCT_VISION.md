@@ -41,6 +41,23 @@ download/run product
 Advanced/manual controls must also exist for technical administrators,
 but automatic safe recommendations are the default.
 
+## Capacity and model optimization as core differentiator
+
+The steps above that determine what a host can safely run, and which
+model best uses it, are not internal plumbing. They are the product's
+central differentiator: the platform extracts more usable value per
+purchased GPU-hour and gigabyte than manual configuration, without
+gambling with stability.
+
+Two commitments follow. Capacity evidence is conservative and
+explainable, so a confident wrong answer is never preferred to an
+honest uncertain one. And characterization is decision-bounded: the
+platform characterizes only as much as the current decision requires,
+because a bootstrap that spends an hour measuring storage has already
+failed the administrator.
+
+`docs/CAPACITY_ARCHITECTURE.md` is authoritative for this domain.
+
 ## Portability
 
 "Any server" means capability-based portability across supported

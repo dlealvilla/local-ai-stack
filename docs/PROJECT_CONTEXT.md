@@ -2,8 +2,14 @@
 
 Authoritative orientation for any Cursor Agent session working on this
 repository. Read this together with `docs/PRODUCT_VISION.md`,
-`docs/ROADMAP.md` and `docs/DEVELOPMENT_WORKFLOW.md` before proposing
-substantial architectural changes.
+`docs/ROADMAP.md`, `docs/DEVELOPMENT_WORKFLOW.md` and
+`docs/CAPACITY_ARCHITECTURE.md` before proposing substantial
+architectural changes.
+
+`docs/CAPACITY_ARCHITECTURE.md` is authoritative for host
+characterization, capacity representation, storage evidence, model
+requirements, feasibility and model selection, including its migration,
+versioning and robustness strategy.
 
 ---
 
@@ -138,6 +144,22 @@ ResourceManager cleanup still succeeded:
 
 Treat this as an unresolved smoke-test/runtime-response issue, **not** as
 evidence of corrupted ResourceManager state.
+
+## Known unresolved issue — foreground storage characterization cost
+
+A clean-room acquisition attempt proved the storage machinery is sound
+and correctly fails closed, but is operationally too expensive in the
+foreground. Against a 6.70 GiB transaction requirement, calibration ran
+about 48 minutes without converging, because it searched for the pool
+ceiling rather than stopping once evidence exceeded the requirement.
+Interruption also lost all empirical evidence, and the probe orphaned a
+42,990 MiB temporary file because it ran in a daemon HTTP worker thread.
+
+The integration code that exposed this is preserved as experimental
+evidence only, not accepted implementation, under
+`/workspace/checkpoints/step-chain/`. Remediation is designed in
+`docs/CAPACITY_ARCHITECTURE.md` as decision-bounded characterization
+(steps C3A to C3C).
 
 ---
 
