@@ -12,6 +12,24 @@ STATE_DIR = PROJECT_ROOT / ".state"
 LOG_DIR = PROJECT_ROOT / "logs"
 
 
+def enabled_services(manifest):
+    """
+    The services the lifecycle may act on.
+
+    A service that is not enabled is unsatisfied by the current
+    deployment description and has no specification, so it is never
+    started, stopped or handed to an executor. A host with no model
+    therefore yields a manifest whose inference service is simply
+    absent from lifecycle operations.
+    """
+
+    return [
+        service
+        for service in manifest["services"]
+        if service["enabled"]
+    ]
+
+
 def pid_file(service_id):
     return STATE_DIR / f"{service_id}.pid"
 

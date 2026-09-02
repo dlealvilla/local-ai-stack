@@ -14,7 +14,12 @@ from adapters.inference import get_inference_adapter
 from adapters.executor import get_executor
 from adapters.gateway import resolve_gateway_endpoint
 from adapters.usage_store import get_usage_store_adapter
-from core.lifecycle import start_service, stop_service, tail_log
+from core.lifecycle import (
+    enabled_services,
+    start_service,
+    stop_service,
+    tail_log,
+)
 from core.health import check_deployment_health
 from core.acceptance import run_acceptance_test
 from core.platform_state import build_platform_state
@@ -132,10 +137,14 @@ elif sys.argv[1] == "start":
 
     if manifest["model"] is None:
         print(
-            "Cannot start: no model is selected."
+            "Inference is unavailable: no model is selected."
         )
         print(plan["model_reason"])
-        sys.exit(1)
+        print(
+            "Starting the remaining satisfiable services so a "
+            "model can be acquired."
+        )
+        print()
 
     executor_name = config["runtime"]["executor"]
     executor = get_executor(executor_name)
@@ -152,10 +161,7 @@ elif sys.argv[1] == "start":
 
     failed = False
 
-    for service in manifest["services"]:
-        if not service["enabled"]:
-            continue
-
+    for service in enabled_services(manifest):
         service_id = service["id"]
 
         print()
@@ -241,11 +247,8 @@ elif sys.argv[1] == "stop":
     # Stop in reverse dependency order:
     # frontend first, inference last.
     for service in reversed(
-        manifest["services"]
+        enabled_services(manifest)
     ):
-        if not service["enabled"]:
-            continue
-
         service_id = service["id"]
 
         print()
@@ -311,10 +314,14 @@ elif sys.argv[1] == "restart":
 
     if manifest["model"] is None:
         print(
-            "Cannot restart: no model is selected."
+            "Inference is unavailable: no model is selected."
         )
         print(plan["model_reason"])
-        sys.exit(1)
+        print(
+            "Restarting the remaining satisfiable services so a "
+            "model can be acquired."
+        )
+        print()
 
     executor_name = config["runtime"]["executor"]
     executor = get_executor(executor_name)
@@ -336,11 +343,8 @@ elif sys.argv[1] == "restart":
     print("-----------------")
 
     for service in reversed(
-        manifest["services"]
+        enabled_services(manifest)
     ):
-        if not service["enabled"]:
-            continue
-
         service_id = service["id"]
 
         result = stop_service(
@@ -379,10 +383,7 @@ elif sys.argv[1] == "restart":
     print("Starting services")
     print("-----------------")
 
-    for service in manifest["services"]:
-        if not service["enabled"]:
-            continue
-
+    for service in enabled_services(manifest):
         service_id = service["id"]
 
         print(
@@ -455,20 +456,16 @@ elif sys.argv[1] == "logs":
         else None
     )
 
-    enabled_services = [
-        service
-        for service in manifest["services"]
-        if service["enabled"]
-    ]
+    services = enabled_services(manifest)
 
     if requested_service:
-        enabled_services = [
+        services = [
             service
-            for service in enabled_services
+            for service in services
             if service["id"] == requested_service
         ]
 
-        if not enabled_services:
+        if not services:
             print(
                 f"Unknown or disabled service: "
                 f"{requested_service}"
@@ -478,7 +475,7 @@ elif sys.argv[1] == "logs":
     print("AI Stack logs")
     print("=============")
 
-    for service in enabled_services:
+    for service in services:
         service_id = service["id"]
 
         print()
