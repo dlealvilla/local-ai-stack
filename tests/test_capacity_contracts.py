@@ -19,6 +19,7 @@ from core.capacity_contracts import (
     CAPACITY_CONTRACTS_SCHEMA_VERSION,
     PLATFORM_DATA_STORAGE_POOL_ID,
     build_capacity_envelope,
+    build_headroom_policy,
     build_host_capability_profile,
 )
 from core.resource_capacity import build_resource_capacity
@@ -312,7 +313,7 @@ class MemoryParityTests(unittest.TestCase):
             safety["protected_reserve_bytes"],
         )
         self.assertEqual(
-            actual.safe_available_before_reservations_bytes,
+            actual.observed_safe_available_bytes,
             safety["safe_available_before_reservations_bytes"],
         )
         self.assertEqual(
@@ -333,7 +334,7 @@ class MemoryParityTests(unittest.TestCase):
             GOLDEN_RAM_PROTECTED,
         )
         self.assertEqual(
-            pool.safe_available_before_reservations_bytes,
+            pool.observed_safe_available_bytes,
             GOLDEN_RAM_SAFE,
         )
 
@@ -349,7 +350,7 @@ class MemoryParityTests(unittest.TestCase):
             GOLDEN_VRAM_PROTECTED,
         )
         self.assertEqual(
-            pool.safe_available_before_reservations_bytes,
+            pool.observed_safe_available_bytes,
             GOLDEN_VRAM_SAFE,
         )
 
@@ -360,13 +361,13 @@ class MemoryParityTests(unittest.TestCase):
 
         self.assertEqual(pool.reported_available_bytes, HOST_VRAM_FREE)
         self.assertLess(
-            pool.safe_available_before_reservations_bytes,
+            pool.observed_safe_available_bytes,
             pool.reported_available_bytes,
         )
         self.assertEqual(
             pool.reported_available_bytes
             - pool.protected_reserve_bytes,
-            pool.safe_available_before_reservations_bytes,
+            pool.observed_safe_available_bytes,
         )
 
     def test_unresolved_pool_stays_unresolved(self):
@@ -405,7 +406,7 @@ class MemoryParityTests(unittest.TestCase):
         )
         self.assertIsNone(pool.protected_reserve_bytes)
         self.assertIsNone(
-            pool.safe_available_before_reservations_bytes
+            pool.observed_safe_available_bytes
         )
         self.assertIn(
             "accelerator:0:memory",
@@ -452,11 +453,11 @@ class ReservationAccountingTests(unittest.TestCase):
             snapshot_dict["reserved"]["accelerator:0:memory"],
         )
         self.assertEqual(
-            pool.safe_available_bytes,
+            pool.safe_available_for_additional_workload_bytes,
             snapshot_dict["available"]["accelerator:0:memory"],
         )
         self.assertEqual(
-            pool.ledger_capacity_bytes,
+            pool.reconstructed_safe_pool_capacity_bytes,
             snapshot_dict["capacities"]["accelerator:0:memory"],
         )
 
@@ -487,15 +488,18 @@ class ReservationAccountingTests(unittest.TestCase):
 
         pool = envelope.memory_pool("accelerator:0:memory")
 
-        self.assertEqual(pool.safe_available_bytes, observed_safe)
+        self.assertEqual(
+            pool.safe_available_for_additional_workload_bytes,
+            observed_safe,
+        )
 
         double_subtracted = (
-            pool.safe_available_before_reservations_bytes
+            pool.observed_safe_available_bytes
             - self.reserved_bytes
         )
 
         self.assertNotEqual(
-            pool.safe_available_bytes,
+            pool.safe_available_for_additional_workload_bytes,
             double_subtracted,
         )
 
@@ -509,9 +513,9 @@ class ReservationAccountingTests(unittest.TestCase):
 
         self.assertFalse(envelope.reservations_applied)
         self.assertIsNone(pool.managed_reserved_bytes)
-        self.assertIsNone(pool.safe_available_bytes)
+        self.assertIsNone(pool.safe_available_for_additional_workload_bytes)
         self.assertIsNotNone(
-            pool.safe_available_before_reservations_bytes
+            pool.observed_safe_available_bytes
         )
 
 
@@ -814,8 +818,8 @@ class MultiplePoolIdentityTests(unittest.TestCase):
             second.reported_total_bytes,
         )
         self.assertNotEqual(
-            first.safe_available_before_reservations_bytes,
-            second.safe_available_before_reservations_bytes,
+            first.observed_safe_available_bytes,
+            second.observed_safe_available_bytes,
         )
 
     def test_storage_is_a_collection_not_a_scalar(self):
@@ -892,7 +896,7 @@ class NormalizationPurityTests(unittest.TestCase):
             envelope.schema_version = 2
 
         with self.assertRaises(Exception):
-            envelope.memory_pools[0].safe_available_bytes = 1
+            envelope.memory_pools[0].protected_reserve_bytes = 1
 
     def test_non_mapping_inputs_are_rejected(self):
         with self.assertRaises(TypeError):
@@ -927,6 +931,540 @@ class NormalizationPurityTests(unittest.TestCase):
             CAPACITY_CONTRACTS_SCHEMA_VERSION,
         )
         self.assertEqual(len(serialized["storage_pools"]), 1)
+
+
+class HeadroomPolicyTests(unittest.TestCase):
+    """Policy is an input read from its owner, never a second calculator."""
+
+    def setUp(self):
+        self.snapshot = snapshot()
+        self.resource_safety = build_resource_safety(
+            build_resource_capacity(self.snapshot)
+        )
+        self.plan, _ = storage_plan(verified_capacity_resolution())
+        self.policy = build_headroom_policy(
+            resource_safety=self.resource_safety,
+            storage_plan=self.plan,
+        )
+
+    def test_ram_policy_matches_resource_safety(self):
+        owner = self.resource_safety["policy"]["system_ram"]
+        policy = self.policy.for_memory_type("system_ram")
+
+        self.assertEqual(
+            policy.reserve_fraction,
+            owner["reserve_fraction"],
+        )
+        self.assertEqual(
+            policy.minimum_reserve_bytes,
+            owner["minimum_reserve_bytes"],
+        )
+
+        # Current validated defaults.
+        self.assertEqual(policy.reserve_fraction, 0.10)
+        self.assertEqual(policy.minimum_reserve_bytes, 4 * GIB)
+
+    def test_dedicated_vram_policy_matches_resource_safety(self):
+        owner = self.resource_safety["policy"]["dedicated_vram"]
+        policy = self.policy.for_memory_type("dedicated_vram")
+
+        self.assertEqual(
+            policy.reserve_fraction,
+            owner["reserve_fraction"],
+        )
+        self.assertEqual(
+            policy.minimum_reserve_bytes,
+            owner["minimum_reserve_bytes"],
+        )
+
+        self.assertEqual(policy.reserve_fraction, 0.10)
+        self.assertEqual(policy.minimum_reserve_bytes, 1 * GIB)
+
+    def test_fail_closed_architectures_carry_a_strategy_not_a_fraction(self):
+        unified = self.policy.for_memory_type("unified_memory")
+
+        self.assertFalse(unified.resolved)
+        self.assertIsNone(unified.reserve_fraction)
+        self.assertEqual(
+            unified.strategy,
+            self.resource_safety["policy"]["unified_memory"][
+                "strategy"
+            ],
+        )
+
+    def test_policy_follows_an_administrator_override(self):
+        # Reading the policy the calculation actually applied means an
+        # override cannot desynchronize policy from result.
+        override = {
+            "system_ram": {
+                "reserve_fraction": 0.25,
+                "minimum_reserve_bytes": 8 * GIB,
+            },
+            "dedicated_vram": {
+                "reserve_fraction": 0.10,
+                "minimum_reserve_bytes": 1 * GIB,
+            },
+        }
+
+        safety = build_resource_safety(
+            build_resource_capacity(self.snapshot),
+            policy=override,
+        )
+
+        policy = build_headroom_policy(resource_safety=safety)
+
+        self.assertEqual(
+            policy.for_memory_type("system_ram").reserve_fraction,
+            0.25,
+        )
+
+    def test_storage_policy_is_read_from_the_storage_owner(self):
+        owner = self.plan["capacity"]["allocation_policy"]
+
+        self.assertEqual(
+            self.policy.storage.protected_free_fraction,
+            owner["protected_free_fraction"],
+        )
+        self.assertEqual(
+            self.policy.storage.minimum_reserve_bytes,
+            owner["minimum_reserve_bytes"],
+        )
+        self.assertEqual(
+            self.policy.storage.platform_allocation_percent,
+            self.plan["platform_budget"][
+                "platform_allocation_percent"
+            ],
+        )
+
+    def test_storage_policy_absent_without_a_storage_plan(self):
+        policy = build_headroom_policy(
+            resource_safety=self.resource_safety
+        )
+
+        self.assertIsNone(policy.storage)
+
+    def test_policy_is_an_input_not_a_result(self):
+        # The policy carries no calculated byte figures, and the
+        # calculated reserve is not on the policy.
+        policy = self.policy.for_memory_type("dedicated_vram")
+
+        self.assertFalse(
+            hasattr(policy, "protected_reserve_bytes")
+        )
+
+        envelope = build_capacity_envelope(
+            capacity_snapshot=self.snapshot,
+            resource_safety=self.resource_safety,
+        )
+        pool = envelope.memory_pool("accelerator:0:memory")
+
+        self.assertEqual(
+            pool.protected_reserve_bytes,
+            GOLDEN_VRAM_PROTECTED,
+        )
+        self.assertNotEqual(
+            pool.protected_reserve_bytes,
+            policy.minimum_reserve_bytes,
+        )
+
+    def test_envelope_links_a_pool_to_the_policy_that_produced_it(self):
+        envelope = build_capacity_envelope(
+            capacity_snapshot=self.snapshot,
+            resource_safety=self.resource_safety,
+            storage_plan=self.plan,
+        )
+
+        pool = envelope.memory_pool("accelerator:0:memory")
+
+        self.assertEqual(pool.headroom_policy_key, "dedicated_vram")
+
+        linked = envelope.policy_for("accelerator:0:memory")
+
+        self.assertEqual(linked.memory_type, "dedicated_vram")
+        self.assertEqual(linked.reserve_fraction, 0.10)
+
+        # The full explainable chain: policy -> reserve -> safe.
+        self.assertEqual(
+            pool.reported_total_bytes,
+            HOST_VRAM_TOTAL,
+        )
+        self.assertEqual(
+            int(
+                linked.reserve_fraction * pool.reported_total_bytes
+            ),
+            pool.protected_reserve_bytes,
+        )
+
+    def test_policy_schema_version(self):
+        self.assertEqual(
+            self.policy.schema_version,
+            CAPACITY_CONTRACTS_SCHEMA_VERSION,
+        )
+
+
+class AccountingSemanticsTests(unittest.TestCase):
+    """The three questions an engineer must be able to answer."""
+
+    def setUp(self):
+        self.snapshot = snapshot()
+        self.resource_safety = build_resource_safety(
+            build_resource_capacity(self.snapshot)
+        )
+        self.pool_id = "accelerator:0:memory"
+        self.reserved = 8 * GIB
+
+        self.ledger = ResourceReservationLedger(
+            reservation_capacities_from_resource_safety(
+                self.resource_safety
+            )
+        )
+
+    def envelope_with_ledger(self):
+        return build_capacity_envelope(
+            capacity_snapshot=self.snapshot,
+            resource_safety=self.resource_safety,
+            reservation_snapshot=(
+                self.ledger.snapshot().to_dict()
+            ),
+        )
+
+    def test_reservation_not_yet_physically_consumed(self):
+        # The observation still shows the memory free, so ledger
+        # capacity stays at the pre-reservation observed figure via the
+        # min() guard and only the ledger's available figure drops.
+        self.ledger.reserve(
+            "workload-a",
+            {self.pool_id: self.reserved},
+        )
+
+        pool = self.envelope_with_ledger().memory_pool(self.pool_id)
+
+        self.assertEqual(
+            pool.reconstructed_safe_pool_capacity_bytes,
+            GOLDEN_VRAM_SAFE,
+        )
+        self.assertEqual(
+            pool.managed_reserved_bytes,
+            self.reserved,
+        )
+        self.assertEqual(
+            pool.safe_available_for_additional_workload_bytes,
+            GOLDEN_VRAM_SAFE - self.reserved,
+        )
+
+    def test_reservation_physically_consumed_is_not_subtracted_twice(self):
+        # Once the workload consumes memory, the live observation drops
+        # by the reserved amount. ResourceManager reconstructs the pool
+        # total by adding managed reservations back, so the additional
+        # capacity figure must not fall a second time.
+        consumed_snapshot = snapshot()
+        consumed_snapshot["accelerators"][0]["memory"] = {
+            "total_bytes": HOST_VRAM_TOTAL,
+            "used_bytes": HOST_VRAM_USED + self.reserved,
+            "free_bytes": HOST_VRAM_FREE - self.reserved,
+        }
+
+        consumed_safety = build_resource_safety(
+            build_resource_capacity(consumed_snapshot)
+        )
+
+        observed_now = next(
+            pool["safety"][
+                "safe_available_before_reservations_bytes"
+            ]
+            for pool in consumed_safety["resource_pools"]
+            if pool["pool_id"] == self.pool_id
+        )
+
+        self.assertEqual(
+            observed_now,
+            GOLDEN_VRAM_SAFE - self.reserved,
+        )
+
+        self.ledger.reserve(
+            "workload-a",
+            {self.pool_id: self.reserved},
+        )
+
+        # Reconstruction as ResourceManager performs it.
+        self.ledger.set_capacities(
+            {
+                self.pool_id: min(
+                    GOLDEN_VRAM_SAFE,
+                    observed_now + self.reserved,
+                ),
+            }
+        )
+
+        envelope = build_capacity_envelope(
+            capacity_snapshot=consumed_snapshot,
+            resource_safety=consumed_safety,
+            reservation_snapshot=(
+                self.ledger.snapshot().to_dict()
+            ),
+        )
+        pool = envelope.memory_pool(self.pool_id)
+
+        naive = observed_now - self.reserved
+
+        self.assertEqual(
+            pool.observed_safe_available_bytes,
+            observed_now,
+        )
+        self.assertEqual(
+            pool.reconstructed_safe_pool_capacity_bytes,
+            GOLDEN_VRAM_SAFE,
+        )
+        self.assertEqual(
+            pool.safe_available_for_additional_workload_bytes,
+            GOLDEN_VRAM_SAFE - self.reserved,
+        )
+        self.assertNotEqual(
+            pool.safe_available_for_additional_workload_bytes,
+            naive,
+        )
+
+    def test_additional_capacity_matches_the_authoritative_ledger(self):
+        self.ledger.reserve(
+            "workload-a",
+            {self.pool_id: self.reserved},
+        )
+
+        ledger_view = self.ledger.snapshot().to_dict()
+        pool = self.envelope_with_ledger().memory_pool(self.pool_id)
+
+        self.assertEqual(
+            pool.safe_available_for_additional_workload_bytes,
+            ledger_view["available"][self.pool_id],
+        )
+        self.assertEqual(
+            pool.reconstructed_safe_pool_capacity_bytes,
+            ledger_view["capacities"][self.pool_id],
+        )
+
+    def test_managed_reserved_is_separate_from_pool_capacity(self):
+        self.ledger.reserve(
+            "workload-a",
+            {self.pool_id: self.reserved},
+        )
+
+        pool = self.envelope_with_ledger().memory_pool(self.pool_id)
+
+        self.assertNotEqual(
+            pool.managed_reserved_bytes,
+            pool.reconstructed_safe_pool_capacity_bytes,
+        )
+        self.assertEqual(
+            pool.reconstructed_safe_pool_capacity_bytes
+            - pool.managed_reserved_bytes,
+            pool.safe_available_for_additional_workload_bytes,
+        )
+
+    def test_unmanaged_usage_only_when_derivable(self):
+        # With no managed reservations, observed usage is unmanaged.
+        pool = self.envelope_with_ledger().memory_pool(self.pool_id)
+
+        self.assertEqual(
+            pool.unmanaged_usage_bytes,
+            HOST_VRAM_USED,
+        )
+        self.assertEqual(
+            pool.unmanaged_usage_basis,
+            "all_observed_usage_unmanaged",
+        )
+
+        # Once a reservation exists the split is not derivable, because
+        # a reservation is an entitlement rather than a measurement.
+        self.ledger.reserve(
+            "workload-a",
+            {self.pool_id: self.reserved},
+        )
+
+        pool = self.envelope_with_ledger().memory_pool(self.pool_id)
+
+        self.assertIsNone(pool.unmanaged_usage_bytes)
+        self.assertEqual(
+            pool.unmanaged_usage_basis,
+            "not_derivable_with_active_reservations",
+        )
+
+    def test_unmanaged_usage_unknown_without_reservation_state(self):
+        envelope = build_capacity_envelope(
+            capacity_snapshot=self.snapshot,
+            resource_safety=self.resource_safety,
+        )
+        pool = envelope.memory_pool(self.pool_id)
+
+        self.assertIsNone(pool.unmanaged_usage_bytes)
+        self.assertEqual(
+            pool.unmanaged_usage_basis,
+            "managed_reservation_state_unknown",
+        )
+
+    def test_explain_chain_is_ordered_and_attributed(self):
+        self.ledger.reserve(
+            "workload-a",
+            {self.pool_id: self.reserved},
+        )
+
+        pool = self.envelope_with_ledger().memory_pool(self.pool_id)
+        chain = pool.explain()
+
+        self.assertEqual(
+            [entry["stage"] for entry in chain],
+            [
+                "reported_total",
+                "reported_available",
+                "protected_reserve",
+                "observed_safe_available",
+                "reconstructed_safe_pool_capacity",
+                "managed_reserved",
+                "safe_available_for_additional_workload",
+            ],
+        )
+
+        owners = {entry["owner"] for entry in chain}
+
+        self.assertEqual(
+            owners,
+            {
+                "capacity_snapshot",
+                "resource_safety",
+                "reservation_ledger",
+            },
+        )
+
+
+class CpuScopeTests(unittest.TestCase):
+    def test_cpu_capability_without_fabricated_capacity(self):
+        snap = snapshot()
+        safety = build_resource_safety(
+            build_resource_capacity(snap)
+        )
+
+        profile = build_host_capability_profile(
+            capacity_snapshot=snap,
+            resource_capacity=build_resource_capacity(snap),
+        )
+        envelope = build_capacity_envelope(
+            capacity_snapshot=snap,
+            resource_safety=safety,
+        )
+
+        # Capability is known.
+        self.assertEqual(profile.cpu_cores, 128)
+        self.assertIsNotNone(profile.cpu_model)
+
+        # Capacity policy is not.
+        status = envelope.cpu_capacity_status
+
+        self.assertTrue(status.capability_known)
+        self.assertFalse(status.effective_capacity_available)
+        self.assertFalse(status.headroom_policy_available)
+        self.assertEqual(
+            status.reason,
+            "cpu_capacity_policy_not_yet_resolved",
+        )
+
+        # No CPU pool and no CPU headroom policy was invented.
+        self.assertEqual(
+            [
+                pool.pool_id
+                for pool in envelope.memory_pools
+                if "cpu" in pool.pool_id
+            ],
+            [],
+        )
+        self.assertIsNone(
+            envelope.headroom_policy.for_memory_type("cpu")
+        )
+
+    def test_no_effective_total_is_fabricated_for_memory(self):
+        envelope = build_capacity_envelope(
+            capacity_snapshot=snapshot(),
+            resource_safety=build_resource_safety(
+                build_resource_capacity(snapshot())
+            ),
+        )
+        pool = envelope.memory_pool("accelerator:0:memory")
+
+        self.assertFalse(hasattr(pool, "effective_total_bytes"))
+
+
+class StorageHeadroomRepresentationTests(unittest.TestCase):
+    def test_unresolved_storage_has_no_policy_result(self):
+        snap = snapshot()
+        safety = build_resource_safety(
+            build_resource_capacity(snap)
+        )
+        plan, _ = storage_plan(unresolved_capacity_resolution())
+
+        envelope = build_capacity_envelope(
+            capacity_snapshot=snap,
+            resource_safety=safety,
+            storage_plan=plan,
+        )
+        pool = envelope.storage_pool(PLATFORM_DATA_STORAGE_POOL_ID)
+
+        # The policy input still exists.
+        self.assertEqual(
+            envelope.headroom_policy.storage.protected_free_fraction,
+            0.15,
+        )
+
+        # The calculated result does not.
+        self.assertIsNone(pool.protected_reserve_bytes)
+        self.assertIsNone(pool.safe_allocatable_bytes)
+        self.assertFalse(pool.budget_resolved)
+
+        # And the reported signal is not promoted to fill the gap.
+        self.assertEqual(
+            pool.reported_free_bytes,
+            REPORTED_FS_FREE,
+        )
+        self.assertFalse(
+            pool.reported_accepted_as_capacity_evidence
+        )
+
+    def test_storage_explain_chain_keeps_reported_separate(self):
+        snap = snapshot()
+        plan, budget = storage_plan(verified_capacity_resolution())
+
+        envelope = build_capacity_envelope(
+            capacity_snapshot=snap,
+            resource_safety=build_resource_safety(
+                build_resource_capacity(snap)
+            ),
+            storage_plan=plan,
+        )
+        chain = envelope.storage_pool(
+            PLATFORM_DATA_STORAGE_POOL_ID
+        ).explain()
+
+        stages = {entry["stage"]: entry for entry in chain}
+
+        self.assertEqual(
+            stages["reported_free"]["value_bytes"],
+            REPORTED_FS_FREE,
+        )
+        self.assertEqual(
+            stages["verified_lower_bound"]["value_bytes"],
+            32 * GIB,
+        )
+        self.assertEqual(
+            stages["available_for_new_platform"]["value_bytes"],
+            budget["available_for_new_platform_bytes"],
+        )
+
+        # Safe allocatable never exceeds verified evidence.
+        self.assertLessEqual(
+            stages["safe_allocatable"]["value_bytes"],
+            stages["verified_lower_bound"]["value_bytes"],
+        )
+        self.assertLess(
+            stages["safe_allocatable"]["value_bytes"],
+            stages["reported_free"]["value_bytes"],
+        )
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 """Normalized capacity contracts for the capacity/model-optimization work.
 
-AI_DEPLOYMENT_CAPACITY_CONTRACTS_C1
+AI_DEPLOYMENT_CAPACITY_CONTRACTS_C1_C2
 
-See docs/CAPACITY_ARCHITECTURE.md sections 3, 5 and 37.
+See docs/CAPACITY_ARCHITECTURE.md sections 3, 4, 5, 29 and 37.
 
 This module represents already-validated capacity facts coherently. It is
 NOT a second resource calculator:
@@ -13,12 +13,17 @@ NOT a second resource calculator:
     core.resource_safety                 owns protected reserve and
                                          safe-available-before-reservations
     core.resource_reservations           owns managed reservation accounting
-    core.storage_capacity_resolution     owns storage evidence and basis
+    core.storage_capacity_resolution     owns storage evidence, basis
+                                         and storage headroom policy
     core.storage_budget                  owns platform storage budget
 
 Every number exposed here is copied from one of those owners. No formula
 is reimplemented, and no reported value is ever promoted into a verified
 one.
+
+The one derived field is `unmanaged_usage_bytes`, which merely labels
+observed usage and feeds no safety decision. It stays unset whenever the
+attribution is not derivable.
 
 Normalization receives already-established evidence. Nothing in this
 module reads /proc, NVML, the filesystem, configuration or a reservation
@@ -56,6 +61,216 @@ def _nonnegative_int_or_none(value: Any) -> int | None:
         return None
 
     return value
+
+
+# ---------------------------------------------------------------------------
+# HeadroomPolicy
+# ---------------------------------------------------------------------------
+#
+# Policy is an INPUT; a protected byte figure is an OUTPUT. Keeping them
+# apart is what later allows administrator overrides, policy versioning,
+# optimization profiles and explainability.
+#
+# Every value here is read from the authoritative policy owner
+# (core.resource_safety for memory, storage capacity resolution's
+# allocation policy for storage). Nothing is defaulted or hard-coded, so
+# an administrator override of the underlying policy is reflected
+# automatically and this layer can never disagree with the calculation
+# that actually applied.
+#
+
+
+@dataclass(frozen=True)
+class MemoryHeadroomPolicy:
+    """Configured headroom for one memory architecture.
+
+    Either a proportional/floor pair, for architectures whose accounting
+    is resolved, or a `strategy` naming why the architecture fails
+    closed. Unified memory can share physical bytes with system RAM, so
+    it carries a strategy rather than a fraction.
+    """
+
+    memory_type: str
+    reserve_fraction: float | None
+    minimum_reserve_bytes: int | None
+    strategy: str | None
+
+    @property
+    def resolved(self) -> bool:
+        return self.reserve_fraction is not None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class StorageHeadroomPolicy:
+    """Configured storage headroom, owned by storage capacity resolution."""
+
+    protected_free_fraction: float | None
+    minimum_reserve_bytes: int | None
+    warning_free_fraction: float | None
+    platform_allocation_percent: float | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class HeadroomPolicy:
+    """The configured safety inputs that produced an envelope.
+
+    `cpu` is deliberately absent rather than empty. The source detects
+    CPU model and core count but has no cgroup quota, no cpuset
+    effective-core resolution and no CPU reserve policy, so there is no
+    CPU headroom to represent. See `CpuCapacityStatus`.
+    """
+
+    schema_version: int
+    memory: tuple[MemoryHeadroomPolicy, ...]
+    storage: StorageHeadroomPolicy | None
+
+    def for_memory_type(
+        self,
+        memory_type: str | None,
+    ) -> MemoryHeadroomPolicy | None:
+        for policy in self.memory:
+            if policy.memory_type == memory_type:
+                return policy
+
+        return None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "memory": [
+                policy.to_dict()
+                for policy in self.memory
+            ],
+            "storage": (
+                self.storage.to_dict()
+                if self.storage is not None
+                else None
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class CpuCapacityStatus:
+    """Why no CPU capacity figures appear in the envelope.
+
+    CPU capability is known; CPU capacity policy is not yet resolved.
+    This is a schema-level hook so the distinction is explicit instead
+    of looking like an oversight, and it carries no numeric values.
+    """
+
+    capability_known: bool
+    effective_capacity_available: bool
+    headroom_policy_available: bool
+    reason: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+CPU_CAPACITY_POLICY_UNRESOLVED = CpuCapacityStatus(
+    capability_known=True,
+    effective_capacity_available=False,
+    headroom_policy_available=False,
+    reason="cpu_capacity_policy_not_yet_resolved",
+)
+
+
+def build_headroom_policy(
+    *,
+    resource_safety: Mapping[str, Any],
+    storage_plan: Mapping[str, Any] | None = None,
+) -> HeadroomPolicy:
+    """Normalize the configured safety policy that produced the outputs.
+
+    `resource_safety["policy"]` is the authoritative memory policy that
+    `build_resource_safety` actually applied, so reading it here cannot
+    drift from the calculation. Storage policy comes from the capacity
+    resolution's `allocation_policy`, with the administrator allocation
+    percentage from the platform budget.
+    """
+
+    resource_safety = _require_mapping(
+        resource_safety,
+        name="resource_safety",
+    )
+
+    policy = resource_safety.get("policy") or {}
+
+    memory_policies = []
+
+    for memory_type in sorted(policy):
+        entry = policy.get(memory_type) or {}
+
+        if not isinstance(entry, Mapping):
+            continue
+
+        fraction = entry.get("reserve_fraction")
+
+        memory_policies.append(
+            MemoryHeadroomPolicy(
+                memory_type=memory_type,
+                reserve_fraction=(
+                    float(fraction)
+                    if isinstance(fraction, (int, float))
+                    and not isinstance(fraction, bool)
+                    else None
+                ),
+                minimum_reserve_bytes=_nonnegative_int_or_none(
+                    entry.get("minimum_reserve_bytes")
+                ),
+                strategy=entry.get("strategy"),
+            )
+        )
+
+    storage_policy = None
+
+    if storage_plan is not None:
+        storage_plan = _require_mapping(
+            storage_plan,
+            name="storage_plan",
+        )
+
+        allocation_policy = (
+            (storage_plan.get("capacity") or {}).get(
+                "allocation_policy"
+            )
+            or {}
+        )
+        budget = storage_plan.get("platform_budget") or {}
+
+        allocation_percent = budget.get(
+            "platform_allocation_percent"
+        )
+
+        storage_policy = StorageHeadroomPolicy(
+            protected_free_fraction=allocation_policy.get(
+                "protected_free_fraction"
+            ),
+            minimum_reserve_bytes=_nonnegative_int_or_none(
+                allocation_policy.get("minimum_reserve_bytes")
+            ),
+            warning_free_fraction=allocation_policy.get(
+                "warning_free_fraction"
+            ),
+            platform_allocation_percent=(
+                float(allocation_percent)
+                if isinstance(allocation_percent, (int, float))
+                and not isinstance(allocation_percent, bool)
+                else None
+            ),
+        )
+
+    return HeadroomPolicy(
+        schema_version=CAPACITY_CONTRACTS_SCHEMA_VERSION,
+        memory=tuple(memory_policies),
+        storage=storage_policy,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -160,22 +375,49 @@ class HostCapabilityProfile:
 class MemoryPoolCapacity:
     """Current safe state of one memory pool.
 
-    Layer separation is preserved rather than flattened:
+    Field names state the actual mathematics, because the distinction
+    below is easy to get wrong and expensive when wrong:
 
-        reported_*                              observation
-        protected_reserve_bytes                 policy headroom
-        safe_available_before_reservations      observation minus headroom
-        managed_reserved / safe_available       reservation ledger
+        reported_total_bytes
+            observed pool size.
 
-    There is no intermediate `effective` value because the existing
-    implementation does not calculate one for memory; synthesizing it
-    would invent a fact.
+        reported_available_bytes
+            observed free bytes. This ALREADY reflects any managed
+            workload that is physically consuming memory.
 
-    The reservation figures are copied verbatim from the ledger snapshot,
-    which already subtracts managed reservations from its own accounting
-    capacity. They are never derived from
-    `safe_available_before_reservations_bytes`, which would
-    double-subtract.
+        protected_reserve_bytes
+            min(total, max(fraction * total, minimum)), calculated by
+            core.resource_safety from the headroom policy.
+
+        observed_safe_available_bytes
+            max(0, reported_available - protected_reserve), calculated
+            by core.resource_safety. It is a LIVE OBSERVATION minus
+            headroom, not a pool total: if a managed workload is running,
+            its consumption is already subtracted here.
+
+        reconstructed_safe_pool_capacity_bytes
+            the reservation ledger's accounting capacity for the pool,
+            which ResourceManager reconstructs as
+            min(previous_total, observed_safe + managed_reserved) so the
+            figure means "safe pool total including what is reserved".
+
+        managed_reserved_bytes
+            the ledger's current reservation total.
+
+        safe_available_for_additional_workload_bytes
+            the ledger's own `available`, i.e. reconstructed capacity
+            minus managed reservations. This is the answer to "how much
+            can another workload receive".
+
+    Subtracting `managed_reserved_bytes` from
+    `observed_safe_available_bytes` is the double-subtraction bug: for a
+    workload that is already consuming memory, the reservation would be
+    removed twice. All three reservation figures are therefore copied
+    verbatim from the ledger snapshot and never recomputed here.
+
+    There is no `effective_total_bytes`: the existing implementation
+    calculates no intermediate effective value for memory, and inventing
+    one would fabricate a fact.
     """
 
     pool_id: str
@@ -189,15 +431,69 @@ class MemoryPoolCapacity:
 
     safety_resolved: bool
     safety_reason: str | None
+    headroom_policy_key: str | None
     protected_reserve_bytes: int | None
-    safe_available_before_reservations_bytes: int | None
+    observed_safe_available_bytes: int | None
 
-    ledger_capacity_bytes: int | None = None
+    unmanaged_usage_bytes: int | None = None
+    unmanaged_usage_basis: str | None = None
+
+    reconstructed_safe_pool_capacity_bytes: int | None = None
     managed_reserved_bytes: int | None = None
-    safe_available_bytes: int | None = None
+    safe_available_for_additional_workload_bytes: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    def explain(self) -> list[dict[str, Any]]:
+        """The accounting chain, in order, with the owner of each figure."""
+
+        stages = [
+            (
+                "reported_total",
+                self.reported_total_bytes,
+                "capacity_snapshot",
+            ),
+            (
+                "reported_available",
+                self.reported_available_bytes,
+                "capacity_snapshot",
+            ),
+            (
+                "protected_reserve",
+                self.protected_reserve_bytes,
+                "resource_safety",
+            ),
+            (
+                "observed_safe_available",
+                self.observed_safe_available_bytes,
+                "resource_safety",
+            ),
+            (
+                "reconstructed_safe_pool_capacity",
+                self.reconstructed_safe_pool_capacity_bytes,
+                "reservation_ledger",
+            ),
+            (
+                "managed_reserved",
+                self.managed_reserved_bytes,
+                "reservation_ledger",
+            ),
+            (
+                "safe_available_for_additional_workload",
+                self.safe_available_for_additional_workload_bytes,
+                "reservation_ledger",
+            ),
+        ]
+
+        return [
+            {
+                "stage": stage,
+                "value_bytes": value,
+                "owner": owner,
+            }
+            for stage, value, owner in stages
+        ]
 
 
 @dataclass(frozen=True)
@@ -241,6 +537,62 @@ class StoragePoolCapacity:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    def explain(self) -> list[dict[str, Any]]:
+        """The storage chain from reported signal to allocatable budget.
+
+        `reported_*` deliberately appears first and is deliberately not
+        an input to anything below it. On a provider-backed volume it is
+        recorded and rejected, so a pool can report terabytes free while
+        every figure below stays `None`.
+        """
+
+        stages = [
+            (
+                "reported_free",
+                self.reported_free_bytes,
+                "capacity_snapshot",
+            ),
+            (
+                "verified_lower_bound",
+                self.verified_lower_bound_bytes,
+                "storage_capacity_resolution",
+            ),
+            (
+                "observed_upper_failure",
+                self.observed_upper_failure_bytes,
+                "storage_capacity_resolution",
+            ),
+            (
+                "verified_remaining",
+                self.verified_remaining_bytes,
+                "storage_capacity_resolution",
+            ),
+            (
+                "protected_reserve",
+                self.protected_reserve_bytes,
+                "storage_capacity_resolution",
+            ),
+            (
+                "safe_allocatable",
+                self.safe_allocatable_bytes,
+                "storage_capacity_resolution",
+            ),
+            (
+                "available_for_new_platform",
+                self.available_for_new_platform_bytes,
+                "storage_budget",
+            ),
+        ]
+
+        return [
+            {
+                "stage": stage,
+                "value_bytes": value,
+                "owner": owner,
+            }
+            for stage, value, owner in stages
+        ]
+
 
 @dataclass(frozen=True)
 class CapacityEnvelope:
@@ -257,6 +609,8 @@ class CapacityEnvelope:
     schema_version: int
     generated_at: str | None
     source: dict[str, Any]
+    headroom_policy: HeadroomPolicy
+    cpu_capacity_status: CpuCapacityStatus
     memory_pools: tuple[MemoryPoolCapacity, ...]
     storage_pools: tuple[StoragePoolCapacity, ...]
     reservations_applied: bool
@@ -267,6 +621,10 @@ class CapacityEnvelope:
             "schema_version": self.schema_version,
             "generated_at": self.generated_at,
             "source": dict(self.source),
+            "headroom_policy": self.headroom_policy.to_dict(),
+            "cpu_capacity_status": (
+                self.cpu_capacity_status.to_dict()
+            ),
             "memory_pools": [
                 pool.to_dict()
                 for pool in self.memory_pools
@@ -278,6 +636,21 @@ class CapacityEnvelope:
             "reservations_applied": self.reservations_applied,
             "unresolved_pool_ids": list(self.unresolved_pool_ids),
         }
+
+    def policy_for(
+        self,
+        pool_id: str,
+    ) -> MemoryHeadroomPolicy | None:
+        """The headroom policy that produced this pool's protected reserve."""
+
+        pool = self.memory_pool(pool_id)
+
+        if pool is None:
+            return None
+
+        return self.headroom_policy.for_memory_type(
+            pool.headroom_policy_key
+        )
 
     def memory_pool(self, pool_id: str) -> MemoryPoolCapacity | None:
         for pool in self.memory_pools:
@@ -413,18 +786,18 @@ def _build_memory_pool(
 
     pool_id = str(pool.get("pool_id"))
 
-    ledger_capacity = None
+    reconstructed_capacity = None
     managed_reserved = None
     safe_available = None
 
     if reservation_snapshot is not None:
         #
         # Copied verbatim. The ledger's `available` is already
-        # `capacities - reserved` against its own managed accounting
-        # total, so subtracting reservations again here would
+        # `capacities - reserved` against its own reconstructed
+        # accounting total, so subtracting reservations again here would
         # double-count them.
         #
-        ledger_capacity = _nonnegative_int_or_none(
+        reconstructed_capacity = _nonnegative_int_or_none(
             (reservation_snapshot.get("capacities") or {}).get(pool_id)
         )
         managed_reserved = _nonnegative_int_or_none(
@@ -434,6 +807,32 @@ def _build_memory_pool(
             (reservation_snapshot.get("available") or {}).get(pool_id)
         )
 
+    #
+    # Observed usage can only be attributed to unmanaged consumers when
+    # nothing is managed. A reservation is an entitlement rather than a
+    # measurement, so once one exists the split between managed and
+    # unmanaged consumption is not derivable from these inputs and must
+    # not be guessed.
+    #
+    reported_used = _nonnegative_int_or_none(
+        capacity.get("used_bytes")
+    )
+
+    unmanaged_usage = None
+    unmanaged_usage_basis = "managed_reservation_state_unknown"
+
+    if reservation_snapshot is not None:
+        if managed_reserved:
+            unmanaged_usage_basis = (
+                "not_derivable_with_active_reservations"
+            )
+
+        else:
+            unmanaged_usage = reported_used
+            unmanaged_usage_basis = (
+                "all_observed_usage_unmanaged"
+            )
+
     return MemoryPoolCapacity(
         pool_id=pool_id,
         resource_type=pool.get("resource_type"),
@@ -442,27 +841,32 @@ def _build_memory_pool(
         reported_total_bytes=_nonnegative_int_or_none(
             capacity.get("total_bytes")
         ),
-        reported_used_bytes=_nonnegative_int_or_none(
-            capacity.get("used_bytes")
-        ),
+        reported_used_bytes=reported_used,
         reported_available_bytes=_nonnegative_int_or_none(
             capacity.get("available_bytes")
         ),
         safety_resolved=bool(safety.get("resolved", False)),
         safety_reason=safety.get("reason"),
+        headroom_policy_key=pool.get("memory_type"),
         protected_reserve_bytes=_nonnegative_int_or_none(
             safety.get("protected_reserve_bytes")
         ),
-        safe_available_before_reservations_bytes=(
+        observed_safe_available_bytes=(
             _nonnegative_int_or_none(
                 safety.get(
                     "safe_available_before_reservations_bytes"
                 )
             )
         ),
-        ledger_capacity_bytes=ledger_capacity,
+        unmanaged_usage_bytes=unmanaged_usage,
+        unmanaged_usage_basis=unmanaged_usage_basis,
+        reconstructed_safe_pool_capacity_bytes=(
+            reconstructed_capacity
+        ),
         managed_reserved_bytes=managed_reserved,
-        safe_available_bytes=safe_available,
+        safe_available_for_additional_workload_bytes=(
+            safe_available
+        ),
     )
 
 
@@ -628,6 +1032,11 @@ def build_capacity_envelope(
         schema_version=CAPACITY_CONTRACTS_SCHEMA_VERSION,
         generated_at=capacity_snapshot.get("generated_at"),
         source=source,
+        headroom_policy=build_headroom_policy(
+            resource_safety=resource_safety,
+            storage_plan=storage_plan,
+        ),
+        cpu_capacity_status=CPU_CAPACITY_POLICY_UNRESOLVED,
         memory_pools=tuple(memory_pools),
         storage_pools=tuple(storage_pools),
         reservations_applied=reservation_snapshot is not None,
