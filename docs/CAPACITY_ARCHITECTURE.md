@@ -1039,6 +1039,52 @@ ran and what stopped it.
 
 ## 40. Ordered implementation plan
 
+### Exoskeleton-first sequencing rule
+
+The plan below is ordered by dependency, not by subsystem depth. Until
+the complete end-to-end customer workflow works, every proposed piece
+of work must answer one question first:
+
+> Does the platform need this to complete the next end-to-end customer
+> workflow?
+
+If no, defer it. If yes, implement the smallest safe version. Do not
+optimize a subsystem before the next end-to-end product path works.
+
+Applying that rule, storage characterization is done for now: C3C is
+deferred (see below), and no further sophistication should be added to
+characterization before live inference acceptance unless a real blocker
+proves it necessary. The immediate sequence is C4, C5, C6, C7 and then
+live inference acceptance, after which remaining Phase 9 ResourceManager
+and multi-instance work resumes.
+
+### Model selection objective — frozen for C6
+
+Recorded here so the objective is settled before the code exists. The
+MVP selector is deliberately not a benchmark optimizer.
+
+A candidate must first satisfy every hard feasibility constraint: safe
+accelerator memory, safe RAM, verified storage, runtime compatibility
+and architecture compatibility. Among the feasible candidates, choose
+the configuration that uses the safe primary inference memory most
+closely without exceeding it:
+
+```
+maximize   required_primary_inference_memory
+           / safe_available_primary_inference_memory
+
+subject to ratio <= 1
+           and every other resource fitting
+```
+
+On the current NVIDIA and vLLM reference environment, primary inference
+memory is dedicated VRAM. RAM and storage are hard constraints, not
+resources to fill for their own sake.
+
+The objective must stay behind a replaceable interface so
+`SingleModelSelector` can later become `ModelMixOptimizer` without
+changing CapacityEnvelope, ModelRequirement or FeasibilityResult.
+
 Each step states predecessor, expected files, behavior preserved,
 behavior added, required acceptance level, rollback boundary, and
 whether persisted or API schemas change. Boundaries may be refined
@@ -1110,7 +1156,37 @@ makes rollback and validation tractable.
 
 ### C3C — Cancellation and recovery hardening
 
-- Predecessor: C3B.
+**DEFERRED HARDENING — POST EXOSKELETON.** Not implemented, and not a
+prerequisite for the end-to-end path.
+
+C3A and C3B together proved sufficient for the MVP exoskeleton:
+completed probe results persist durably, transaction characterization
+stops once evidence is sufficient, the real 6.70 GiB requirement
+resolved in about 62 seconds instead of roughly 48 minutes, a repeat
+run reuses evidence and probes nothing, ordinary probe cleanup works,
+inconclusive results fail safely, and storage admission remains fail
+closed.
+
+Deferred until the end-to-end customer workflow is complete:
+
+- probe-process isolation;
+- cancellation tokens;
+- an active-probe registry;
+- hard-kill escalation;
+- a crash-recovery framework;
+- detailed cumulative I/O budgeting;
+- background DEEP characterization;
+- startup probe reconciliation.
+
+The architecture hooks that make these possible are retained and must
+not be removed: the cancellation contract in section 25, startup
+recovery in section 26, the probe cost model in section 21, the
+probe-method capability abstraction in section 28, and the DEEP mode
+budgets in section 13. C3B's time budget is deliberately honest about
+the current limitation — it is enforced before starting a probe and
+after each completes, and cannot interrupt a probe already running.
+
+- Predecessor when resumed: C3B.
 - Files: `core/storage_probe.py` cancellation token; probe artifact
   registry; startup recovery path.
 - Preserved: probe cleanup semantics; lock behavior; classification
