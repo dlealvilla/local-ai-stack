@@ -20,20 +20,30 @@ def build_deployment_manifest(plan, config):
 
     inference_provider = plan["inference"]["provider"]
 
-    inference_adapter = get_inference_adapter(
-        inference_provider
-    )
+    # A host with no selected model is a valid deployment state:
+    # inference is simply unsatisfied and therefore not enabled.
+    # The provider adapter still owns how a real service
+    # specification is built, so it is only asked for one once a
+    # model exists.
+    inference_available = plan["selected_model"] is not None
 
-    inference_spec = inference_adapter.build_service_spec(
-        plan,
-        config
-    )
+    inference_spec = None
+
+    if inference_available:
+        inference_adapter = get_inference_adapter(
+            inference_provider
+        )
+
+        inference_spec = inference_adapter.build_service_spec(
+            plan,
+            config
+        )
 
     services.append({
         "id": "inference",
         "role": "inference",
         "provider": inference_provider,
-        "enabled": True,
+        "enabled": inference_available,
         "spec": inference_spec,
     })
 

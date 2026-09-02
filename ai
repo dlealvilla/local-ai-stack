@@ -130,6 +130,13 @@ elif sys.argv[1] == "start":
         config
     )
 
+    if manifest["model"] is None:
+        print(
+            "Cannot start: no model is selected."
+        )
+        print(plan["model_reason"])
+        sys.exit(1)
+
     executor_name = config["runtime"]["executor"]
     executor = get_executor(executor_name)
 
@@ -301,6 +308,13 @@ elif sys.argv[1] == "restart":
         plan,
         config
     )
+
+    if manifest["model"] is None:
+        print(
+            "Cannot restart: no model is selected."
+        )
+        print(plan["model_reason"])
+        sys.exit(1)
 
     executor_name = config["runtime"]["executor"]
     executor = get_executor(executor_name)

@@ -226,6 +226,15 @@ def run_preflight(manifest, config):
             )
         )
 
+    else:
+        checks.append(
+            result(
+                "Selected model",
+                "fail",
+                "No model is selected.",
+            )
+        )
+
     checks.append(
         check_path(
             "Open WebUI data",
