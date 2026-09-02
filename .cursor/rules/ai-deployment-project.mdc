@@ -11,7 +11,8 @@ substantial architectural changes:
 - @docs/PROJECT_CONTEXT.md — invariants, verified state, current phase
 - @docs/PRODUCT_VISION.md — north star, Company Brain, portability
 - @docs/ROADMAP.md — 17-phase MVP roadmap, Phase 9 contract
-- @docs/DEVELOPMENT_WORKFLOW.md — branch and GPU-testing workflow
+- @docs/DEVELOPMENT_WORKFLOW.md — branch/GPU workflow **and the bounded-step
+  development protocol you must follow**
 
 ## Invariants
 
@@ -39,3 +40,18 @@ substantial architectural changes:
   files, workload/reservation state or caches. Keep `.gitignore` intact.
 - Distinguish local/unit evidence from real RunPod GPU acceptance when
   reporting runtime behavior.
+
+## Bounded-step protocol
+
+Development runs as bounded steps defined in @docs/DEVELOPMENT_WORKFLOW.md.
+Follow that protocol:
+
+- Work autonomously inside the active step contract; resolve ordinary
+  implementation details from the source, tests and docs rather than asking.
+- Stop with `STATE: DECISION_REQUIRED` only at a genuine decision boundary
+  (architectural choice, scope expansion, invariant change, unauthorized
+  expensive/destructive action, contradicted assumptions, or a product call).
+- Record adjacent issues instead of fixing them.
+- Finish every development task with the documented `PASTE BACK` block, and
+  keep text outside that block minimal.
+- Never begin the recommended NEXT step automatically.
