@@ -1,4 +1,15 @@
+from datetime import (
+    datetime,
+    timezone,
+)
+
 from core.config import load_config
+
+from core.storage_capacity_cache import (
+    inspect_storage_identity,
+    read_storage_generation,
+    record_empirical_probe_evidence,
+)
 
 from core.storage_capacity_resolution import (
     resolve_storage_capacity,
@@ -194,12 +205,75 @@ def calibrate_storage_capacity(
         ]
     )
 
+    #
+    # Storage identity and generation are established once for the
+    # whole calibration so per-probe persistence stays cheap: neither
+    # can change while this coordinator holds the storage operation
+    # lock, and re-statting the mount before every probe would add
+    # cost without adding truth.
+    #
+    probe_storage_identity = (
+        inspect_storage_identity(
+            config=config
+        )
+    )
+
+    probe_storage_generation = (
+        read_storage_generation(
+            config
+        ).get(
+            "generation"
+        )
+    )
+
+    probe_provider = (
+        before.get(
+            "provider"
+        )
+    )
+
     def real_probe(
         requested_bytes,
     ):
+        started_at = datetime.now(
+            timezone.utc
+        )
+
         result = probe_required_capacity(
             requested_bytes,
             config=config,
+        )
+
+        #
+        # The probe has returned a completed classified result and has
+        # already removed its temporary reservation in its own
+        # `finally` block. Persist the fact NOW, before the search is
+        # allowed to start another expensive probe, so an interruption
+        # can no longer discard empirical work.
+        #
+        # An interrupted probe never reaches this line, so it can
+        # never be recorded as a success or a capacity failure.
+        #
+        record_empirical_probe_evidence(
+            result,
+
+            requested_bytes=(
+                requested_bytes
+            ),
+
+            provider=probe_provider,
+
+            started_at=started_at,
+
+            config=config,
+
+            storage_identity=(
+                probe_storage_identity
+            ),
+
+            storage_generation=(
+                probe_storage_generation
+            ),
         )
 
         return bool(

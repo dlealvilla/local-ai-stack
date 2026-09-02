@@ -13,6 +13,8 @@ from datetime import (
 
 from pathlib import Path
 
+from uuid import uuid4
+
 from core.config import (
     load_config,
 )
@@ -1235,4 +1237,799 @@ def invalidate_capacity_cache(
         "record": (
             updated
         ),
+    }
+
+
+#
+# ---------------------------------------------------------------------
+# Durable empirical probe evidence (C3A)
+# ---------------------------------------------------------------------
+#
+# See docs/CAPACITY_ARCHITECTURE.md sections 11, 12 and 23.
+#
+# An empirical probe fact answers exactly one question:
+#
+#     "What happened when probe X was attempted on storage pool Y
+#      at time T?"
+#
+# It is deliberately NOT a characterization result and NOT an
+# admission decision. It carries no verified lower bound, no capacity
+# conclusion and no policy interpretation, because those belong to
+# later layers that must remain free to reinterpret the same facts.
+#
+# The facts live beside the derived calibration cache rather than in
+# it. `calibration.json` is a single derived record that is replaced
+# wholesale and validated against TTL, storage identity, generation
+# and current usage. Individual probe facts must instead accumulate
+# and survive independently, which is the whole point: the interrupted
+# real-host run performed roughly 48 minutes of real probing and
+# persisted nothing, because evidence was written only after the
+# entire calibration returned.
+#
+
+EMPIRICAL_PROBE_EVIDENCE_SCHEMA_VERSION = 1
+
+
+#
+# Probe outcomes. Only PROBE_OUTCOME_CAPACITY_FAILURE may ever
+# contribute an upper bound to a later characterization policy.
+#
+PROBE_OUTCOME_SUCCESS = "success"
+PROBE_OUTCOME_CAPACITY_FAILURE = "capacity_failure"
+PROBE_OUTCOME_INCONCLUSIVE = "inconclusive"
+
+
+#
+# Reasons the probe implementation reports for a genuine
+# capacity/quota refusal. Everything else is inconclusive: a
+# permission error, an unsupported primitive, our own policy ceiling
+# or an unrelated I/O error says nothing about how much space exists.
+#
+CAPACITY_FAILURE_REASONS = {
+    "no_space",
+    "quota_exceeded",
+}
+
+
+#
+# A safety bound on file growth only. The strongest success and the
+# strongest classified capacity failure for each storage identity are
+# always retained, so bounding the history can never discard the
+# load-bearing facts.
+#
+EMPIRICAL_PROBE_EVIDENCE_RETENTION = 500
+
+
+def resolve_empirical_probe_evidence_path(
+    config=None,
+):
+    if config is None:
+        config = load_config()
+
+    settings = config.get(
+        "storage_capacity",
+        {},
+    )
+
+    return _resolve_platform_path(
+        settings.get(
+            "empirical_probe_evidence_path",
+            (
+                "data/storage-capacity/"
+                "empirical-probes.json"
+            ),
+        ),
+
+        config=config,
+    )
+
+
+def classify_probe_result(
+    probe_result,
+):
+    """
+    Classify one completed probe result.
+
+    Returns (outcome, failure_classification).
+
+    A successful probe requires the probe mechanism to be supported,
+    the operation to have succeeded AND the reservation to have been
+    accepted, which mirrors exactly the condition the existing
+    calibration wrapper already applies.
+    """
+
+    if not isinstance(
+        probe_result,
+        dict,
+    ):
+        raise TypeError(
+            "probe_result must be a mapping"
+        )
+
+    reason = probe_result.get(
+        "reason"
+    )
+
+    supported = bool(
+        probe_result.get(
+            "supported",
+            False,
+        )
+    )
+
+    success = bool(
+        probe_result.get(
+            "success",
+            False,
+        )
+    )
+
+    accepted = bool(
+        probe_result.get(
+            "reservation_accepted",
+            success,
+        )
+    )
+
+    if (
+        supported
+        and success
+        and accepted
+    ):
+        return (
+            PROBE_OUTCOME_SUCCESS,
+            None,
+        )
+
+    if reason in CAPACITY_FAILURE_REASONS:
+        return (
+            PROBE_OUTCOME_CAPACITY_FAILURE,
+            reason,
+        )
+
+    return (
+        PROBE_OUTCOME_INCONCLUSIVE,
+        reason,
+    )
+
+
+def build_empirical_probe_evidence(
+    probe_result,
+    *,
+    requested_bytes=None,
+    provider=None,
+    started_at=None,
+    config=None,
+    storage_identity=None,
+    storage_generation=None,
+):
+    """
+    Build one immutable empirical probe fact.
+
+    The record describes a completed observation only. Nothing here is
+    a conclusion about capacity, so a later characterization policy
+    change can reinterpret these facts without invalidating them.
+    """
+
+    if config is None:
+        config = load_config()
+
+    outcome, failure_classification = (
+        classify_probe_result(
+            probe_result
+        )
+    )
+
+    if storage_identity is None:
+        storage_identity = (
+            inspect_storage_identity(
+                config=config
+            )
+        )
+
+    if storage_generation is None:
+        storage_generation = (
+            read_storage_generation(
+                config
+            ).get(
+                "generation"
+            )
+        )
+
+    if requested_bytes is None:
+        requested_bytes = (
+            probe_result.get(
+                "requested_bytes"
+            )
+        )
+
+    if requested_bytes is not None:
+        requested_bytes = int(
+            requested_bytes
+        )
+
+    duration_seconds = (
+        probe_result.get(
+            "duration_seconds"
+        )
+    )
+
+    completed = _utc_now()
+
+    if started_at is None and duration_seconds is not None:
+        started_at = (
+            completed
+            - timedelta(
+                seconds=float(
+                    duration_seconds
+                )
+            )
+        )
+
+    return {
+        "schema_version": (
+            EMPIRICAL_PROBE_EVIDENCE_SCHEMA_VERSION
+        ),
+
+        "record_id": uuid4().hex,
+
+        #
+        # Enough storage identity that this fact can never be
+        # blindly reused on a different pool.
+        #
+        "storage_identity": deepcopy(
+            storage_identity
+        ),
+
+        "provider": provider,
+
+        "probe_method": (
+            probe_result.get(
+                "method"
+            )
+        ),
+
+        "probe_implementation": (
+            "core.storage_probe."
+            "probe_required_capacity"
+        ),
+
+        "probe_schema_version": (
+            probe_result.get(
+                "schema_version"
+            )
+        ),
+
+        "requested_bytes": (
+            requested_bytes
+        ),
+
+        "outcome": outcome,
+
+        "failure_classification": (
+            failure_classification
+        ),
+
+        "supported": bool(
+            probe_result.get(
+                "supported",
+                False,
+            )
+        ),
+
+        "reservation_accepted": (
+            probe_result.get(
+                "reservation_accepted"
+            )
+        ),
+
+        "reported_allocated_bytes": (
+            probe_result.get(
+                "reported_allocated_bytes"
+            )
+        ),
+
+        "allocation_visibility": (
+            probe_result.get(
+                "allocation_visibility"
+            )
+        ),
+
+        "started_at": (
+            started_at.isoformat()
+            if started_at is not None
+            else None
+        ),
+
+        "completed_at": (
+            completed.isoformat()
+        ),
+
+        "duration_seconds": (
+            duration_seconds
+        ),
+
+        #
+        # Recorded, not enforced. Generation ownership and
+        # invalidation semantics remain with the derived cache; the
+        # fact merely remembers which generation it was observed in.
+        #
+        "storage_generation": (
+            storage_generation
+        ),
+
+        "errno": probe_result.get(
+            "errno"
+        ),
+
+        "detail": probe_result.get(
+            "detail"
+        ),
+    }
+
+
+def _empty_empirical_probe_evidence(
+    reason,
+):
+    return {
+        "schema_version": (
+            EMPIRICAL_PROBE_EVIDENCE_SCHEMA_VERSION
+        ),
+
+        "updated_at": None,
+
+        "reason": reason,
+
+        "records": [],
+    }
+
+
+def read_empirical_probe_evidence(
+    config=None,
+):
+    """
+    Read durable probe facts.
+
+    A missing file means "no durable individual probe facts recorded
+    yet", never "corrupt state": existing deployments have a
+    calibration cache and a generation file and no probe history, and
+    that must keep working untouched.
+
+    An unreadable or malformed file is reported as such and yields no
+    records rather than raising, so a damaged history can never be
+    mistaken for evidence.
+    """
+
+    if config is None:
+        config = load_config()
+
+    path = (
+        resolve_empirical_probe_evidence_path(
+            config
+        )
+    )
+
+    if not path.exists():
+        return _empty_empirical_probe_evidence(
+            "evidence_missing"
+        )
+
+    try:
+        payload = json.loads(
+            path.read_text(
+                encoding="utf-8"
+            )
+        )
+
+    except (
+        OSError,
+        ValueError,
+    ):
+        return _empty_empirical_probe_evidence(
+            "evidence_unreadable"
+        )
+
+    if not isinstance(
+        payload,
+        dict,
+    ):
+        return _empty_empirical_probe_evidence(
+            "evidence_malformed"
+        )
+
+    records = payload.get(
+        "records"
+    )
+
+    if not isinstance(
+        records,
+        list,
+    ):
+        return _empty_empirical_probe_evidence(
+            "evidence_malformed"
+        )
+
+    valid = [
+        record
+        for record in records
+
+        if isinstance(
+            record,
+            dict,
+        )
+        and record.get(
+            "outcome"
+        )
+        in {
+            PROBE_OUTCOME_SUCCESS,
+            PROBE_OUTCOME_CAPACITY_FAILURE,
+            PROBE_OUTCOME_INCONCLUSIVE,
+        }
+    ]
+
+    return {
+        "schema_version": (
+            payload.get(
+                "schema_version"
+            )
+        ),
+
+        "updated_at": (
+            payload.get(
+                "updated_at"
+            )
+        ),
+
+        "reason": None,
+
+        "records": valid,
+    }
+
+
+def _identity_key(
+    record,
+):
+    identity = (
+        record.get(
+            "storage_identity"
+        )
+        or {}
+    )
+
+    return (
+        identity.get(
+            "resolved_path"
+        ),
+
+        identity.get(
+            "device_id"
+        ),
+    )
+
+
+def _bound_empirical_probe_records(
+    records,
+):
+    """
+    Bound history growth without losing the facts that matter.
+
+    The strongest success and the strongest classified capacity
+    failure per storage identity are always kept; the remaining budget
+    goes to the most recent records.
+    """
+
+    if len(records) <= EMPIRICAL_PROBE_EVIDENCE_RETENTION:
+        return records
+
+    protected_ids = set()
+
+    strongest_success = {}
+    strongest_failure = {}
+
+    for record in records:
+        requested = record.get(
+            "requested_bytes"
+        )
+
+        if not isinstance(
+            requested,
+            int,
+        ):
+            continue
+
+        key = _identity_key(
+            record
+        )
+
+        outcome = record.get(
+            "outcome"
+        )
+
+        if outcome == PROBE_OUTCOME_SUCCESS:
+            current = strongest_success.get(
+                key
+            )
+
+            if (
+                current is None
+                or requested
+                > current["requested_bytes"]
+            ):
+                strongest_success[key] = record
+
+        elif outcome == (
+            PROBE_OUTCOME_CAPACITY_FAILURE
+        ):
+            current = strongest_failure.get(
+                key
+            )
+
+            #
+            # The strongest capacity failure is the SMALLEST one
+            # observed: it is the tightest upper bound.
+            #
+            if (
+                current is None
+                or requested
+                < current["requested_bytes"]
+            ):
+                strongest_failure[key] = record
+
+    for record in (
+        list(
+            strongest_success.values()
+        )
+        + list(
+            strongest_failure.values()
+        )
+    ):
+        protected_ids.add(
+            record.get(
+                "record_id"
+            )
+        )
+
+    protected = [
+        record
+        for record in records
+        if record.get(
+            "record_id"
+        )
+        in protected_ids
+    ]
+
+    remaining_budget = max(
+        0,
+        EMPIRICAL_PROBE_EVIDENCE_RETENTION
+        - len(protected),
+    )
+
+    recent = [
+        record
+        for record in records
+        if record.get(
+            "record_id"
+        )
+        not in protected_ids
+    ][-remaining_budget:] if remaining_budget else []
+
+    #
+    # Preserve original observation order.
+    #
+    keep_ids = protected_ids | {
+        record.get(
+            "record_id"
+        )
+        for record in recent
+    }
+
+    return [
+        record
+        for record in records
+        if record.get(
+            "record_id"
+        )
+        in keep_ids
+    ]
+
+
+def record_empirical_probe_evidence(
+    probe_result,
+    *,
+    requested_bytes=None,
+    provider=None,
+    started_at=None,
+    config=None,
+    storage_identity=None,
+    storage_generation=None,
+):
+    """
+    Persist one completed probe fact atomically, immediately.
+
+    This must run after the probe implementation has returned a
+    completed classified result and before any further expensive probe
+    begins. An interrupted probe never reaches this function, so it can
+    never be recorded as either a success or a capacity failure.
+
+    Facts are appended; existing history is never rewritten. The write
+    itself reuses the module's atomic temp-file/fsync/rename helper, so
+    an interrupted write cannot expose partial JSON as evidence.
+
+    Persistence errors propagate deliberately. Continuing to probe
+    while evidence cannot be stored would silently reproduce the exact
+    defect this step exists to fix, and an unwritable evidence
+    directory is the same directory the calibration cache is written to
+    at the end of the run.
+    """
+
+    if config is None:
+        config = load_config()
+
+    record = build_empirical_probe_evidence(
+        probe_result,
+
+        requested_bytes=(
+            requested_bytes
+        ),
+
+        provider=provider,
+
+        started_at=started_at,
+
+        config=config,
+
+        storage_identity=(
+            storage_identity
+        ),
+
+        storage_generation=(
+            storage_generation
+        ),
+    )
+
+    existing = read_empirical_probe_evidence(
+        config
+    )
+
+    records = list(
+        existing[
+            "records"
+        ]
+    )
+
+    records.append(
+        record
+    )
+
+    payload = {
+        "schema_version": (
+            EMPIRICAL_PROBE_EVIDENCE_SCHEMA_VERSION
+        ),
+
+        "updated_at": (
+            _utc_now().isoformat()
+        ),
+
+        "records": (
+            _bound_empirical_probe_records(
+                records
+            )
+        ),
+    }
+
+    _atomic_write_json(
+        resolve_empirical_probe_evidence_path(
+            config
+        ),
+        payload,
+    )
+
+    return record
+
+
+def eligible_empirical_probe_evidence(
+    config=None,
+    *,
+    now=None,
+):
+    """
+    Durable facts currently eligible for reuse on THIS pool.
+
+    Eligibility and existence are separate concerns. A fact remains
+    historically true forever; it merely stops being reusable when the
+    storage identity no longer matches or when it falls outside the
+    existing capacity-cache freshness window. Stale facts are retained,
+    not deleted.
+
+    This is a read-only helper. No production capacity resolution
+    consumes it: interpreting these facts is C3B's decision.
+    """
+
+    if config is None:
+        config = load_config()
+
+    settings = config.get(
+        "storage_capacity",
+        {},
+    )
+
+    ttl_seconds = int(
+        settings.get(
+            "capacity_cache_ttl_seconds",
+            900,
+        )
+    )
+
+    if now is None:
+        now = _utc_now()
+
+    current_identity = (
+        inspect_storage_identity(
+            config=config
+        )
+    )
+
+    eligible = []
+    ineligible = []
+
+    for record in read_empirical_probe_evidence(
+        config
+    )[
+        "records"
+    ]:
+        reasons = []
+
+        if not storage_identity_matches(
+            record.get(
+                "storage_identity"
+            ),
+            current_identity,
+        ):
+            reasons.append(
+                "storage_identity_changed"
+            )
+
+        completed = _parse_time(
+            record.get(
+                "completed_at"
+            )
+        )
+
+        if completed is None:
+            reasons.append(
+                "completion_time_unreadable"
+            )
+
+        elif (
+            now - completed
+        ).total_seconds() > ttl_seconds:
+            reasons.append(
+                "evidence_stale"
+            )
+
+        if reasons:
+            ineligible.append({
+                "record": record,
+                "reasons": reasons,
+            })
+
+        else:
+            eligible.append(
+                record
+            )
+
+    return {
+        "schema_version": (
+            EMPIRICAL_PROBE_EVIDENCE_SCHEMA_VERSION
+        ),
+
+        "ttl_seconds": ttl_seconds,
+
+        "storage_identity": (
+            current_identity
+        ),
+
+        "eligible": eligible,
+
+        "ineligible": ineligible,
     }
