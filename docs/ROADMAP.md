@@ -1,17 +1,28 @@
-# AI Stack — Exoskeleton Roadmap
+# AI Deployment Project — MVP Roadmap
 
-## Completed
+This is the authoritative 17-phase MVP roadmap.
 
-### Phase 1 — Reliable single-node lifecycle
-COMPLETE
+Do not renumber this roadmap to introduce Team Brain or deeper
+intelligence. Those capabilities belong after or on top of the completed
+Company Brain exoskeleton.
+
+Current phase: **Phase 9 — Resource Manager / Multi-model Lifecycle**
+
+---
+
+## Completed foundations (Phases 1–8)
+
+Phases 1–8 established the core infrastructure, model lifecycle and
+Capacity Planner foundations.
+
+### Phase 1 — Reliable single-node lifecycle — COMPLETE
 
 - prepare/start/stop/restart
 - status/health/logs
 - real inference acceptance testing
 - native process execution
 
-### Phase 2 — Stable core semantics
-COMPLETE
+### Phase 2 — Stable core semantics — COMPLETE
 
 - static capacity vs live utilization
 - desired vs observed vs health
@@ -19,27 +30,24 @@ COMPLETE
 - normalized model/service identity
 - normalized Platform State
 
-### Phase 3 — Platform API / control plane
-COMPLETE FOUNDATION
+### Phase 3 — Platform API / control plane — COMPLETE FOUNDATION
 
 - managed Platform API
 - read-only platform state
 - lifecycle control
 - permanent acceptance coverage
 
-### Phase 4 — Gateway + analytics spine
-COMPLETE FOUNDATION
+### Phase 4 — Gateway + analytics spine — COMPLETE FOUNDATION
 
 - process-backed central Gateway
-- Open WebUI routed through Gateway
+- frontend routed through Gateway
 - normalized UsageEvent
 - persistent local analytics
 - request/event correlation
 - analytics summary API
 - filtering by time/model/provider
 
-### Phase 5 — Analytics storage architecture
-COMPLETE FOUNDATION
+### Phase 5 — Analytics storage architecture — COMPLETE FOUNDATION
 
 - replaceable UsageStore boundary
 - UTC time-partitioned local event storage
@@ -50,8 +58,7 @@ COMPLETE FOUNDATION
 - cloud export disabled by default
 - Analytics API remains storage-independent
 
-### Phase 6 — Model Catalog / Marketplace
-COMPLETE DISCOVERY FOUNDATION
+### Phase 6 — Model Catalog / Marketplace — COMPLETE DISCOVERY FOUNDATION
 
 - ModelSource interface
 - local_files adapter
@@ -63,78 +70,99 @@ COMPLETE DISCOVERY FOUNDATION
 - runtime recommendations
 - external-source failure isolation
 
-Phase 6 follow-on capabilities now implemented in Phase 7:
-
-- managed local-file import
-- managed Hugging Face download
-- persistent source/revision metadata
-
-
-## Current
-
 ### Phase 7 — Model Inventory / Artifact Lifecycle — COMPLETE FOUNDATION
-
-WORKING:
 
 - multiple stored models
 - normalized ModelInventoryRecord
 - stored vs loaded vs running state observation
-- disk usage
 - persistent source/revision metadata
 - managed Hugging Face download
 - managed local-file import
-- transfer/download state
-- safe managed update
-- safe managed delete
+- safe managed update and delete
 - Platform API actions for download/import/update/delete
 - active selected/running model protection
 - staging and rollback boundaries for model replacement
 
-PROVISIONAL:
+### Phase 8 — Capacity Planner v1 — COMPLETE FOUNDATION
 
-- transfer and update operations are synchronous
-- integrity/checksum verification is not yet implemented
-- automatic upstream update detection is not yet implemented
+- storage capacity and commit-admission foundation
+- canonical live capacity snapshot
+- normalized vendor-neutral resource pools
+- protected RAM and dedicated-VRAM headroom
+- explicit unified-memory fail-closed semantics
+- model artifact/resource-requirement envelope
+- thin integrated Inventory model feasibility
+- explainable compatibility/storage/memory dimensions
+- read-only Platform API feasibility boundary
 
-FUTURE / Phase 9:
+Phase 8 estimators remain PROVISIONAL. The Phase 8 closure section of
+`docs/PROVISIONAL.md` records them. Note that `docs/PROVISIONAL.md` is a
+historical register whose earlier entries have been overtaken by later
+phases; it is not authoritative project context.
 
-- per-model start
-- per-model stop
-- per-model unload
-- concurrent model lifecycle orchestration
-- Resource Manager admission and reservations
+---
 
+## Phase 9 — Resource Manager / Multi-model Lifecycle — CURRENT
 
-## Next
+### Scope
 
-### Phase 8 — Capacity Planner v1
+- one host
+- explicit resource reservations
+- current capacities/reservations
+- dynamic admission
+- start/stop/load/unload
+- desired/actual state reconciliation
+- Platform API
+- multiple simultaneous inference servers when safe
 
-MVP:
+### Explicitly excluded from Phase 9
 
-- disk feasibility
-- RAM/VRAM feasibility
-- runtime overhead estimates
-- safety margins
-- context/concurrency effects
-- existing workload awareness
-- conservative recommendations
-- oversubscription warnings
+- predictive scheduling
+- sophisticated bin packing
+- preemption
+- Kubernetes
+- fleet/multi-host scheduling
+- smart model routing
+- benchmarking systems
+- deep KV-cache prediction
+- autonomous optimization
 
-### Phase 9 — Resource Manager / Multi-model
+### Exit criteria
 
-MVP:
+Phase 9 exit must demonstrate:
 
-- CPU/RAM/VRAM/storage/port reservations
-- per-model start/stop/unload
-- concurrent model services
-- admission checks
-- unload recommendations
-- live utilization observation
-- stored models separated from loaded/running models
+- inspect resources
+- evaluate stored model
+- reserve
+- start
+- represent running workload
+- admit/reject additional workload correctly
+- stop/unload
+- release
+- reconcile state
+- Platform API
+- real multi-instance acceptance
 
-### Phase 10 — Gateway provider/routing skeleton
+### Remaining Phase 9 work
 
-MVP:
+1. Diagnose/resolve the Qwen chat-completion smoke timeout.
+2. Implement persisted workload/reservation reconciliation and recovery
+   (Step 07).
+3. Begin provisional host-aware bootstrap/resume orchestration using the
+   existing platform seams.
+4. Bind platform/runtime request concurrency to runtime-specific controls
+   through adapters.
+5. Prove at least two genuinely simultaneous inference-server instances
+   with safe per-instance resource allocations.
+6. Expose ResourceManager lifecycle through Platform API.
+7. Run integrated Phase 9 acceptance.
+8. Merge accepted Phase 9 into `main`.
+
+---
+
+## Phase 10 — Unified AI Gateway / Provider Abstraction / Static Routing
+
+Static routing first.
 
 - local provider
 - external-provider adapter boundary
@@ -142,67 +170,86 @@ MVP:
 - manual/default route selection
 - usage/cost identity preserved
 
-FUTURE:
+Deferred to later phases: cost-aware, latency-aware, policy, fallback and
+quality-aware routing.
 
-- cost-aware routing
-- latency-aware routing
-- policy routing
-- fallback
-- quality-aware routing
+## Phase 11 — Enterprise Admin UI
 
-### Phase 11 — Admin UI v1
+Administration surface for the control plane, including overview,
+hardware, model catalog, model inventory, capacity, deployments, usage
+analytics, logs/health, configuration and vendor connectivity.
 
-Pages:
+The Admin UI is a separate surface from any end-user chat/workspace UI.
 
-- Overview
-- Hardware
-- Model Catalog
-- Model Inventory
-- Capacity
-- Deployments
-- Usage Analytics
-- Logs / Health
-- Configuration
-- Vendor Connectivity
+## Phase 12 — Admin AI Agent v1
 
-### Phase 12 — Heartbeat / Telemetry Agent
+Permission-aware administration copilot embedded in the Admin UI:
 
-Separate configurable channels:
+- setup guide
+- operational copilot
+- diagnostics assistant
+- configuration assistant
+- knowledge-management helper
 
-- licensing heartbeat
-- product telemetry
-- optional cloud analytics
-- update checks
-- crash/error reporting
+Mutations occur only with administrator approval, through structured
+platform APIs.
 
-Customer content excluded by default.
+## Phase 13 — Knowledge / Data Layer
 
-### Phase 13 — Licensing / Entitlement skeleton
+Permission-aware knowledge layer above storage and connectors:
 
-MVP architecture:
+- ManagedStorageProvider
+- KnowledgeConnector
+- source-agnostic knowledge schema
+- source-aware metadata, ownership and permissions
+- indexing state and content references
 
-- signed entitlement claims
-- features
-- capacities
-- local verification
-- renewal/grace period
-- offline license support
-- graceful restriction rather than destructive shutdown
+No specific storage vendor or connector helper becomes a fixed
+architectural dependency.
 
-### Phase 14 — Bootstrapper / Installer
+## Phase 14 — Identity + Permission-Aware Indexing/Search/RAG
 
-Only after the control plane, catalog, inventory, capacity,
-analytics and admin-facing foundations stabilize.
+- identity and groups
+- source permission mapping
+- permission-aware indexing
+- permission-aware search and retrieval
+- retrieval-time authorization enforcement
 
-Installer should:
+The platform must never return content the requesting user is not
+authorized to access.
+
+## Phase 15 — Analytics / Telemetry / Entitlements
+
+Completes the three separate outbound/data domains:
+
+- customer AI usage analytics
+- vendor product telemetry, optional and content-free by default
+- licensing/entitlement, with signed entitlements, lease-style tokens,
+  grace periods, offline license files and graceful restriction
+
+No destructive kill switch.
+
+## Phase 16 — Bootstrapper + Conversational Onboarding
+
+The polished installer and customer-facing onboarding/recovery UX:
 
 - inspect host capabilities
 - select compatible executor/runtime
 - create required runtime environments
 - install only required components
-- keep models separate
+- keep models separate from the installer
 - support future offline bundles
+- conversational onboarding
 
+The provisional bootstrap/resume coordinator developed during Phase 9 is
+not this phase; it exists to keep the architecture honest until here.
+
+## Phase 17 — Full MVP Integration / Acceptance
+
+End-to-end integration and acceptance of the complete Company Brain
+exoskeleton.
+
+---
 
 ## Exoskeleton completion definition
 
@@ -219,5 +266,23 @@ An administrator can:
 9. view meaningful analytics;
 10. manage the deployment through the Admin UI.
 
-After this point, prioritize deeper intelligence rather than
-major architectural restructuring.
+After this point, prioritize deeper intelligence rather than major
+architectural restructuring.
+
+---
+
+## Post-MVP / deeper intelligence
+
+These are preserved architecturally but are **not** part of the MVP
+sequence above, and must not be pulled into current phases:
+
+1. Team agent + permission-scoped RAG using existing base models
+2. LoRA/PEFT adaptation, dataset curation, evaluation/promotion
+3. Full fine-tuning/distillation/preference optimization where justified
+4. Privacy-governed collective intelligence and learned optimization
+
+Also post-MVP: multi-host fleet scheduling, predictive optimization,
+advanced routing intelligence and training execution.
+
+See `docs/PRODUCT_VISION.md` for the Team Brain and derived-model
+direction.

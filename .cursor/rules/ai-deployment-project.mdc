@@ -1,0 +1,41 @@
+---
+description: Authoritative context and invariants for the AI Deployment Project
+alwaysApply: true
+---
+
+# AI Deployment Project
+
+Treat these files as authoritative. Read them before proposing
+substantial architectural changes:
+
+- @docs/PROJECT_CONTEXT.md — invariants, verified state, current phase
+- @docs/PRODUCT_VISION.md — north star, Company Brain, portability
+- @docs/ROADMAP.md — 17-phase MVP roadmap, Phase 9 contract
+- @docs/DEVELOPMENT_WORKFLOW.md — branch and GPU-testing workflow
+
+## Invariants
+
+- Core owns concepts; adapters own implementations.
+- Exoskeleton first: finish the end-to-end modular product before
+  optimizing subsystems.
+- Plug-and-play installability is a product requirement. The platform
+  detects host capabilities and configures itself; the administrator is
+  not expected to understand CUDA, VRAM, vLLM, executors or ports.
+- Docker, vLLM and LiteLLM are replaceable modules, never permanent
+  dependencies. Native process execution is first class.
+- Permission and privacy architecture is non-negotiable. Permission-aware
+  retrieval is required; customer content stays local by default.
+
+## Working rules
+
+- GitHub `dlealvilla/ai-stack` is the source of truth. `main` is the
+  stable baseline; `phase9` is active development. Never commit to `main`
+  during Phase 9. Do not push unless explicitly asked.
+- Inspect existing seams and source before inventing APIs or adding
+  scripts. Do not duplicate logic the platform already has.
+- Make the smallest change that advances the current phase contract. Do
+  not implement future-phase features early.
+- Never commit secrets, model weights, runtime environments, logs, PID
+  files, workload/reservation state or caches. Keep `.gitignore` intact.
+- Distinguish local/unit evidence from real RunPod GPU acceptance when
+  reporting runtime behavior.

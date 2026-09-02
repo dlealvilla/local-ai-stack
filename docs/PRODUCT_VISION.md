@@ -1,291 +1,444 @@
-# AI Stack — Product Vision
+# AI Deployment Project — Product Vision
 
 ## North Star
 
-Build plug-and-play private enterprise AI infrastructure that:
-
-- understands the hardware it is installed on;
-- recommends safe deployment settings;
-- lets administrators discover and manage appropriate models;
-- stores multiple models independently from the installer;
-- runs multiple models concurrently when capacity permits;
-- provides unified control, routing and analytics;
-- preserves sensitive customer AI content locally by default;
-- remains independent of any single OS, hardware vendor,
-  container system, inference runtime, model hub, gateway,
-  telemetry vendor or commercial model.
-
-## Core architectural principle
-
-Core owns concepts.
-Adapters own implementations.
-
-Prefer simple WORKING implementations behind strong modular
-boundaries before adding sophisticated intelligence.
-
-## Major platform domains
-
-- Control Plane
-- Host / Hardware Detection
-- Deployment Planner
-- Hardware Abstraction
-- Executors
-- Inference Runtimes
-- Model Sources
-- Model Metadata Normalization
-- Model Catalog / Marketplace
-- Model Inventory
-- Model Download / Storage Management
-- Compatibility Evaluation
-- Capacity Planner
-- Resource Manager
-- Concurrent Model Scheduling
-- Central AI Gateway
-- Route Decisions
-- Customer Usage Analytics
-- Local Analytics Storage / Retention
-- Optional Cloud Analytics Export
-- Vendor Product Telemetry
-- Heartbeat / Telemetry Agent
-- Licensing / Entitlements
-- Admin UI
-- Bootstrapper / Installer
-
-## Model architecture
-
-Models are separate artifacts from the installer.
-
-Model discovery uses replaceable ModelSource adapters.
-
-MVP sources:
-
-- Hugging Face
-- local files
-
-Future examples:
-
-- NVIDIA NGC
-- ModelScope
-- Ollama-compatible sources
-- MLflow
-- private enterprise registries
-- internal artifact repositories
-
-All provider metadata must normalize into an internal model schema.
-
-## Model Catalog MVP
-
-Administrators should be able to discover/import models and view:
-
-- family
-- architecture
-- parameters
-- quantization
-- context length
-- source
-- revision
-- license
-- download size
-- expected installed size
-- supported runtimes
-- hardware requirements
-- host compatibility
-
-Compatibility states:
-
-- Compatible
-- Conditionally compatible
-- Unsupported
-
-## Model Inventory
-
-Stored and running state must remain separate.
-
-Possible states include:
-
-- downloading
-- stored
-- loading
-- loaded
-- running
-- stopped/unloaded
-- updating
-- incompatible
-
-Lifecycle actions should eventually include:
-
-- download
-- resume
-- start
-- stop
-- unload
-- restart
-- delete
-- update
-- convert
-- quantize
-
-## Capacity / Resources
-
-Capacity Planner considers:
-
-- storage
-- RAM
-- VRAM / unified memory
-- runtime overhead
-- model size
-- quantization
-- caches
-- context
-- concurrency
-- safety margins
-- existing workloads
-
-Resource Manager tracks reservations and live usage across:
-
-- CPU
-- RAM
-- VRAM / unified memory
-- storage
-- accelerators
-- ports
-- processes
-- workloads
-
-Concurrent model execution is first-class.
-
-## Gateway
-
-All enterprise AI traffic may flow through a central logical
-gateway.
-
-The gateway supports:
-
-- local models
-- external APIs
-- future routing
-
-Gateway implementation remains replaceable.
-
-Routing intelligence evolves later.
-
-Initial routing may be manual/default.
-
-## Analytics
-
-Analytics is a core MVP capability.
-
-Every AI request produces a normalized UsageEvent.
-
-Basic analytics include:
-
-- requests
-- input/output/total tokens
-- latency
-- errors
-- model/provider usage
-- time slicing
-
-Future dimensions include:
-
-- user
-- team
-- application
-- department
-- deployment
-- server
-- route
-- cost
-- local vs external
-- infrastructure utilization
-
-## Privacy-first analytics
-
-Prompts, responses, documents, RAG content and proprietary
-payloads remain local by default.
-
-Basic/free target:
-
-approximately 7 days of bounded local analytics.
-
-Paid deployments may optionally export structured non-content
-UsageEvent telemetry for long-term analytics.
-
-Local UsageStore and cloud UsageExporter remain replaceable.
-
-## Three separate outbound/data domains
-
-1. Customer AI usage analytics
-2. Vendor product-usage telemetry
-3. Licensing / entitlement information
-
-These must remain logically separate.
-
-## Heartbeat / Telemetry Agent
-
-A future lightweight outbound boundary may provide independent
-channels for:
-
-- entitlement heartbeat
-- optional cloud analytics
-- product telemetry
-- update checks
-- crash/error reporting
-
-Administrators must be able to see what leaves the deployment.
-
-Air-gapped deployments may disable outbound connectivity.
-
-## Licensing
-
-Use signed feature/capacity entitlements.
-
-Support:
-
-- connected leases/renewal
-- reasonable grace periods
-- graceful restriction
-- offline signed licenses
-
-Never use destructive remote shutdown behavior.
-
-Running workloads and customer data must be protected.
+The AI Deployment Project is not merely an LLM deployment utility.
+
+Its long-term product is a secure, self-hosted organisational intelligence
+operating layer — a "Company Brain" — that connects:
+
+- AI models
+- enterprise knowledge
+- users and groups
+- applications
+- analytics
+- permissions
+- workflows
+- infrastructure
+
+## Immediate product promise
+
+A customer downloads the platform, runs it on a supported
+server/workstation/VM, and the platform determines the machine's
+capabilities and safely configures itself without requiring the
+administrator to understand Linux, Docker, CUDA, vLLM, VRAM,
+quantization, ports, or model-serving infrastructure.
+
+The final administrator experience should approximate:
+
+download/run product
+→ detect host
+→ inspect CPU/RAM/GPU/storage/runtime capabilities
+→ inspect existing state
+→ select safe executor/runtime
+→ recommend compatible models
+→ acquire/reuse model artifacts
+→ calculate resource requirements
+→ configure/start services
+→ verify health
+→ READY
+
+Advanced/manual controls must also exist for technical administrators,
+but automatic safe recommendations are the default.
 
 ## Portability
 
-Primary validated reference:
+"Any server" means capability-based portability across supported
+environments, not a promise that literally every computer can run every
+model.
 
-Linux x86_64 + NVIDIA
+Primary validated enterprise reference environment:
 
-Architecture should also allow:
+- Linux x86_64
+- NVIDIA GPU
+
+The architecture must remain capable of supporting:
 
 - Linux ARM64
-- AMD / ROCm
-- Intel accelerators
-- CPU-only
-- Apple Silicon / Metal / MLX
-- virtual machines
-- cloud VMs
+- Apple Silicon / MLX-style runtimes
+- CPU / llama.cpp-style runtimes
+- suitable AMD environments
+- physical servers
 - workstations
-- enterprise rack servers
-- suitable mini-PC/prosumer hardware
+- VMs
+- cloud VMs
+- Mac Studio
+- compatible mini-PC/prosumer hardware
+- Windows-centric deployments through supported Linux VM approaches
+  where appropriate
 
-Executors and runtimes remain independent.
+Do not encode hardware support as giant server-model-specific if/else
+trees. Detect capabilities and make decisions from capabilities.
+
+## Core engineering principles
+
+The governing architectural rule is:
+
+**Core owns concepts; adapters own implementations.**
+
+Other non-negotiable principles:
+
+- Exoskeleton first.
+- Complete an end-to-end modular product before deeply optimizing
+  subsystems.
+- Prefer a simple real implementation behind a strong replaceable
+  interface.
+- Runtime, executor, gateway, model source, storage provider, connector,
+  telemetry provider, frontend and licensing provider must remain
+  replaceable.
+- Do not make Docker mandatory. Native process execution is first class.
+- Do not make vLLM a permanent dependency.
+- Do not make LiteLLM a permanent dependency.
+- Do not duplicate logic that already exists in the platform.
+- Reuse existing seams before creating new abstractions.
+- Security and permission architecture must not be weakened for speed.
+- Permission-aware retrieval is non-negotiable.
+- Customer prompts, responses, documents and RAG content remain local by
+  default.
+- Avoid premature Kubernetes, fleet scheduling, sophisticated bin
+  packing, predictive optimization or other deep infrastructure until the
+  exoskeleton requires them.
+- Do not derail the current roadmap to build future intelligence features
+  early.
+
+## Bootstrap / installability requirement
+
+Non-technical installability is a core product requirement.
+
+The eventual customer should not manually:
+
+- install vLLM
+- choose CUDA/PyTorch versions
+- download model files into directories
+- calculate VRAM
+- manage ports
+- create process services
+- understand executors
+- reconcile runtime state
+
+The platform itself must progressively own those decisions.
+
+A provisional host-aware bootstrap/resume orchestration layer should be
+developed before the polished installer, so we continuously verify that
+the architecture supports the final plug-and-play experience. This early
+coordinator is not Phase 16's polished installer.
+
+It should eventually orchestrate existing platform components for:
+
+- host detection
+- storage capacity/sonar
+- persisted-state inspection
+- model compatibility
+- model selection/recommendation
+- model reuse/acquisition
+- runtime selection
+- runtime provisioning/repair
+- capacity planning
+- clean process/port/reservation checks
+- ResourceManager lifecycle
+- health/smoke verification
+
+The eventual goal is a command conceptually similar to `ai bootstrap` or
+`ai start`, which is idempotent:
+
+- first run → provision
+- second run → reuse
+- different host → recalculate
+- missing runtime → repair
+- compatible model present → reuse
+- incompatible model present → retain in inventory but do not run
+- stale state → reconcile
+
+Polished installer, packaging, conversational onboarding and
+customer-facing recovery UX remain Phase 16 work.
+
+## Model artifact / host portability policy
+
+Persisted models form a reusable model warehouse.
+
+A model being stored does NOT mean it should automatically run on the
+current host.
+
+On every host:
+
+detect hardware
+→ evaluate stored artifacts
+→ classify compatible / conditionally compatible / unsupported
+→ independently select the appropriate model/runtime combination
+
+Rules:
+
+- Reuse compatible artifacts.
+- Do not delete incompatible artifacts merely because the current host
+  cannot run them.
+- Do not redownload a model if an appropriate compatible persisted
+  artifact already exists.
+
+Longer term, distinguish:
+
+- shared/persistent model repository
+- local high-speed execution cache/staging
+
+## Inference instance model
+
+"InferenceInstance" should become a first-class platform concept.
+
+An inference instance is one deployed model-serving service and
+eventually includes:
+
+- instance ID
+- model and revision/version
+- runtime
+- executor
+- host/GPU allocation
+- resource reservation
+- endpoint/port
+- context/runtime settings
+- runtime request concurrency
+- platform/gateway concurrency limits
+- lifecycle state
+- access-policy references
+
+### Two concurrency dimensions
+
+1. **Request concurrency** — many simultaneous requests handled by one
+   loaded inference server.
+2. **Model/inference-server concurrency** — several separate
+   model-serving instances running simultaneously.
+
+One ordinary vLLM server generally represents one loaded base-model
+serving instance and may serve many requests concurrently. Different
+unrelated base models generally require separate inference-server
+instances. LoRA/adapters are a separate multi-variant case.
+
+Enterprise capability should support several simultaneous inference
+instances when hardware permits, including:
+
+- multiple vLLM instances sharing a GPU with safe per-instance memory
+  allocations
+- instances on different GPUs
+- eventually instances across hosts
+
+Runtime-specific translation belongs in adapters. The current generic
+platform `concurrency` concept still needs to be bound to the appropriate
+vLLM runtime control, likely `--max-num-seqs` or equivalent.
+
+### Access boundaries
+
+Access assignments belong above the inference server:
+
+- users
+- groups
+- roles
+- departments
+- applications
+
+Identity/access policy and the gateway enforce access.
+
+- Do not put user authorization inside vLLM.
+- Do not put licensing logic inside ResourceManager or runtime adapters.
+
+## Knowledge / Company Brain architecture
+
+The platform must include a permission-aware Knowledge/Data Layer above
+storage and connectors.
+
+Two paths:
+
+1. **Platform-managed storage** — customers may store files directly in
+   the platform.
+2. **Existing enterprise systems** — customers connect existing
+   document/file systems without migrating everything.
+
+Use platform-owned abstractions such as:
+
+- ManagedStorageProvider
+- KnowledgeConnector
+- source-agnostic knowledge schema
+
+Potential replaceable implementations/helpers include OpenCloud,
+Nextcloud, Microsoft 365 / SharePoint / OneDrive, Google Drive,
+SMB/filesystem, WebDAV, Nango and rclone. None of these should become
+fixed architectural dependencies.
+
+Track source-aware metadata including:
+
+- source
+- external identifier/path
+- MIME/type
+- revision/checksum
+- metadata
+- owner
+- allowed users/groups/roles
+- permissions
+- indexing state
+- content reference
+
+Keep separate: identity, groups, source permissions, indexing, retrieval
+and generation.
+
+At retrieval time, the platform must never return content that the
+requesting user is not authorized to access.
+
+## Admin AI Agent
+
+An always-present permission-aware Admin AI Agent is part of the MVP.
+
+It is embedded in the enterprise administration experience and acts as
+setup guide, operational copilot, diagnostics assistant, configuration
+assistant and knowledge-management helper.
+
+It should:
+
+- explain infrastructure issues in plain language
+- interpret hardware/capacity recommendations
+- inspect platform APIs and diagnostics
+- recommend remediation
+- perform mutations only with administrator approval
+- manage models, runtimes, capacity, users/groups, connectors, indexing,
+  analytics, licensing, policies, troubleshooting and updates through
+  structured platform APIs
+- preserve permissions/privacy
+- support local/offline operation where possible
+- never jeopardize primary inference workloads
+
+## Analytics / telemetry / licensing
+
+Keep three domains separate:
+
+1. Customer-side AI usage analytics
+2. Vendor product telemetry
+3. Licensing / entitlement data
+
+Customer AI usage analytics eventually include requests, input/output
+tokens, latency, errors, model/provider usage, time slices and later
+cost/effectiveness metrics.
+
+Vendor product telemetry must be optional/modular and content-free by
+default. Do not transmit prompts, responses, documents, RAG content or
+proprietary payloads to the vendor by default.
+
+Connected licensing should use signed entitlements / short-lived
+lease-style tokens with reasonable grace periods. Air-gapped deployments
+should support signed offline license files.
+
+Nonpayment should fail gracefully: warnings → restrict new
+deployments/updates/paid capabilities where appropriate, before
+disrupting existing running workloads. Do not build a destructive kill
+switch.
+
+## Frontend strategy
+
+Enterprise Admin UI and end-user chat/workspace UI are separate
+products/surfaces.
+
+Current replaceable end-user candidates include LibreChat and Open WebUI.
+LibreChat currently has the cleaner commercial licensing position. Open
+WebUI may be useful but must not become a mandatory architectural
+dependency.
+
+Long-term commercial preference is a lightweight first-party end-user UI
+after gateway, identity, knowledge/RAG, streaming inference and APIs
+stabilize.
+
+The product's differentiation is primarily the control plane,
+orchestration, governance, knowledge, analytics and Admin AI Agent — not
+the third-party chat UI.
+
+## Third-party licensing
+
+Before commercial release, maintain formal dependency/license governance.
+
+Classify bundled/embedded models and dependencies at minimum:
+
+- **Green** — permissive commercial use
+- **Amber** — copyleft/source-available/branding/redistribution/hosted-service
+  or other material restrictions
+- **Red** — commercially incompatible dependency or unacceptable
+  restriction
+
+Amber/Red components should remain replaceable unless an explicit
+commercial decision accepts them.
+
+Eventually generate an SBOM and perform a packaged-license audit. The
+Model Catalog should surface model licenses/provenance and commercial-use
+warnings. Avoid making Docker Desktop a commercial dependency.
+
+## Team Brain — post-exoskeleton direction
+
+Future Team Brain functionality should be preserved architecturally but
+must not derail the MVP roadmap.
+
+TeamBrain is NOT simply "one fine-tuned model per department." A future
+TeamBrain may compose:
+
+- team identity/membership/permissions
+- permission-scoped knowledge/RAG
+- team agent/persona/tools/workflows
+- selected base model/model portfolio
+- optional LoRA/PEFT adapters
+- optional fine-tuned/distilled derived models
+- evaluation profile
+- memory/state where appropriate
+- routing/access policy
+
+Development sequence after the core exoskeleton:
+
+1. Team agent + permission-scoped RAG using existing base models
+2. LoRA/PEFT adaptation, dataset curation, evaluation/promotion
+3. Full fine-tuning/distillation/preference optimization where justified
+4. Later privacy-governed collective intelligence and learned
+   optimization
+
+Frequently changing factual company knowledge belongs primarily in RAG,
+not model weights.
+
+Training requires explicit dataset provenance and authorization.
+Permission to retrieve information does not automatically grant
+permission to train on it.
+
+## Derived models / training future hooks
+
+Preserve foundational support for model/artifact lineage.
+
+Derived artifacts should eventually track:
+
+- base/parent model
+- exact revision
+- derivation type
+- training recipe/config
+- dataset snapshot/provenance
+- owner/team
+- permissions
+- creation/version
+- evaluation
+- approval/promotion state
+- runtime compatibility
+- resource requirements
+
+A future ModelAdaptationProvider should remain separate from inference
+runtimes/executors.
+
+Potential techniques, in order of likely adoption:
+
+- LoRA/PEFT first
+- supervised fine-tuning
+- preference optimization
+- merging
+- distillation
+
+Resource Manager contracts should eventually represent
+training/adaptation jobs separately from inference workloads, but full
+training execution is not an MVP requirement.
 
 ## Development philosophy
 
-Vertical first.
-Sophistication second.
+Vertical first. Sophistication second.
 
-Use:
+Status vocabulary used across this repository:
 
-WORKING
-- functional enough now
-
-PROVISIONAL
-- working assumption/implementation expected to improve
-
-FUTURE
-- architectural slot intentionally not implemented yet
+- **WORKING** — functional enough now
+- **PROVISIONAL** — working assumption/implementation expected to improve
+- **FUTURE** — architectural slot intentionally not implemented yet
 
 Complete the exoskeleton first, then make each module smarter.

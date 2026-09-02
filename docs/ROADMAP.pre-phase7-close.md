@@ -1,5 +1,10 @@
 # AI Stack — Exoskeleton Roadmap
 
+> **HISTORICAL SNAPSHOT — NOT AUTHORITATIVE.**
+> This is the pre-Phase-7 roadmap, preserved for project history.
+> Its phase numbering has been superseded.
+> The current authoritative roadmap is `docs/ROADMAP.md`.
+
 ## Completed
 
 ### Phase 1 — Reliable single-node lifecycle
