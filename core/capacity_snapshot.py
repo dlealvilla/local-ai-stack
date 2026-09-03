@@ -183,9 +183,9 @@ def build_capacity_snapshot():
 
     installed_model_bytes = sum(
         int(
-            model.get(
-                "artifact",
-                {},
+            (
+                model.get("artifact")
+                or {}
             ).get(
                 "disk_usage_bytes"
             )
@@ -196,9 +196,9 @@ def build_capacity_snapshot():
 
     managed_model_bytes = sum(
         int(
-            model.get(
-                "artifact",
-                {},
+            (
+                model.get("artifact")
+                or {}
             ).get(
                 "disk_usage_bytes"
             )
@@ -206,9 +206,9 @@ def build_capacity_snapshot():
         )
         for model in models
         if (
-            model.get(
-                "management",
-                {},
+            (
+                model.get("management")
+                or {}
             ).get(
                 "managed"
             )
@@ -220,9 +220,9 @@ def build_capacity_snapshot():
         model["model_id"]
         for model in models
         if (
-            model.get(
-                "deployment",
-                {},
+            (
+                model.get("deployment")
+                or {}
             ).get(
                 "selected"
             )
@@ -233,9 +233,9 @@ def build_capacity_snapshot():
         model["model_id"]
         for model in models
         if (
-            model.get(
-                "deployment",
-                {},
+            (
+                model.get("deployment")
+                or {}
             ).get(
                 "service_state"
             )
@@ -247,9 +247,9 @@ def build_capacity_snapshot():
         model["model_id"]
         for model in models
         if (
-            model.get(
-                "deployment",
-                {},
+            (
+                model.get("deployment")
+                or {}
             ).get(
                 "load_state"
             )
