@@ -3,7 +3,8 @@
 > **HISTORICAL SNAPSHOT — NOT AUTHORITATIVE.**
 > This is the pre-Phase-7 roadmap, preserved for project history.
 > Its phase numbering has been superseded.
-> The current authoritative roadmap is `docs/ROADMAP.md`.
+> The current authoritative roadmap is
+> `docs/AI_DEPLOYMENT_TECHNICAL_ARCHITECTURE_AND_ROADMAP.md`.
 
 ## Completed
 

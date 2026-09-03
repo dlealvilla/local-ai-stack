@@ -1,10 +1,18 @@
 # AI Deployment Project — Project Context
 
 Authoritative orientation for any Cursor Agent session working on this
-repository. Read this together with `docs/PRODUCT_VISION.md`,
+repository. Read this together with
+`docs/AI_DEPLOYMENT_TECHNICAL_ARCHITECTURE_AND_ROADMAP.md`,
+`docs/CURSOR_ARCHITECTURE_GUIDE.md`, `docs/PRODUCT_VISION.md`,
 `docs/ROADMAP.md`, `docs/DEVELOPMENT_WORKFLOW.md` and
 `docs/CAPACITY_ARCHITECTURE.md` before proposing substantial
 architectural changes.
+
+`docs/AI_DEPLOYMENT_TECHNICAL_ARCHITECTURE_AND_ROADMAP.md` is the
+architectural source of truth, and owns core contracts, subsystem
+boundaries, milestones and phase numbering.
+`docs/CURSOR_ARCHITECTURE_GUIDE.md` condenses it into day-to-day
+engineering instructions.
 
 `docs/CAPACITY_ARCHITECTURE.md` is authoritative for host
 characterization, capacity representation, storage evidence, model
@@ -52,8 +60,9 @@ versioning and robustness strategy.
 
 **Phase 9 — Resource Manager / Multi-model Lifecycle.**
 
-Scope, exclusions, exit criteria and remaining work are defined in
-`docs/ROADMAP.md`.
+Scope, exclusions and completion criteria are defined in
+`docs/AI_DEPLOYMENT_TECHNICAL_ARCHITECTURE_AND_ROADMAP.md` §33. The
+remaining Phase 9 delivery work list is tracked in `docs/ROADMAP.md`.
 
 ---
 
@@ -187,7 +196,7 @@ It must **not** become a parallel bootstrap system, and it does not
 replace the `./ai` architecture or duplicate its logic. Where the
 coordinator needs behavior, extend or call the existing seam.
 
-**D. Phase 16 bootstrapper.** The polished customer-facing
+**D. Phase 15 bootstrapper.** The polished customer-facing
 installer, conversational onboarding, packaging and recovery UX. That is
 a later phase and is not what C is.
 

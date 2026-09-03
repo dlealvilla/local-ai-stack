@@ -1,10 +1,19 @@
-# AI Deployment Project — MVP Roadmap
+# AI Deployment Project — Delivery Roadmap
 
-This is the authoritative 17-phase MVP roadmap.
+> **Superseded for phase numbering and scope.**
+> `docs/AI_DEPLOYMENT_TECHNICAL_ARCHITECTURE_AND_ROADMAP.md` is the
+> architectural source of truth and owns the milestone structure and the
+> definition of every phase from Phase 10 onward. Where this file and that
+> document disagree, that document wins.
 
-Do not renumber this roadmap to introduce Team Brain or deeper
-intelligence. Those capabilities belong after or on top of the completed
-Company Brain exoskeleton.
+This file remains useful for two things only:
+
+- the delivery record of completed Phases 1–8;
+- the in-flight Phase 9 work list.
+
+Deeper intelligence — Team Brain, adaptation, learned routing — still
+belongs after the Company Brain exoskeleton is complete, now expressed as
+Milestone C rather than as post-MVP appendices.
 
 Current phase: **Phase 9 — Resource Manager / Multi-model Lifecycle**
 
@@ -160,100 +169,51 @@ Phase 9 exit must demonstrate:
 
 ---
 
-## Phase 10 — Unified AI Gateway / Provider Abstraction / Static Routing
+## Phase 10 and beyond
 
-Static routing first.
+Phase numbering and scope from Phase 10 onward are defined by
+`docs/AI_DEPLOYMENT_TECHNICAL_ARCHITECTURE_AND_ROADMAP.md` §33. Do not
+plan against the numbering this file used previously; it has been
+retired. The current sequence is:
 
-- local provider
-- external-provider adapter boundary
-- RouteDecision
-- manual/default route selection
-- usage/cost identity preserved
+```text
+MILESTONE A — Private AI infrastructure exoskeleton
+Phase 10  Gateway federation + routing v1 (LiteLLM as adapter)
+Phase 11  Identity / Teams / Policy
+Phase 12  Admin UI v1 + Diagnostic Assistant
+Phase 13  Vendor Connectivity / Heartbeat
+Phase 14  Licensing / Entitlement skeleton
+Phase 15  Bootstrapper / Installer + Release Governance
 
-Deferred to later phases: cost-aware, latency-aware, policy, fallback and
-quality-aware routing.
+MILESTONE B — Company Brain exoskeleton
+Phase 16  Knowledge / Data Layer
+Phase 17  Company Brain / Team Agent v1
+Phase 18  Workflow / Multi-Agent Foundation
 
-## Phase 11 — Enterprise Admin UI
+MILESTONE C — Learned intelligence
+Phase 19  Capacity Intelligence v2
+Phase 20  Intelligent Routing
+Phase 21  Team Brain Adaptation
+Phase 22+ Advanced intelligence
+```
 
-Administration surface for the control plane, including overview,
-hardware, model catalog, model inventory, capacity, deployments, usage
-analytics, logs/health, configuration and vendor connectivity.
-
-The Admin UI is a separate surface from any end-user chat/workspace UI.
-
-## Phase 12 — Admin AI Agent v1
-
-Permission-aware administration copilot embedded in the Admin UI:
-
-- setup guide
-- operational copilot
-- diagnostics assistant
-- configuration assistant
-- knowledge-management helper
-
-Mutations occur only with administrator approval, through structured
-platform APIs.
-
-## Phase 13 — Knowledge / Data Layer
-
-Permission-aware knowledge layer above storage and connectors:
-
-- ManagedStorageProvider
-- KnowledgeConnector
-- source-agnostic knowledge schema
-- source-aware metadata, ownership and permissions
-- indexing state and content references
-
-No specific storage vendor or connector helper becomes a fixed
-architectural dependency.
-
-## Phase 14 — Identity + Permission-Aware Indexing/Search/RAG
-
-- identity and groups
-- source permission mapping
-- permission-aware indexing
-- permission-aware search and retrieval
-- retrieval-time authorization enforcement
-
-The platform must never return content the requesting user is not
-authorized to access.
-
-## Phase 15 — Analytics / Telemetry / Entitlements
-
-Completes the three separate outbound/data domains:
-
-- customer AI usage analytics
-- vendor product telemetry, optional and content-free by default
-- licensing/entitlement, with signed entitlements, lease-style tokens,
-  grace periods, offline license files and graceful restriction
-
-No destructive kill switch.
-
-## Phase 16 — Bootstrapper + Conversational Onboarding
-
-The polished installer and customer-facing onboarding/recovery UX:
-
-- inspect host capabilities
-- select compatible executor/runtime
-- create required runtime environments
-- install only required components
-- keep models separate from the installer
-- support future offline bundles
-- conversational onboarding
+Notable changes from the retired numbering: identity now lands early, at
+Phase 11, ahead of the Admin UI rather than after it; the knowledge layer
+and permission-aware retrieval are merged into a single Phase 16; and the
+installer moves earlier, to Phase 15, closing Milestone A.
 
 The provisional bootstrap/resume coordinator developed during Phase 9 is
-not this phase; it exists to keep the architecture honest until here.
+not the Phase 15 installer; it exists to keep the architecture honest
+until that phase.
 
-## Phase 17 — Full MVP Integration / Acceptance
-
-End-to-end integration and acceptance of the complete Company Brain
-exoskeleton.
+Consult the architecture document for each phase's contracts, completion
+criteria and explicitly deferred work.
 
 ---
 
 ## Exoskeleton completion definition
 
-An administrator can:
+Milestone A is complete when an administrator can:
 
 1. install the platform;
 2. detect hardware;
@@ -271,18 +231,18 @@ architectural restructuring.
 
 ---
 
-## Post-MVP / deeper intelligence
+## Deeper intelligence
 
-These are preserved architecturally but are **not** part of the MVP
-sequence above, and must not be pulled into current phases:
+Team Brain, adaptation and learned optimization are no longer an
+open-ended post-MVP appendix. They are sequenced as Milestones B and C in
+the architecture document, and must still not be pulled into current
+phases:
 
-1. Team agent + permission-scoped RAG using existing base models
-2. LoRA/PEFT adaptation, dataset curation, evaluation/promotion
-3. Full fine-tuning/distillation/preference optimization where justified
-4. Privacy-governed collective intelligence and learned optimization
-
-Also post-MVP: multi-host fleet scheduling, predictive optimization,
-advanced routing intelligence and training execution.
+- Team agent + permission-scoped RAG on existing base models — Phase 17
+- LoRA/PEFT adaptation, dataset curation, evaluation/promotion — Phase 21
+- Full fine-tuning, distillation, preference optimization — Phase 22+
+- Learned routing, predictive optimization, multi-host fleet scheduling,
+  privacy-governed collective intelligence — Phase 22+
 
 See `docs/PRODUCT_VISION.md` for the Team Brain and derived-model
 direction.

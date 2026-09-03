@@ -138,7 +138,7 @@ The platform itself must progressively own those decisions.
 A provisional host-aware bootstrap/resume orchestration layer should be
 developed before the polished installer, so we continuously verify that
 the architecture supports the final plug-and-play experience. This early
-coordinator is not Phase 16's polished installer.
+coordinator is not Phase 15's polished installer.
 
 It should eventually orchestrate existing platform components for:
 
@@ -167,7 +167,7 @@ The eventual goal is a command conceptually similar to `ai bootstrap` or
 - stale state → reconcile
 
 Polished installer, packaging, conversational onboarding and
-customer-facing recovery UX remain Phase 16 work.
+customer-facing recovery UX remain Phase 15 work.
 
 ## Model artifact / host portability policy
 

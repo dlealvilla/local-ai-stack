@@ -7,8 +7,10 @@ Status: design. No implementation is authorized by this document.
 
 Predecessor commit for this design: `e53ed3b`.
 
-Companions: `docs/PRODUCT_VISION.md` (north star),
-`docs/ROADMAP.md` (phase contracts),
+Companions: `docs/AI_DEPLOYMENT_TECHNICAL_ARCHITECTURE_AND_ROADMAP.md`
+(architectural source of truth, phase contracts),
+`docs/PRODUCT_VISION.md` (north star),
+`docs/ROADMAP.md` (Phase 1–9 delivery record),
 `docs/PROJECT_CONTEXT.md` (verified state),
 `docs/DEVELOPMENT_WORKFLOW.md` (bounded-step protocol).
 

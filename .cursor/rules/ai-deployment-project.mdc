@@ -8,9 +8,18 @@ alwaysApply: true
 Treat these files as authoritative. Read them before proposing
 substantial architectural changes:
 
+- @docs/AI_DEPLOYMENT_TECHNICAL_ARCHITECTURE_AND_ROADMAP.md — **the
+ architectural source of truth.** Authoritative for core contracts,
+ subsystem boundaries, milestones and phase numbering. Where any other
+ document disagrees on architecture or phase scope, this document wins.
+- @docs/CURSOR_ARCHITECTURE_GUIDE.md — **your day-to-day engineering
+ instructions**: the condensed operating rules, forbidden shortcuts and
+ scope-control tests to apply while writing code.
 - @docs/PROJECT_CONTEXT.md — invariants, verified state, current phase
 - @docs/PRODUCT_VISION.md — north star, Company Brain, portability
-- @docs/ROADMAP.md — 17-phase MVP roadmap, Phase 9 contract
+- @docs/ROADMAP.md — delivery detail for completed Phases 1–8 and the
+ in-flight Phase 9 work list. Subordinate to the architecture document
+ above for phase numbering and post-Phase-9 scope.
 - @docs/DEVELOPMENT_WORKFLOW.md — branch/GPU workflow **and the bounded-step
  development protocol you must follow**
 - @docs/CAPACITY_ARCHITECTURE.md — authoritative for host characterization,
