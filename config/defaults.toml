@@ -270,3 +270,18 @@ capacity_cache_ttl_seconds = 900
 # mutations and maintenance sonar cannot overlap.
 storage_operation_lock_path = "/opt/ai-stack/runtime/locks/storage-capacity.lock"
 storage_operation_lock_wait_seconds = 0.0
+
+[model_evaluation]
+# WORKING:
+# Model intelligence is a replaceable provider. llmfit is the first
+# implementation; the platform never depends on it, because selection
+# falls back to closest-safe-fit whenever the provider is unavailable.
+#
+# Opt-in: a disabled provider is not provisioned by './ai prepare' and
+# is not reported by host readiness, so it cannot become a platform
+# prerequisite.
+provider = "llmfit"
+enabled = false
+
+# Bounded execution for the provider subprocess.
+timeout_seconds = 120

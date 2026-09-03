@@ -49,6 +49,17 @@ RUNTIME_PROFILES = {
         "executable": ".venv/bin/python",
         "torch_backend": None,
     },
+
+    # Replaceable model-evaluation provider. Provisioned only when the
+    # provider is enabled, so it never becomes a platform prerequisite.
+    "llmfit": {
+        "python": "3.12",
+        "packages": [
+            "llmfit==1.1.12",
+        ],
+        "executable": ".venv/bin/llmfit",
+        "torch_backend": None,
+    },
 }
 
 
@@ -218,6 +229,27 @@ def required_runtimes(config):
             required.append(
                 "platform_tools"
             )
+
+    #
+    # The model-evaluation provider is opt-in. A disabled provider adds
+    # no requirement, so it can never turn into a platform
+    # prerequisite, and readiness does not report it either.
+    #
+    evaluation = config.get(
+        "model_evaluation",
+        {},
+    )
+
+    if evaluation.get(
+        "enabled",
+        False,
+    ):
+        provider = evaluation.get(
+            "provider"
+        )
+
+        if provider in RUNTIME_PROFILES:
+            required.append(provider)
 
     # Keep runtime preparation idempotent even if multiple
     # platform features depend on the same runtime profile.
