@@ -274,37 +274,150 @@ failure upper bound. A policy ceiling is not evidence of absence, which
 `operation_sized_verification_policy_ceiling` rather than a denial of
 capacity.
 
-## 13. TRANSACTION, SELECTION and DEEP modes
+## 13. HOST, TRANSACTION and DEEP modes
 
 Characterization is always performed *for* a purpose, and the purpose
 sets the stopping rule.
 
+### Capacity precedes the catalogue
+
+The product order is fixed, and it matters:
+
+```
+host hardware
+  -> safe CPU / RAM / accelerator characterization
+    -> storage characterization
+      -> CapacityEnvelope
+        -> online model catalogue metadata
+          -> feasibility
+            -> model selection
+```
+
+Initial storage characterization must therefore describe the **server**,
+independently of any catalogue. Model requirements must never determine
+the initial probe horizon. An earlier design let candidate thresholds
+drive the search, which inverted this order; that mode has been replaced
+by HOST.
+
+### HOST
+
+Describe the machine. Takes no input beyond policy.
+
+Policy defaults, all provisional and tunable:
+
+```
+initial_probe_bytes       = 32 GiB
+growth_factor             = 2.0     # upward
+backoff                   = /2      # downward
+relative_tolerance        = 0.15
+max_upward_iterations     = 8
+max_downward_iterations   = 8
+max_refinement_iterations = 5
+
+foreground time limit     = NONE
+single-probe ceiling      = NONE
+```
+
+The three iteration budgets are HOST's **only** bound. HOST deliberately
+ignores both the foreground wall-clock deadline (section 20) and the
+single-probe safety ceiling (section 22); TRANSACTION and DEEP keep
+both. The budgets are provisional and intended to become
+administrator-facing settings, since trading probe time for a tighter
+bound is exactly an operator's call to make. No UI exists yet.
+
+Algorithm, after reusing any eligible durable evidence:
+
+1. start at `initial_probe_bytes`;
+2. on success, set `L` to the largest confirmed success and double:
+   `current = current * 2`;
+3. on a **classified capacity failure** with no successful lower bound
+   yet, set `U` to the smallest confirmed failure and halve:
+   `current = current / 2`;
+4. once both `L` and `U` exist, the directional budget ends and
+   refinement begins: probe `midpoint(L, U)` and update whichever bound
+   the classified result moves, recalculating uncertainty after each
+   completed probe;
+5. stop when `(U - L) / L <= relative_tolerance`, when the relevant
+   budget is exhausted, or when a result is inconclusive.
+
+Each completed probe is one iteration. The initial 32 GiB probe counts
+as iteration 1 of whichever direction its own outcome establishes: if it
+succeeds it is the first of at most 8 upward probes, and if it fails it
+is the first of at most 8 downward probes. Budgets are hard stops
+**between** probes; when one is exhausted the strongest conservative
+evidence collected is returned.
+
+Only a classified capacity or quota failure may establish `U`. An
+inconclusive or non-capacity failure stops the search as unresolved.
+
+Worked example, all successes:
+
+```
+32 GiB ok, 64 ok, 128 ok, 256 ok, 512 ok, 1 TiB ok, 2 TiB ok, 4 TiB ok
+
+verified_lower_bound = 4 TiB
+upper_bound          = unknown
+status               = bounded / incomplete
+stop_reason          = upward_iteration_budget_reached
+```
+
+That lower bound is a floor, not a total. Do **not** infer pool
+capacity from it.
+
+> **Why the upward budget is small.** HOST has neither a time limit nor
+> a probe ceiling, so the climb's cost is bounded only by its iteration
+> count — and each doubling probe writes real bytes on backends like
+> the reference network volume, measured at roughly 110 MB/s. Eight
+> probes write about 8 TiB cumulatively, roughly 22 hours. Fifteen
+> would have written about 1 PiB and taken months. The budget bounds
+> the number of probes, not their cost, so raising it is expensive in a
+> way the number does not show. It is deliberately set equal to the
+> downward budget.
+
+Worked example, failures then successes:
+
+```
+32 GiB fail, 16 fail, 8 fail, 4 ok, 6 ok, 7 ok
+
+verified_lower_bound = 7 GiB
+upper_bound          = 8 GiB
+relative_uncertainty = 1/7, about 14.3 percent
+status               = complete for host
+stop_reason          = numerical_tolerance_reached
+```
+
+Worked example, refinement exhausted:
+
+```
+bracket 1 GiB - 1024 GiB, every midpoint refused
+
+verified_lower_bound = 1 GiB
+upper_bound          = narrowed but still wide
+status               = bounded / incomplete
+stop_reason          = refinement_iteration_budget_reached
+```
+
 **TRANSACTION** — answer "may this specific mutation occur?" Examples:
 model download, update, conversion, cache materialization. Primary stop
 is transaction sufficiency (section 18, STOP 1). Expected to be the
-fastest mode by a wide margin.
-
-**SELECTION** — characterize enough to choose the best model and
-configuration for this host. Primary stop is selection decision
-sufficiency (STOP 2), falling back to bracket tolerance (STOP 3). May
-use the foreground budget when candidates genuinely cannot be
-distinguished otherwise.
+fastest mode by a wide margin. Reserved for commit-time admission and
+never used to drive initial host characterization.
 
 **DEEP** — broader knowledge for administrator reporting, warehouse
 planning, a future ModelMixOptimizer, or training. Has independent
 safety, time and I/O budgets. Must be explicitly requested or
-policy-triggered, and must never block ordinary bootstrap when
-transaction or selection evidence already suffices.
+policy-triggered, and must never block ordinary bootstrap when host or
+transaction evidence already suffices.
 
 ## 14. Useful characterization horizon
 
 The horizon is the largest capacity figure that could still change the
 current decision. It is derived from the decision, not from the pool.
 
+- HOST: the horizon is policy, not a model. Characterization starts at
+  `initial_probe_bytes` and grows or shrinks from there.
 - TRANSACTION: horizon is `R`, the safe required capacity for this
   operation under existing planning and admission semantics.
-- SELECTION: horizon is the largest peak requirement among candidates
-  that are still in contention.
 - DEEP: horizon comes from policy, not from `df`.
 
 The interrupted run is the cautionary example. `R` was about 6.70 GiB
@@ -324,8 +437,8 @@ Search order:
 5. if it succeeds and the decision is resolved, **stop**;
 6. if it fails with a classified capacity or quota error, record `U`;
 7. refine between confirmed `L` and `U`;
-8. in SELECTION mode, prefer probing unresolved candidate thresholds
-   over evenly bisecting;
+8. in HOST mode, bisect the bracket rather than hunting the exact
+   boundary;
 9. stop per the hierarchy in section 18.
 
 Explicitly prohibited: starting at 64 MiB and doubling toward enormous
@@ -348,14 +461,19 @@ allowed to stop, and that refinement must never authorize above `L`:
 
 ## 17. Decision-directed refinement
 
-Refinement must target thresholds that change an outcome. In SELECTION
-mode with candidate peaks of 8, 24, 55 and 110 GiB, and a confirmed
-`L = 32 GiB`, the only question worth probing is 55 GiB. Bisecting
-toward the true ceiling near 47 GiB answers nothing, because no
-candidate sits between 24 and 55.
+Refinement exists to answer the current question, not to locate the
+true boundary. In TRANSACTION mode that means stopping the moment `L`
+covers `R`, with no refinement at all.
 
-This turns refinement from "find the boundary" into "resolve the next
-decision-relevant threshold", which is both cheaper and more useful.
+In HOST mode the question is "roughly how much can this server hold",
+so refinement is midpoint bisection bounded by the relative tolerance
+and the iteration cap. Deliberately coarse: a 15% bracket after at most
+five probes is a useful description of a machine, whereas an exact
+boundary would cost far more probe time than the answer is worth.
+
+Earlier drafts refined toward catalogue candidate thresholds. That
+inverted the capacity-before-catalogue ordering in section 13 and has
+been removed.
 
 ## 18. The four stopping conditions
 
@@ -369,33 +487,51 @@ time budget. For the interrupted run, `R` was 7,188,310,059 bytes and a
 roughly 32 GiB probe had already succeeded, about 4.8x the requirement.
 The correct behavior was to stop there.
 
-**STOP 2 — selection decision sufficiency.** Stop when remaining
-uncertainty cannot change which candidate would be selected.
+**STOP 2 — numerical convergence.** With a genuine success/failure
+bracket, stop when the bracket is tight enough. HOST uses the relative
+rule alone:
 
-**STOP 3 — numerical convergence.** With a genuine success/failure
-bracket, stop when
+```
+(U - L) / L <= relative_tolerance
+```
+
+DEEP additionally honours an absolute floor, which matters on small
+pools where a percentage alone would chase bytes:
 
 ```
 (U - L) <= max(absolute_tolerance_bytes, relative_tolerance * L)
 ```
 
+**STOP 3 — iteration budget.** A hard stop between probes. HOST
+carries three separate budgets — `max_upward_iterations` (8),
+`max_downward_iterations` (8) and `max_refinement_iterations` (5) — and
+reports which one ended the search, so an operator knows whether to
+raise the climb, the backoff or the refinement allowance.
+
 **STOP 4 — operational budget.** Stop when wall-clock, attempt count,
 cumulative probe bytes, individual-probe limit or I/O budget is
-reached. On STOP 4: return the strongest conservative valid evidence
-collected, never discard confirmed successes, never infer beyond
-confirmed evidence, and mark completeness honestly as complete for
-transaction, complete for selection, or bounded and incomplete.
+reached. On STOP 3 or STOP 4: return the strongest conservative valid
+evidence collected, never discard confirmed successes, never infer
+beyond confirmed evidence, and mark completeness honestly as complete
+for transaction, complete for host, or bounded and incomplete.
 
 ## 19. Initial tolerance policy
 
 ```
-relative_tolerance       = 0.05     # 5%
-absolute_tolerance_bytes = 1 GiB
+relative_tolerance        = 0.15    # 15%
+absolute_tolerance_bytes  = 1 GiB   # DEEP floor only
+max_upward_iterations     = 8       # HOST
+max_downward_iterations   = 8       # HOST
+max_refinement_iterations = 5       # HOST
 ```
 
-Worked example: `L = 47 GiB`, `U = 49 GiB`. Width is 2 GiB and relative
-uncertainty is 2/47, about 4.26%, which is inside 5%. Close enough;
-stop. Usable capacity remains 47 GiB, not 48 GiB.
+Worked example: `L = 40 GiB`, `U = 44 GiB`. Width is 4 GiB and relative
+uncertainty is 4/40, exactly 10%, which is inside 15%. Close enough;
+stop. Usable capacity remains 40 GiB, not 42 GiB.
+
+15% is deliberately coarse for the exoskeleton: a host description does
+not need a precise boundary, and every extra percentage point of
+precision costs real probe minutes on a network volume.
 
 These are policy defaults belonging to `StorageCharacterizationPolicy`
 or equivalent. They must be configurable, documented with units, and
@@ -416,7 +552,8 @@ max_foreground_duration = 15 minutes
 
 Not a hidden constant: it is explicit, configurable policy. TRANSACTION
 mode will normally stop far earlier because STOP 1 outranks the budget.
-SELECTION may use the budget when candidates genuinely require it. DEEP
+HOST is exempt from this budget entirely: its bound is the iteration
+budgets in section 13. DEEP
 carries its own, larger budget and must not run in the bootstrap path.
 
 ## 21. Probe cost model
@@ -447,6 +584,16 @@ administrator policy, maximum individual probe, time budget, cumulative
 I/O budget, attempt count, trustworthy provider hard limits where
 available, and an emergency platform maximum. Replacing 64 GiB with a
 larger constant would repeat the mistake.
+
+HOST characterization is exempt from the ceiling altogether, by design:
+its bound is the iteration budgets. The probe implementation therefore
+resolves its ceiling in three ways — argument omitted means the
+configured `probe_max_gb`, which is what every existing caller gets;
+an explicit integer means that ceiling; and an explicit `None` means no
+ceiling. HOST passes `None`, TRANSACTION and DEEP pass the configured
+figure, and the existing calibration coordinator passes nothing at all
+and is unaffected. See the operational warning in section 13 before
+raising the upward budget.
 
 ## 23. Incremental evidence persistence
 
@@ -704,8 +851,9 @@ Rules: never select on unverified capacity; prefer `compatible` over
 `conditional` at equal utility; record why each rejected candidate
 lost; and be deterministic given the same inputs and policy version.
 
-This is where SELECTION-mode characterization is consumed, and it is
-the component that turns capacity work into visible product value.
+This consumes the CapacityEnvelope that host characterization fed,
+and it is the component that turns capacity work into visible product
+value.
 
 ## 34. Future ModelMixOptimizer
 
@@ -1144,7 +1292,7 @@ makes rollback and validation tractable.
 - Preserved: the Sonar search mechanism, probe sizes, safety margins,
   consensus logic and admission policy; usable capacity remains the
   verified lower bound.
-- Added: TRANSACTION, SELECTION and DEEP modes; useful horizon;
+- Added: HOST, TRANSACTION and DEEP modes; useful horizon;
   target-first probing; the four stopping conditions; 5% and 1 GiB
   tolerances; the 15-minute foreground budget; the probe cost model.
 - Acceptance: Level 2. The acceptance criterion is explicit: the

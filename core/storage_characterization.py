@@ -19,10 +19,10 @@ Layering, deliberately not collapsed:
     core.storage_commit_admission       admission, unchanged
 
 This module is model-agnostic by construction. It never imports the
-model catalogue, model requirements, feasibility or any selector: a
-caller supplies generic byte thresholds, and this module reports only
-which of those thresholds are proven feasible, proven infeasible or
-unresolved. Which model wins is not a storage question.
+model catalogue, model requirements, feasibility or any selector.
+Initial host characterization takes no input at all beyond policy,
+because capacity must describe the server before any catalogue is
+consulted. Which model wins is not a storage question.
 
 Nothing here is wired into production capacity resolution or admission.
 `resolve_storage_capacity()` and `calibrate_storage_capacity()` behave
@@ -70,24 +70,19 @@ MIB = 1024 ** 2
 # Characterization modes. Each mode exists to answer a different
 # question, and the question determines when to stop.
 #
+#   HOST         describe the SERVER, before any catalogue exists.
+#   TRANSACTION  answer one specific mutation at commit time.
+#   DEEP         optional broader characterization, never required.
+#
+MODE_HOST = "host"
 MODE_TRANSACTION = "transaction"
-MODE_SELECTION = "selection"
 MODE_DEEP = "deep"
 
 CHARACTERIZATION_MODES = frozenset({
+    MODE_HOST,
     MODE_TRANSACTION,
-    MODE_SELECTION,
     MODE_DEEP,
 })
-
-
-#
-# Threshold verdicts. Three values only: a threshold we could not
-# resolve is unresolved, never infeasible.
-#
-THRESHOLD_PROVEN_FEASIBLE = "proven_feasible"
-THRESHOLD_PROVEN_INFEASIBLE = "proven_infeasible"
-THRESHOLD_UNRESOLVED = "unresolved"
 
 
 #
@@ -99,14 +94,23 @@ STOP_TRANSACTION_PROVEN_FEASIBLE = (
 STOP_TRANSACTION_PROVEN_INFEASIBLE = (
     "transaction_proven_infeasible"
 )
-STOP_SELECTION_THRESHOLDS_RESOLVED = (
-    "selection_thresholds_resolved"
-)
-STOP_USEFUL_HORIZON_VERIFIED = (
-    "useful_horizon_verified"
-)
 STOP_NUMERICAL_TOLERANCE_REACHED = (
     "numerical_tolerance_reached"
+)
+
+#
+# HOST budgets are reported separately: knowing WHICH budget ended a
+# search is what tells an operator whether to raise the climb, the
+# backoff or the refinement allowance.
+#
+STOP_UPWARD_BUDGET_REACHED = (
+    "upward_iteration_budget_reached"
+)
+STOP_DOWNWARD_BUDGET_REACHED = (
+    "downward_iteration_budget_reached"
+)
+STOP_REFINEMENT_BUDGET_REACHED = (
+    "refinement_iteration_budget_reached"
 )
 STOP_TIME_BUDGET_REACHED = "time_budget_reached"
 STOP_ATTEMPT_BUDGET_REACHED = (
@@ -120,16 +124,28 @@ STOP_INCONCLUSIVE_PROBE_FAILURE = (
 
 #
 # Completeness. Honesty matters more than a tidy label: evidence that
-# answered the transaction is not evidence that characterized the pool.
+# answered the transaction is not evidence that characterized the pool,
+# and a search that ran out of iterations is bounded, not complete.
 #
 STATUS_COMPLETE_FOR_TRANSACTION = (
     "complete_for_transaction"
 )
-STATUS_COMPLETE_FOR_SELECTION = (
-    "complete_for_selection"
-)
+STATUS_COMPLETE_FOR_HOST = "complete_for_host"
 STATUS_BOUNDED_INCOMPLETE = "bounded_incomplete"
 STATUS_INCONCLUSIVE = "inconclusive"
+
+
+#
+# Probe phases. `initial` is transient: the first probe is relabelled
+# by its own outcome, because the direction it establishes is the
+# direction whose budget it consumes.
+#
+PHASE_INITIAL = "initial"
+PHASE_UPWARD = "upward"
+PHASE_DOWNWARD = "downward"
+PHASE_REFINEMENT = "refinement"
+PHASE_SANITY = "sanity"
+PHASE_TARGET = "target"
 
 
 @dataclass(frozen=True)
@@ -148,7 +164,43 @@ class StorageCharacterizationPolicy:
     `max_single_probe_bytes` is a safety limit, not a capacity claim.
     It is seeded from the lower of the existing `sonar_max_automatic_gb`
     and `probe_max_gb`, exactly as the existing calibration coordinator
-    computes its ceiling, so there is no competing third number.
+    computes its ceiling, so there is no competing third number. It is
+    also what keeps the search from ever reaching the probe
+    implementation's own refusal, which would return
+    `probe_limit_exceeded` and be classified inconclusive.
+
+    HOST-mode fields:
+
+    `initial_probe_bytes` is where a fresh host characterization
+    starts. It is deliberately a fixed server-scale figure rather than
+    anything derived from a model, because storage characterization
+    must describe the machine before a catalogue is consulted.
+
+    HOST is bounded by three separate iteration budgets rather than by
+    time or probe size:
+
+        max_upward_iterations       climbing, before a bracket exists
+        max_downward_iterations     backing off, before a bracket exists
+        max_refinement_iterations   midpoint probes, once bracketed
+
+    The upward budget is deliberately small. Each doubling probe writes
+    real bytes on backends like the reference network volume, so the
+    cost of the climb grows with the same factor as the probe size: a
+    generous allowance buys precision nobody asked for at a price
+    measured in days.
+
+    All three are provisional and intended to become
+    administrator-facing settings: trading probe time for a tighter
+    bound is exactly an operator's call. No UI exists yet.
+
+    HOST deliberately ignores `max_foreground_duration_seconds` and
+    `max_single_probe_bytes`; the iteration budgets are its only bound.
+    TRANSACTION and DEEP keep both.
+
+    `relative_tolerance` is the HOST convergence rule on its own, as a
+    pure ratio. DEEP additionally honours
+    `absolute_tolerance_bytes` as a floor, which matters on small
+    pools where a percentage alone would chase bytes.
     """
 
     schema_version: int
@@ -159,6 +211,10 @@ class StorageCharacterizationPolicy:
     max_single_probe_bytes: int
     sanity_probe_bytes: int
     growth_factor: float
+    initial_probe_bytes: int
+    max_upward_iterations: int
+    max_downward_iterations: int
+    max_refinement_iterations: int
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -212,7 +268,7 @@ def build_storage_characterization_policy(
         relative_tolerance=float(
             settings.get(
                 "characterization_relative_tolerance",
-                0.05,
+                0.15,
             )
         ),
 
@@ -262,6 +318,37 @@ def build_storage_characterization_policy(
             settings.get(
                 "sonar_growth_factor",
                 2.0,
+            )
+        ),
+
+        initial_probe_bytes=int(
+            float(
+                settings.get(
+                    "characterization_initial_probe_gb",
+                    32.0,
+                )
+            )
+            * GIB
+        ),
+
+        max_upward_iterations=int(
+            settings.get(
+                "characterization_max_upward_iterations",
+                8,
+            )
+        ),
+
+        max_downward_iterations=int(
+            settings.get(
+                "characterization_max_downward_iterations",
+                8,
+            )
+        ),
+
+        max_refinement_iterations=int(
+            settings.get(
+                "characterization_max_refinement_iterations",
+                5,
             )
         ),
     )
@@ -331,27 +418,6 @@ def bounds_from_evidence(
     return lower, upper, used
 
 
-def classify_threshold(
-    threshold_bytes: int,
-    *,
-    lower_bound: int | None,
-    upper_bound: int | None,
-) -> str:
-    if (
-        lower_bound is not None
-        and threshold_bytes <= lower_bound
-    ):
-        return THRESHOLD_PROVEN_FEASIBLE
-
-    if (
-        upper_bound is not None
-        and threshold_bytes >= upper_bound
-    ):
-        return THRESHOLD_PROVEN_INFEASIBLE
-
-    return THRESHOLD_UNRESOLVED
-
-
 def _uncertainty(
     lower_bound: int | None,
     upper_bound: int | None,
@@ -397,39 +463,33 @@ def _within_tolerance(
     return absolute <= allowed
 
 
-def _normalized_thresholds(
-    candidate_thresholds_bytes,
-) -> list[int]:
-    if not candidate_thresholds_bytes:
-        return []
+def _relative_uncertainty_within(
+    lower_bound: int | None,
+    upper_bound: int | None,
+    policy: StorageCharacterizationPolicy,
+) -> bool:
+    """The HOST convergence rule: a pure relative ratio.
 
-    thresholds = set()
+    Deliberately without an absolute floor, so the stated policy is
+    exactly what runs: stop once (U - L) / L is within
+    `relative_tolerance`.
+    """
 
-    for value in candidate_thresholds_bytes:
-        value = int(
-            value
-        )
-
-        if value <= 0:
-            raise ValueError(
-                "candidate thresholds must be positive"
-            )
-
-        thresholds.add(
-            value
-        )
-
-    return sorted(
-        thresholds
+    _, relative = _uncertainty(
+        lower_bound,
+        upper_bound,
     )
+
+    if relative is None:
+        return False
+
+    return relative <= policy.relative_tolerance
 
 
 def characterize_storage(
     *,
     mode,
     required_bytes=None,
-    candidate_thresholds_bytes=None,
-    useful_horizon_bytes=None,
     provider=None,
     config=None,
     policy=None,
@@ -438,16 +498,28 @@ def characterize_storage(
 ):
     """Characterize storage only as far as the current decision needs.
 
+    HOST describes the server itself, taking no input beyond policy.
+    It starts at `initial_probe_bytes`, doubles on success and halves
+    on a classified capacity failure until a success/failure bracket
+    exists, then refines by midpoint until the relative uncertainty is
+    within tolerance or the iteration cap is reached. Nothing about a
+    model influences it, because capacity characterization precedes
+    catalogue evaluation:
+
+        host hardware
+          -> safe CPU/RAM/accelerator characterization
+            -> storage characterization
+              -> CapacityEnvelope
+                -> catalogue metadata
+                  -> feasibility
+                    -> model selection
+
     TRANSACTION answers "can this exact operation reserve
     `required_bytes`?". `required_bytes` is expected to be the safe
     requirement already produced by the storage-planning layer, so no
     further reserve is added here: doing so would double-account the
-    headroom that layer already applied.
-
-    SELECTION classifies the caller's supplied
-    `candidate_thresholds_bytes` and, optionally,
-    `useful_horizon_bytes`. The caller decides which thresholds still
-    matter; this function never learns what they represent.
+    headroom that layer already applied. It is for commit-time
+    admission and must never drive initial host characterization.
 
     DEEP approximates a broader ceiling for reporting and planning. It
     is never required for bootstrap.
@@ -495,29 +567,6 @@ def characterize_storage(
             raise ValueError(
                 "required_bytes must be positive"
             )
-
-    thresholds = _normalized_thresholds(
-        candidate_thresholds_bytes
-    )
-
-    if useful_horizon_bytes is not None:
-        useful_horizon_bytes = int(
-            useful_horizon_bytes
-        )
-
-        if useful_horizon_bytes <= 0:
-            raise ValueError(
-                "useful_horizon_bytes must be positive"
-            )
-
-    if mode == MODE_SELECTION and not (
-        thresholds
-        or useful_horizon_bytes
-    ):
-        raise ValueError(
-            "SELECTION characterization requires "
-            "candidate thresholds or a useful horizon"
-        )
 
     started_at = datetime.now(
         timezone.utc
@@ -571,6 +620,25 @@ def characterize_storage(
         "inconclusive": None,
     }
 
+    #
+    # HOST has no probe-size ceiling: its bound is the iteration
+    # budget. Every other mode keeps the configured safety limit,
+    # which is also what the probe implementation would resolve on its
+    # own.
+    #
+    probe_ceiling = (
+        None
+        if mode == MODE_HOST
+        else policy.max_single_probe_bytes
+    )
+
+    def phase_count(phase):
+        return len([
+            entry
+            for entry in probes
+            if entry["phase"] == phase
+        ])
+
     def elapsed_seconds():
         return (
             monotonic()
@@ -589,6 +657,7 @@ def characterize_storage(
         result = probe_implementation(
             requested_bytes,
             config=config,
+            max_probe_bytes=probe_ceiling,
         )
 
         outcome, classification = (
@@ -596,6 +665,20 @@ def characterize_storage(
                 result
             )
         )
+
+        #
+        # The first probe belongs to whichever direction its own
+        # outcome establishes, and counts as iteration 1 of that
+        # direction.
+        #
+        if phase == PHASE_INITIAL:
+            if outcome == PROBE_OUTCOME_SUCCESS:
+                phase = PHASE_UPWARD
+
+            elif outcome == (
+                PROBE_OUTCOME_CAPACITY_FAILURE
+            ):
+                phase = PHASE_DOWNWARD
 
         #
         # Durability first: the fact must survive whatever happens to
@@ -707,43 +790,23 @@ def characterize_storage(
 
             return None
 
-        if mode == MODE_SELECTION:
-            unresolved = [
-                threshold
-                for threshold in thresholds
-
-                if classify_threshold(
-                    threshold,
-                    lower_bound=lower_bound,
-                    upper_bound=upper_bound,
-                )
-                == THRESHOLD_UNRESOLVED
-            ]
-
-            horizon_unresolved = (
-                useful_horizon_bytes is not None
-                and classify_threshold(
-                    useful_horizon_bytes,
-                    lower_bound=lower_bound,
-                    upper_bound=upper_bound,
-                )
-                == THRESHOLD_UNRESOLVED
-            )
-
-            if unresolved or horizon_unresolved:
-                return None
-
-            if (
-                not thresholds
-                and useful_horizon_bytes is not None
+        if mode == MODE_HOST:
+            #
+            # Converged once the bracket is tight enough. The
+            # iteration cap is enforced separately, in the loop,
+            # because it is a hard stop BETWEEN probes rather than a
+            # statement about the evidence.
+            #
+            if _relative_uncertainty_within(
+                lower_bound,
+                upper_bound,
+                policy,
             ):
                 return (
-                    STOP_USEFUL_HORIZON_VERIFIED
+                    STOP_NUMERICAL_TOLERANCE_REACHED
                 )
 
-            return (
-                STOP_SELECTION_THRESHOLDS_RESOLVED
-            )
+            return None
 
         #
         # DEEP: refine only while the bracket is still loose.
@@ -760,54 +823,75 @@ def characterize_storage(
         return None
 
     def next_target():
-        """The next size worth probing, or None when nothing is."""
+        """The next (size, phase) worth probing, or (None, None).
+
+        The phase matters because HOST budgets are per-direction: a
+        climb, a backoff and a midpoint refinement each have their own
+        allowance.
+        """
 
         if mode == MODE_TRANSACTION:
-            return required_bytes
+            return required_bytes, PHASE_TARGET
 
-        if mode == MODE_SELECTION:
+        if mode == MODE_HOST:
             #
-            # A decision threshold outranks an arbitrary numeric
-            # midpoint: probing 55 GiB resolves a candidate, whereas
-            # bisecting toward the true boundary resolves nothing.
+            # No bracket yet and nothing known: start at the fixed
+            # server-scale figure. This probe consumes iteration 1 of
+            # whichever direction its outcome establishes.
             #
-            unresolved = [
-                threshold
-                for threshold in thresholds
-
-                if classify_threshold(
-                    threshold,
-                    lower_bound=lower_bound,
-                    upper_bound=upper_bound,
+            if (
+                lower_bound is None
+                and upper_bound is None
+            ):
+                return (
+                    policy.initial_probe_bytes,
+                    PHASE_INITIAL,
                 )
-                == THRESHOLD_UNRESOLVED
-                and threshold
-                <= policy.max_single_probe_bytes
-            ]
 
-            if unresolved:
-                return max(
-                    unresolved
+            #
+            # Succeeding, with no ceiling found: double.
+            #
+            if upper_bound is None:
+                candidate = int(
+                    lower_bound
+                    * policy.growth_factor
                 )
+
+                if candidate <= lower_bound:
+                    return None, None
+
+                return candidate, PHASE_UPWARD
+
+            #
+            # Failing, with no floor found: halve.
+            #
+            if lower_bound is None:
+                candidate = upper_bound // 2
+
+                if candidate <= 0:
+                    return None, None
+
+                return candidate, PHASE_DOWNWARD
+
+            #
+            # Bracketed: refine by midpoint.
+            #
+            midpoint = (
+                lower_bound
+                + (
+                    upper_bound
+                    - lower_bound
+                )
+                // 2
+            )
 
             if (
-                useful_horizon_bytes is not None
-                and useful_horizon_bytes
-                <= policy.max_single_probe_bytes
-                and classify_threshold(
-                    useful_horizon_bytes,
-                    lower_bound=lower_bound,
-                    upper_bound=upper_bound,
-                )
-                == THRESHOLD_UNRESOLVED
+                midpoint <= lower_bound
+                or midpoint >= upper_bound
             ):
-                return useful_horizon_bytes
+                return None, None
 
-            #
-            # Anything still unresolved lies beyond the safety limit.
-            # It stays unresolved rather than being called infeasible.
-            #
-            return None
+            return midpoint, PHASE_REFINEMENT
 
         #
         # DEEP with no failure bound yet: expand geometrically from
@@ -833,15 +917,15 @@ def characterize_storage(
             # DEEP can still verify the ceiling policy permits.
             #
             if candidate <= base:
-                return None
+                return None, None
 
-            return candidate
+            return candidate, PHASE_TARGET
 
         #
         # DEEP with a real bracket: midpoint refinement.
         #
         if lower_bound is None:
-            return None
+            return None, None
 
         midpoint = (
             lower_bound
@@ -856,9 +940,9 @@ def characterize_storage(
             midpoint <= lower_bound
             or midpoint >= upper_bound
         ):
-            return None
+            return None, None
 
-        return midpoint
+        return midpoint, PHASE_TARGET
 
     #
     # 2. Sanity probe for a genuinely uncharacterized pool.
@@ -868,9 +952,18 @@ def characterize_storage(
     #    target. An unsupported or erroring mechanism must be
     #    discovered cheaply, not at 64 GiB.
     #
+    #    HOST mode skips it: its own first probe IS the fixed starting
+    #    figure, and an inconclusive result there stops the search
+    #    just as safely. Spending an iteration on a separate sanity
+    #    probe would contradict the stated five-iteration budget.
+    #
     stop_reason = decision_stop_reason()
 
-    if stop_reason is None and lower_bound is None:
+    if (
+        stop_reason is None
+        and mode != MODE_HOST
+        and lower_bound is None
+    ):
         if (
             elapsed_seconds()
             >= policy.max_foreground_duration_seconds
@@ -880,7 +973,7 @@ def characterize_storage(
         else:
             run_probe(
                 policy.sanity_probe_bytes,
-                "sanity",
+                PHASE_SANITY,
             )
 
             if state["inconclusive"] is not None:
@@ -900,7 +993,7 @@ def characterize_storage(
     #    decision names its own target, so probe that.
     #
     while stop_reason is None:
-        target = next_target()
+        target, phase = next_target()
 
         if target is None:
             stop_reason = (
@@ -920,39 +1013,94 @@ def characterize_storage(
         )
 
         #
-        # A target beyond the safety limit is NOT infeasible. It is
-        # simply outside what policy currently permits us to verify,
-        # and a future approved limit can resolve it without touching
-        # this algorithm.
+        # HOST budgets are HARD stops between probes, per direction.
+        # Once a budget is exhausted no further probe of that kind
+        # starts, and the strongest conservative evidence collected so
+        # far is returned.
         #
-        if target > policy.max_single_probe_bytes:
-            stop_reason = STOP_PROBE_LIMIT_REACHED
-            break
+        if mode == MODE_HOST:
+            budget_stop = None
 
-        if (
-            len(probes)
-            >= policy.attempt_budget
-        ):
-            stop_reason = (
-                STOP_ATTEMPT_BUDGET_REACHED
-            )
-            break
+            if phase in {
+                PHASE_INITIAL,
+                PHASE_UPWARD,
+            }:
+                if (
+                    phase_count(PHASE_UPWARD)
+                    >= policy.max_upward_iterations
+                ):
+                    budget_stop = (
+                        STOP_UPWARD_BUDGET_REACHED
+                    )
 
-        #
-        # The budget is checked before starting a probe and again
-        # after it completes. C3B cannot stop a probe that is already
-        # running; see the module notes and C3C.
-        #
-        if (
-            elapsed_seconds()
-            >= policy.max_foreground_duration_seconds
-        ):
-            stop_reason = STOP_TIME_BUDGET_REACHED
-            break
+            elif phase == PHASE_DOWNWARD:
+                if (
+                    phase_count(PHASE_DOWNWARD)
+                    >= policy.max_downward_iterations
+                ):
+                    budget_stop = (
+                        STOP_DOWNWARD_BUDGET_REACHED
+                    )
+
+            elif phase == PHASE_REFINEMENT:
+                if (
+                    phase_count(PHASE_REFINEMENT)
+                    >= policy.max_refinement_iterations
+                ):
+                    budget_stop = (
+                        STOP_REFINEMENT_BUDGET_REACHED
+                    )
+
+            if budget_stop is not None:
+                stop_reason = budget_stop
+                break
+
+        else:
+            #
+            # A target beyond the safety limit is NOT infeasible. It
+            # is simply outside what policy currently permits us to
+            # verify. This also keeps the search from reaching the
+            # probe implementation's own refusal, which would come
+            # back classified inconclusive.
+            #
+            if (
+                target
+                > policy.max_single_probe_bytes
+            ):
+                stop_reason = (
+                    STOP_PROBE_LIMIT_REACHED
+                )
+                break
+
+            if (
+                len(probes)
+                >= policy.attempt_budget
+            ):
+                stop_reason = (
+                    STOP_ATTEMPT_BUDGET_REACHED
+                )
+                break
+
+            #
+            # The budget is checked before starting a probe and again
+            # after it completes. C3B cannot stop a probe that is
+            # already running; see the module notes and C3C.
+            #
+            # HOST deliberately has no time limit: its bound is the
+            # iteration budget above.
+            #
+            if (
+                elapsed_seconds()
+                >= policy.max_foreground_duration_seconds
+            ):
+                stop_reason = (
+                    STOP_TIME_BUDGET_REACHED
+                )
+                break
 
         run_probe(
             target,
-            "target",
+            phase,
         )
 
         if state["inconclusive"] is not None:
@@ -965,6 +1113,7 @@ def characterize_storage(
 
         if (
             stop_reason is None
+            and mode != MODE_HOST
             and elapsed_seconds()
             >= policy.max_foreground_duration_seconds
         ):
@@ -994,28 +1143,15 @@ def characterize_storage(
             STATUS_COMPLETE_FOR_TRANSACTION
         )
 
-    elif stop_reason in {
-        STOP_SELECTION_THRESHOLDS_RESOLVED,
-        STOP_USEFUL_HORIZON_VERIFIED,
-    }:
-        status = STATUS_COMPLETE_FOR_SELECTION
+    elif (
+        mode == MODE_HOST
+        and stop_reason
+        == STOP_NUMERICAL_TOLERANCE_REACHED
+    ):
+        status = STATUS_COMPLETE_FOR_HOST
 
     else:
         status = STATUS_BOUNDED_INCOMPLETE
-
-    threshold_classifications = [
-        {
-            "threshold_bytes": threshold,
-
-            "classification": classify_threshold(
-                threshold,
-                lower_bound=lower_bound,
-                upper_bound=upper_bound,
-            ),
-        }
-
-        for threshold in thresholds
-    ]
 
     total_duration = sum(
         entry["duration_seconds"] or 0.0
@@ -1058,10 +1194,6 @@ def characterize_storage(
             else None
         ),
 
-        "useful_horizon_bytes": (
-            useful_horizon_bytes
-        ),
-
         "verified_lower_bound_bytes": (
             lower_bound
         ),
@@ -1093,8 +1225,42 @@ def characterize_storage(
             state["inconclusive"]
         ),
 
+        #
+        # One completed probe is one iteration, which is what the
+        # iteration cap counts.
+        #
         "probe_count_this_run": len(
             probes
+        ),
+
+        "iterations": len(probes),
+
+        "upward_iterations": phase_count(
+            PHASE_UPWARD
+        ),
+
+        "downward_iterations": phase_count(
+            PHASE_DOWNWARD
+        ),
+
+        "refinement_iterations": phase_count(
+            PHASE_REFINEMENT
+        ),
+
+        "iteration_budgets": (
+            {
+                "upward": (
+                    policy.max_upward_iterations
+                ),
+                "downward": (
+                    policy.max_downward_iterations
+                ),
+                "refinement": (
+                    policy.max_refinement_iterations
+                ),
+            }
+            if mode == MODE_HOST
+            else None
         ),
 
         "total_requested_probe_bytes_this_run": sum(
@@ -1115,9 +1281,5 @@ def characterize_storage(
 
         "created_evidence_record_ids": (
             created_ids
-        ),
-
-        "threshold_classifications": (
-            threshold_classifications
         ),
     }

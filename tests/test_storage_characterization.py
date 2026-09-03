@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from unittest import mock
@@ -26,30 +27,30 @@ from core.storage_capacity_cache import (
 )
 from core.storage_characterization import (
     MODE_DEEP,
-    MODE_SELECTION,
+    MODE_HOST,
     MODE_TRANSACTION,
     STATUS_BOUNDED_INCOMPLETE,
-    STATUS_COMPLETE_FOR_SELECTION,
+    STATUS_COMPLETE_FOR_HOST,
     STATUS_COMPLETE_FOR_TRANSACTION,
     STATUS_INCONCLUSIVE,
     STOP_ATTEMPT_BUDGET_REACHED,
     STOP_INCONCLUSIVE_PROBE_FAILURE,
     STOP_NUMERICAL_TOLERANCE_REACHED,
     STOP_PROBE_LIMIT_REACHED,
-    STOP_SELECTION_THRESHOLDS_RESOLVED,
+    STOP_DOWNWARD_BUDGET_REACHED,
+    STOP_REFINEMENT_BUDGET_REACHED,
+    STOP_UPWARD_BUDGET_REACHED,
     STOP_TIME_BUDGET_REACHED,
     STOP_TRANSACTION_PROVEN_FEASIBLE,
     STOP_TRANSACTION_PROVEN_INFEASIBLE,
-    STOP_USEFUL_HORIZON_VERIFIED,
-    THRESHOLD_PROVEN_FEASIBLE,
-    THRESHOLD_PROVEN_INFEASIBLE,
-    THRESHOLD_UNRESOLVED,
     build_storage_characterization_policy,
     characterize_storage,
 )
 
 GIB = 1024 ** 3
 MIB = 1024 ** 2
+
+TIB = 1024 ** 4
 
 SANITY = 64 * MIB
 
@@ -507,194 +508,734 @@ class PersistenceOrderingTests(CharacterizationTestCase):
         )
 
 
-class SelectionLogicTests(CharacterizationTestCase):
-    def thresholds(self):
-        return [8 * GIB, 24 * GIB, 55 * GIB]
+class HostCharacterizationTests(CharacterizationTestCase):
+    """Final HOST policy: 32 GiB start, x2 up to 15, /2 down to 8,
+    midpoint refinement to 5, 15% tolerance, no time limit, no ceiling.
 
-    def test_thresholds_below_lower_bound_are_feasible(self):
-        self.seed_evidence(success(32 * GIB), 32 * GIB)
+    Probes are answered by a pool with a real boundary rather than a
+    fixed script, so each search runs to its natural stop and the whole
+    sequence can be asserted. The sequence is the behaviour.
+    """
 
-        result = characterize_storage(
-            mode=MODE_SELECTION,
-            candidate_thresholds_bytes=[
-                8 * GIB,
-                24 * GIB,
-            ],
+    def pool(self, ceiling_bytes):
+        def responder(requested_bytes):
+            if requested_bytes <= ceiling_bytes:
+                return success(requested_bytes)
+
+            return capacity_failure(requested_bytes)
+
+        return responder
+
+    def run_host(self, responder, policy=None, monotonic=None):
+        return characterize_storage(
+            mode=MODE_HOST,
             config=self.config,
+            policy=policy,
+            monotonic=monotonic,
             probe_implementation=self.probes_from(
-                self.always()
+                responder
             ),
         )
+
+    # --- starting point and direction ---------------------------------
+
+    def test_initial_probe_is_32_gib(self):
+        self.run_host(self.pool(50 * GIB))
+
+        self.assertEqual(
+            self.requested[0],
+            32 * GIB,
+        )
+
+    def test_success_climbs_by_doubling(self):
+        self.run_host(self.pool(10_000 * GIB))
+
+        self.assertEqual(
+            self.requested[:5],
+            [
+                32 * GIB,
+                64 * GIB,
+                128 * GIB,
+                256 * GIB,
+                512 * GIB,
+            ],
+        )
+
+    def test_initial_failure_backs_off_by_halving(self):
+        self.run_host(self.pool(1))
+
+        self.assertEqual(
+            self.requested[:4],
+            [
+                32 * GIB,
+                16 * GIB,
+                8 * GIB,
+                4 * GIB,
+            ],
+        )
+
+    def test_initial_probe_counts_toward_the_direction_it_establishes(self):
+        # Succeeding makes it iteration 1 upward.
+        upward = self.run_host(
+            self.pool(40 * GIB)
+        )
+
+        self.assertEqual(
+            upward["upward_iterations"],
+            2,
+        )
+        self.assertEqual(
+            upward["downward_iterations"],
+            0,
+        )
+
+        # Failing makes it iteration 1 downward.
+        self.requested = []
+        self.setUp()
+
+        downward = self.run_host(self.pool(1))
+
+        self.assertEqual(
+            downward["downward_iterations"],
+            8,
+        )
+        self.assertEqual(
+            downward["upward_iterations"],
+            0,
+        )
+
+    # --- directional budgets ------------------------------------------
+
+    def test_at_most_eight_upward_probes_and_no_ninth(self):
+        attempts = []
+
+        def responder(requested_bytes):
+            attempts.append(requested_bytes)
+
+            if len(attempts) > 8:
+                raise AssertionError(
+                    "a ninth upward probe started "
+                    "despite the 8-probe budget"
+                )
+
+            return success(requested_bytes)
+
+        result = self.run_host(responder)
+
+        self.assertEqual(len(attempts), 8)
+        self.assertEqual(
+            result["upward_iterations"],
+            8,
+        )
+        self.assertEqual(
+            result["stop_reason"],
+            STOP_UPWARD_BUDGET_REACHED,
+        )
+
+        # The whole fresh upward sequence, 32 GiB doubled seven times.
+        self.assertEqual(
+            self.requested,
+            [
+                32 * GIB,
+                64 * GIB,
+                128 * GIB,
+                256 * GIB,
+                512 * GIB,
+                1024 * GIB,
+                2048 * GIB,
+                4096 * GIB,
+            ],
+        )
+        self.assertEqual(
+            self.requested[-1],
+            4 * TIB,
+        )
+
+    def test_at_most_eight_downward_probes_and_no_ninth(self):
+        attempts = []
+
+        def responder(requested_bytes):
+            attempts.append(requested_bytes)
+
+            if len(attempts) > 8:
+                raise AssertionError(
+                    "a ninth downward probe started "
+                    "despite the 8-probe budget"
+                )
+
+            return capacity_failure(requested_bytes)
+
+        result = self.run_host(responder)
+
+        self.assertEqual(len(attempts), 8)
+        self.assertEqual(
+            result["downward_iterations"],
+            8,
+        )
+        self.assertEqual(
+            result["stop_reason"],
+            STOP_DOWNWARD_BUDGET_REACHED,
+        )
+
+        # 32 GiB halved seven times.
+        self.assertEqual(
+            self.requested,
+            [
+                32 * GIB // (2 ** step)
+                for step in range(8)
+            ],
+        )
+
+    def test_budgets_are_reported(self):
+        result = self.run_host(self.pool(50 * GIB))
+
+        self.assertEqual(
+            result["iteration_budgets"],
+            {
+                "upward": 8,
+                "downward": 8,
+                "refinement": 5,
+            },
+        )
+
+    # --- refinement ---------------------------------------------------
+
+    def test_bracket_switches_to_midpoint_refinement(self):
+        result = self.run_host(self.pool(50 * GIB))
+
+        self.assertEqual(
+            self.requested,
+            [
+                32 * GIB,
+                64 * GIB,
+                48 * GIB,
+                56 * GIB,
+                52 * GIB,
+            ],
+        )
+        self.assertEqual(
+            result["upward_iterations"],
+            2,
+        )
+        self.assertEqual(
+            result["refinement_iterations"],
+            3,
+        )
+
+    def test_bracket_within_15_percent_stops_immediately(self):
+        self.seed_evidence(success(40 * GIB), 40 * GIB)
+        self.seed_evidence(
+            capacity_failure(44 * GIB),
+            44 * GIB,
+        )
+
+        result = self.run_host(self.pool(42 * GIB))
 
         self.assertEqual(self.requested, [])
         self.assertEqual(
             result["stop_reason"],
-            STOP_SELECTION_THRESHOLDS_RESOLVED,
+            STOP_NUMERICAL_TOLERANCE_REACHED,
         )
         self.assertEqual(
             result["status"],
-            STATUS_COMPLETE_FOR_SELECTION,
+            STATUS_COMPLETE_FOR_HOST,
+        )
+        self.assertAlmostEqual(
+            result["relative_uncertainty"],
+            4 / 40,
+            places=6,
         )
 
-        for entry in result["threshold_classifications"]:
-            self.assertEqual(
-                entry["classification"],
-                THRESHOLD_PROVEN_FEASIBLE,
-            )
-
-    def test_thresholds_above_failure_bound_are_infeasible(self):
+    def test_bracket_above_15_percent_refines(self):
         self.seed_evidence(success(32 * GIB), 32 * GIB)
         self.seed_evidence(
-            capacity_failure(48 * GIB),
-            48 * GIB,
+            capacity_failure(64 * GIB),
+            64 * GIB,
         )
 
-        result = characterize_storage(
-            mode=MODE_SELECTION,
-            candidate_thresholds_bytes=self.thresholds(),
-            config=self.config,
-            probe_implementation=self.probes_from(
-                self.always()
-            ),
-        )
-
-        classifications = {
-            entry["threshold_bytes"]: entry["classification"]
-            for entry in result[
-                "threshold_classifications"
-            ]
-        }
+        result = self.run_host(self.pool(50 * GIB))
 
         self.assertEqual(
-            classifications[8 * GIB],
-            THRESHOLD_PROVEN_FEASIBLE,
+            self.requested,
+            [48 * GIB, 56 * GIB, 52 * GIB],
         )
+        self.assertLessEqual(
+            result["relative_uncertainty"],
+            0.15,
+        )
+
+    def test_at_most_five_refinement_probes_and_no_sixth(self):
+        # A wide bracket that bisection cannot close to 15% within
+        # five midpoints.
+        self.seed_evidence(success(1 * GIB), 1 * GIB)
+        self.seed_evidence(
+            capacity_failure(1024 * GIB),
+            1024 * GIB,
+        )
+
+        attempts = []
+
+        def responder(requested_bytes):
+            attempts.append(requested_bytes)
+
+            if len(attempts) > 5:
+                raise AssertionError(
+                    "a sixth refinement probe started "
+                    "despite the 5-probe budget"
+                )
+
+            return capacity_failure(requested_bytes)
+
+        result = self.run_host(responder)
+
+        self.assertEqual(len(attempts), 5)
         self.assertEqual(
-            classifications[24 * GIB],
-            THRESHOLD_PROVEN_FEASIBLE,
+            result["refinement_iterations"],
+            5,
         )
-        self.assertEqual(
-            classifications[55 * GIB],
-            THRESHOLD_PROVEN_INFEASIBLE,
-        )
-        self.assertEqual(self.requested, [])
-
-    def test_unresolved_threshold_is_probed_directly(self):
-        # 32 GiB known good, 55 GiB unresolved. The decision-relevant
-        # size is probed, not a midpoint toward the real boundary.
-        self.seed_evidence(success(32 * GIB), 32 * GIB)
-
-        result = characterize_storage(
-            mode=MODE_SELECTION,
-            candidate_thresholds_bytes=self.thresholds(),
-            config=self.config,
-            probe_implementation=self.probes_from(
-                self.always(success)
-            ),
-        )
-
-        self.assertEqual(self.requested, [55 * GIB])
         self.assertEqual(
             result["stop_reason"],
-            STOP_SELECTION_THRESHOLDS_RESOLVED,
+            STOP_REFINEMENT_BUDGET_REACHED,
+        )
+        self.assertEqual(
+            result["status"],
+            STATUS_BOUNDED_INCOMPLETE,
+        )
+
+        # Repeated failures walked the upper bound down by halves.
+        self.assertEqual(
+            result["verified_lower_bound_bytes"],
+            1 * GIB,
+        )
+        self.assertGreater(
+            result["relative_uncertainty"],
+            0.15,
+        )
+
+    # --- no time limit, no ceiling ------------------------------------
+
+    def test_host_ignores_the_foreground_time_deadline(self):
+        # A clock that jumps far past the 900-second deadline on every
+        # reading must not stop a host characterization.
+        def monotonic():
+            monotonic.calls += 1
+            return monotonic.calls * 100_000.0
+
+        monotonic.calls = 0
+
+        result = self.run_host(
+            self.pool(50 * GIB),
+            monotonic=monotonic,
+        )
+
+        self.assertGreater(
+            result["elapsed_seconds"],
+            result["policy"][
+                "max_foreground_duration_seconds"
+            ],
+        )
+        self.assertEqual(
+            result["stop_reason"],
+            STOP_NUMERICAL_TOLERANCE_REACHED,
+        )
+        self.assertEqual(len(self.requested), 5)
+
+    def test_host_probes_far_above_the_64_gib_guardrail(self):
+        result = self.run_host(self.pool(300 * GIB))
+
+        policy_ceiling = result["policy"][
+            "max_single_probe_bytes"
+        ]
+
+        self.assertEqual(
+            policy_ceiling,
+            64 * GIB,
+        )
+
+        # The climb reaches 256 GiB, brackets at 512 GiB and refines
+        # to 288 GiB, every step above the 64 GiB guardrail.
+        self.assertEqual(
+            self.requested,
+            [
+                32 * GIB,
+                64 * GIB,
+                128 * GIB,
+                256 * GIB,
+                512 * GIB,
+                384 * GIB,
+                320 * GIB,
+                288 * GIB,
+            ],
+        )
+        self.assertGreater(
+            max(self.requested),
+            policy_ceiling,
         )
         self.assertEqual(
             result["verified_lower_bound_bytes"],
-            55 * GIB,
+            288 * GIB,
         )
-
-    def test_all_resolved_stops_without_further_refinement(self):
-        self.seed_evidence(success(32 * GIB), 32 * GIB)
-
-        result = characterize_storage(
-            mode=MODE_SELECTION,
-            candidate_thresholds_bytes=[24 * GIB, 55 * GIB],
-            config=self.config,
-            probe_implementation=self.probes_from(
-                self.always(capacity_failure)
-            ),
-        )
-
-        # 55 GiB refused: every threshold is now classified, so the
-        # loose 32-to-55 GiB bracket is deliberately left loose.
-        self.assertEqual(self.requested, [55 * GIB])
-        self.assertEqual(
-            result["stop_reason"],
-            STOP_SELECTION_THRESHOLDS_RESOLVED,
-        )
-        self.assertEqual(
-            result["absolute_uncertainty_bytes"],
-            23 * GIB,
-        )
-
-    def test_threshold_above_probe_limit_stays_unresolved(self):
-        self.seed_evidence(success(32 * GIB), 32 * GIB)
-
-        result = characterize_storage(
-            mode=MODE_SELECTION,
-            candidate_thresholds_bytes=[128 * GIB],
-            config=self.config,
-            probe_implementation=self.probes_from(
-                self.always()
-            ),
-        )
-
-        self.assertEqual(self.requested, [])
-        self.assertEqual(
+        self.assertNotEqual(
             result["stop_reason"],
             STOP_PROBE_LIMIT_REACHED,
         )
         self.assertEqual(
-            result["threshold_classifications"][0][
-                "classification"
-            ],
-            THRESHOLD_UNRESOLVED,
+            result["stop_reason"],
+            STOP_NUMERICAL_TOLERANCE_REACHED,
         )
 
-    def test_useful_horizon_already_verified_stops(self):
+    def test_host_passes_no_probe_ceiling_to_the_probe(self):
+        seen = {}
+
+        def probe_implementation(
+            requested_bytes,
+            **kwargs
+        ):
+            seen.update(kwargs)
+            return success(requested_bytes)
+
+        characterize_storage(
+            mode=MODE_HOST,
+            config=self.config,
+            probe_implementation=(
+                probe_implementation
+            ),
+        )
+
+        self.assertIn("max_probe_bytes", seen)
+        self.assertIsNone(seen["max_probe_bytes"])
+
+    def test_transaction_still_passes_its_ceiling(self):
+        seen = {}
+
+        def probe_implementation(
+            requested_bytes,
+            **kwargs
+        ):
+            seen.update(kwargs)
+            return success(requested_bytes)
+
+        characterize_storage(
+            mode=MODE_TRANSACTION,
+            required_bytes=8 * GIB,
+            config=self.config,
+            probe_implementation=(
+                probe_implementation
+            ),
+        )
+
+        self.assertEqual(
+            seen["max_probe_bytes"],
+            64 * GIB,
+        )
+
+    def test_transaction_retains_its_ceiling_and_timing(self):
+        # A requirement above the ceiling is policy-limited, not
+        # infeasible, and the time budget still applies.
+        result = characterize_storage(
+            mode=MODE_TRANSACTION,
+            required_bytes=128 * GIB,
+            config=self.config,
+            probe_implementation=self.probes_from(
+                self.pool(10_000 * GIB)
+            ),
+        )
+
+        self.assertEqual(
+            result["stop_reason"],
+            STOP_PROBE_LIMIT_REACHED,
+        )
+        self.assertIsNone(
+            result[
+                "capacity_failure_upper_bound_bytes"
+            ]
+        )
+
+        # And the timing guard is still wired for transactions: the
+        # clock starts at zero, then reads past the deadline.
+        self.requested = []
+
+        readings = [0.0, 100_000.0]
+
+        def monotonic():
+            if len(readings) > 1:
+                return readings.pop(0)
+
+            return readings[0]
+
+        timed = characterize_storage(
+            mode=MODE_TRANSACTION,
+            required_bytes=8 * GIB,
+            config=self.config,
+            monotonic=monotonic,
+            probe_implementation=self.probes_from(
+                self.pool(10_000 * GIB)
+            ),
+        )
+
+        self.assertEqual(
+            timed["stop_reason"],
+            STOP_TIME_BUDGET_REACHED,
+        )
+        self.assertEqual(self.requested, [])
+
+    # --- honesty ------------------------------------------------------
+
+    def test_all_success_upward_invents_no_upper_bound(self):
+        result = self.run_host(
+            self.pool(10 ** 18)
+        )
+
+        self.assertEqual(
+            result["upward_iterations"],
+            8,
+        )
+        self.assertEqual(
+            result["verified_lower_bound_bytes"],
+            4 * TIB,
+        )
+        self.assertIsNone(
+            result[
+                "capacity_failure_upper_bound_bytes"
+            ]
+        )
+        self.assertIsNone(
+            result["relative_uncertainty"]
+        )
+        self.assertEqual(
+            result["status"],
+            STATUS_BOUNDED_INCOMPLETE,
+        )
+
+    def test_no_success_downward_leaves_capacity_unresolved(self):
+        result = self.run_host(self.pool(1))
+
+        self.assertIsNone(
+            result["verified_lower_bound_bytes"]
+        )
+        self.assertIsNone(
+            result["conservative_usable_bytes"]
+        )
+        self.assertIsNotNone(
+            result[
+                "capacity_failure_upper_bound_bytes"
+            ]
+        )
+        self.assertEqual(
+            result["stop_reason"],
+            STOP_DOWNWARD_BUDGET_REACHED,
+        )
+
+    def test_inconclusive_never_creates_an_upper_bound(self):
+        result = self.run_host(
+            lambda size: inconclusive(size)
+        )
+
+        self.assertEqual(
+            self.requested,
+            [32 * GIB],
+        )
+        self.assertEqual(
+            result["stop_reason"],
+            STOP_INCONCLUSIVE_PROBE_FAILURE,
+        )
+        self.assertEqual(
+            result["status"],
+            STATUS_INCONCLUSIVE,
+        )
+        self.assertIsNone(
+            result[
+                "capacity_failure_upper_bound_bytes"
+            ]
+        )
+        self.assertIsNone(
+            result["conservative_usable_bytes"]
+        )
+
+    def test_inconclusive_after_success_keeps_the_lower_bound(self):
+        def responder(requested_bytes):
+            if requested_bytes > 32 * GIB:
+                return inconclusive(requested_bytes)
+
+            return success(requested_bytes)
+
+        result = self.run_host(responder)
+
+        self.assertEqual(
+            result["conservative_usable_bytes"],
+            32 * GIB,
+        )
+        self.assertIsNone(
+            result[
+                "capacity_failure_upper_bound_bytes"
+            ]
+        )
+
+    def test_conservative_value_is_always_the_lower_bound(self):
+        result = self.run_host(self.pool(50 * GIB))
+
+        lower = result["verified_lower_bound_bytes"]
+        upper = result[
+            "capacity_failure_upper_bound_bytes"
+        ]
+
+        self.assertEqual(
+            result["conservative_usable_bytes"],
+            lower,
+        )
+        self.assertEqual(lower, 48 * GIB)
+        self.assertEqual(upper, 52 * GIB)
+
+        # Never the midpoint, the average, the failure bound or the
+        # pool's real 50 GiB boundary.
+        self.assertNotEqual(
+            result["conservative_usable_bytes"],
+            (lower + upper) // 2,
+        )
+        self.assertNotEqual(
+            result["conservative_usable_bytes"],
+            upper,
+        )
+        self.assertLess(
+            result["conservative_usable_bytes"],
+            50 * GIB,
+        )
+
+    # --- evidence and independence ------------------------------------
+
+    def test_durable_evidence_is_reused(self):
+        # A previous 32 GiB success means the climb resumes at 64 GiB
+        # rather than re-probing 32 GiB.
         self.seed_evidence(success(32 * GIB), 32 * GIB)
 
-        result = characterize_storage(
-            mode=MODE_SELECTION,
-            useful_horizon_bytes=24 * GIB,
-            config=self.config,
-            probe_implementation=self.probes_from(
-                self.always()
-            ),
-        )
+        result = self.run_host(self.pool(50 * GIB))
 
-        self.assertEqual(self.requested, [])
         self.assertEqual(
-            result["stop_reason"],
-            STOP_USEFUL_HORIZON_VERIFIED,
+            self.requested[0],
+            64 * GIB,
+        )
+        self.assertNotIn(32 * GIB, self.requested)
+        self.assertTrue(
+            result["reused_evidence_record_ids"]
         )
 
-    def test_useful_horizon_is_probed_directly(self):
-        self.seed_evidence(success(1 * GIB), 1 * GIB)
-
-        result = characterize_storage(
-            mode=MODE_SELECTION,
-            useful_horizon_bytes=40 * GIB,
-            config=self.config,
-            probe_implementation=self.probes_from(
-                self.always(success)
-            ),
+    def test_durable_bracket_starts_refinement_directly(self):
+        self.seed_evidence(success(32 * GIB), 32 * GIB)
+        self.seed_evidence(
+            capacity_failure(64 * GIB),
+            64 * GIB,
         )
 
-        # Target-first: straight to the horizon, no geometric climb
-        # through 2, 4, 8, 16, 32 GiB.
-        self.assertEqual(self.requested, [40 * GIB])
+        result = self.run_host(self.pool(50 * GIB))
+
+        # Straight to the midpoint; no directional probes at all.
         self.assertEqual(
-            result["stop_reason"],
-            STOP_USEFUL_HORIZON_VERIFIED,
+            self.requested[0],
+            48 * GIB,
+        )
+        self.assertEqual(
+            result["upward_iterations"],
+            0,
+        )
+        self.assertEqual(
+            result["downward_iterations"],
+            0,
         )
 
-    def test_selection_requires_thresholds_or_horizon(self):
-        with self.assertRaises(ValueError):
-            characterize_storage(
-                mode=MODE_SELECTION,
-                config=self.config,
+    def test_host_has_no_model_or_catalogue_input(self):
+        import inspect
+
+        signature = inspect.signature(
+            characterize_storage
+        )
+
+        self.assertEqual(
+            sorted(signature.parameters),
+            [
+                "config",
+                "mode",
+                "monotonic",
+                "policy",
+                "probe_implementation",
+                "provider",
+                "required_bytes",
+            ],
+        )
+
+        result = self.run_host(self.pool(50 * GIB))
+
+        self.assertIsNone(result["required_bytes"])
+        self.assertEqual(result["mode"], MODE_HOST)
+
+    def test_no_sanity_probe_consumes_a_host_iteration(self):
+        self.run_host(self.pool(50 * GIB))
+
+        self.assertNotIn(SANITY, self.requested)
+        self.assertEqual(
+            self.requested[0],
+            32 * GIB,
+        )
+
+    def test_policy_defaults_match_the_final_policy(self):
+        policy = build_storage_characterization_policy(
+            self.config
+        )
+
+        self.assertEqual(
+            policy.initial_probe_bytes,
+            32 * GIB,
+        )
+        self.assertEqual(
+            policy.relative_tolerance,
+            0.15,
+        )
+        self.assertEqual(policy.growth_factor, 2.0)
+        self.assertEqual(
+            policy.max_upward_iterations,
+            8,
+        )
+        self.assertEqual(
+            policy.max_downward_iterations,
+            8,
+        )
+        self.assertEqual(
+            policy.max_refinement_iterations,
+            5,
+        )
+
+    def test_no_acquisition_feasibility_or_selector_behavior(self):
+        # Asserted by the module's actual imports rather than by
+        # scanning prose, which trips on the docstring explaining what
+        # the module deliberately does not do.
+        import core.storage_characterization as module
+
+        forbidden_modules = {
+            "core.control",
+            "core.model_catalog",
+            "core.model_inventory",
+            "core.model_requirement",
+            "core.model_feasibility",
+            "core.model_compatibility",
+            "core.capacity_feasibility",
+            "core.capacity_contracts",
+            "core.model_transfer",
+        }
+
+        imported = {
+            getattr(
+                getattr(module, name),
+                "__module__",
+                "",
             )
+            or ""
+            for name in dir(module)
+            if not name.startswith("__")
+        }
+
+        self.assertEqual(
+            imported & forbidden_modules,
+            set(),
+        )
 
 
 class ModelIndependenceTests(unittest.TestCase):
@@ -765,26 +1306,29 @@ class NumericalConvergenceTests(CharacterizationTestCase):
             places=6,
         )
 
-    def test_five_percent_rule_dominates_for_large_pools(self):
-        # L = 100 GiB, U = 104 GiB: 4 GiB exceeds the 1 GiB absolute
-        # tolerance but 4% is within the 5% relative tolerance.
+    def test_relative_rule_dominates_for_large_pools(self):
+        # L = 100 GiB, U = 110 GiB: 10 GiB far exceeds the 1 GiB
+        # absolute tolerance but 10% is within the 15% relative
+        # tolerance.
         policy = build_storage_characterization_policy(
             self.config
         )
 
+        self.assertEqual(policy.relative_tolerance, 0.15)
+
         self.assertTrue(
             characterization._within_tolerance(
                 100 * GIB,
-                104 * GIB,
+                110 * GIB,
                 policy,
             )
         )
 
-        # 6 GiB apart is 6%, outside tolerance.
+        # 20 GiB apart is 20%, outside tolerance.
         self.assertFalse(
             characterization._within_tolerance(
                 100 * GIB,
-                106 * GIB,
+                120 * GIB,
                 policy,
             )
         )
@@ -807,20 +1351,19 @@ class NumericalConvergenceTests(CharacterizationTestCase):
     def test_conservative_result_remains_the_lower_bound(self):
         self.seed_evidence(success(40 * GIB), 40 * GIB)
         self.seed_evidence(
-            capacity_failure(48 * GIB),
-            48 * GIB,
+            capacity_failure(44 * GIB),
+            44 * GIB,
         )
 
         result = characterize_storage(
-            mode=MODE_SELECTION,
-            candidate_thresholds_bytes=[32 * GIB],
+            mode=MODE_HOST,
             config=self.config,
             probe_implementation=self.probes_from(
                 self.always()
             ),
         )
 
-        midpoint = 44 * GIB
+        midpoint = 42 * GIB
 
         self.assertEqual(
             result["conservative_usable_bytes"],
@@ -832,7 +1375,7 @@ class NumericalConvergenceTests(CharacterizationTestCase):
         )
         self.assertNotEqual(
             result["conservative_usable_bytes"],
-            48 * GIB,
+            44 * GIB,
         )
 
     def test_tolerance_policy_is_distinct_from_consensus_tolerance(self):
@@ -840,7 +1383,7 @@ class NumericalConvergenceTests(CharacterizationTestCase):
             self.config
         )
 
-        self.assertEqual(policy.relative_tolerance, 0.05)
+        self.assertEqual(policy.relative_tolerance, 0.15)
         self.assertEqual(
             policy.absolute_tolerance_bytes,
             1 * GIB,
@@ -1058,12 +1601,18 @@ class DeepModeTests(CharacterizationTestCase):
             result["stop_reason"],
             STOP_NUMERICAL_TOLERANCE_REACHED,
         )
+        # Read the tolerance from policy rather than restating it, so
+        # this stays true if the default is retuned.
+        policy = build_storage_characterization_policy(
+            self.config
+        )
+
         self.assertLessEqual(
             result["absolute_uncertainty_bytes"],
             max(
-                1 * GIB,
+                policy.absolute_tolerance_bytes,
                 int(
-                    0.05
+                    policy.relative_tolerance
                     * result[
                         "verified_lower_bound_bytes"
                     ]
@@ -1203,7 +1752,7 @@ class ContractTests(CharacterizationTestCase):
             "probes",
             "reused_evidence_record_ids",
             "created_evidence_record_ids",
-            "threshold_classifications",
+            "iterations",
         ):
             self.assertIn(field, result)
 
@@ -1234,8 +1783,8 @@ class ContractTests(CharacterizationTestCase):
     def test_invalid_thresholds_are_rejected(self):
         with self.assertRaises(ValueError):
             characterize_storage(
-                mode=MODE_SELECTION,
-                candidate_thresholds_bytes=[0],
+                mode=MODE_TRANSACTION,
+                required_bytes=0,
                 config=self.config,
             )
 
