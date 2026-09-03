@@ -766,6 +766,185 @@ class FallbackTests(unittest.TestCase):
         )
 
 
+class SuppliedEvaluationTests(unittest.TestCase):
+    """A caller may supply an already-obtained provider response.
+
+    This exists so a caller needing a second decision over a subset of
+    the same candidates gets the same policy and the same evidence,
+    rather than a second ranking rule or a second provider invocation
+    that could answer differently.
+    """
+
+    def test_supplied_evaluation_skips_the_provider(self):
+        env = envelope()
+
+        provider = FakeProvider(
+            provider_result("model-a")
+        )
+
+        result = select_model(
+            candidates=[
+                candidate(
+                    name="model-a",
+                    vram_bytes=10 * GIB,
+                    env=env,
+                ),
+                candidate(
+                    name="model-b",
+                    vram_bytes=20 * GIB,
+                    env=env,
+                ),
+            ],
+            envelope=env,
+            evaluation_provider=provider,
+            evaluation=provider_result("model-b"),
+        )
+
+        # The supplied evidence decided it, and the provider was
+        # never consulted.
+        self.assertEqual(
+            result.selected_candidate_id,
+            "model-b",
+        )
+        self.assertEqual(provider.calls, [])
+
+    def test_the_evaluation_used_is_returned(self):
+        env = envelope()
+
+        provider = FakeProvider(
+            provider_result("model-a")
+        )
+
+        result = select_model(
+            candidates=[
+                candidate(
+                    name="model-a",
+                    vram_bytes=10 * GIB,
+                    env=env,
+                )
+            ],
+            envelope=env,
+            evaluation_provider=provider,
+        )
+
+        self.assertIs(
+            result.evaluation,
+            provider.result,
+        )
+
+    def test_a_subset_decision_reuses_one_evaluation(self):
+        env = envelope()
+
+        candidates = [
+            candidate(
+                name="model-a",
+                vram_bytes=20 * GIB,
+                env=env,
+            ),
+            candidate(
+                name="model-b",
+                vram_bytes=10 * GIB,
+                env=env,
+            ),
+            candidate(
+                name="model-c",
+                vram_bytes=5 * GIB,
+                env=env,
+            ),
+        ]
+
+        provider = FakeProvider(
+            provider_result(
+                "model-a",
+                "model-c",
+                "model-b",
+            )
+        )
+
+        first = select_model(
+            candidates=candidates,
+            envelope=env,
+            evaluation_provider=provider,
+        )
+
+        second = select_model(
+            candidates=candidates[1:],
+            envelope=env,
+            evaluation=first.evaluation,
+        )
+
+        self.assertEqual(
+            first.selected_candidate_id,
+            "model-a",
+        )
+
+        # Provider ranking, not safe-fit ordering, decided the subset.
+        self.assertEqual(
+            second.selected_candidate_id,
+            "model-c",
+        )
+        self.assertEqual(
+            second.selection_provider,
+            "llmfit",
+        )
+        self.assertEqual(len(provider.calls), 1)
+
+    def test_supplied_unavailable_evaluation_falls_back(self):
+        env = envelope()
+
+        result = select_model(
+            candidates=[
+                candidate(
+                    name="model-a",
+                    vram_bytes=10 * GIB,
+                    env=env,
+                ),
+                candidate(
+                    name="model-b",
+                    vram_bytes=20 * GIB,
+                    env=env,
+                ),
+            ],
+            envelope=env,
+            evaluation=unavailable(
+                "llmfit",
+                "executable missing",
+            ),
+        )
+
+        self.assertEqual(
+            result.selection_provider,
+            PROVIDER_FALLBACK,
+        )
+        self.assertEqual(
+            result.selected_candidate_id,
+            "model-b",
+        )
+
+    def test_the_evaluation_stays_out_of_the_serialized_result(self):
+        env = envelope()
+
+        result = select_model(
+            candidates=[
+                candidate(
+                    name="model-a",
+                    vram_bytes=10 * GIB,
+                    env=env,
+                )
+            ],
+            envelope=env,
+            evaluation_provider=FakeProvider(
+                provider_result("model-a")
+            ),
+        )
+
+        self.assertIsNotNone(result.evaluation)
+        self.assertNotIn(
+            "evaluation",
+            result.to_dict(),
+        )
+
+
 class PortabilityTests(unittest.TestCase):
     def test_selector_core_has_no_vendor_logic(self):
         import inspect
