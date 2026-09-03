@@ -95,6 +95,16 @@ class ModelSelectionResult:
     considered_count: int
     excluded_unsupported_count: int
 
+    #
+    # The provider response this selection was made from, so a caller
+    # that needs a second decision over a subset of the same
+    # candidates can reuse it instead of paying for — and risking a
+    # different answer from — a second provider invocation. It is an
+    # in-process handle and is deliberately kept out of `to_dict`,
+    # which stays a small result rather than an execution trace.
+    #
+    evaluation: Any | None = None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
@@ -132,6 +142,7 @@ def _no_selection(
     reason,
     considered,
     excluded,
+    evaluation=None,
 ) -> ModelSelectionResult:
     return ModelSelectionResult(
         schema_version=(
@@ -146,6 +157,7 @@ def _no_selection(
         reason=reason,
         considered_count=considered,
         excluded_unsupported_count=excluded,
+        evaluation=evaluation,
     )
 
 
@@ -269,11 +281,18 @@ def select_model(
     envelope,
     evaluation_provider=None,
     config=None,
+    evaluation=None,
 ):
     """Select one candidate configuration, or report that none can be.
 
     Never downloads, reserves, starts or mutates anything. The result
     is a decision for a later step to act on.
+
+    Passing `evaluation` supplies an already-obtained provider
+    response and skips invoking the provider. A caller deciding twice
+    over subsets of one candidate set — a primary and a lower-resource
+    alternative, say — uses this so both decisions rest on the same
+    evidence and the same policy, rather than a second ranking rule.
     """
 
     candidates = list(candidates)
@@ -309,11 +328,13 @@ def select_model(
             ),
             considered=0,
             excluded=excluded,
+            evaluation=evaluation,
         )
 
-    evaluation = None
-
-    if evaluation_provider is not None:
+    if (
+        evaluation is None
+        and evaluation_provider is not None
+    ):
         evaluation = evaluation_provider.evaluate(
             candidates=eligible,
             envelope=envelope,
@@ -349,6 +370,7 @@ def select_model(
                 ),
                 considered_count=len(eligible),
                 excluded_unsupported_count=excluded,
+                evaluation=evaluation,
             )
 
     #
@@ -370,6 +392,7 @@ def select_model(
             ),
             considered=len(eligible),
             excluded=excluded,
+            evaluation=evaluation,
         )
 
     if evaluation is None:
@@ -406,4 +429,5 @@ def select_model(
         ),
         considered_count=len(eligible),
         excluded_unsupported_count=excluded,
+        evaluation=evaluation,
     )

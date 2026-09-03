@@ -6,14 +6,24 @@ from core.platform_storage_reconciliation import (
 
 from core.storage_budget import (
     calculate_platform_storage_budget,
+    evaluate_storage_operation,
 )
 
 from core.storage_capacity_calibration import (
     calibrate_storage_capacity,
 )
 
+from core.storage_capacity_evidence import (
+    build_storage_evidence,
+)
+
 from core.storage_capacity_resolution import (
     resolve_storage_capacity,
+)
+
+from core.storage_characterization import (
+    MODE_TRANSACTION,
+    characterize_storage,
 )
 
 
@@ -26,6 +36,7 @@ def build_storage_plan(
     config=None,
     calibrate_if_required=False,
     maximum_probe_bytes=None,
+    empirical_evidence=None,
 ):
     """
     Build one dependency-consistent storage plan.
@@ -68,6 +79,12 @@ def build_storage_plan(
     The explicit override does NOT control cache validity.
     Cache validity always uses the actually measured/reconciled
     platform storage usage.
+
+    empirical_evidence supplies already-observed capacity facts to the
+    existing consensus resolver for THIS plan only. Supplying them
+    writes nothing to the capacity cache, so a fact established to
+    answer one decision cannot quietly become the platform's reported
+    capacity.
     """
 
     if config is None:
@@ -201,38 +218,52 @@ def build_storage_plan(
     else:
         calibration = None
 
-        if cache_status.get(
+        cache_valid = cache_status.get(
             "valid",
             False,
-        ):
-            cached_evidence = (
+        )
+
+        cached_evidence = (
+            (
                 cache_status.get(
                     "empirical_evidence"
                 )
                 or []
             )
+            if cache_valid
+            else []
+        )
 
-            capacity = (
-                resolve_storage_capacity(
-                    config,
+        evidence = [
+            *cached_evidence,
+            *(
+                empirical_evidence
+                or []
+            ),
+        ]
 
-                    empirical_evidence=(
-                        cached_evidence
-                    ),
-                )
+        capacity = (
+            resolve_storage_capacity(
+                config,
+
+                empirical_evidence=(
+                    evidence
+                    or None
+                ),
+            )
+        )
+
+        if empirical_evidence:
+            capacity_source = (
+                "supplied_empirical_evidence"
             )
 
+        elif cache_valid:
             capacity_source = (
                 "valid_capacity_cache"
             )
 
         else:
-            capacity = (
-                resolve_storage_capacity(
-                    config
-                )
-            )
-
             capacity_source = (
                 "live_capacity_evidence"
             )
@@ -340,4 +371,357 @@ def build_storage_plan(
             "model_operation_storage_feasibility",
         ],
     }
+
+
+#
+# Each round costs one probe-free plan rebuild, so this is arithmetic
+# rather than a search. Two rounds settle the current reserve policy;
+# the remainder exist so a differently shaped future policy cannot be
+# silently truncated into a wrong answer.
+#
+COMMIT_LOWER_BOUND_ROUNDS = 4
+
+
+def _verified_lower_bound_evidence(
+    lower_bound_bytes,
+    *,
+    required_bytes,
+):
+    """State exactly what a completed transaction probe proved.
+
+    remaining_lower_bound means "at least this much was successfully
+    reservable". It is deliberately neither a quota_total nor a
+    remaining_point, because a probe that reserved N bytes says
+    nothing about how much more exists, and either of those types
+    would let one operation's proof be read back as a characterized
+    description of the host.
+    """
+
+    return build_storage_evidence(
+        evidence_id=(
+            "commit_verified_lower_bound"
+        ),
+
+        source=(
+            "storage_transaction_"
+            "characterization"
+        ),
+
+        scope=(
+            "commit_time_operation"
+        ),
+
+        evidence_type=(
+            "remaining_lower_bound"
+        ),
+
+        value_bytes=(
+            lower_bound_bytes
+        ),
+
+        confidence="medium",
+
+        detail=(
+            "Transaction-mode characterization "
+            "reserved this many bytes for a commit "
+            "requiring "
+            + str(
+                int(
+                    required_bytes
+                )
+            )
+            + " bytes."
+        ),
+    )
+
+
+def _plan_with_lower_bound(
+    lower_bound_bytes,
+    *,
+    required_bytes,
+    config,
+):
+    """Rebuild the plan as if this lower bound were verified.
+
+    The rounds below discard what they build. Only a plan built from
+    an actually proven bound is ever returned to a caller.
+    """
+
+    return build_storage_plan(
+        config=config,
+
+        calibrate_if_required=False,
+
+        empirical_evidence=[
+            _verified_lower_bound_evidence(
+                lower_bound_bytes,
+
+                required_bytes=(
+                    required_bytes
+                ),
+            ),
+        ],
+    )
+
+
+def _lower_bound_needed_for_commit(
+    required_bytes,
+    *,
+    config,
+):
+    """How much must be proven before this commit could be admitted.
+
+    More than the operation itself: the protected reserve and the
+    administrator allocation percentage are subtracted from whatever
+    capacity is resolved, so proving exactly the operation size would
+    leave the budget short by exactly the reserve and deny the very
+    operation the proof was gathered for.
+
+    That policy is asked rather than restated. A second copy of the
+    reserve rule living here would be free to disagree with the one
+    the budget layer actually applies.
+    """
+
+    target = int(
+        required_bytes
+    )
+
+    for _ in range(
+        COMMIT_LOWER_BOUND_ROUNDS
+    ):
+        plan = _plan_with_lower_bound(
+            target,
+
+            required_bytes=(
+                required_bytes
+            ),
+
+            config=config,
+        )
+
+        budget = (
+            plan.get(
+                "platform_budget"
+            )
+            or {}
+        )
+
+        if not budget.get(
+            "resolved",
+            False,
+        ):
+            return None
+
+        operation = (
+            evaluate_storage_operation(
+                storage_budget=budget,
+
+                required_bytes=(
+                    required_bytes
+                ),
+            )
+        )
+
+        if operation.get(
+            "feasible",
+            False,
+        ):
+            return target
+
+        available = budget.get(
+            "available_for_new_platform_bytes"
+        )
+
+        reserve = (
+            (
+                plan.get(
+                    "capacity"
+                )
+                or {}
+            ).get(
+                "allocation_policy"
+            )
+            or {}
+        ).get(
+            "reserve_bytes"
+        )
+
+        if not isinstance(
+            available,
+            int,
+        ) or not isinstance(
+            reserve,
+            int,
+        ):
+            return None
+
+        #
+        # Two deficits, and the larger governs. The shortfall alone
+        # converges slowly once the reserve has already clamped the
+        # budget to zero; the reserve alone ignores an allocation
+        # percentage below 100.
+        #
+        candidate = max(
+            target
+            + (
+                required_bytes
+                - available
+            ),
+
+            required_bytes
+            + reserve,
+        )
+
+        if candidate <= target:
+            return None
+
+        target = candidate
+
+    return None
+
+
+def build_storage_plan_for_commit(
+    requirement,
+    *,
+    config=None,
+    storage_plan=None,
+    characterize=None,
+):
+    """Answer the storage question this one mutation actually asks.
+
+    A host whose capacity has never been characterized resolves no
+    platform storage budget, and commit admission then correctly
+    refuses every mutation. Waiting for a full host characterization
+    would make the first acquisition depend on a search for the
+    pool's ceiling, which is precision no admission decision needs
+    and which cost roughly 48 minutes the last time it ran.
+
+    So the narrower question is asked instead: can THIS operation be
+    satisfied right now? Transaction-mode characterization answers it
+    against real bytes and stops as soon as the answer is decided,
+    and the proof is folded into a plan rebuilt for this decision
+    alone.
+
+    The proof never reaches the capacity cache and never becomes the
+    platform's reported capacity. "At least N bytes were reservable
+    at commit time" is not "this host has N bytes of characterized
+    capacity", and a figure produced to authorize one download must
+    not come back later as a description of the server.
+
+    Admission is not bypassed, weakened or replaced. A proof changes
+    only what the plan can see; the caller runs exactly the admission
+    it would otherwise have run, including that admission's own
+    operation-sized verification.
+
+    The unmodified plan is returned whenever the budget already
+    resolves, the requirement is unusable or the proof comes back
+    inconclusive, so every existing outcome keeps its existing
+    meaning.
+    """
+
+    if config is None:
+        config = load_config()
+
+    if storage_plan is None:
+        storage_plan = (
+            build_storage_plan(
+                config=config,
+
+                calibrate_if_required=False,
+            )
+        )
+
+    budget = (
+        storage_plan.get(
+            "platform_budget"
+        )
+        or {}
+    )
+
+    if budget.get(
+        "resolved",
+        False,
+    ):
+        return storage_plan
+
+    if not requirement.get(
+        "resolved",
+        False,
+    ):
+        return storage_plan
+
+    try:
+        required_bytes = int(
+            requirement.get(
+                "peak_additional_bytes"
+            )
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return storage_plan
+
+    if required_bytes <= 0:
+        return storage_plan
+
+    target = (
+        _lower_bound_needed_for_commit(
+            required_bytes,
+
+            config=config,
+        )
+    )
+
+    if target is None:
+        return storage_plan
+
+    if characterize is None:
+        characterize = (
+            characterize_storage
+        )
+
+    #
+    # TRANSACTION mode only. HOST mode describes the server and is
+    # the wrong question at commit time; the old accuracy-maximizing
+    # calibration coordinator is the wrong mechanism entirely.
+    #
+    characterization = characterize(
+        mode=MODE_TRANSACTION,
+
+        required_bytes=target,
+
+        config=config,
+    )
+
+    proven = (
+        characterization
+        or {}
+    ).get(
+        "conservative_usable_bytes"
+    )
+
+    #
+    # A bounded, inconclusive or infeasible result proves nothing, and
+    # nothing is exactly what may be assumed from it.
+    #
+    if (
+        not isinstance(
+            proven,
+            int,
+        )
+        or proven < target
+    ):
+        return storage_plan
+
+    return _plan_with_lower_bound(
+        proven,
+
+        required_bytes=(
+            required_bytes
+        ),
+
+        config=config,
+    )
 

@@ -285,3 +285,85 @@ enabled = false
 
 # Bounded execution for the provider subprocess.
 timeout_seconds = 120
+
+
+[model_candidates]
+# WORKING:
+# A small curated set of configurations this host may choose between,
+# not catalogue discovery. Selecting well among a few vetted options is
+# the product problem; ranking thousands of community artifacts is not,
+# and would make every selection depend on a live remote catalogue.
+#
+# Declared here rather than in code so candidate identities are never
+# compiled into the platform. Order is the deterministic tie-break that
+# selection ultimately falls back on.
+#
+# evaluation_id is the name the model-evaluation provider knows the
+# candidate by. It is declared explicitly because provider catalogues
+# and platform identities need not agree, and an absent mapping simply
+# means the provider has no evidence for that candidate.
+#
+# Sizes are the operator's declared expectations. They are inputs to
+# feasibility only: the authoritative artifact size is resolved from
+# the source at acquisition time, and storage admission independently
+# verifies the mutation.
+
+[[model_candidates.curated]]
+candidate_id = "qwen3-32b-awq"
+provider = "huggingface"
+source_model_id = "Qwen/Qwen3-32B-AWQ"
+evaluation_id = "Qwen/Qwen3-32B-AWQ"
+family = "qwen3"
+architecture = "Qwen3ForCausalLM"
+quantization = "awq"
+context_length = 40960
+parameter_count = "32.8B"
+runtimes = ["vllm"]
+download_gb = 18.01
+vram_gb = 20.0
+ram_gb = 32.0
+
+[[model_candidates.curated]]
+candidate_id = "qwen3-14b-awq"
+provider = "huggingface"
+source_model_id = "Qwen/Qwen3-14B-AWQ"
+evaluation_id = "Qwen/Qwen3-14B-AWQ"
+family = "qwen3"
+architecture = "Qwen3ForCausalLM"
+quantization = "awq"
+context_length = 40960
+parameter_count = "14.8B"
+runtimes = ["vllm"]
+download_gb = 9.31
+vram_gb = 10.0
+ram_gb = 24.0
+
+[[model_candidates.curated]]
+candidate_id = "qwen3-8b-awq"
+provider = "huggingface"
+source_model_id = "Qwen/Qwen3-8B-AWQ"
+evaluation_id = "Qwen/Qwen3-8B-AWQ"
+family = "qwen3"
+architecture = "Qwen3ForCausalLM"
+quantization = "awq"
+context_length = 40960
+parameter_count = "8.2B"
+runtimes = ["vllm"]
+download_gb = 5.69
+vram_gb = 7.0
+ram_gb = 16.0
+
+[[model_candidates.curated]]
+candidate_id = "qwen3-4b-awq"
+provider = "huggingface"
+source_model_id = "Qwen/Qwen3-4B-AWQ"
+evaluation_id = "Qwen/Qwen3-4B-AWQ"
+family = "qwen3"
+architecture = "Qwen3ForCausalLM"
+quantization = "awq"
+context_length = 40960
+parameter_count = "4.0B"
+runtimes = ["vllm"]
+download_gb = 2.50
+vram_gb = 4.0
+ram_gb = 12.0

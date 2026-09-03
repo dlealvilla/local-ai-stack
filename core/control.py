@@ -441,6 +441,7 @@ def download_inventory_model(
 
     from core.storage_planning import (
         build_storage_plan,
+        build_storage_plan_for_commit,
     )
 
 
@@ -646,6 +647,26 @@ def download_inventory_model(
                     config=config,
 
                     calibrate_if_required=False,
+                )
+            )
+
+
+            #
+            # A host whose capacity has never been characterized
+            # resolves no storage budget, and admission then denies
+            # every download. Prove what THIS download needs, inside
+            # the lock already held, or leave the denial untouched.
+            #
+
+            storage_plan = (
+                build_storage_plan_for_commit(
+                    requirement,
+
+                    config=config,
+
+                    storage_plan=(
+                        storage_plan
+                    ),
                 )
             )
 
