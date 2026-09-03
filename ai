@@ -8,6 +8,7 @@ from core.config import load_config
 from core.planner import build_initial_plan
 from core.status import get_runtime_status
 from core.preflight import run_preflight
+from core.host_readiness import evaluate_host_readiness
 from core.runtime_manager import ensure_runtime, required_runtimes
 from core.deployment import build_deployment_manifest
 from adapters.inference import get_inference_adapter
@@ -535,6 +536,79 @@ elif sys.argv[1] == "prepare":
             "Executable:",
             result["executable"]
         )
+
+    #
+    # Report what this server is and whether it can host the
+    # configured platform, so one command answers the question an
+    # administrator preparing a machine actually has.
+    #
+    readiness = evaluate_host_readiness(config)
+
+    host = readiness["host"]
+
+    print()
+    print("Host")
+    print("----")
+    print(
+        "System:",
+        host["operating_system"],
+        host["architecture"],
+    )
+    print(
+        "CPU:",
+        host["cpu_model"],
+        f"({host['cpu_cores']} cores)",
+    )
+
+    if host["ram_total_gb"]:
+        print(
+            "RAM:",
+            f"{host['ram_total_gb']:.0f} GB",
+        )
+
+    for accelerator in host["accelerators"]:
+        print(
+            "Accelerator:",
+            accelerator["vendor"],
+            accelerator["name"],
+            f"({accelerator['vram_total_gb']:.0f} GB)"
+            if accelerator["vram_total_gb"]
+            else "",
+        )
+
+    if not host["accelerators"]:
+        print("Accelerator: none detected")
+
+    print()
+    print("Platform readiness")
+    print("------------------")
+
+    for check in readiness["checks"]:
+        print(
+            f"[{check['status'].upper()}]",
+            f"{check['name']}:",
+            check["detail"],
+        )
+
+    print()
+
+    if readiness["ready"]:
+        print("Server is platform-ready.")
+        print(
+            "Next: select or acquire a model, "
+            "then run './ai preflight'."
+        )
+    else:
+        print(
+            "Server is NOT platform-ready:",
+            ", ".join(readiness["blocking"]),
+        )
+
+    print(
+        "Scope: server and runtime only; "
+        "model selection is evaluated by "
+        "'./ai preflight'."
+    )
 
 elif sys.argv[1] == "preflight":
     config = load_config()
