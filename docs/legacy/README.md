@@ -24,8 +24,9 @@ most useful form of that evidence:
 | `CAPACITY_ARCHITECTURE.md` | The most developed thinking in the previous attempt. Storage capacity chain, protected reserve, commit admission, decision-bounded characterization and the migration strategy all feed Milestones 2 and 4. |
 | `ARCHITECTURE.md` | Prior contract vocabulary and adapter seams, useful when defining Milestone 0 contracts. |
 | `PROJECT_CONTEXT.md` | What was actually verified working, and the invariants learned from operating it. |
-| `PROVISIONAL.md` | A register of approximations and shortcuts. Reads as a list of traps to avoid repeating. |
+| `PROVISIONAL.md` | A register of approximations and shortcuts. Reads as a list of traps to avoid repeating. Its inherited items are mapped onto the new build sequence in `docs/DEBT.md`. |
 | `ROADMAP.pre-phase7-close.md` | An earlier roadmap snapshot, showing how the sequencing drifted. |
+| `CURSOR_ARCHITECTURE_GUIDE.md` | The prior attempt's condensed operating rules. Recovered from `backup/unreviewed-documentation-2026-09-03`, the only branch it existed on, so it survives if that branch is ever pruned. |
 
 ## How to use them
 

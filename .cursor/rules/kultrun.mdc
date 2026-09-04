@@ -18,8 +18,12 @@ and do not treat its status claims or phase numbers as current.
 - @docs/PRODUCT_VISION.md — the architectural constitution. Authoritative
  for product intent, domain boundaries, normalized concepts and safety
  semantics. Technical plans derive from it
-- @docs/ROADMAP.md — authoritative for build sequence: Milestones 0–15,
- numbered stages, stage outputs and completion gates
+- @docs/ROADMAP.md — authoritative for build sequence: Milestones 0–14,
+ numbered stages, stage outputs, acceptance levels and gates. Part I
+ records why the sequence is ordered as it is; read it before proposing
+ a reordering
+- @docs/DEBT.md — the debt ledger. Every approximation is recorded here
+ with the condition that retires it
 - @docs/DEVELOPMENT_WORKFLOW.md — branch/GPU workflow **and the
  bounded-step protocol you must follow**
 - `docs/legacy/` — previous attempt, retained as evidence only. Never
@@ -30,45 +34,67 @@ and do not treat its status claims or phase numbers as current.
 The rebuild has not started implementation. The next work is
 **Milestone 0 — Architectural Kernel**, whose output is
 `PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`.
+Keep it small: contracts only, no subsystem implementations.
+
+After that, **Milestone 1 is a complete working vertical** — a real
+request reaching a real model on real hardware, crude everywhere but
+real end to end. The previous attempt wrote 58,706 lines and never
+reached this proof. No subsystem may be deepened until Milestone 1
+passes.
 
 Do not begin later milestones early, and do not reintroduce previous-attempt
 code to appear further along.
 
 ## Governing rules
 
-From `docs/ROADMAP.md` §2:
-
 - Core owns concepts; adapters own implementations.
 - Capability-based deployment, not machine-type assumptions.
 - Executor and inference runtime are separate abstractions.
-- Resource Manager is authoritative for admission.
-- Capacity Planner recommends; evidence providers inform.
-- Unknown is valid; fail conservatively rather than invent precision.
+- Resource Manager is authoritative for admission. Capacity Planner
+  recommends; evidence providers inform and never authorize.
+- Only the **safe** capacity layer may authorize an allocation or
+  mutation. Reported values may be displayed; they never authorize.
+  Raw filesystem capacity never authorizes a storage mutation.
+- Unknown is valid and is never zero. Fail conservatively rather than
+  invent precision. Feasibility verdicts are never booleans.
+- Facts are immutable; policy reinterprets them. An interrupted
+  operation is never a success.
+- Keep distinct: compatibility / capacity / admission; static / live;
+  desired / observed / health; control plane / data plane.
 - Identity and permission semantics are shared across Gateway,
   Knowledge, Agents and Admin.
 - Prompts, responses, files and RAG content stay local by default.
+  Analytics failure never blocks an inference response.
 - Every persistent subsystem supports restart and reconciliation.
 - Every mutating workflow defines preflight → admission → mutation →
   persistence → rollback/reconciliation.
 - Admin UI and Admin Agent consume structured Platform APIs, never
   hidden infrastructure shortcuts.
-- Build the complete exoskeleton before deep optimization.
+- Build the exoskeleton thin end-to-end before deepening any part of it.
 
 No third-party technology may become the semantic owner of a platform
 concept. Docker, vLLM and LiteLLM are replaceable adapters; native
-process execution is first class.
+process execution is first class. Every external evidence provider is
+advisory with a mandatory internal fallback.
 
 ## Stage discipline
 
-- Produce the `docs/ROADMAP.md` §24 brief before implementing a stage.
+- Produce the stage brief (`docs/ROADMAP.md` Part V) before implementing.
 - Consume the predecessor's stage output; do not rediscover its facts.
+- A stage is done only when it also has failure semantics,
+  reconciliation, cleanup/cancellation, a Platform API surface,
+  acceptance evidence at the required level, and debt entries. See
+  Part II §4.
+- `L1` unit evidence never closes a stage that touches hardware, storage
+  or a runtime. Milestones 1–4 require `L2` or above.
 - End a stage with `docs/stages/STAGE-XX-<name>.md` and
   `checkpoints/STAGE-XX-<name>.json`.
 - If a change is not needed to produce the current stage output, defer
-  and record it.
-- Mark approximations `PROVISIONAL` and future sophistication
-  `DEFERRED`. Never let a provisional heuristic become permanent
-  architecture silently.
+  and record it in `docs/DEBT.md`.
+- One concept, one owning module. Never create a near-synonymous module
+  to hold a concept that already has an owner.
+- Renumbering or rescoping a stage requires editing `docs/ROADMAP.md` in
+  the same commit as the code.
 - Stop refining once the next architectural dependency is unblocked.
 
 ## Working rules

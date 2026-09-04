@@ -1,1399 +1,1075 @@
 # KULTRUN
-## Company Brain Platform — High-Level Technical Product Roadmap for Cursor
+## Company Brain Platform — Technical Product Roadmap
 
-**Purpose:** Define the clean-slate technical build sequence for Kultrun, the Company Brain platform.  
-**Approach:** Modular, progressive, exoskeleton-first. Every stage must produce explicit, versioned outputs that become the formal input to the next stage.  
-**Design rule:** Core owns concepts; adapters own implementations.
-
----
-
-# 1. Build Objective
-
-Build a secure, modular, self-hosted organisational intelligence platform that can:
-
-- inspect and understand the host it runs on;
-- discover, acquire and manage AI models;
-- determine safe capacity and resource usage;
-- run multiple governed AI workloads;
-- expose local and external AI through a stable gateway;
-- connect organisational knowledge while preserving permissions;
-- provide Admin UI, Admin AI Agent and end-user experiences;
-- record normalized usage/effectiveness evidence;
-- support connected and air-gapped operation;
-- progressively evolve into Team Brains, intelligent routing, model optimization and organisational coordination.
-
-The rebuild should not reproduce the old implementation. It should reuse its architectural lessons while rebuilding from first principles.
+**Purpose:** Define the build sequence for Kultrun, the Company Brain platform.  
+**Authority:** Authoritative for milestone structure, stage scope, ordering and gates.  
+**Derived from:** `docs/PRODUCT_VISION.md` (the architectural constitution) is authoritative for *what* Kultrun is and what its contracts mean. This document is authoritative for *in what order it gets built and how each step is proven*.  
+**Design basis:** The measured outcome of the previous implementation attempt, recorded in `docs/legacy/` and in the `phase9` and `backup/*` branch history.
 
 ---
 
-# 2. Governing Technical Rules
+# PART I — WHY THIS ROADMAP IS SHAPED THIS WAY
 
-1. **Core owns concepts; adapters own implementations.**
-2. **Capability-based deployment, not machine-type assumptions.**
-3. **Executor and inference runtime are separate abstractions.**
-4. **Resource Manager is authoritative for admission.**
-5. **Capacity Planner recommends; evidence providers inform.**
-6. **Unknown is valid; fail conservatively rather than invent precision.**
-7. **Identity and permission semantics are shared across Gateway, Knowledge, Agents and Admin.**
-8. **Prompts, responses, files and RAG content stay local by default.**
-9. **Every persistent subsystem must support restart/reconciliation.**
-10. **Every mutating workflow defines preflight → admission → mutation → persistence → rollback/reconciliation.**
-11. **Admin UI and Admin Agent consume structured Platform APIs, never hidden infrastructure shortcuts.**
-12. **Build the complete exoskeleton before deep optimization.**
+A roadmap that only lists subsystems in a plausible order is worthless;
+the previous attempt had one and still failed in a specific, diagnosable
+way. This part records what actually happened, because every ordering
+decision in Part III exists to prevent a repeat.
+
+## 1. What the previous attempt actually proved
+
+The prior attempt was disciplined, well-documented and technically
+strong. It was not sloppy work. It still ended without a working
+product, and the reasons are measurable.
+
+| Evidence | Measurement |
+|---|---|
+| Total work | 19 commits, 152 files, 58,706 lines |
+| Growth pattern | +23,940 insertions against −425 deletions |
+| Storage subsystem | 11,761 lines across 20 files — **40% of `core/`** |
+| Model subsystem | 6,845 lines across 15 files |
+| Identity, gateway, usage, analytics | **zero** post-baseline changes |
+| All seven adapter families combined | under 800 lines |
+| Largest file in the repository | `PROVISIONAL.md`, a register of approximations, at 2,187 lines |
+| End-to-end proof on real hardware | **never achieved** |
+
+The decisive fact is the last one. The prior plan's step C9 was
+"fresh-host live inference acceptance — proof that an empty host reaches
+real inference through platform-owned paths." Work stopped one step
+short of it. Every completion claim in that history is unit-level or
+single-subsystem evidence. **No commit anywhere in the prior attempt
+demonstrates a request reaching a model and returning an answer through
+platform-owned paths.**
+
+Meanwhile, the genuine engineering information the project acquired came
+almost entirely from running on real hardware:
+
+- A storage probe run "spent roughly 48 minutes probing and kept
+  nothing," because evidence was persisted only after the whole
+  calibration returned. After the fix, the same 6.70 GiB requirement
+  resolved in about **62 seconds**.
+- The filesystem advertised roughly **239 TB free** while the platform
+  correctly refused a **6.70 GiB** install for want of verified evidence.
+- Deleting a 42,990 MiB probe file returned only about **1.1 GB** to
+  `df` immediately; the volume reclaims asynchronously. Free-space deltas
+  therefore cannot prove anything.
+- A cancelled probe left a **42,990 MiB orphan file**, because the work
+  ran on a daemon HTTP thread and the lock released only at process exit.
+- `llmfit`'s `recommend` call proved **nondeterministic** on the real
+  host and had to be demoted to advisory with an internal fallback.
+- Catalog entries routinely carried `context_length: null` and
+  `download_bytes: null`.
+- Capacity observation **crashed** on a model discovered on disk whose
+  inventory record carried an explicit null management section — found
+  only when subsystems were finally wired together.
+
+None of those were visible to unit tests. Real hardware was the only
+oracle that mattered, and the plan deferred it to the end.
+
+## 2. The five failure patterns this roadmap prevents
+
+**Pattern 1 — Depth before proof.** Two of six subsystems consumed the
+majority of the code before any end-to-end path existed. The
+"exoskeleton-first" rule was itself written at commit 13, as a
+corrective, after the imbalance had already happened. A rule adopted
+after the damage is a lesson, not a control.
+
+*Control:* the first milestone after the kernel is a complete working
+vertical — crude everywhere, real end to end — and no subsystem may be
+deepened until it passes on real hardware.
+
+**Pattern 2 — Horizontal layering.** The prior plan built all of the
+executor, then all of the runtime, then all of the storage chain, then
+all of the model supply chain. Horizontal layers cannot be integrated
+until the last one lands, so integration defects surface at maximum
+cost. The null-management-section crash is exactly this.
+
+*Control:* stages are ordered by what the next end-to-end path needs,
+never by subsystem completeness.
+
+**Pattern 3 — Unbounded approximation debt.** The provisional register
+grew to 2,187 lines and 54 entries with 24 refinements still open in one
+section alone. Recording approximations honestly is a genuine strength;
+having no mechanism to retire them is not. The register became the
+largest artifact in the repository.
+
+*Control:* the debt ledger has explicit burn-down gates. A milestone
+cannot close while its own stages' debt is still open.
+
+**Pattern 4 — Concept ownership diffusion.** `core/` accumulated eleven
+`storage_*` modules and fifteen `model_*` modules, including
+`storage_capacity.py`, `storage_capacity_cache.py`,
+`storage_capacity_calibration.py`, `storage_capacity_evidence.py` and
+`storage_capacity_resolution.py` side by side, plus three overlapping
+feasibility modules. Purely additive growth (+23,940/−425) let
+near-synonymous modules coexist until nobody owned a concept.
+
+*Control:* one concept has exactly one owning module, and every
+milestone has a consolidation checkpoint.
+
+**Pattern 5 — Silent plan drift.** The plan document defined C6 as
+utility-and-ranking and C7 as the selector. In execution the two
+collapsed and everything shifted down by one, so the real C7 was the
+planned C8. The document was never corrected and stopped describing the
+work for the final third of the project.
+
+*Control:* stage briefs before, output packages after, and renumbering
+requires editing this document in the same commit.
+
+## 3. The governing sequencing rule
+
+> **Design the whole skeleton on paper. Build it thin end-to-end. Then
+> deepen it, in the order reality demands.**
+
+This is not in tension with the constitution's "design the complete
+skeleton before deep implementation" — it is how that rule is executed.
+`docs/PRODUCT_VISION.md` already designs the whole system end to end.
+This roadmap builds that design as a working vertical first, then earns
+the right to add precision.
+
+The operative test before any piece of work:
+
+> Does the next end-to-end customer path need this?
+
+If no, defer and record it. If yes, build the smallest version that is
+**honest** — one that fails closed rather than guessing. Never optimize
+a subsystem before the next end-to-end path works.
+
+The prior attempt adopted this rule too late to benefit from it. Here it
+is a precondition, not a retrospective.
 
 ---
 
-# 3. Stage-to-Stage Handoff Rule
+# PART II — RULES THAT APPLY TO EVERY STAGE
 
-Every stage must end with a **Stage Output Package** containing:
+## 4. Definition of done
 
-- versioned domain contracts;
-- API surfaces;
-- persistence schema/migrations;
-- adapter interfaces;
-- one working reference implementation;
-- acceptance-test results;
-- `WORKING`, `PROVISIONAL` and `DEFERRED` notes;
-- architecture decisions;
-- a machine-readable stage checkpoint/manifest.
+A stage is complete only when all of the following exist. These are not
+optional extras to be scheduled later; the prior attempt scheduled
+reconciliation and cleanup separately and never reached them.
 
-Recommended form:
+1. **Contract** — versioned domain contract with `schema_version`.
+2. **One working implementation** behind a replaceable interface.
+3. **Failure semantics** — explicit, and fail-closed on unknown.
+4. **Persistence and reconciliation** — if the stage holds state, it
+   reconciles that state on restart, and cleans up its own orphans.
+   State without recovery is not done.
+5. **Cancellation and cleanup** — if the stage can run long or mutate,
+   it is interruptible and leaves no orphan artifact and no false
+   evidence.
+6. **Platform API surface** — control-plane exposure of what the stage
+   produces, so the Admin surface and Admin Agent never need a private
+   back channel.
+7. **Acceptance evidence** at the level required below.
+8. **Debt ledger entries** for every approximation, each with the
+   condition that would retire it.
+9. **Stage output package** in `docs/stages/` and checkpoint in
+   `checkpoints/`.
+
+## 5. Acceptance ladder
+
+Adapted from the prior attempt's own ladder, which was sound; the
+failure was in when it was applied, not in its design.
+
+| Level | Meaning |
+|---|---|
+| **L1 — Contract** | Focused tests. Schemas, adapters, serialization. Runs anywhere. |
+| **L2 — Real host** | Executed on the reference host. Real values, real filesystem, real driver. |
+| **L3 — Live inference** | A real model serves a real request end to end and emits a usage event. |
+| **L4 — Integrated** | Multiple subsystems together: admission, denial, lifecycle, restart reconciliation, clean teardown. |
+
+**L1 evidence never closes a stage that touches hardware, storage or a
+runtime.** The 48-minute probe, the async reclaim, the `llmfit`
+nondeterminism and the null-metadata crash were all L1-clean.
+
+Milestones 1 through 4 each require L2 or above to close. No milestone
+closes on L1 alone.
+
+## 6. Evidence and authorization rules
+
+These are the prior attempt's most valuable output and carry forward
+unchanged.
+
+**Three layers, one authority.**
 
 ```text
-docs/stages/STAGE-XX-<name>.md
-checkpoints/STAGE-XX-<name>.json
+Reported    what a source claims        (nvidia-smi total, statvfs free)
+Effective   corrected for real usability (overhead, async reclaim)
+Safe        effective minus protected headroom and policy reserve
 ```
 
-The next stage must verify and consume the predecessor output rather than rediscovering facts.
+Only the **safe** layer may authorize an allocation or a mutation.
+Reported values may be displayed and may inform search. They never
+authorize.
 
-The core technical chain should progressively look like:
+**Raw filesystem capacity never authorizes a storage mutation.** Never
+infer probe success, or cleanup success, from a free-space delta; verify
+the artifact directly.
+
+**Usable capacity is the verified lower bound.** Never a midpoint, never
+an interpolation, never an unverified upper bound.
+
+**Facts are immutable; policy reinterprets them.** "32 GiB succeeded at
+time T" stays true when the selection objective changes. Persist each
+completed probe as an immutable classified fact *before* the next
+expensive probe begins.
+
+**An interrupted operation is never a success.** It is inconclusive and
+must not raise a lower bound.
+
+**Unknown is not zero and is not a pass.** Missing metadata stays
+missing and surfaces in `unresolved_fields`. Never guess a value that
+could authorize a mutation.
+
+**Verdicts are never booleans.** Feasibility is `compatible`,
+`conditional` or `unsupported`, because "we cannot determine this" is a
+common and honest answer.
+
+**Fail closed** when authoritative capacity is unresolved, when unified
+memory support is incomplete, and when confidence is below the threshold
+a commit requires.
+
+**Keep these distinct, always:**
 
 ```text
-PlatformContracts
-  ↓
-HostCapabilities
-  ↓
-ResolvedComponentSet
-  ↓
-StorageCapacity
-  ↓
-ModelCatalogSnapshot
-  ↓
-ModelInventory
-  ↓
-ModelRequirement
-  ↓
-CapacityAssessment
-  ↓
-DeploymentPlan
-  ↓
-AdmissionDecision
-  ↓
-ResourceReservation
-  ↓
-InferenceInstance
-  ↓
-InferenceEndpoint
-  ↓
-RouteDecision
-  ↓
-UsageEvent
-  ↓
-AuthorizedKnowledgeContext
-  ↓
-TeamBrain
+compatibility  ≠  capacity  ≠  admission        (plausible / feasible / may start now)
+static         ≠  live                          (what the host is / what is free now)
+desired        ≠  observed  ≠  health           (intent / reality / liveness)
+control plane  ≠  data plane                    (management / inference traffic)
 ```
 
----
+Never double-subtract managed reservations from already-observed live
+availability. The prior attempt shipped that bug and had to fix it.
 
-# 4. Milestone 0 — Architectural Kernel
+## 7. Concept ownership
 
-## Goal
-Create the semantic skeleton before building product features.
+One concept has exactly one owning module. If a second module needs the
+concept, it imports it; it does not restate it.
 
-## Build
-- repository/module boundaries;
-- stable IDs, schema versions, typed errors and result envelopes;
-- configuration ownership;
-- adapter registry pattern;
-- domain event envelope;
-- replaceable persistence boundary;
-- Platform API skeleton;
-- local administrator identity and `AccessContext`;
-- Admin UI shell;
-- Admin AI Agent shell and approval model.
+Forbidden: near-synonymous modules for one concept. If a name needs a
+qualifier to distinguish it from an existing module — `_cache`,
+`_resolution`, `_calibration` alongside a base module — that is a signal
+the concept is fragmenting.
 
-Define early contracts for concepts that are expensive to retrofit:
+Dependency direction, which lower layers may not violate:
 
 ```text
-HostCapabilities
-ModelMetadata
-ModelArtifact
-ModelRequirement
-ModelInventoryRecord
-CapacityEvidence
-WorkloadProfile
-Workload
-ResourceReservation
-InferenceInstance
-UsageEvent
-User
-Group
-Team
-AccessPolicy
-KnowledgeSource
-KnowledgeItem
-DatasetSnapshot
-DerivedModel
-Entitlement
+hardware/evidence → capacity → requirements → feasibility
+  → selection → orchestration → runtime/resource lifecycle
 ```
 
-The contracts may be minimal; the boundaries must be intentional.
+Capacity must not import the selector. Storage probing must not know
+model identities. The resource manager must not know selection ranking.
+Runtime adapters must not own capacity policy. The CLI must contain no
+algorithms.
 
-## Output
-**PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1**
+**Consolidation checkpoint:** every milestone ends with a review of
+module count against concept count. Divergence is addressed before the
+milestone closes, not after.
 
-## Completion gate
-The contracts serialize without importing runtime/provider libraries, and Admin UI/Admin Agent can call the same Platform API.
+## 8. Debt ledger and burn-down gates
 
----
+`docs/DEBT.md` replaces the prior attempt's provisional register. Same
+honesty, with a retirement mechanism.
 
-# 5. Milestone 1 — Host and Bootstrap Foundation
+Every entry records: what is approximated, why that is acceptable now,
+what would make it real, **the condition that forces its retirement**,
+and the stage that owns it.
 
-## Stage 1.1 Host Capability Detection
-Create `HostDetector` and normalized `HostCapabilities`.
+Labels: `WORKING`, `PROVISIONAL`, `DEFERRED`.
 
-Detect:
-- OS/version and architecture;
-- CPU and RAM;
-- GPU/accelerator vendor, count and memory;
-- unified memory where relevant;
-- storage and quotas;
-- native/Docker/Podman capabilities;
-- virtualization;
-- network/ports;
-- relevant driver/runtime hints.
+**Burn-down gates:**
 
-Reference implementation: **Linux x86_64 + NVIDIA**.  
-Synthetic fixtures: CPU-only, Apple Silicon, AMD, Windows-via-Linux-VM style.
+- A stage may not open a new `PROVISIONAL` entry in a subsystem that
+  already has an entry retired by the current milestone's gate.
+- A milestone cannot close while any entry marked "retire before
+  milestone close" remains open.
+- Any `PROVISIONAL` value that authorizes a mutation must be retired
+  before the milestone that introduced it closes. Approximations may
+  inform recommendations indefinitely; they may not authorize
+  indefinitely.
+- The ledger's size is reviewed at every milestone gate. Growth without
+  retirement is treated as a schedule risk, not bookkeeping.
 
-### Output
-**HostCapabilities v1**
+## 9. External dependency rule
 
----
+Every third-party component is an adapter behind a Kultrun-owned
+contract, and every evidence provider is **advisory with a mandatory
+internal fallback**.
 
-## Stage 1.2 Component Registry and Resolver
-Create versioned `ComponentManifest` and `ComponentResolver`.
+`llmfit` was integrated, then found nondeterministic on the reference
+host, then demoted to advisory with a fallback to closest-safe-fit. That
+outcome is the default assumption, not the exception. If a stage cannot
+function when an external provider is absent, broken or nondeterministic,
+the stage is not done.
 
-A component describes:
-- version;
-- supported OS/architecture;
-- accelerator compatibility;
-- dependencies;
-- source;
-- checksum/signature;
-- license;
-- installation method.
+Docker, vLLM and LiteLLM are replaceable adapters. Native process
+execution is first class. No third-party package may own a Kultrun
+concept.
 
-### Output
-**ResolvedComponentSet v1**
+## 10. Plan integrity
 
----
+The plan document must describe the work actually being done.
 
-## Stage 1.3 Developer Bootstrap / Resume Harness
-Create a lightweight host-aware bootstrap orchestrator that:
-- detects host;
-- loads platform state;
-- resolves required components;
-- verifies ports;
-- reports missing/incompatible pieces;
-- verifies runtime/executor availability;
-- performs smoke health checks.
-
-This is the precursor to the polished installer.
-
-### Output
-**BootstrapAssessment / ResumePlan v1**
+- Produce the stage brief (Part V) before implementing.
+- Produce the stage output package and checkpoint after.
+- **Renumbering or rescoping a stage requires editing this document in
+  the same commit as the code.** The prior attempt's silent C6/C7/C8
+  shift is why this is a rule.
+- If implementation reveals that a stage boundary is wrong, change the
+  boundary deliberately and record why. Do not reinterpret it in place.
 
 ---
 
-# 6. Milestone 2 — Execution, Runtime and Storage Foundation
-
-## Stage 2.1 Executor Abstraction
-Create:
+# PART III — THE BUILD SEQUENCE
 
 ```text
-Executor
-├── NativeProcessExecutor      # first reference
-├── DockerExecutor             # optional reference
-├── PodmanExecutor             # later
-├── VMExecutor                 # later
-└── KubernetesExecutor         # later
+MILESTONE 0   Architectural kernel                         contracts only
+MILESTONE 1   Walking skeleton — live inference proven      ← the gate the prior attempt never reached
+MILESTONE 2   Storage truth and safe acquisition
+MILESTONE 3   Capacity, feasibility and selection
+MILESTONE 4   Multi-workload resource management
+MILESTONE 5   Governed access spine
+MILESTONE 6   Operability — Admin console and agent
+MILESTONE 7   Knowledge exoskeleton
+MILESTONE 8   Company Brain and Team Brain
+MILESTONE 9   Outbound boundary, telemetry, entitlements
+MILESTONE 10  Installer, updates, commercial governance
+MILESTONE 11  Capacity and effectiveness intelligence
+MILESTONE 12  Intelligent routing and portfolio optimization
+MILESTONE 13  Team Brain adaptation
+MILESTONE 14  Multi-host and organisational coordination
 ```
 
-Executor owns process/service execution, environment, filesystem mapping, signals, logs and process health—not model semantics.
-
-### Output
-**ExecutorSpec + ExecutorHandle**
-
----
-
-## Stage 2.2 Inference Runtime Abstraction
-Create `InferenceRuntime`.
-
-Planned adapters:
-- vLLM;
-- llama.cpp;
-- MLX;
-- ROCm-oriented runtime;
-- Intel-oriented runtime.
-
-First validated implementation: **vLLM on Linux/NVIDIA**.
-
-Runtime-specific options remain inside adapters.
-
-### Output
-**RuntimeProfile + RuntimeLaunchSpec**
+Milestones 0–6 are the infrastructure exoskeleton. 7–8 are the Company
+Brain. 9–10 make it shippable. 11–14 make it intelligent, and none of
+them may start early.
 
 ---
 
-## Stage 2.3 Storage Capacity and Mutation Safety
-Implement the storage chain:
+## MILESTONE 0 — Architectural kernel
+
+**Goal:** establish only the semantics that are expensive to retrofit.
+Nothing that can be added later belongs here.
+
+Keep this milestone small. The temptation is to design every contract in
+detail; the prior attempt's contracts were reworked within hours of being
+written (`capacity_contracts.py`: 473 of 640 lines changed 14 minutes
+after creation) because they were written before anything consumed them.
+Contracts get real when a caller exists.
+
+### Stage 0.1 — Identity and result semantics
+
+Stable IDs, `schema_version` on every persisted and API structure, typed
+errors, result envelopes, domain event envelope, configuration
+ownership, adapter registry, replaceable persistence boundary.
+
+Field meaning must never change silently. No existing config field may
+be reinterpreted.
+
+### Stage 0.2 — Contracts that must exist before their subsystems
+
+Minimal but intentional. Named now because retrofitting them is
+expensive:
 
 ```text
-credible remaining host capacity
-→ protected reserve
-→ safe allocatable capacity
-→ administrator allocation
-→ platform storage budget
-→ current managed usage
-→ remaining budget
-→ peak additional operation requirement
-→ admission
+HostCapabilities      Workload              Subject / AccessContext
+ModelMetadata         ResourceReservation   UsageEvent
+ModelArtifact         InferenceInstance     Entitlement
+ModelRequirement      CapacityEvidence      KnowledgeSource / KnowledgeItem
+ModelInventoryRecord  WorkloadProfile       DatasetSnapshot / DerivedModel
 ```
 
-Add:
-- managed-usage reconciliation;
-- staging;
-- mutation lock;
-- operation preflight;
-- rollback/recovery semantics.
+Two of these are non-negotiable at this stage even though their
+subsystems arrive much later, because the prior attempt shows what
+happens otherwise:
 
-### Output
-**StorageCapacity v1 + StorageAdmissionDecision**
+- **`Subject` / `AccessContext`** — identity received zero attention in
+  the prior attempt and would have had to be threaded through a finished
+  gateway, analytics and knowledge layer retrospectively.
+- **`UsageEvent`** — analytics received zero attention, and its identity
+  fields (`logical_name`, `model_id`, `provider`, `service_id`,
+  `route_reason`) must not be collapsed later.
 
-This output becomes mandatory input to model acquisition.
+### Stage 0.3 — Control plane shell
 
----
+Platform API skeleton, platform state, local administrator identity.
+A thin Admin surface exists from here on and grows with every stage; it
+is not a late project.
 
-# 7. Milestone 3 — Model Supply Chain
+**Output:** `PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`
 
-## Stage 3.1 ModelSource and Normalized Metadata
-Create `ModelSource`.
-
-Initial adapters:
-- Hugging Face;
-- local files.
-
-Normalize to platform-owned `ModelMetadata` / `ModelArtifact`.
-
-Start with a curated candidate set, not a giant marketplace.
-
-### Output
-**ModelCatalogSnapshot v1**
+**Gate (L1):** contracts serialize without importing any runtime or
+provider library. Platform API answers from platform state. Contracts
+are minimal and boundaries are intentional.
 
 ---
 
-## Stage 3.2 Model Inventory and Lineage Foundation
-Create durable Inventory with states such as:
+## MILESTONE 1 — Walking skeleton
+
+**This is the milestone the previous attempt never reached, and the
+reason this roadmap is reordered.**
+
+**Goal:** on the reference host, an authenticated request reaches a real
+model through Kultrun-owned paths, returns an answer, emits a usage
+event, and the platform restarts into a coherent state.
+
+Everything here is deliberately crude — and everything here is real. No
+mocks in the path. No subsystem is deepened until this passes on real
+hardware.
+
+Explicitly **not** in this milestone: model acquisition, model catalog,
+empirical storage probing, capacity evidence providers, model selection,
+multiple concurrent instances, external providers, knowledge, teams.
+Those are milestones 2 through 7 and each is unblocked by this one.
+
+### Relationship to the constitution's §111
+
+`docs/PRODUCT_VISION.md` §111 defines a 19-step "first working
+exoskeleton" flow and states, correctly, that "this vertical slice is
+more important than advanced optimization." This roadmap splits that
+slice across three milestones rather than attempting it in one, and the
+mapping is recorded here so the divergence is deliberate and visible
+rather than silent.
+
+| §111 steps | Where |
+|---|---|
+| 1–6 inspect host, HostCapabilities, safe capacity, control plane, Admin UI, basic Admin Agent | Milestone 1 (Admin surface thin; console proper at Milestone 6) |
+| 11–19 inventory, reservation, instance, gateway, request, UsageEvent, analytics, safe stop/restart, reconciliation | **Milestone 1** |
+| 10 safely acquire or import | Milestone 2 |
+| 7–9 search curated set, evaluate compatibility, recommend one model | Milestone 3 |
+
+Milestone 1 is therefore a **strict subset** of §111: the same spine,
+with the model supplied by hand instead of chosen and downloaded. The
+reason is that steps 7 through 10 require the model supply chain,
+empirical storage evidence and a capacity evidence provider — roughly
+the entire volume of work the prior attempt completed *without ever
+proving the spine*. Proving the spine against a hand-placed model costs
+a fraction of that and de-risks everything after it.
+
+§111's full flow is achieved at the **Milestone 3 gate**, where the
+platform selects, acquires and serves automatically on a fresh host.
+
+### Stage 1.1 — Host capability detection
+
+`HostDetector` producing normalized `HostCapabilities`: OS, version,
+architecture, CPU, RAM, accelerator vendor and count and VRAM, unified
+memory where relevant, storage mount identity, execution capabilities,
+ports, driver hints.
+
+Reference implementation: Linux x86_64 + NVIDIA. Synthetic fixtures for
+CPU-only, Apple Silicon, AMD and Windows-via-Linux-VM shapes, so
+capability-based branching is exercised before those hosts are
+supported.
+
+Durable, versioned, fingerprinted — the fingerprint is what later makes
+cached evidence reusable.
+
+**Output:** `HostCapabilities v1` · **Gate:** L2
+
+### Stage 1.2 — Minimum safe capacity
+
+The three-layer model — Reported, Effective, Safe — for RAM, VRAM and
+storage, using **policy headroom only**. No probing, no calibration, no
+evidence providers.
+
+This stage is the roadmap's central sequencing insight. Safe admission
+does not require empirical characterization; it requires honest
+conservatism. A protected fraction with an absolute floor, unified memory
+failing closed, and unknown resolving to refusal is enough to admit a
+first workload safely. The prior attempt built 11,761 lines of storage
+machinery before proving a single inference, when a headroom policy
+would have unblocked the vertical on day one.
+
+Per-accelerator, never aggregated unless the interconnect genuinely
+permits. Unmanaged external usage accounted for. Managed reservations
+never double-subtracted from observed live availability.
+
+**Output:** `CapacityEnvelope v1` (policy-based) · **Gate:** L2
+
+### Stage 1.3 — Executor and runtime abstractions
+
+`Executor` with `NativeProcessExecutor` as the first and reference
+implementation. `InferenceRuntime` with a vLLM adapter as the first
+validated implementation.
+
+The executor owns process execution, environment, filesystem mapping,
+signals, logs and process health — never model semantics. Runtime
+options stay inside the runtime adapter.
+
+PID handling includes reuse protection from the start. The prior attempt
+deferred it and left the gap open.
+
+**Output:** `ExecutorSpec + ExecutorHandle + RuntimeProfile + RuntimeLaunchSpec` · **Gate:** L2
+
+### Stage 1.4 — Model presence without acquisition
+
+Accept a model artifact that is **already present** on disk. Normalize
+it into `ModelInventoryRecord`. No catalog, no download, no source
+adapters.
+
+The platform must operate coherently with **no model installed**: an
+absent model is a valid unsatisfied deployment state, the control plane
+starts anyway, and the Platform API remains available. The prior attempt
+hit a bootstrap deadlock here — the platform needed a model to start,
+but choosing a model needed the platform — and spent four commits
+dismantling it. Design it out now.
+
+Inventory records carry explicit nulls, never inferred values. Capacity
+observation must tolerate a record with a null management section; that
+exact shape crashed the prior attempt during integration.
+
+**Output:** `ModelInventoryRecord v1` (local-only) · **Gate:** L2
+
+### Stage 1.5 — Admission and reservation
+
+`Workload`, `ResourceRequirement`, `AdmissionDecision`,
+`ResourceReservation`. Single workload. Real reservation against the safe
+layer from 1.2.
+
+Ordering is the contract: **reserve before mutation; roll back the
+reservation if start fails; stop the runtime before releasing the
+reservation; hold conservative state on persistence error.** Denial is
+explainable. A denied admission mutates nothing.
+
+**Output:** `AdmissionDecision + ResourceReservation` · **Gate:** L2
+
+### Stage 1.6 — InferenceInstance and lifecycle
+
+First-class `InferenceInstance`: instance id, host, model and revision,
+runtime, executor, endpoint, reservation, context, runtime concurrency,
+platform request limit, access-policy reference, lifecycle state,
+configuration version.
+
+Lifecycle: start, health, stop, restart, unload — plus **reconciliation
+on restart**, in this stage, not a later one. Distinguish status (is the
+port reachable) from health (does the API function).
+
+**Output:** `InferenceInstance v1` + healthy `InferenceEndpoint` · **Gate:** L3
+
+### Stage 1.7 — Gateway, subject and usage event
+
+The Kultrun Gateway owns endpoint identity, authentication and
+authorization hooks, model access policy, and route decision. One local
+provider adapter. Routing is explicit-model or default-model only.
+
+Every request emits a `UsageEvent` through a replaceable
+`UsageAnalyticsStore`.
+
+Two invariants hold from the first event: **analytics recording failure
+must never block an inference response**, and the gateway must never
+wait on an exporter. Storage is partitioned from the start — the prior
+attempt shipped a single unbounded JSONL file, then had to migrate it.
+
+**Output:** `RouteDecision + UsageEvent v1 + LocalUsageStore` · **Gate:** L3
+
+### Stage 1.8 — MILESTONE GATE: fresh-host live inference
+
+**The proof the prior attempt never obtained.** On a clean reference
+host, at L4:
+
+1. Detect host, produce `HostCapabilities`.
+2. Start the control plane **with no model installed**.
+3. Register a locally present model.
+4. Compute a requirement and obtain admission against safe capacity.
+5. Reserve, start an `InferenceInstance`.
+6. Authenticate a subject and serve a real `/v1/chat/completions`.
+7. Emit a `UsageEvent` with correct token accounting.
+8. Report status, health and usage through the Platform API.
+9. Stop cleanly — no orphan process, port, file or reservation.
+10. Restart and reconcile into a coherent state.
+11. Prove denial: request a workload exceeding safe capacity and confirm
+    refusal with an explanation and no mutation.
+
+Until this passes, no work begins on milestone 2 or later. If it cannot
+pass, the architecture is wrong and that is the most valuable thing this
+roadmap can discover — at 5,000 lines instead of 58,000.
+
+---
+
+## MILESTONE 2 — Storage truth and safe acquisition
+
+Now that inference works end to end, the platform has earned the right
+to make storage honest. This is where the prior attempt's deepest and
+most valuable engineering belongs — second, not first.
+
+### Stage 2.1 — Storage pools and identity
+
+Storage as a **set of pools**, each with mount identity, filesystem
+type, provider class, quota identity and fingerprint. A mutation is
+admitted against the specific pool it will mutate. Single pool on the
+reference host; the contract must not encode that.
+
+### Stage 2.2 — Empirical evidence
+
+`StorageEvidence` and immutable `EmpiricalProbeEvidence`, keyed by pool
+and host fingerprint, probe implementation version and policy version.
+
+Outcomes are `success`, `classified_failure` or `inconclusive`. Only
+classified capacity or quota failures (`ENOSPC`, `EDQUOT`) may establish
+an upper bound; policy ceilings and probe-shape limits establish nothing
+about capacity.
+
+**Persist each completed probe before the next expensive probe begins.**
+This single rule is what turns a 48-minute total loss into resumable
+work.
+
+### Stage 2.3 — Decision-directed characterization
+
+Characterize to make a decision, not to produce a precise number. The
+useful horizon is the largest figure that could still change the current
+decision, and it is derived from the decision, not from the pool.
+
+- **TRANSACTION mode** — the only mode needed for acquisition. Stop the
+  moment the verified lower bound clears the requirement. No refinement.
+- **HOST mode** — deliberately coarse, budget-bounded, describes the
+  machine independently of any catalog.
+- **DEEP mode** — deferred. Admin reporting and warehouse planning only.
+  Never blocks bootstrap.
+
+**Capacity precedes catalogue.** Model requirements must never determine
+the initial probe horizon. The prior attempt let candidate thresholds
+drive the search, inverted the ordering, and rewrote the module within
+24 hours.
+
+### Stage 2.4 — Mutation safety
+
+Shared operation lock, staging, preflight, commit admission requiring
+high confidence, rollback, and **startup recovery** that distinguishes
+completed evidence from an incomplete probe from a stale temporary
+artifact.
+
+Cancellation is cooperative, releases the lock without relying on
+process exit, and guarantees no orphan artifact. The prior attempt's
+42,990 MiB orphan is the specification for this stage's acceptance test.
+
+Successful mutation invalidates affected evidence and advances the
+storage generation.
+
+### Stage 2.5 — Model source and inventory
+
+`ModelSource` with Hugging Face and local-file adapters, normalizing to
+Kultrun-owned `ModelMetadata` and `ModelArtifact`. A curated candidate
+set, not a marketplace.
+
+Durable inventory with explicit states and lineage hooks: parent model
+and revision, derivation type, owner, dataset reference, promotion
+state. Missing metadata stays null and is reported as unresolved.
+External source failure never marks the local platform unhealthy.
+
+### Stage 2.6 — Safe acquisition
 
 ```text
-discovered
-remote
-acquiring
-stored
-validating
-loaded
-running
-stopped
-updating
-deprecated
-incompatible
-derived
+resolve immutable revision → calculate requirement (incl. peak additional)
+→ storage admission → lock → stage → transfer → integrity validation
+→ commit → inventory reconciliation
 ```
 
-Preserve lineage hooks:
-- parent model/revision;
-- derivation type;
-- owner/team;
-- dataset snapshot reference;
-- evaluation/promotion state.
+Resumable. Revision-pinned. Interrupted transfer recovers without false
+evidence or orphan bytes.
 
-### Output
-**ModelInventory v1**
+**Output:** `StorageCapacity v1 + StorageAdmissionDecision + AcquisitionReceipt`
+
+**Milestone gate (L4):** on a real host, acquire a model into an
+uncharacterized pool; interrupt mid-transfer and prove no orphan
+artifact, no false evidence and a released lock; resume and complete;
+restart and reconcile inventory. Confirm that raw filesystem free space
+never authorized any step. Consolidation checkpoint and debt burn-down.
 
 ---
 
-## Stage 3.3 Safe Model Acquisition
-Workflow:
+## MILESTONE 3 — Capacity, feasibility and selection
+
+**Goal:** the platform chooses well, and explains itself.
+
+### Stage 3.1 — ModelRequirement
+
+Normalized, versioned, host-independent: storage including peak
+additional bytes, VRAM split into weights, KV per token and runtime
+overhead, RAM, compute features, quantization, dtype, runtime
+constraints — each with confidence and exactness.
+
+Represent gaps rather than filling them. The prior attempt had **no RAM
+estimator anywhere in its source** and one provisional
+weights-plus-margin VRAM figure; both correctly appeared in
+`unresolved_fields`. Carry that honesty and retire the gaps here.
+
+### Stage 3.2 — CapacityEvidence
+
+`CapacityEvidenceProvider` with a **required internal conservative
+estimator**. External providers — `llmfit`, Accelerate, runtime-native,
+benchmarks — are advisory adapters with a mandatory fallback, per §9.
+
+Theoretical and observed evidence stay distinguishable, each carrying
+basis and confidence.
+
+### Stage 3.3 — Feasibility
+
+Three verdicts. Per-resource `{ required, safe_available, fits, margin,
+limiting }`, a limiting factor, a maximum viable configuration, reasons
+and evidence references.
+
+Must evaluate **candidates before acquisition**, not only inventory. The
+prior attempt could only assess models it already had.
+
+### Stage 3.4 — Deployment planner
+
+Combine host capabilities, resolved components, artifact, requirement,
+feasibility and policy into a `DeploymentPlan`: runtime, executor,
+components, revision, resource requirement, context, configured
+concurrency, ports, expected use, confidence, alternatives, approvals.
+
+### Stage 3.5 — Selection
+
+Deterministic given the same inputs and policy version. Never selects on
+unverified capacity. Prefers `compatible` over `conditional` at equal
+utility. Records why each rejected candidate lost.
+
+Retries are capped — the prior attempt's rule that "repeatedly trying
+models on a host that just refused one is how a bootstrap becomes an
+outage" is correct and stands.
+
+**Milestone gate (L4):** on a fresh host with no model, the platform
+selects, acquires, plans, admits and serves inference automatically, and
+explains every rejection. A commit-time proof never resurfaces as a
+description of host capacity.
+
+---
+
+## MILESTONE 4 — Multi-workload resource management
+
+**Goal:** several governed workloads coexist safely on one host.
+
+### Stage 4.1 — Generic workload types
+
+Represent `inference`, `embedding`, `reranking`, `indexing`,
+`benchmark`, `training`, `evaluation`, `quantization`, `distillation`,
+`agent_worker`. Only inference executes.
+
+### Stage 4.2 — Oversubscription prevention
+
+Multiple concurrent reservations. Requested requirement, admitted
+reservation, observed consumption and peak observed consumption stay
+separate. Explainable denial. Persisted reservations reconcile on
+restart — the prior attempt's Step 07 was never completed and is a
+first-class requirement here.
+
+### Stage 4.3 — Concurrency binding
+
+Bind the two dimensions properly: request concurrency within one
+instance, and simultaneous instance concurrency. The generic platform
+concurrency concept maps to the runtime's own control through the
+adapter. The prior attempt left a platform-level concurrency number
+unmapped to `max_num_seqs`.
+
+### Stage 4.4 — Multiple live instances
+
+**Milestone gate (L4):** two genuinely simultaneous inference instances
+with safe per-instance allocations on real hardware; a third correctly
+denied; either stopped independently without disturbing the other;
+restart reconciles both.
+
+---
+
+## MILESTONE 5 — Governed access spine
+
+**Goal:** identity, routing and external federation become real.
+`Subject` and `UsageEvent` have existed since milestone 0, so this
+deepens rather than retrofits.
+
+- **5.1 Identity, teams, policy** — User, Group, Team, Application,
+  Role, AccessPolicy, behind a replaceable `IdentityProvider` for later
+  SSO and SCIM. One identity model serves gateway, analytics, knowledge,
+  agents and audit.
+- **5.2 Routing v1** — explicit, default, policy-driven, administrator
+  override, simple fallback. Routing never reserves resources directly.
+- **5.3 External federation** — one external path via a LiteLLM
+  adapter, behind the Kultrun Gateway. LiteLLM must not own identity,
+  route semantics, model identity, usage events, permissions, resource
+  state or cost normalization.
+- **5.4 Usage analytics** — partitioned store, retention policy,
+  exporter present but disabled by default. Service logs are never usage
+  events. No prompts, responses or retrieved content leave by default.
+
+**Gate (L4):** one Gateway API serves local and external inference with
+identity attribution throughout; removing LiteLLM changes no core
+contract.
+
+---
+
+## MILESTONE 6 — Operability
+
+**Goal:** the platform is administrable without a shell.
+
+The Admin surface has grown since milestone 0; this is where it becomes
+primary.
+
+- **6.1 Admin console v1** — host, capacity, catalog, inventory,
+  instances, reservations, gateway, usage, users and teams, health,
+  configuration. Settings expose automatic versus manual override, with
+  recommendation, reason and confidence.
+- **6.2 Admin AI Agent v1** — structured tools only. Read-only needs no
+  approval; low-risk mutation follows policy; meaningful mutation
+  requires explicit administrator approval. No unrestricted shell.
+- **6.3 Idempotent startup** — one reconciliation path across models,
+  components, runtimes, workloads, reservations, ports and endpoints.
+
+**Gate (L4):** ordinary administration requires no shell command, and a
+hard restart preserves coherent inventory, reservations, instances and
+gateway state.
+
+### Infrastructure exoskeleton gate
+
+Milestones 0–6 complete when a clean supported host reaches: host
+detection, capability profile, component resolution, control plane,
+Admin UI, Admin Agent, curated catalog browsing, requirement
+calculation, feasibility, deployment plan, safe acquisition, inventory,
+reservation, running instance, gateway endpoint, authenticated request,
+answer, usage event, visible usage and health, safe stop and restart,
+and coherent reconciliation — with every approximation that authorizes a
+mutation retired from the debt ledger.
+
+---
+
+## MILESTONE 7 — Knowledge exoskeleton
+
+- **7.1 Sources and connectors** — normalized `KnowledgeSource`,
+  `KnowledgeItem`, capabilities, permission reference, provenance,
+  content reference, indexing state. Managed local files, a network
+  share, and one enterprise document source.
+- **7.2 Permission-aware indexing and retrieval** —
+  `AccessContext` → candidates → permission enforcement → authorized
+  items → retrieval. Source revalidation remains possible for sensitive
+  systems.
+- **7.3 RAG v1** — indexing, chunking, embeddings, retrieval, prompt
+  assembly and inference stay separate modules. Only authorized context
+  reaches a model. Embedding assets must not require internet access at
+  bootstrap; the prior attempt's frontend broke air-gapped operation by
+  fetching them.
+- **7.4 Knowledge administration** — connect, disconnect, health,
+  indexing state, permission explanation, retrieval diagnosis, reindex.
+
+**Gate (L4):** a user retrieves only what they are authorized to see,
+proven by a negative test where an unauthorized item is present in the
+index and provably absent from the answer.
+
+---
+
+## MILESTONE 8 — Company Brain and Team Brain
+
+- **8.1 First-party end-user UI** — authentication, conversation,
+  streaming, permitted model or brain selection, history, knowledge
+  interaction and source visibility. Third-party frontends remain
+  replaceable clients.
+- **8.2 TeamBrain logical model** — team, membership and policy,
+  knowledge scope, tools, agent configuration, base-model policy,
+  routing policy, memory placeholder, evaluation profile, optional
+  adapter references. A TeamBrain is not one model.
+- **8.3 Team agent v1** — execution through `AccessContext`, the
+  Gateway, permission-aware knowledge, approved tools and TeamBrain
+  policy.
+
+Initial specialization is composition, not training:
 
 ```text
-resolve immutable source
-→ calculate storage requirement
-→ storage admission
-→ lock
-→ stage
-→ download/import
-→ integrity validation
-→ commit
-→ inventory reconciliation
+base model + team permissions + team knowledge + team tools + team profile
 ```
 
-Support resumability, private-source seam, revision pinning and interrupted-operation recovery.
+### First Company Brain gate
 
-### Output
-**Stored ModelArtifact + AcquisitionReceipt**
-
----
-
-# 8. Milestone 4 — Capacity and Deployment Planning
-
-## Stage 4.1 ModelRequirement
-Create normalized model requirement evidence:
-- storage;
-- RAM;
-- VRAM/unified memory;
-- runtime compatibility;
-- context assumptions;
-- configuration assumptions;
-- confidence.
-
-Unknown runtime detail remains unknown.
-
-### Output
-**ModelRequirement v1**
+A knowledge source connects, normalizes, preserves permissions, indexes
+and retrieves permission-aware; RAG receives only authorized context;
+the employee UI uses it; the Admin console shows knowledge health; the
+Admin Agent configures and diagnoses it; and a TeamBrain scopes model,
+knowledge and tools to a team.
 
 ---
 
-## Stage 4.2 CapacityEvidence Contract
-Create `CapacityEvidenceProvider`.
+## MILESTONE 9 — Outbound boundary, telemetry, entitlements
 
-Initial required provider:
-- internal conservative estimator.
+- **9.1 Three data domains** kept separate: customer AI analytics,
+  vendor product telemetry, licensing and entitlement.
+- **9.2 Heartbeat agent** — one outbound boundary for heartbeat,
+  telemetry, optional cloud analytics, update checks, crash reporting
+  and entitlement renewal. Channels independently visible and
+  configurable. Air-gapped mode disables all outbound traffic.
+- **9.3 Entitlements** — signed, locally verified, feature and capacity
+  claims, renewal, grace, offline license. Marketing tier names never
+  enter core logic. No destructive kill switch.
 
-Planned adapters:
-- llmfit;
-- Hugging Face Accelerate;
-- llm-d-planner;
-- runtime-native evidence;
-- benchmark providers such as Infermark.
-
-External tools provide evidence only.
-
-### Output
-**CapacityEvidence v1**
+**Gate:** air-gapped operation verified with all outbound disabled, and
+no customer content in any outbound channel by default.
 
 ---
 
-## Stage 4.3 Capacity Planner v1
-Answer:
-1. Can the model run?
-2. What runtime is appropriate?
-3. What storage/memory is expected?
-4. What safe configured concurrency is reasonable?
-5. Can it coexist with current workloads?
-6. What are the blockers, alternatives and confidence?
+## MILESTONE 10 — Installer, updates, commercial governance
 
-States:
+- **10.1 Product bootstrapper** — the developer harness becomes the
+  non-technical installer: inspect host, ask business questions, resolve
+  components, build a plan, obtain approval, download and verify,
+  install, initialize, health check.
+- **10.2 Component installation and offline bundles** — only required
+  compatible components, from versioned signed manifests.
+- **10.3 Modular updates and rollback** — core, UI, runtime adapters,
+  executors, connectors and telemetry update independently, versioned,
+  verified and rollback-aware.
+- **10.4 Commercial governance** — dependency inventory, provenance,
+  license metadata, Green/Amber/Red classification, SBOM, packaged
+  artifact audit.
 
-```text
-Compatible
-Conditional
-Unsupported
-```
-
-Keep theoretical and observed evidence distinct.
-
-### Output
-**CapacityAssessment v1**
+**Gate:** a non-technical administrator installs Kultrun on a clean
+supported host and reaches a working deployment without shell access.
 
 ---
 
-## Stage 4.4 Deployment Planner
-Combine:
-- HostCapabilities;
-- ComponentResolver;
-- ModelArtifact;
-- ModelRequirement;
-- CapacityAssessment;
-- policy/admin preferences.
+## MILESTONE 11 — Capacity and effectiveness intelligence
 
-Produce:
-- runtime;
-- executor;
-- components;
-- model/revision;
-- resource requirement;
-- context;
-- configured concurrency;
-- ports;
-- expected resource use;
-- confidence;
-- alternatives;
-- approvals.
+Begins only after the exoskeleton and Company Brain work. This is where
+the precision deferred from milestones 1 through 3 is finally earned.
 
-### Output
-**DeploymentPlan v1**
-
-This is the direct input to Resource Manager.
+- **11.1 Observed capacity evidence** — real RAM and VRAM, context,
+  concurrency, TTFT, ITL, TPOT, throughput, queue delay, OOM and
+  failure.
+- **11.2 WorkloadProfile** — input and output length, request rate,
+  burstiness, concurrency, streaming, SLO targets, priority.
+- **11.3 Capacity intelligence v2** — fuse theoretical and observed
+  evidence; keep `memory_max_concurrency`,
+  `performance_max_concurrency`, `slo_max_concurrency`,
+  `configured_concurrency` and `platform_max_concurrent_requests`
+  distinct. Compare prediction against reality and report confidence.
+  The Capacity Planner stays advisory; the Resource Manager stays
+  authoritative.
+- **11.4 ModelOutcome** — model and configuration, task, team and role,
+  cohort, latency, tokens, errors, cost, explicit ratings, retries and
+  switching, acceptance proxies. Raw customer content stays local.
 
 ---
 
-# 9. Milestone 5 — Resource Manager and Inference Instance
+## MILESTONE 12 — Intelligent routing and portfolio optimization
 
-## Stage 5.1 Generic Workload Contract
-Define `Workload` independently of inference.
-
-Represent future types:
-
-```text
-inference
-embedding
-reranking
-indexing
-benchmark
-training
-evaluation
-quantization
-distillation
-agent_worker
-```
-
-Only inference must execute now.
-
-### Output
-**WorkloadSpec v1**
+- **12.1 Model effectiveness dataset** — join metadata, capacity
+  evidence, workload profile, usage events, outcomes and cohort.
+- **12.2 Intelligent routing** — policy, team, task, privacy, capacity,
+  quality, latency, cost, availability and effectiveness. Explainable,
+  with administrator override.
+- **12.3 Model inventory optimizer** — explainable portfolios: highest
+  quality, balanced, broadest coverage, lowest resource use, lowest
+  cost, best concurrent mix. The `SingleModelSelector` interface from
+  3.5 becomes a `ModelMixOptimizer` behind the same contracts, not a
+  rewrite.
 
 ---
 
-## Stage 5.2 Resource Admission and Reservations
-Resource Manager becomes authoritative.
+## MILESTONE 13 — Team Brain adaptation
 
-Keep separate:
-- requested requirement;
-- admitted reservation;
-- observed consumption;
-- peak observed consumption.
-
-Resource Manager must:
-- reserve before mutation;
-- prevent oversubscription;
-- persist/reconcile;
-- release cleanly;
-- explain denial.
-
-### Output
-**AdmissionDecision + ResourceReservation**
+- **13.1 Training data governance** — `DatasetSnapshot` with
+  provenance, authorization, scope, version, retention and policy.
+  **Permission to retrieve does not imply permission to train.**
+- **13.2 ModelAdaptationProvider** — replaceable seam for LoRA and
+  PEFT, SFT, preference optimization, merging and distillation. Training
+  infrastructure stays separate from inference infrastructure and runs
+  through resource manager workload contracts.
+- **13.3 Evaluation and promotion** — draft, evaluating, approved,
+  production, deprecated. Compared against the base model on quality,
+  outcomes, latency, resource use, cost and safety.
+- **13.4 Team-specific serving** — base model plus adapter plus routing
+  policy.
 
 ---
 
-## Stage 5.3 First-Class InferenceInstance
-Create `InferenceInstance` with:
-- instance ID;
-- host;
-- model/revision;
-- optional adapter;
-- runtime;
-- executor;
-- endpoint;
-- reservation;
-- context;
-- runtime concurrency;
-- platform request limit;
-- access-policy reference;
-- lifecycle/health;
-- configuration version.
+## MILESTONE 14 — Multi-host and organisational coordination
 
-Explicitly separate:
-- request concurrency within one instance;
-- simultaneous inference-instance concurrency.
-
-### Output
-**InferenceInstance v1**
+- **14.1 Multi-host control plane** — extend the existing
+  `HostCapabilities`, resource manager, deployment plan,
+  `InferenceInstance` and endpoint registry into `FleetState`. The
+  multi-pool and per-accelerator contracts from milestones 1 and 2 exist
+  precisely so this is an extension.
+- **14.2 Model placement** — which host should run this workload, using
+  the same normalized capacity semantics.
+- **14.3 Organisational coordination** — expertise discovery,
+  duplicate-effort detection, cross-team knowledge flow, governed task
+  coordination, organisational recommendations. Explainable, with human
+  approval central.
 
 ---
 
-## Stage 5.4 Reference Live Inference Vertical
-Start a real model using:
+# PART IV — WHAT MUST NOT DELAY THE EXOSKELETON
 
-```text
-Stored ModelArtifact
-+ DeploymentPlan
-+ ResourceReservation
-+ NativeProcessExecutor
-+ VLLMRuntime
-```
+Do not let any of these block the first complete working product:
+exhaustive benchmarks; Kubernetes; multi-host orchestration; deep
+capacity calibration; DEEP storage characterization; learned routing;
+the portfolio optimizer; more than a curated model candidate set; more
+than a minimal connector set; knowledge graphs; fine-tuning or
+distillation; autonomous Team Brain learning; organisational
+coordination; custom billing; a polished UI; an exhaustive audit UI.
 
-Implement:
-- start;
-- health;
-- stop;
-- restart;
-- unload;
-- reconciliation.
+Create the seam. Defer the depth. Record the debt.
 
-### Output
-**Healthy InferenceEndpoint**
-
-This is the endpoint consumed by Gateway.
+The prior attempt's own closing instruction remains the right one:
+**stop refining once the next architectural dependency is unblocked.**
 
 ---
 
-# 10. Milestone 6 — Governed AI Access Spine
+# PART V — STAGE BRIEF
 
-## Stage 6.1 Identity / Team / Policy v1
-Expand the local identity model into:
-- User;
-- Group;
-- Team;
-- Application/service identity;
-- Role;
-- AccessPolicy.
-
-Keep `IdentityProvider` replaceable for later SSO/SCIM/enterprise identity.
-
-### Output
-**AccessContext v1**
-
----
-
-## Stage 6.2 Central Gateway v1
-Platform owns:
-- endpoint identity;
-- authentication/authorization hooks;
-- model access policy;
-- queue/limits hook;
-- route decision;
-- application identity;
-- instrumentation.
-
-Initial routing:
-- explicit model;
-- default model;
-- local endpoint;
-- administrator policy.
-
-Create `GatewayProvider` adapter seam.
-
-### Output
-**GatewayRequest + GatewayResponse + RouteDecision**
-
----
-
-## Stage 6.3 UsageEvent and Local Analytics
-Every request emits `UsageEvent` containing at minimum:
-- timestamp;
-- model/provider;
-- inference instance;
-- user/team/application;
-- input/output/total tokens;
-- latency;
-- error;
-- cost where available;
-- route.
-
-Use replaceable `UsageAnalyticsStore`.  
-Initial local history may be ~7 days.
-
-### Output
-**UsageEvent v1 + LocalUsageStore**
-
----
-
-## Stage 6.4 External Provider Federation
-Implement one external path.
-
-Recommended initial adapter: **LiteLLM**.
-
-LiteLLM remains behind the Kultrun Gateway and must not become authoritative for:
-- identity;
-- route semantics;
-- model identity;
-- UsageEvent;
-- permissions;
-- Resource Manager;
-- cost normalization.
-
-### Output
-**External InferenceEndpoint v1**
-
-Completion: same Gateway API can serve local and external inference.
-
----
-
-# 11. Milestone 7 — Operational Product Experience
-
-The Admin UI and Admin Agent are progressive surfaces, not late standalone projects.
-
-## Stage 7.1 Admin UI v1
-Views:
-- Host;
-- Capacity;
-- Catalog;
-- Inventory;
-- Inference Instances;
-- Reservations;
-- Gateway;
-- Usage;
-- Users/Teams;
-- Health;
-- Configuration.
-
-Settings support:
-- Automatic;
-- Manual Override;
-- recommendation;
-- reason;
-- confidence.
-
-### Output
-**Operational Admin Console v1**
-
----
-
-## Stage 7.2 Admin AI Agent v1
-Structured tools:
-- explain host;
-- explain capacity/model recommendation;
-- search catalog;
-- prepare acquisition;
-- prepare start/stop;
-- explain health/errors;
-- explain usage/routing.
-
-Risk model:
-
-```text
-read-only                -> no approval
-low-risk mutation        -> controlled policy
-meaningful mutation      -> explicit admin approval
-```
-
-No unrestricted shell access.
-
-### Output
-**Admin Agent Toolset v1**
-
----
-
-## Stage 7.3 Startup / Resume / Reconciliation
-Startup becomes idempotent:
-
-```text
-detect host
-→ load persisted state
-→ reconcile models
-→ verify components/runtimes
-→ reconcile workloads/reservations
-→ reconcile ports/endpoints
-→ start required services
-→ health check
-```
-
-### Output
-**Reconciled PlatformState**
-
-The infrastructure exoskeleton is complete when restart preserves coherent Inventory, reservations, InferenceInstances and Gateway state.
-
----
-
-# 12. Milestone 8 — Knowledge Exoskeleton
-
-## Stage 8.1 KnowledgeSource / KnowledgeConnector
-Create normalized:
-- KnowledgeSource;
-- KnowledgeItem;
-- source capabilities;
-- permission reference;
-- provenance;
-- content reference;
-- indexing state.
-
-Initial sources:
-- managed/local files;
-- filesystem/network share;
-- one enterprise/cloud document source where practical.
-
-### Output
-**KnowledgeSourceSnapshot v1**
-
----
-
-## Stage 8.2 Permission-Aware Indexing and Retrieval
-Required flow:
-
-```text
-AccessContext
-→ candidate knowledge
-→ permission enforcement
-→ authorized items
-→ retrieval
-```
-
-Source revalidation must remain possible for sensitive systems.
-
-### Output
-**AuthorizedRetrievalResult v1**
-
----
-
-## Stage 8.3 RAG v1
-Keep modules separate:
-- indexing;
-- chunking;
-- embeddings;
-- retrieval;
-- prompt assembly;
-- inference.
-
-Only authorized context reaches the model.
-
-### Output
-**Knowledge-Augmented Gateway Request**
-
----
-
-## Stage 8.4 Knowledge Admin Experience
-Admin UI/Admin Agent can:
-- connect/disconnect;
-- show health;
-- show indexing state;
-- explain permissions;
-- diagnose retrieval;
-- reindex.
-
-### Output
-**Managed Knowledge Source v1**
-
----
-
-# 13. Milestone 9 — End-User Company Brain and Team Brain
-
-## Stage 9.1 First-Party End-User UI v1
-Minimal:
-- authentication;
-- conversation;
-- streaming;
-- model/brain selection where allowed;
-- history;
-- knowledge interaction;
-- source behavior.
-
-Third-party frontends remain replaceable clients.
-
-### Output
-**Employee AI Experience v1**
-
----
-
-## Stage 9.2 TeamBrain Logical Model
-TeamBrain is not one model.
-
-Represent:
-- team;
-- membership/policy;
-- knowledge scope;
-- tools;
-- agent configuration;
-- base-model/portfolio policy;
-- routing policy;
-- memory placeholder;
-- evaluation profile;
-- optional adapter/derived-model references.
-
-Initial specialization:
-
-```text
-base model
-+ team permissions
-+ team knowledge
-+ team tools
-+ team profile
-```
-
-### Output
-**TeamBrain v1**
-
----
-
-## Stage 9.3 Team Agent v1
-Execution goes through:
-- AccessContext;
-- Gateway;
-- permission-aware Knowledge;
-- approved tools;
-- TeamBrain policy.
-
-### Output
-**Governed Team Agent Execution**
-
----
-
-# 14. Milestone 10 — Outbound, Telemetry and Entitlements
-
-## Stage 10.1 Three Data Domains
-Keep separate:
-1. Customer AI Analytics;
-2. Vendor Product Telemetry;
-3. Licensing/Entitlements.
-
-### Output
-**OutboundDataPolicy v1**
-
----
-
-## Stage 10.2 Heartbeat / Telemetry Agent
-Single outbound boundary for:
-- heartbeat;
-- product telemetry;
-- optional cloud analytics;
-- update checks;
-- crash reporting;
-- entitlement renewal.
-
-All channels independently visible/configurable.
-
-Air-gapped mode disables all outbound communication.
-
-### Output
-**OutboundChannelState v1**
-
----
-
-## Stage 10.3 Entitlements
-Generic signed entitlements:
-- feature claims;
-- capacity claims;
-- local verification;
-- connected renewal;
-- grace;
-- offline license.
-
-Marketing tier names do not belong in core logic.
-
-### Output
-**EntitlementState v1**
-
----
-
-# 15. Milestone 11 — Installer, Updates and Commercial Release Foundation
-
-## Stage 11.1 Product Bootstrapper
-Convert the developer bootstrap harness into the non-technical installer:
-
-```text
-inspect host
-→ ask business/admin questions
-→ resolve components
-→ build DeploymentPlan
-→ obtain approval
-→ download/verify
-→ install
-→ initialize
-→ health check
-```
-
-### Output
-**InstallPlan + InstallationReceipt**
-
----
-
-## Stage 11.2 Component Installation / Offline Bundle
-Install only required compatible components from versioned manifests.
-
-### Output
-**InstalledComponentInventory**
-
----
-
-## Stage 11.3 Modular Updates and Rollback
-Update independently:
-- core;
-- UI;
-- runtime adapters;
-- executors;
-- connectors;
-- telemetry components.
-
-Packages are versioned, signed/verified and rollback-aware.
-
-### Output
-**UpdatePlan + UpdateReceipt**
-
----
-
-## Stage 11.4 Third-Party Commercial Governance
-Generate:
-- dependency inventory;
-- provenance;
-- license metadata;
-- Green/Amber/Red classification;
-- SBOM;
-- packaged-artifact audit.
-
-### Output
-**CommercialReleaseManifest**
-
----
-
-# 16. Milestone 12 — Capacity and Model Effectiveness Intelligence
-
-Only begin after the complete exoskeleton works.
-
-## Stage 12.1 Observed Capacity Evidence
-Collect actual:
-- RAM/VRAM;
-- context;
-- concurrency;
-- TTFT/ITL/TPOT;
-- throughput;
-- queue delay;
-- OOM/failure.
-
-### Output
-**Observed CapacityEvidence**
-
----
-
-## Stage 12.2 WorkloadProfile
-Normalize:
-- input/output length;
-- request rate;
-- burstiness;
-- concurrency;
-- streaming;
-- SLO targets;
-- priority.
-
-### Output
-**WorkloadProfile v1**
-
----
-
-## Stage 12.3 Capacity Intelligence v2
-Fuse theoretical and observed evidence.
-
-Differentiate:
-
-```text
-memory_max_concurrency
-performance_max_concurrency
-slo_max_concurrency
-configured_concurrency
-platform_max_concurrent_requests
-```
-
-### Output
-**Evidence-Fused CapacityRecommendation**
-
-Resource Manager remains authoritative.
-
----
-
-## Stage 12.4 ModelOutcome / ModelExperience
-Capture:
-- model/configuration;
-- task/workload;
-- team/role;
-- organization cohort;
-- latency/tokens/errors/cost;
-- explicit ratings;
-- retries/regeneration/switching;
-- task/acceptance proxies.
-
-Raw customer content remains local by default.
-
-### Output
-**ModelOutcome v1**
-
----
-
-# 17. Milestone 13 — Intelligent Routing and Model Portfolio Optimization
-
-## Stage 13.1 Model Effectiveness Dataset
-Join:
-- ModelMetadata;
-- CapacityEvidence;
-- WorkloadProfile;
-- UsageEvent;
-- ModelOutcome;
-- organization/team cohort.
-
-### Output
-**ModelEffectivenessDataset**
-
----
-
-## Stage 13.2 Intelligent Routing
-Route based on:
-- policy;
-- team/role;
-- task;
-- privacy;
-- capacity;
-- quality;
-- latency;
-- cost;
-- availability;
-- effectiveness evidence.
-
-Manual override remains available.
-
-### Output
-**Explainable RouteDecision v2**
-
----
-
-## Stage 13.3 Model Inventory Optimizer
-Provide explainable portfolios:
-- Highest Quality;
-- Balanced;
-- Broadest Coverage;
-- Lowest Resource Use;
-- Lowest Cost;
-- Best Concurrent Mix.
-
-### Output
-**ModelPortfolioRecommendation**
-
----
-
-# 18. Milestone 14 — Team Brain Adaptation
-
-## Stage 14.1 Training Data Governance
-Create `DatasetSnapshot`.
-
-Retrieval permission does **not** imply training permission.
-
-Track:
-- provenance;
-- authorization;
-- scope;
-- snapshot/version;
-- retention;
-- policy.
-
-### Output
-**Approved DatasetSnapshot**
-
----
-
-## Stage 14.2 ModelAdaptationProvider
-Replaceable adaptation seam for:
-- LoRA/PEFT;
-- SFT;
-- preference optimization;
-- merging;
-- distillation.
-
-Training infrastructure remains separate from inference infrastructure.
-
-### Output
-**DerivedModel / AdapterArtifact**
-
----
-
-## Stage 14.3 Evaluation and Promotion
-Lifecycle:
-
-```text
-draft
-→ evaluating
-→ approved
-→ production
-→ deprecated
-```
-
-Compare against base model on quality, outcomes, latency, resource use, cost and safety.
-
-### Output
-**Promoted DerivedModel**
-
----
-
-## Stage 14.4 Team-Specific Serving
-TeamBrain may reference base model + adapter/derived model + routing policy.
-
-### Output
-**Adapted TeamBrain v2**
-
----
-
-# 19. Milestone 15 — Multi-Host and Organisational Coordination
-
-## Stage 15.1 Multi-Host Control Plane
-Extend existing:
-- HostCapabilities;
-- Resource Manager;
-- DeploymentPlan;
-- InferenceInstance;
-- Gateway endpoint registry.
-
-### Output
-**FleetState v1**
-
----
-
-## Stage 15.2 Model Placement
-Answer:
-
-> Which host should run this workload?
-
-using the same normalized capacity/resource semantics.
-
-### Output
-**PlacementDecision**
-
----
-
-## Stage 15.3 Organisational Coordination Intelligence
-Only after identity, knowledge, teams, agents, analytics and TeamBrains are mature.
-
-Potential capabilities:
-- expertise discovery;
-- duplicate-effort detection;
-- cross-team knowledge flow;
-- governed task coordination;
-- organisational recommendations.
-
-### Output
-**Explainable CoordinationRecommendation**
-
-Human approval remains central initially.
-
----
-
-# 20. Cross-Cutting Progressive Rules
-
-## Admin UI and Admin Agent
-Every important backend stage should also add:
-- Platform API;
-- Admin UI representation;
-- Admin Agent read/explain tool.
-
-Meaningful Admin Agent mutations follow:
-
-```text
-proposal → administrator approval → structured API action
-```
-
----
-
-## Reconciliation
-Reconciliation is implemented alongside stateful modules, not postponed.
-
-Examples:
-- acquisition → staging/inventory reconciliation;
-- Resource Manager → reservations/workloads;
-- inference → process/endpoints;
-- knowledge → source/index state;
-- telemetry → outbound queue;
-- updates → install/version state.
-
----
-
-## Future-data foresight
-Preserve structured fields early for:
-- immutable model revision;
-- runtime/version;
-- hardware fingerprint;
-- configuration version;
-- UsageEvent;
-- workload label hooks;
-- team/role;
-- CapacityEvidence;
-- model lineage;
-- knowledge provenance;
-- dataset provenance;
-- optional future outcome signals.
-
-Do not collect sensitive content merely because it may become useful.
-
----
-
-# 21. What Must Not Delay the Exoskeleton
-
-Do not let these block the first complete product:
-- exhaustive benchmarks;
-- Kubernetes;
-- multi-host orchestration;
-- deep capacity calibration;
-- learned routing;
-- portfolio optimizer;
-- dozens of model sources/connectors;
-- knowledge graph;
-- fine-tuning/distillation;
-- autonomous Team Brain learning;
-- organisational coordination;
-- custom billing;
-- perfect UI;
-- exhaustive enterprise audit UI.
-
-Create seams. Defer depth.
-
----
-
-# 22. First Infrastructure Exoskeleton Gate
-
-A clean supported installation must be able to:
-
-1. detect host;
-2. produce HostCapabilities;
-3. resolve components;
-4. initialize state/control plane;
-5. show Admin UI;
-6. run basic Admin Agent;
-7. browse curated models;
-8. calculate ModelRequirement;
-9. produce CapacityAssessment;
-10. produce DeploymentPlan;
-11. safely acquire model;
-12. register Inventory;
-13. obtain ResourceReservation;
-14. start InferenceInstance;
-15. expose Gateway endpoint;
-16. authenticate a user/application;
-17. answer a request;
-18. emit UsageEvent;
-19. show usage and health;
-20. stop/restart safely;
-21. reboot/reconcile coherently.
-
-Only then is the infrastructure skeleton complete.
-
----
-
-# 23. First Company Brain Gate
-
-The first Company Brain is complete when:
-
-1. a KnowledgeSource can be connected;
-2. items normalize to KnowledgeItem;
-3. permissions are preserved;
-4. content is indexed;
-5. retrieval is permission-aware;
-6. RAG receives only authorized context;
-7. employee UI can use it;
-8. Admin UI shows knowledge health;
-9. Admin Agent can configure/diagnose it;
-10. a TeamBrain can scope model + knowledge + tools to a team.
-
----
-
-# 24. Required Cursor Brief Before Each Stage
-
-Before implementation, Cursor should produce:
+Before implementing any stage, produce:
 
 ```text
 CURRENT STAGE
-PREDECESSOR OUTPUTS
+PREDECESSOR OUTPUTS          (verified, not assumed)
 THIS STAGE'S REQUIRED OUTPUT
 CORE CONTRACTS AFFECTED
 ADAPTERS AFFECTED
-PERSISTED STATE
-MUTATION / FAILURE BOUNDARY
-ACCEPTANCE TESTS
-PROVISIONAL ITEMS
+PERSISTED STATE              + how it reconciles on restart
+MUTATION / FAILURE BOUNDARY  + what fails closed
+CANCELLATION / CLEANUP       + what orphans are possible
+ACCEPTANCE LEVEL             L1 | L2 | L3 | L4, and why that level suffices
+ADMIN SURFACE                Platform API and console representation
+DEBT ENTRIES                 new PROVISIONAL items and their retirement condition
 DEFERRED ITEMS
 ```
 
-If a proposed change is not necessary to produce the current stage output, it should normally be deferred.
+If a proposed change is not necessary to produce the current stage's
+output, defer and record it.
 
 ---
 
-# 25. Final High-Level Sequence
+# PART VI — FINAL SEQUENCE
 
 ```text
-0. Architectural Kernel
-      ↓
-1. Host + Bootstrap Foundation
-      ↓
-2. Executor + Runtime + Storage Foundation
-      ↓
-3. Model Supply Chain
-      ↓
-4. Capacity + Deployment Planning
-      ↓
-5. Resource Manager + InferenceInstance
-      ↓
-6. Identity + Gateway + UsageEvent
-      ↓
-7. Operational Admin UI + Admin Agent + Reconciliation
-      ↓
-8. Permission-Aware Knowledge + RAG
-      ↓
-9. End-User Company Brain + TeamBrain
-      ↓
-10. Telemetry + Entitlements + Air-Gap Boundary
-      ↓
-11. Product Installer + Updates + Commercial Governance
-      ↓
-12. Capacity + Model Effectiveness Intelligence
-      ↓
-13. Intelligent Routing + Portfolio Optimization
-      ↓
-14. Team Brain Adaptation
-      ↓
-15. Multi-Host + Organisational Coordination
+0.  Contracts that are expensive to retrofit
+        ↓
+1.  A real request reaching a real model, proven on real hardware   ← the gate that was never reached
+        ↓
+2.  Storage that tells the truth, and acquisition that cannot corrupt it
+        ↓
+3.  Choosing well, and explaining the choice
+        ↓
+4.  Several workloads coexisting safely
+        ↓
+5.  Governed access: identity, routing, federation
+        ↓
+6.  Administrable without a shell            ← infrastructure exoskeleton complete
+        ↓
+7.  Permission-aware knowledge
+        ↓
+8.  Company Brain and Team Brain             ← first Company Brain complete
+        ↓
+9.  Controlled outbound boundary and entitlements
+        ↓
+10. Installable and commercially releasable  ← shippable product
+        ↓
+11. Evidence-based capacity and effectiveness
+        ↓
+12. Intelligent routing and portfolio optimization
+        ↓
+13. Team Brain adaptation
+        ↓
+14. Multi-host and organisational coordination
 ```
 
-The stages are architectural dependencies, not merely calendar phases.
+These are architectural dependencies, not a calendar.
 
----
-
-# 26. Final Directive to Cursor
-
-The clean-slate rebuild should use the previous attempt as evidence, not as code structure to preserve.
-
-At every stage:
-
-- consume normalized predecessor outputs;
-- emit normalized successor outputs;
-- preserve replaceable boundaries;
-- preserve permission safety;
-- preserve local/offline operation;
-- implement reconciliation with persistent state;
-- expose structured APIs;
-- keep Admin UI/Admin Agent aligned;
-- record only the minimum future-useful evidence;
-- mark approximations `PROVISIONAL`;
-- mark future sophistication `DEFERRED`;
-- stop refining once the next architectural dependency is unblocked.
-
-The technical learning loop is:
-
-```text
-Detect
-→ Estimate
-→ Validate
-→ Deploy
-→ Observe
-→ Learn
-→ Recommend
-→ Safely Act
-```
-
-The Company Brain product loop is:
-
-```text
-Connect
-→ Understand
-→ Govern
-→ Assist
-→ Measure
-→ Learn
-→ Enhance
-→ Coordinate
-```
-
-The architecture is successful if these loops can become more intelligent over time without forcing Kultrun to abandon or rewrite its core domain boundaries.
+The measure of this roadmap is not how much architecture exists at any
+point. It is whether, at every point, the platform **works end to end
+and tells the truth about what it can safely do** — and whether each
+step makes the next one cheaper rather than more expensive.

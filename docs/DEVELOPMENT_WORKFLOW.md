@@ -48,10 +48,15 @@ bounded step is the unit of work below it. Several bounded steps normally
 make up one stage.
 
 Before starting a stage, produce the brief required by `docs/ROADMAP.md`
-§24. When a stage completes, write its output package to
+Part V. When a stage completes, write its output package to
 `docs/stages/STAGE-XX-<name>.md` and its checkpoint to
 `checkpoints/STAGE-XX-<name>.json`, then have the next stage consume
 those rather than rediscovering the same facts.
+
+A stage is complete only against the definition of done in
+`docs/ROADMAP.md` Part II §4, at the acceptance level that part
+requires. Local unit evidence never closes a stage that touches
+hardware, storage or a runtime.
 
 ## Cursor ↔ ChatGPT bounded-step workflow
 
