@@ -1,0 +1,99 @@
+---
+description: Authoritative context and invariants for Kultrun
+alwaysApply: true
+---
+
+# Kultrun
+
+**Kultrun** is the company and the product. **Company Brain** is the
+capability it delivers: a secure, self-hosted organisational intelligence
+layer. "AI Deployment Project" and "AI Stack" are retired names.
+
+This repository is a **clean-slate rebuild**. The previous implementation
+is evidence, not code structure to preserve. Do not port its modules,
+and do not treat its status claims or phase numbers as current.
+
+## Authoritative documents
+
+- @docs/PRODUCT_VISION.md — the architectural constitution. Authoritative
+ for product intent, domain boundaries, normalized concepts and safety
+ semantics. Technical plans derive from it
+- @docs/ROADMAP.md — authoritative for build sequence: Milestones 0–15,
+ numbered stages, stage outputs and completion gates
+- @docs/DEVELOPMENT_WORKFLOW.md — branch/GPU workflow **and the
+ bounded-step protocol you must follow**
+- `docs/legacy/` — previous attempt, retained as evidence only. Never
+ authoritative. Read `docs/legacy/README.md` before using anything in it
+
+## Current position
+
+The rebuild has not started implementation. The next work is
+**Milestone 0 — Architectural Kernel**, whose output is
+`PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`.
+
+Do not begin later milestones early, and do not reintroduce previous-attempt
+code to appear further along.
+
+## Governing rules
+
+From `docs/ROADMAP.md` §2:
+
+- Core owns concepts; adapters own implementations.
+- Capability-based deployment, not machine-type assumptions.
+- Executor and inference runtime are separate abstractions.
+- Resource Manager is authoritative for admission.
+- Capacity Planner recommends; evidence providers inform.
+- Unknown is valid; fail conservatively rather than invent precision.
+- Identity and permission semantics are shared across Gateway,
+  Knowledge, Agents and Admin.
+- Prompts, responses, files and RAG content stay local by default.
+- Every persistent subsystem supports restart and reconciliation.
+- Every mutating workflow defines preflight → admission → mutation →
+  persistence → rollback/reconciliation.
+- Admin UI and Admin Agent consume structured Platform APIs, never
+  hidden infrastructure shortcuts.
+- Build the complete exoskeleton before deep optimization.
+
+No third-party technology may become the semantic owner of a platform
+concept. Docker, vLLM and LiteLLM are replaceable adapters; native
+process execution is first class.
+
+## Stage discipline
+
+- Produce the `docs/ROADMAP.md` §24 brief before implementing a stage.
+- Consume the predecessor's stage output; do not rediscover its facts.
+- End a stage with `docs/stages/STAGE-XX-<name>.md` and
+  `checkpoints/STAGE-XX-<name>.json`.
+- If a change is not needed to produce the current stage output, defer
+  and record it.
+- Mark approximations `PROVISIONAL` and future sophistication
+  `DEFERRED`. Never let a provisional heuristic become permanent
+  architecture silently.
+- Stop refining once the next architectural dependency is unblocked.
+
+## Working rules
+
+- GitHub `dlealvilla/ai-stack` is the source of truth; the slug predates
+  the Kultrun name. `kultrun` is the rebuild branch. Do not commit to
+  `main`, `phase9` or any `backup/*` branch. Do not push unless
+  explicitly asked.
+- Never commit secrets, model weights, runtime environments, logs, PID
+  files, workload/reservation state or caches. Keep `.gitignore` intact.
+- Checkpoints and stage packages record platform state only, never
+  customer content.
+- Distinguish local/unit evidence from real GPU acceptance when
+  reporting runtime behavior.
+
+## Bounded-step protocol
+
+Follow @docs/DEVELOPMENT_WORKFLOW.md:
+
+- Work autonomously inside the active step contract; resolve ordinary
+  implementation details from the source, tests and docs rather than asking.
+- Stop with `STATE: DECISION_REQUIRED` only at a genuine decision boundary
+  (architectural choice, scope expansion, invariant change, unauthorized
+  expensive/destructive action, contradicted assumptions, or a product call).
+- Record adjacent issues instead of fixing them.
+- Finish every development task with the documented `PASTE BACK` block, and
+  keep text outside that block minimal.
+- Never begin the recommended NEXT step automatically.
