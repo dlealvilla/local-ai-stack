@@ -113,6 +113,18 @@ owner of a platform concept."
 Part IV carries a *Must not* line. Those lines are the enforced non-edges
 and the architecture tests in Part VII check them.
 
+**Law 5 — An adapter inherits the import budget of the domain whose port
+it implements.** Law 3 lets an adapter import core tiers, which on its own
+would make `adapters/` a back channel: a host-discovery adapter could reach
+the Resource Manager, and a concept that no core module is allowed to depend
+on would acquire a dependency anyway. So an adapter may import the domain
+that declares its port, that domain's own permitted imports, and nothing
+more. An adapter can never do what its own domain could not.
+
+The consequence that matters here: a `HostDiscoveryProvider` lives at tier
+2's budget, so it cannot see `model`, `planning`, `resource`, `runtime` or
+`inference`. A provider physically cannot decide which model runs.
+
 ## 3. The declared intra-tier edges
 
 This is the complete list. Any other intra-tier import is a violation.
@@ -123,7 +135,7 @@ This is the complete list. Any other intra-tier import is a violation.
 | 1 | `audit` → `identity` | An audit event records which actor did what. |
 | 2 | `components` → `host` | Component compatibility is evaluated against host capabilities. |
 | 2 | `storage` → `host` | Pool identity derives from reported mount facts. |
-| 2 | `capacity` → `host` | The envelope interprets reported host values. |
+| 2 | `capacity` → `host.contracts` **only** | The envelope interprets reported host values. It must not reach the discovery service or any provider: capacity consumes `HostCapabilities` without ever learning which tool observed it. |
 | 2 | `capacity` → `storage.contracts` **only** | Capacity reads storage evidence as data. It must not reach probing, locking or mutation logic. |
 | 6 | `gateway` → `inference` | Routing needs the endpoint registry. |
 | 6 | `gateway` → `analytics` | Every request emits a usage event through a non-blocking sink. |
@@ -144,14 +156,46 @@ eroding under delivery pressure.
 |---|---|---|
 | `planning` ⟂ `resource` | "Resource Manager is authoritative for admission. Capacity Planner recommends." Recommendation and authorization must be independently auditable. | Neither imports the other. `platform` sequences plan → admit. |
 | `execution` ⟂ `runtime` | "Executor and inference runtime are separate abstractions." Executor logic must not leak into runtime domain logic. | Neither imports the other. `inference` composes both. |
+| `execution` ⟂ `capacity` | How a workload is launched is a different question from what may safely be launched. A container engine that could read the capacity envelope would eventually be asked to decide something. | Neither imports the other. `resource` authorizes; `execution` only materializes what was already admitted. |
 
-Three further non-edges matter enough to name explicitly:
+`execution` may import `host.contracts` and nothing else from `host`,
+because it needs to know whether a container engine exists — that fact is
+on `HostCapabilities` — and must not acquire the ability to go and look.
+
+**Execution consumes an allocation that has already been authorized.** The
+handoff runs one way and never doubles back:
+
+```text
+capacity        safe layer, which is the only layer that may authorize
+   ↓
+resource        admission → ResourceReservation, naming the device
+   ↓
+inference       composes the reservation into a DeviceRequest
+   ↓
+execution       materializes it: process, or container plus device
+   ↓
+adapter         translates to a runtime-specific device name
+```
+
+`inference` performs the translation rather than `execution`, which keeps
+the executor ignorant of reservations entirely — it receives a request to
+attach a device and has no vocabulary for asking whether it should. An
+executor that could read the capacity envelope would eventually be asked to
+decide something, and admission would quietly acquire a second author.
+
+Four further non-edges matter enough to name explicitly:
 
 - **`storage` and `capacity` may not import `model`.** Storage probing
   must not know model identities. Platform-managed usage enters storage
   through the `ManagedUsageSource` port, whose contract speaks bytes per
   pool and nothing else. `model` implements that port; storage never
   learns what the bytes are.
+- **No core module may import a discovery provider.** Providers are
+  adapters and reach the platform only through `HostDiscoveryProvider`.
+  `capacity` never learns whether a value came from hwloc, NVML or a
+  captured fixture; it reads `HostCapabilities` and the provenance recorded
+  beside it. This is what stops a vendor tool's schema becoming Kultrun's
+  schema by accretion.
 - **Nothing may import `intelligence`.** Every capability in Milestones
   11 and 12 enters through a port that already exists in a lower tier.
   The intelligence tier is therefore strictly additive, and "none of them
@@ -198,6 +242,26 @@ capacity and lifecycle contract rather than an extension. The cost of
 honouring this now is one field and a plural; the cost of retrofitting it
 is the entire control plane.
 
+**A provider-local handle is never a Kultrun identity.** Discovery
+libraries hand out handles for the devices they enumerate, and those
+handles are adapter implementation details with adapter lifetimes. AMD's
+own documentation states that a device handle "may change after restarting
+the application, so it should not be considered a persistent identifier
+across processes"; the same caution applies to NVML, Level Zero and any
+comparable API.
+
+So where Kultrun needs identity that survives an observation, a restart or
+a provider swap, normalization derives it from **stable host-scoped
+attributes** — a bus address, a serial, a model and ordinal, whatever the
+platform genuinely keeps still. And where durable identity cannot be
+established, the honest representation is that it could not be, not an
+ephemeral handle wearing a stable name. A handle promoted to an identity is
+a bug that surfaces only after a restart, in a value other records already
+point at.
+
+The complete device-identity algorithm is not designed here. The invariant
+is, because it constrains every provider written afterwards.
+
 **Unknown is a distinct value, not a null.** `docs/DEBT.md` rule 6
 requires that consumers can tell "needs nothing" from "we do not know",
 and the roadmap requires missing metadata to surface in
@@ -242,20 +306,30 @@ import; nothing points upward.
                     ▼
   2  capacity ──▶ storage.contracts        components
        │              │                        │
-       └──────────────┴──▶ host ◀──────────────┘
+       └──────────────┴──▶ host.contracts ◀────┘
                             │
+                       host.discovery ◀── HostDiscoveryProvider (tier 10)
+                            │                hwloc · NVML · native · NFD
   1  evidence   policy   identity ◀── entitlement, audit
                             │
   0                      kernel
 ```
 
-Two edges in this diagram carry most of the architecture's weight. The
-first is `model` implementing `storage.ManagedUsageSource`: it is the
-only path by which storage learns how much space the platform occupies,
-and it carries no entity identity, so a defective inventory record can no
-longer crash capacity observation. The second is the absence of an arrow
-into `intelligence`: everything Milestones 11 and 12 add arrives through
-a port that already exists beneath it.
+Three edges in this diagram carry most of the architecture's weight.
+
+`model` implements `storage.ManagedUsageSource`: the only path by which
+storage learns how much space the platform occupies, carrying no entity
+identity, so a defective inventory record can no longer crash capacity
+observation.
+
+Nothing points into `intelligence`: everything Milestones 11 and 12 add
+arrives through a port that already exists beneath it.
+
+And `capacity` reaches only `host.contracts`, never `host.discovery` and
+never a provider. Capacity consumes what the platform knows about a host
+without ever learning which tool observed it, which is what keeps hwloc,
+NVML, NFD and every future vendor library replaceable rather than
+load-bearing.
 
 ---
 
@@ -373,12 +447,114 @@ recorded as a finding in Part VI.
 
 | | |
 |---|---|
-| **Owns** | `HostCapabilities`: operating environment, CPU, memory, accelerators with per-device VRAM, unified-memory characteristics, mount facts, execution capabilities, networking and ports, driver hints. The host fingerprint, over stable facts only. `DeploymentProfile` and the support matrix. |
+| **Owns** | `HostCapabilities`: operating environment, CPU, memory, accelerators with per-device VRAM, unified-memory characteristics, mount facts, execution capabilities, networking and ports, driver hints. The **normalization and reconciliation** of provider observations into it. The host fingerprint, over stable facts only. `DeploymentProfile` and the support matrix. |
 | **Consumes** | `kernel` · `evidence` |
-| **Produces** | `HostCapabilities v1`, durable, versioned and fingerprinted |
-| **Ports** | `HostDetector` |
-| **Must not** | Interpret, apply headroom, or authorize anything. Every value it emits carries basis *reported*. Interpretation is `capacity`'s job. |
+| **Produces** | `HostCapabilities v1`, durable, versioned, fingerprinted, and explainable — every value can name where it came from |
+| **Ports** | `HostDiscoveryProvider` |
+| **Must not** | Interpret capacity, apply headroom, or authorize anything. Implement low-level enumeration that mature tooling already provides. Let any provider's schema become the contract. |
 | **Created** | 1.1 |
+
+#### Discovery is a provider architecture, not a detector
+
+This is the module's defining decision. Kultrun does **not** implement
+cross-platform hardware enumeration. Mature tooling already does that, on
+more platforms than Kultrun will ever validate, and rebuilding it would be
+a large proprietary investment in a commodity.
+
+```text
+                  host.discovery — HostDiscoveryService
+                  collect → normalize → reconcile
+                              │
+                     HostCapabilities
+                              │
+                              ▼
+                          capacity
+       ┌──────────────────────┴──────────────────────┐
+       ▲ (port)                                      ▲
+  HostDiscoveryProvider                       ManagedUsageSource
+       │
+  ┌────┴─────────────┬──────────────────┬────────────────────┐
+general             vendor            environment          replay
+hwloc          NVML · AMD SMI ·        NFD / K8s        captured fixture
+               Level Zero · native
+```
+
+**A provider observes; it never decides.** It reports what a machine
+appears to contain, records where the observation came from, and may be
+partial, stale, slow, absent or wrong. It may not compute safe capacity,
+choose a model, select a runtime or authorize a workload — and under Law 5
+it has no import path to any of those, so the restriction is structural
+rather than a request.
+
+**The service owns meaning.** It decides which providers to consult,
+collects their observations, normalizes them into Kultrun's vocabulary,
+reconciles overlaps, preserves unknowns, and surfaces conflicts instead of
+silently picking a winner. Reconciliation here means *merging observations*
+and is a different operation from the restart reconciliation every stateful
+domain performs; the two never share a module, because a name that means
+two things is how a concept starts fragmenting.
+
+**Providers overlap on purpose, and that is the interesting case.** hwloc
+can see that a PCI accelerator exists and where it sits in the topology;
+NVML knows how much memory that device has and which driver is loaded. NFD
+can label a node as having a GPU vendor without quantifying anything.
+Neither a general topology tool nor a Kubernetes label set answers the
+question capacity needs, and neither vendor library works on a machine
+without that vendor's hardware. A single detector would have to be all of
+them; a service that merges partial observations does not.
+
+Merge rules:
+
+1. a later observation never blindly overwrites an earlier one;
+2. a vendor observation may enrich a general one — richer detail about the
+   same device is not a conflict;
+3. two credible observations that genuinely disagree leave the value
+   **unresolved**, with both observations and their provenance preserved
+   and a conflict recorded;
+4. a provider that is absent or fails means *that source of evidence was
+   unavailable*, not that the host is unsupported;
+5. what no provider reported stays unknown.
+
+**There is no global provider precedence order, and there will not be
+one.** No rule of the form "vendor beats general" exists at any level. Such
+an ordering looks like common sense and is a way of deciding a question
+nobody investigated: it would resolve every future conflict, including the
+ones where the general tool happened to be right, and it would do so
+silently.
+
+Individual **fields** may acquire a documented reconciliation rule when
+empirical evidence justifies one — for instance, a vendor interface may
+turn out to be authoritative for a measurement that vendor owns. Such a
+rule is per field, carries the evidence that motivated it, and never
+generalizes to the providers that happen to be on either side of it.
+
+Until a field has such a rule, a conflict stays a conflict. An unresolved
+value that says two sources disagreed is more useful than a confident value
+that is wrong, and the platform already refuses to authorize against
+unknowns.
+
+**Provider identity is not host identity.** AMD SMI's own documentation
+warns that a device handle "may change after restarting the application, so
+it should not be considered a persistent identifier across processes."
+Kultrun mints its own stable identity and treats provider handles as
+observations about it, which is the same reason `HostCapabilities` is a
+Kultrun contract and not a vendor schema.
+
+#### Explainability without an envelope per field
+
+Every value must remain explainable — which provider supplied it, when, how
+it was obtained, how much confidence it carries. Wrapping every leaf in an
+envelope would double the size of every contract, so provenance is recorded
+*beside* the values, keyed by the same dotted field path that
+`unresolved_fields` already produces. `HostCapabilities` gains an optional
+observation list and an optional conflict list, which under the fingerprint
+rules is a compatible addition and needs no version bump.
+
+So a reader gets `accelerators[0].memory_total_bytes = 48305799168`,
+`provider = nvml`, `derivation = reported_by_source`, `confidence = high` —
+rather than a number with no history.
+
+#### Fingerprint and profile
 
 The fingerprint is not decoration. It is the key by which cached evidence
 is later judged reusable, so it must exist before any evidence does — and
@@ -388,8 +564,23 @@ change in free memory.
 `DeploymentProfile` lives here because it is a statement about a host
 shape. Its tier is earned from the acceptance level reached on that shape
 rather than declared, which is what makes broad hardware support a claim
-the evidence can back. It is also the only place such a claim is made, so
-support statements cannot scatter.
+the evidence can back. It is also the only place Kultrun makes such a
+claim, so support statements cannot scatter.
+
+**Two support facts, kept separate.** An administrator may attach their own
+support statement — "this configuration is vendor-supported by our
+organisation", "our infrastructure team backs this host" — and that is
+genuinely useful information for an operator reading a console.
+
+It is a *different fact* from Kultrun's evidence profile, and it may never
+alter it. An external declaration cannot promote `EXPERIMENTAL` to
+`SUPPORTED`, because the profile means "this is the acceptance level
+actually reached", and a statement that changed it would make the ladder
+describe opinion instead of evidence. The two are stored separately, may be
+displayed together, and only one of them is Kultrun's own claim.
+
+The schema for the external statement is deliberately not designed here. It
+has no consumer until an Admin console exists to show it.
 
 ### `components`
 
@@ -498,11 +689,72 @@ conservative state on a persistence error.
 
 | | |
 |---|---|
-| **Owns** | `ExecutorSpec`, `ExecutorHandle`, process execution, environment, filesystem mapping, signals, logs, process health, and PID reuse protection. |
-| **Consumes** | `kernel` · `host` |
-| **Ports** | `Executor`, with native process execution as the first and reference implementation |
-| **Must not** | Contain model semantics or runtime options. Assume a container runtime exists. |
+| **Owns** | `ExecutorSpec`, `ExecutorHandle`, `DeviceRequest`, process execution, environment, filesystem mapping, signals, logs, process health, and PID reuse protection. |
+| **Consumes** | `kernel` · `host.contracts` only |
+| **Ports** | `Executor`, with native process execution as the first and reference implementation · `ContainerEngine`, for the optional container path |
+| **Must not** | Contain model semantics or runtime options. Assume a container runtime exists. Import `capacity` — how a workload is launched is a different question from what may safely be launched. Become a source of host facts. |
 | **Created** | 1.3 |
+
+```text
+                        Executor  (port)
+                             │
+          ┌──────────────────┴───────────────────┐
+   NativeProcessExecutor              OCIContainerExecutor
+   first class, the reference          optional
+                                             │
+                                    ContainerEngine  (port)
+                                      │       │        │
+                                   Docker  Podman  containerd
+                                             │
+                                    device attachment
+                                             │
+                                            CDI
+```
+
+**Native process execution is the first validated path and the reference
+implementation. Container execution is a first-class optional executor.**
+Neither is architecturally privileged in perpetuity: reference
+implementation is not architectural dependency, and "first validated" is a
+statement about evidence rather than a permanent ranking.
+
+What must not happen is a container engine becoming mandatory by default.
+Docker is not required, a commercial container product is not a dependency,
+and Kubernetes is not the control plane — a platform that cannot start a
+process without a container engine has made an optional component
+mandatory, and it has done so without anyone deciding to.
+
+Later, Kultrun may **recommend or select** an executor per deployment,
+using host capabilities, runtime support, the deployment profile,
+administrator policy and operational evidence. That is a decision the
+platform earns the right to make once it has evidence on both paths; it is
+not a default to be assumed now. `Runtime != Executor` holds throughout:
+vLLM native, vLLM containerized, llama.cpp native and a future runtime
+containerized are all combinations the core supports without redesign.
+
+**Where CDI sits.** The Container Device Interface is a vendor-neutral way
+for a container runtime to attach a third-party device, and its own
+specification is explicit that "areas like resource management are
+explicitly left out of CDI." That sentence is the whole of its position
+here: CDI attaches a device that Kultrun has *already decided* to allocate.
+It is not a source of host capabilities, not a capacity mechanism, and not
+an admission decision.
+
+```text
+HostCapabilities  →  capacity  →  resource admits and reserves accelerator N
+                                            │
+                                   execution: DeviceRequest(N)
+                                            │
+                                   OCI executor → CDI device name
+                                            │
+                                   container runtime attaches it
+```
+
+`DeviceRequest` names an accelerator the way Kultrun identifies it. The
+translation into a fully-qualified CDI name such as `nvidia.com/gpu=gpu0`
+happens inside the OCI executor adapter, and the specification itself is
+generated by vendor tooling — `nvidia-ctk cdi generate` or `amd-ctk`.
+Kultrun neither implements CDI nor lets CDI vocabulary into a host or
+capacity contract.
 
 ### `runtime`
 
@@ -680,7 +932,10 @@ port it implements:
 ```text
 adapters/persistence/     file · sqlite
 adapters/http/            stdlib_server · asgi
-adapters/execution/       native_process · docker · podman
+adapters/host/            hwloc · nvml · native_linux · native_darwin ·
+                          amd_smi · level_zero · nfd · captured_fixture
+adapters/execution/       native_process · oci
+adapters/container/       docker · podman · containerd
 adapters/runtime/         vllm · llama_cpp · mlx
 adapters/model_source/    huggingface · local_file
 adapters/capacity/        llmfit · accelerate · benchmark
@@ -692,7 +947,6 @@ adapters/embedding/       local_model · external
 adapters/telemetry/       posthog
 adapters/entitlement/     offline_licence · vendor_service
 adapters/adaptation/      peft · merge
-adapters/host/            linux · darwin · captured_fixtures
 ```
 
 Every adapter is advisory-capable: if an external provider is absent,
@@ -700,6 +954,13 @@ broken or nondeterministic, the domain must still function through a
 mandatory internal fallback. `llmfit` was integrated, found
 nondeterministic on the reference host, and demoted to advisory. That
 outcome is the default assumption.
+
+Note how much of `adapters/host/` names a third-party tool. That is the
+point: every one of those is a commodity enumerator that someone else
+maintains across more platforms than Kultrun will ever validate, and each
+sits behind one Kultrun-owned port. Adding a vendor is an adapter, not an
+architecture change. **None of them appears in the core module list**, and
+Law 5 keeps each of them inside tier 2's import budget.
 
 ## TIER 11 — `main`
 
@@ -939,7 +1200,9 @@ previous attempt had sound rules and drifted anyway. These tests run at
 |---|---|
 | Tier direction (§1) | No module imports a higher tier, and no intra-tier import exists outside the §3 edge list. |
 | Declared non-edges (§4) | `planning` ⊥ `resource`; `execution` ⊥ `runtime`; `storage` and `capacity` ⊥ `model`; nothing imports `intelligence`; `agents` reaches the platform only via `api`. |
-| Narrow edge scope (§3) | `capacity` imports `storage.contracts` and nothing else from `storage`. |
+| Narrow edge scope (§3) | `capacity` imports only `storage.contracts` and `host.contracts`; `execution` imports only `host.contracts`. |
+| Adapter budget (Law 5) | An adapter imports only what the domain declaring its port may import. A `HostDiscoveryProvider` cannot reach `model`, `planning`, `resource`, `runtime` or `inference`. |
+| No provider in core | No core module names a discovery provider, a vendor library or a CDI concept. |
 | Adapter boundary | Nothing in tiers 0–9 imports `adapters`. Only `main` does. |
 | Kernel purity | `kernel` imports no third-party package and names no domain concept. |
 | Contract isolation | Every `contracts.py` imports only `kernel` and lower-tier contracts, and serializes without importing a runtime or provider library. |
@@ -950,6 +1213,39 @@ previous attempt had sound rules and drifted anyway. These tests run at
 The concept census is the direct control for Pattern 4. Eleven
 `storage_*` modules for one concept would have failed it on the day the
 second one was created.
+
+## Counting the macrostructure
+
+Three different numbers describe this architecture and they are routinely
+confused, including in review conversations about this document. They
+measure different things and none is a proxy for another.
+
+| Measure | What it counts | Today |
+|---|---|---|
+| **Tiers** | Bands in the dependency law, tier 0 to tier 11 | **12** |
+| **Architecture positions** | Named entries in the tier map: 27 domains, plus `adapters` and the composition root | **29** |
+| **Implemented packages** | Directories that exist under `src/kultrun` | **18** |
+| **Implemented modules** | `.py` files under `src/kultrun`, excluding `__init__.py` | **36** |
+
+Positions are the *design*: every one exists in the map from the first
+commit, including the ones that are still empty, because absence should be
+visible. Implemented packages and modules are the *state*: what has been
+built so far. The gap between 29 and 18 is not debt — it is the eleven
+domains whose stages have not run.
+
+The census in Part VII compares implemented **modules** against declared
+**concepts** within each package. It does not compare positions to
+packages, which would only measure how far through the roadmap we are.
+
+Two corrections for the record. A figure of "24 modules" circulated in
+review discussion; it was wrong and never entered this document — the tier
+map has always held 29 positions. And the Stage 0.3 output package records
+"35 modules", which counted only modules inside packages and omitted the
+composition root at `src/kultrun/main.py`; the comparable figure under the
+method defined here is 36. That stage package and its checkpoint are left
+unedited, because a closed record is evidence of what was true and believed
+at the time, and correcting it in place would destroy the thing it exists
+to hold.
 
 ---
 
@@ -964,8 +1260,162 @@ docs/DEVELOPMENT_WORKFLOW.md   the bounded-step protocol and branch/GPU workflow
 docs/legacy/              the previous attempt, as evidence only
 ```
 
+Part IX records where external technology sits and what Kultrun
+deliberately does not build. It is part of the architecture rather than an
+appendix: a decision not to build something is as structural as a module
+boundary, and it is the decision most likely to be quietly reversed by
+someone solving an immediate problem.
+
 A stage brief cites this document for the modules it touches, and the
 stage output package records any change to the map. A change to a module
 boundary is a change to this document, made in the same commit as the
 code — the same rule the roadmap applies to stage boundaries, for the same
 reason.
+
+---
+
+# PART IX — EXTERNAL TECHNOLOGY AND SCOPE
+
+## 1. What Kultrun does not build
+
+Kultrun's differentiation is not that it can enumerate a PCI bus. Every
+item below is a commodity that mature projects already maintain across
+more platforms than Kultrun will ever validate, and building any of them
+would be a large proprietary investment returning nothing a customer would
+pay for.
+
+**Do not build, absent a demonstrated gap:** CPU and NUMA topology
+enumeration; generic PCI enumeration; vendor GPU management libraries; the
+Container Device Interface; a container runtime; Kubernetes hardware
+discovery; a GPU driver installer framework; a custom container device
+injection protocol.
+
+**Do build:** normalized capability contracts; evidence reconciliation and
+conflict surfacing; safe capacity derivation; compatibility and
+feasibility; provider selection and fallback; runtime and executor
+selection; admission and resource policy; lifecycle orchestration;
+explainability; and evidence-based support classification.
+
+The line between the two lists is the line between *observing* a machine
+and *deciding* what may safely be done with it. Everything on the first
+list observes. Everything on the second decides, and deciding is the
+product.
+
+"Absent a demonstrated gap" is load-bearing. A gap is demonstrated by
+running the candidate tool on a real machine and finding it does not answer
+a question Kultrun needs — not by predicting that it might not.
+
+## 2. Candidate technologies and their positions
+
+Each of these is a **replaceable implementation dependency**. None is an
+architectural dependency, and the architecture must survive any of them
+being absent, broken or replaced.
+
+| Technology | Role | Status | Sits behind |
+|---|---|---|---|
+| **hwloc** | General topology and device discovery: CPU, cores, NUMA, caches, memory, PCI and I/O objects | **Optional-preferred provider.** Preferred initial candidate; not a core dependency; never assumed preinstalled | `HostDiscoveryProvider` |
+| **NVML** | NVIDIA device memory, driver version, per-device detail | Likely supplement on NVIDIA hosts | `HostDiscoveryProvider` |
+| **Native OS sources** | Whatever a platform exposes that a general tool does not | Supplement, only where a gap is demonstrated | `HostDiscoveryProvider` |
+| **AMD SMI** | AMD device identity, memory, topology | Future, unscheduled | `HostDiscoveryProvider` |
+| **Level Zero / Sysman** | Intel accelerator discovery and telemetry | Future, unscheduled | `HostDiscoveryProvider` |
+| **Kubernetes NFD** | Node features as labels in a Kubernetes environment | Future, optional | `HostDiscoveryProvider` |
+| **CDI** | Vendor-neutral device attachment for containers | Future, optional | The OCI executor adapter |
+| **NVIDIA Container Toolkit** | Generates the CDI specification for NVIDIA devices | Future, optional | Host provisioning, not Kultrun code |
+| **Docker / Podman / containerd** | Container execution | Optional; native process execution is the reference | `ContainerEngine` |
+
+### What the research establishes, and what it does not
+
+**hwloc** is portable across Linux, macOS, Windows and several Unix
+variants, is largely processor-independent because it reads what the
+operating system exposes, is BSD-licensed, and is packaged by most Linux
+distributions as well as Homebrew and vcpkg. It ships interoperability
+headers for CUDA, NVML, AMD ROCm SMI and Level Zero. Its own documentation
+also states plainly that "platforms and/or operating system versions will
+only report a subset of this information."
+
+#### What "optional-preferred" means
+
+hwloc holds a specific and deliberately narrow status:
+
+- it is the **preferred initial** general-purpose provider candidate;
+- it is **not a Kultrun core dependency**, and the architecture must
+  survive its absence;
+- it is **never assumed preinstalled**;
+- the product may eventually **detect, reuse, provision or repair** it
+  through product-managed preparation, because plug-and-play means the
+  platform takes responsibility for what it needs rather than handing the
+  customer a prerequisites list;
+- other and future providers remain possible, and its absence remains
+  representable in `HostCapabilities` rather than fatal.
+
+Preferring something and depending on it are different commitments. The
+first survives the tool turning out to be wrong for us; the second does
+not. Where the preparation mechanics eventually live is a Milestone 10
+installer question and is not settled here.
+
+That "subset" sentence is why the architecture is a provider *service*
+rather than a provider *choice*. Partial observation is hwloc's documented normal
+behaviour, not an edge case, and any design that assumed one tool answers
+everything would be designed against a claim its own maintainers do not
+make.
+
+It also marks the boundary of what hwloc gives us. Its accelerator
+interoperability is largely about *locality* — which processors are near a
+device, and the corresponding topology object. Device memory size and
+driver version come from the vendor library. So the shape "general provider
+plus vendor supplement" is not a hedge; it follows from what these tools
+actually do.
+
+**CDI** is a CNCF specification. Runtimes read JSON or YAML from `/etc/cdi`
+or `/var/run/cdi` and apply the described edits to the OCI specification;
+Docker, Podman, containerd and CRI-O support it, and devices are requested
+by fully-qualified name. The specification states that "areas like resource
+management are explicitly left out of CDI," which places it exactly where
+this document places it. NVIDIA's toolkit generates specifications via
+`nvidia-ctk cdi generate`, and recent versions refresh them automatically
+on driver or toolkit change; AMD's `amd-ctk` does the equivalent. A
+CDI-only path exists that does not require the legacy runtime hook.
+
+**NFD** detects node features and advertises them as Kubernetes labels,
+extended resources, annotations and taints, across CPU, kernel, memory,
+network, PCI, storage, system and USB sources. Labels are predominantly
+boolean or short string facts — a node has a PCI device of some vendor and
+class — rather than quantities. It can therefore save Kultrun rediscovering
+what a cluster already knows, and cannot by itself answer how much memory a
+device has.
+
+**AMD SMI** exposes socket and processor handles, BDF, UUID, board
+information and link topology. Its documentation warns that a device handle
+"may change after restarting the application, so it should not be
+considered a persistent identifier across processes" — a concrete
+demonstration that provider identity is not platform identity, and that
+Kultrun must mint its own.
+
+**Intel** exposes discovery through Level Zero Sysman.
+
+**Apple Silicon** is deliberately left open. hwloc supports Darwin, and
+whether it reports enough for a Kultrun host profile is an empirical
+question. Any macOS-specific collection stays behind a provider adapter,
+and no Apple-specific concept enters `HostCapabilities` unless it describes
+a genuinely cross-platform capability — unified memory does, because it
+changes how any host's memory budget must be computed; a Metal-specific
+detail does not.
+
+**What none of this establishes** is that any particular tool is the right
+choice for Kultrun. Documentation says what a tool can do on some machine,
+not what it does on ours. That is what the Stage 1.1 spike is for.
+
+## 3. Before bundling anything
+
+`docs/PRODUCT_VISION.md` §57 already requires provenance and licence
+classification for every bundled dependency. For a discovery or device
+technology, record before it becomes anything more than a candidate:
+licence and version; source and provenance; redistribution rights and any
+commercial restriction; supported platforms; what installing it requires on
+a customer machine; and **what Kultrun does when it is absent**.
+
+The last is the one that gets skipped. A provider with no defined absent
+behaviour is a mandatory dependency that nobody decided to make mandatory.
+
+Technical usefulness is not sufficient grounds for bundling. hwloc being
+excellent is an argument for trying it, not for shipping it.

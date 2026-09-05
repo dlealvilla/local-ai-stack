@@ -40,6 +40,10 @@ else waits for the stage that consumes it.
 3. **It is an identity or reference another contract needs to point at.**
    Contracts reference by identifier, not by import (Law 2), so the
    identifiers have to exist.
+4. **The architecture cannot preserve evidence correctly without it.** A
+   value that would have to be recorded without its basis, confidence or
+   unknown state is a value that becomes unexplainable later, and
+   explainability cannot be retrofitted onto data already written.
 
 A field that merely *will* be needed by Stage 2.3 does not qualify. It is
 added by Stage 2.3.
@@ -352,6 +356,41 @@ Ports, `CapacityEnvelope`, `FeasibilityResult`, `DeploymentPlan`,
 `ComponentManifest`, the identity directory behind `Subject`, `ModelOutcome`
 and observed capacity fields — each named in the brief with the stage that
 owns it.
+
+### Reviewed against the provider architecture — no change required
+
+After Stage 0.2 closed, host discovery was redesigned as a provider
+architecture (`docs/ARCHITECTURE.md` Part IX): mature tooling observes,
+Kultrun normalizes and reconciles. That design needs observations to carry
+provenance — which provider, when, how obtained, with what confidence —
+and needs conflicting observations to be representable.
+
+The contracts here were re-examined against it. **They need no change**,
+and the reasoning is the fourth clause above working as intended.
+
+Nothing observes a host until Stage 1.1. The provenance and conflict
+structures therefore have no consumer here, and adding them now would be
+designing against an imagined provider — the precise failure this stage
+was written to avoid. They arrive at Stage 1.1 as **optional fields**,
+which the fingerprint classifier treats as a compatible change requiring no
+`schema_version` bump. Provenance is recorded beside the values by dotted
+field path rather than by wrapping every leaf in an envelope, so no
+existing field changes type.
+
+Two things this stage already got right turn out to carry the new design.
+`Maybe[...]` on every unmeasured quantity is exactly what a partial
+provider produces, so "this tool did not report it" was already
+representable. And `evidence` owning basis and confidence at tier 1 means
+provider observations inherit one vocabulary instead of each adapter
+inventing its own.
+
+One refinement is scheduled rather than made. `evidence.Basis` currently
+mixes two questions — which layer of credibility a value sits at, and how
+it was obtained — and the provider architecture needs the second as its own
+axis. `Basis` is declared but used by no field and appears nowhere in the
+committed fingerprint, so narrowing it and adding a `Derivation` axis costs
+nothing and is not a contract change. It lands at Stage 1.1 with its first
+consumer.
 
 ### What this stage does not prove
 

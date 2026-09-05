@@ -294,7 +294,7 @@ and because several are the reason a given stage exists at all.
 | Analytics on one unbounded JSONL file with full-file scans | Stage 1.7 partitioned from the first event |
 | Synchronous download, update and lifecycle APIs blocking on model load | Stages 2.6 and 1.6 |
 | PID files with no reuse protection | Stage 1.3 |
-| Hardware detection Linux and NVIDIA only | Stage 1.1, with synthetic fixtures for other shapes from the start |
+| Hardware detection Linux and NVIDIA only | Stage 1.1: discovery becomes a provider architecture over mature tooling, proven and captured on three real shapes |
 | Catalog metadata frequently null (`context_length`, `download_bytes`) | Stage 2.5 explicit nulls; Stage 3.3 pre-acquisition feasibility |
 | `llmfit` nondeterministic on the real host | Roadmap Part II §9, advisory with mandatory fallback |
 | Frontend required internet access for embedding assets | Stage 7.3, air-gapped bootstrap |
