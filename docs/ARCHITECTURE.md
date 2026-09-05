@@ -609,14 +609,20 @@ dismantling it. This module is where that is designed out.
 
 | | |
 |---|---|
-| **Owns** | The HTTP Platform API, uniform error rendering from kernel error codes, identity and entitlement enforcement at the boundary, pagination and API versioning. |
+| **Owns** | The Platform API's route table, handlers, uniform error rendering from kernel error codes, identity and entitlement enforcement at the boundary, pagination and API versioning. |
 | **Consumes** | `platform` and domain services |
-| **Must not** | Contain an algorithm. Expose an endpoint that bypasses the enforcement boundary. |
+| **Ports** | The router itself is the seam: a handler is a function from request to value, and the **HTTP transport is an adapter** in `adapters/http`. |
+| **Must not** | Contain an algorithm. Expose an endpoint that bypasses the enforcement boundary. Let a web framework own routing — a framework that owns routing owns the API. |
 | **Created** | 0.3, and grows at every subsequent stage |
 
 Every stage's definition of done includes a Platform API surface, so this
 module grows monotonically rather than being a late project. That is what
 makes the Admin console at 6.1 an assembly job.
+
+Separating the router from its transport has a second benefit beyond
+replaceability: the entire API is exercised by calling the router, so the
+Milestone 0 gate — "the Platform API answers from platform state" — is
+provable at `L1` without a live port.
 
 ## TIER 9 — Consumers and additive intelligence
 
@@ -665,6 +671,7 @@ port it implements:
 
 ```text
 adapters/persistence/     file · sqlite
+adapters/http/            stdlib_server · asgi
 adapters/execution/       native_process · docker · podman
 adapters/runtime/         vllm · llama_cpp · mlx
 adapters/model_source/    huggingface · local_file

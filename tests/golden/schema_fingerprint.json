@@ -336,6 +336,32 @@
     },
     "python": "CapacityEvidence"
   },
+  "config.platform@1": {
+    "fields": {
+      "api_address": {
+        "may_be_unresolved": false,
+        "meaning": "address the Platform API binds to; loopback while there is no authentication",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "api_port": {
+        "may_be_unresolved": false,
+        "meaning": "port the Platform API binds to",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "state_root": {
+        "may_be_unresolved": false,
+        "meaning": "directory the platform owns for its records",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      }
+    },
+    "python": "PlatformSettings"
+  },
   "entitlement.claim@1": {
     "fields": {
       "claim": {
@@ -1479,6 +1505,239 @@
       }
     },
     "python": "ModelRequirement"
+  },
+  "platform.approval@1": {
+    "fields": {
+      "action": {
+        "may_be_unresolved": false,
+        "meaning": "what was proposed, as a stable dotted name",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "approval_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this decision",
+        "nullable": false,
+        "optional": false,
+        "type": "ApprovalId"
+      },
+      "decided_at": {
+        "may_be_unresolved": false,
+        "meaning": "when they decided",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "decided_by": {
+        "may_be_unresolved": false,
+        "meaning": "who decided",
+        "nullable": false,
+        "optional": false,
+        "type": "SubjectId"
+      },
+      "decision": {
+        "may_be_unresolved": false,
+        "meaning": "what the administrator decided",
+        "nullable": false,
+        "optional": false,
+        "type": "ApprovalDecision"
+      },
+      "expires_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the decision stops standing; absent means it does not expire",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "reason": {
+        "may_be_unresolved": false,
+        "meaning": "why, which is the part a later reader actually needs",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "requested_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it was proposed",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "requested_by": {
+        "may_be_unresolved": false,
+        "meaning": "who proposed it",
+        "nullable": false,
+        "optional": false,
+        "type": "SubjectId"
+      },
+      "target_id": {
+        "may_be_unresolved": false,
+        "meaning": "which one, by identifier",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "target_kind": {
+        "may_be_unresolved": false,
+        "meaning": "what sort of thing it concerns",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      }
+    },
+    "python": "Approval"
+  },
+  "platform.component_health@1": {
+    "fields": {
+      "component": {
+        "may_be_unresolved": false,
+        "meaning": "which component is reporting",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "detail": {
+        "may_be_unresolved": false,
+        "meaning": "what is wrong, when something is",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "how it is doing",
+        "nullable": false,
+        "optional": false,
+        "type": "HealthStatus"
+      }
+    },
+    "python": "ComponentHealth"
+  },
+  "platform.health_report@1": {
+    "fields": {
+      "components": {
+        "may_be_unresolved": false,
+        "meaning": "each component's own answer",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ComponentHealth, ...]"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when health was last aggregated",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "the worst status among the components",
+        "nullable": false,
+        "optional": false,
+        "type": "HealthStatus"
+      }
+    },
+    "python": "HealthReport"
+  },
+  "platform.startup_phase@1": {
+    "fields": {
+      "defects": {
+        "may_be_unresolved": false,
+        "meaning": "problems it surfaced but did not resolve",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "detail": {
+        "may_be_unresolved": false,
+        "meaning": "what it found or why it failed",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "phase": {
+        "may_be_unresolved": false,
+        "meaning": "which phase ran",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "succeeded": {
+        "may_be_unresolved": false,
+        "meaning": "whether it completed",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      }
+    },
+    "python": "PhaseReport"
+  },
+  "platform.startup_report@1": {
+    "fields": {
+      "completed": {
+        "may_be_unresolved": false,
+        "meaning": "whether every phase completed",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "first_run": {
+        "may_be_unresolved": true,
+        "meaning": "whether this start created the installation; unknown before state loads",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      },
+      "phases": {
+        "may_be_unresolved": false,
+        "meaning": "each phase in the order it ran",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[PhaseReport, ...]"
+      },
+      "started_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this start began",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      }
+    },
+    "python": "StartupReport"
+  },
+  "platform.state@1": {
+    "fields": {
+      "administrator_id": {
+        "may_be_unresolved": false,
+        "meaning": "the local administrator, by identifier; the subject record is stored in its own right, because a subject is an entity and not a property of the installation",
+        "nullable": false,
+        "optional": false,
+        "type": "SubjectId"
+      },
+      "initialized_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the installation was first started",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "installation_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this installation, stable for its whole life",
+        "nullable": false,
+        "optional": false,
+        "type": "InstallationId"
+      },
+      "platform_version": {
+        "may_be_unresolved": false,
+        "meaning": "the Kultrun version that wrote this record",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "PlatformState"
   },
   "policy.reference@1": {
     "fields": {

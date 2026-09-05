@@ -65,12 +65,12 @@ runtime. Milestones 1 through 4 each require `L2` or above.
 
 ## Current position
 
-**Stages 0.1 and 0.2 are closed** — `PlatformKernel v1` and
-`PlatformContracts v1`, both at `L1`.
+**Milestone 0 is closed.** Stages 0.1, 0.2 and 0.3 delivered
+`PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`, all at
+`L1`, with 11 open debt entries and none authorizing a mutation.
 
-Milestone 0 finishes with Stage 0.3, the control plane shell. Its output
-is `PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`.
-
-**Milestone 1 is the first working vertical**, and its gate — fresh-host
-live inference on real hardware — is the proof the previous attempt never
-obtained. Nothing before it produces evidence above `L1`.
+**Next is Stage 1.1**, host capability detection, and it is the first
+stage that requires the reference host: it closes at `L2`. From there to
+the Milestone 1 gate — a real request reaching a real model and returning
+an answer — every claim is checked against hardware. That gate is the
+proof the previous attempt never obtained after 58,706 lines.

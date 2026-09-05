@@ -57,8 +57,13 @@ Status:       OPEN | RETIRED (<stage>, <date>)
 
 ## Open entries
 
-Seven, all from Stage 0.1. None authorizes a mutation, so none is caught
-by rule 2. Only `K-03` has a hard deadline.
+Eleven: seven from Stage 0.1 and four from Stage 0.3. None authorizes a
+mutation, so none is caught by rule 2.
+
+Two carry hard conditions. `K-03` — no migration engine — must retire before
+the first `schema_version` bump ships. `K-08` — no authentication — must
+retire before the Platform API is reachable off-host, because its current
+safety is a property of deployment rather than of the code.
 
 ### K-01 — Identifiers are not time-sortable
 Label:        PROVISIONAL
@@ -179,6 +184,69 @@ To make real: A monotonic source alongside the wall clock, with
               durations typed distinctly from instants.
 Retire when:  Any stage measures a duration. Wall-clock arithmetic must
               never be used for one.
+Status:       OPEN
+
+### K-08 — No authentication; the API is safe only because it is loopback
+Label:        PROVISIONAL
+Owner stage:  0.3
+Subsystem:    api / platform
+Authorizes:   NO
+What:         The Platform API performs no authentication. The local
+              administrator is implicit, and the server binds to 127.0.0.1.
+Why now:      Identity contracts exist but no identity provider does;
+              Stage 1.7 adds authentication hooks and Stage 5.1 makes
+              identity real. A control plane an administrator reaches from
+              the machine it runs on is adequate for Milestone 0.
+To make real: Authentication at the API boundary, resolving a Subject, with
+              authorization evaluated against an AccessContext.
+Retire when:  Stage 1.7 at the earliest. **Must retire before the Platform
+              API is reachable off-host** — the current safety is a property
+              of deployment, not of the code.
+Status:       OPEN
+
+### K-09 — Startup continues despite unreadable records
+Label:        PROVISIONAL
+Owner stage:  0.3
+Subsystem:    platform / startup
+Authorizes:   NO
+What:         A record the store cannot load is reported in the startup
+              report and the platform serves anyway.
+Why now:      An administrator diagnoses through the Platform API, so
+              refusing to start over an unreadable record would remove the
+              only surface available for understanding why. No record yet
+              authorizes anything, so continuing costs nothing.
+To make real: Classify defects by whether the record could authorize a
+              mutation, and fail closed for those.
+Retire when:  A record can authorize something — Milestone 2, where storage
+              evidence and admission decisions are persisted.
+Status:       OPEN
+
+### K-10 — Standard-library HTTP server
+Label:        WORKING
+Owner stage:  0.3
+Subsystem:    adapters / http
+Authorizes:   NO
+What:         Single-threaded, no TLS, loopback only.
+Why now:      The transport is an adapter behind the router, so replacing it
+              changes nothing outside one file. A control plane serving one
+              administrator does not need more.
+To make real: An asynchronous server, TLS, and concurrency, behind the same
+              router.
+Retire when:  Concurrent administration is required, or the API leaves
+              loopback — which is the same condition as K-08.
+Status:       OPEN
+
+### K-11 — No pagination on list endpoints
+Label:        DEFERRED
+Owner stage:  0.3
+Subsystem:    api
+Authorizes:   NO
+What:         List endpoints return everything.
+Why now:      The longest list is the contract catalogue at 36 entries.
+To make real: Cursor-based pagination on the router's rendering path, so
+              every list endpoint inherits it.
+Retire when:  A list can exceed what an administrator can read — the model
+              catalogue at Stage 2.5.
 Status:       OPEN
 
 ---

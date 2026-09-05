@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "stage": "0.3",
+  "name": "control-plane-shell",
+  "milestone": 0,
+  "output": "PlatformState v1 + ControlPlaneShell v1",
+  "status": "CLOSED",
+  "closes_milestone": 0,
+  "produced_at": "2026-09-05T07:47:10.124659Z",
+  "contract_surface_token": "389bbd938668f5e6",
+  "consumed_predecessor": {
+    "stage": "0.2",
+    "contract_surface_token": "db09f9ba1665bcfa"
+  },
+  "acceptance": {
+    "level": "L1",
+    "why_sufficient": "Milestone 0's gate. No hardware, runtime or capacity domain is touched.",
+    "tests_passed": 233,
+    "tests_failed": 0,
+    "lint": "clean",
+    "types": "strict, clean",
+    "gate_evidence": {
+      "contracts_serialize_without_runtime": "kernel purity and contract isolation tests",
+      "api_answers_from_platform_state": "six endpoints exercised through the router",
+      "boundaries_intentional": "tier, non-edge, reference and host-scoping checks; consolidation census"
+    }
+  },
+  "packages_created": [
+    "platform",
+    "api",
+    "adapters.http",
+    "main"
+  ],
+  "endpoints": [
+    "GET /v1/health",
+    "GET /v1/platform",
+    "GET /v1/contracts",
+    "GET /v1/config",
+    "GET /v1/startup",
+    "GET /v1/approvals"
+  ],
+  "ports": [
+    {
+      "port": "kultrun.platform.ports.HealthSource",
+      "implementations": [
+        "platform.state.PlatformStateStore",
+        "platform.approval.ApprovalLog"
+      ]
+    },
+    {
+      "port": "kultrun.platform.ports.ReconcilePhase",
+      "implementations": [
+        "platform.startup.StoreReconcilePhase",
+        "platform.state.PlatformStateStore"
+      ]
+    }
+  ],
+  "persists_state": true,
+  "reconciliation": "One ordered startup path. Phase 1 is the record store's own recovery; phase 2 loads or initializes platform state. Defects are reported and the platform continues, which is K-09 and retires at Milestone 2.",
+  "orphans_possible": [
+    "the store's temporary file, swept by phase 1",
+    "the HTTP listening socket, released by the server context manager"
+  ],
+  "contracts": {
+    "analytics": [
+      "analytics.usage_event@1"
+    ],
+    "audit": [
+      "audit.event@1"
+    ],
+    "capacity": [
+      "capacity.evidence@1"
+    ],
+    "platform": [
+      "config.platform@1",
+      "platform.approval@1",
+      "platform.component_health@1",
+      "platform.health_report@1",
+      "platform.startup_phase@1",
+      "platform.startup_report@1",
+      "platform.state@1"
+    ],
+    "entitlement": [
+      "entitlement.claim@1"
+    ],
+    "kernel": [
+      "error_detail@1",
+      "result@1",
+      "store_defect@1",
+      "store_reconciliation@1"
+    ],
+    "evidence": [
+      "evidence.layered_bytes@1",
+      "evidence.provenance@1"
+    ],
+    "host": [
+      "host.accelerator@1",
+      "host.capabilities@1",
+      "host.cpu@1",
+      "host.execution@1",
+      "host.memory@1",
+      "host.mount@1",
+      "host.network@1",
+      "host.operating_environment@1"
+    ],
+    "identity": [
+      "identity.access_context@1",
+      "identity.subject@1"
+    ],
+    "inference": [
+      "inference.endpoint@1",
+      "inference.instance@1"
+    ],
+    "knowledge": [
+      "knowledge.item@1",
+      "knowledge.source@1"
+    ],
+    "model": [
+      "model.artifact@1",
+      "model.inventory_record@1",
+      "model.metadata@1",
+      "model.requirement@1"
+    ],
+    "policy": [
+      "policy.reference@1"
+    ],
+    "resource": [
+      "resource.reservation@1",
+      "resource.workload@1",
+      "resource.workload_profile@1"
+    ],
+    "storage": [
+      "storage.pool@1"
+    ],
+    "training": [
+      "training.dataset_snapshot@1",
+      "training.derived_model@1"
+    ]
+  },
+  "debt": {
+    "open": [
+      "K-01",
+      "K-02",
+      "K-03",
+      "K-04",
+      "K-05",
+      "K-06",
+      "K-07",
+      "K-08",
+      "K-09",
+      "K-10",
+      "K-11"
+    ],
+    "opened_here": [
+      "K-08",
+      "K-09",
+      "K-10",
+      "K-11"
+    ],
+    "authorizing": [],
+    "hard_deadline": {
+      "K-03": "before the first schema_version bump ships",
+      "K-08": "before the Platform API is reachable off-host"
+    }
+  },
+  "milestone_close": {
+    "consolidation": {
+      "packages": 18,
+      "modules": 35,
+      "near_synonymous_pairs": 0
+    },
+    "debt_review": "11 open, none authorizing a mutation; burn-down gate satisfied",
+    "module_map_amendments": [
+      "adapters/http added to docs/ARCHITECTURE.md"
+    ]
+  },
+  "deferred": [
+    "authentication and authorization enforcement (1.7, 5.1)",
+    "the approval workflow and risk classification (6.2)",
+    "the audit sink; emission begins at 1.5",
+    "structured logging and tracing",
+    "mutating endpoints, pagination, API versioning beyond a prefix"
+  ],
+  "package": "docs/stages/STAGE-0.3-control-plane-shell.md",
+  "next_stage": {
+    "stage": "1.1",
+    "acceptance": "L2 \u2014 first stage requiring the reference host",
+    "consumes": [
+      "HostCapabilities and its fact contracts",
+      "the ReconcilePhase and HealthSource ports",
+      "api/routes.py, where host endpoints are added",
+      "the composition root, which resolves the HostDetector adapter"
+    ]
+  }
+}
