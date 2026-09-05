@@ -76,6 +76,15 @@ class Router:
             )
         self._routes[key] = handler
 
+    def post(self, path: str, handler: Handler) -> None:
+        """Register a handler that changes something.
+
+        Separate from `get` so a mutation cannot be reached by a read. The
+        console loads and refreshes over GET only, which is what keeps a
+        page view from performing storage work.
+        """
+        self.route(Method.POST, path, handler)
+
     def get(self, path: str, handler: Handler) -> None:
         """Register a read-only route."""
         self.route(Method.GET, path, handler)

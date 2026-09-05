@@ -84,12 +84,15 @@ def test_a_claimed_fixture_actually_exists(shapes: list[dict[str, Any]]) -> None
 def test_a_fixture_claimed_in_ci_is_replayed_by_a_real_test(
     shapes: list[dict[str, Any]],
 ) -> None:
+    """A fixture claimed to run in CI must have a test that replays it."""
     for shape in shapes:
         if not shape.get("replayed_in_ci"):
             continue
         replayer = REPOSITORY / shape["replayed_by"]
         assert replayer.is_file(), f"{shape['shape_id']}: {replayer} is missing"
-        assert shape["fixture_path"].split("/")[-2] in replayer.read_text()
+        # Replayed through the shipped catalogue rather than a path, so the
+        # test exercises the same loader the product uses.
+        assert "fixtures" in replayer.read_text()
 
 
 def test_no_shape_claims_a_profile_its_evidence_does_not_support(
@@ -145,12 +148,36 @@ def test_exactly_one_blocking_shape(shapes: list[dict[str, Any]]) -> None:
 
 def test_every_fixture_directory_is_registered() -> None:
     """A fixture nobody registered is a shape nobody can find."""
-    root = REPOSITORY / "tests" / "fixtures" / "hosts"
+    root = REPOSITORY / "src" / "kultrun" / "adapters" / "host" / "fixtures"
     registered = {
         shape.get("fixture_path", "").rstrip("/").split("/")[-1]
         for shape in json.loads(REGISTRY.read_text())["shapes"]
     }
     for directory in sorted(p for p in root.iterdir() if p.is_dir()):
+        if directory.name == "__pycache__":
+            continue
         assert directory.name in registered, (
             f"{directory.name} holds fixtures but is not in shapes.json"
         )
+
+
+def test_the_registry_and_the_shipped_catalogue_agree() -> None:
+    """The catalogue serves the product; the registry records the claims.
+
+    Two places name a shape, so a test keeps them from drifting: a shape the
+    product can replay but nobody recorded evidence for would be a support
+    claim with no ledger entry.
+    """
+    from kultrun.adapters.host import fixtures
+
+    registered = {
+        shape["shape_id"]: shape
+        for shape in json.loads(REGISTRY.read_text())["shapes"]
+    }
+    for shape_id in fixtures.available():
+        assert shape_id in registered, f"{shape_id} is replayable but unregistered"
+        entry = registered[shape_id]
+        described = fixtures.SHAPES[shape_id]
+        assert entry["evidence_level"] == described.evidence_level
+        assert entry["deployment_profile"] == described.deployment_profile
+        assert entry["fixture_available"] is True

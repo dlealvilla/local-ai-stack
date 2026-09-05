@@ -100,6 +100,15 @@ VOLATILE_FAMILIES: Final = ("tmpfs", "ramfs", "devtmpfs")
 #: validates exactly this boundary rather than an unrelated one.
 UNVERIFIED_POOL_CEILING_BYTES: Final = 64 * _GIB
 
+#: Above this, an unbelievable reported size is worth verifying rather than
+#: merely bounding. Below it, the policy ceiling already bounds the pool to
+#: something smaller than the report, so a probe would cost real time to
+#: learn nothing that changes a decision.
+#:
+#: 1 TiB because the shapes that motivate this advertise hundreds of
+#: terabytes. An ordinary disk never triggers.
+SANITY_TRIGGER_BYTES: Final = 1024**4
+
 #: Kept back from system memory. The previous attempt used a 0.75 weight
 #: budget for both RAM and accelerator memory, so 25% is the one reserve
 #: figure with any operational history behind it. The 2 GiB floor exists
@@ -136,4 +145,5 @@ def default_policy() -> HeadroomPolicy:
         unverified_pool_ceiling_bytes=UNVERIFIED_POOL_CEILING_BYTES,
         families_requiring_evidence=FAMILIES_REQUIRING_EVIDENCE,
         families_with_credible_size=FAMILIES_WITH_CREDIBLE_SIZE,
+        sanity_trigger_bytes=SANITY_TRIGGER_BYTES,
     )

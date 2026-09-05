@@ -1,0 +1,209 @@
+/* Deliberately plain. This is an acceptance instrument, not a design
+   system, and every hour spent here is an hour not spent on the product. */
+
+:root {
+  --bg: #12131a;
+  --panel: #1b1d27;
+  --line: #2b2e3d;
+  --text: #e6e8f0;
+  --muted: #8b90a5;
+  --ok: #4ec9a6;
+  --warn: #e8b04b;
+  --bad: #e06c75;
+  --unknown: #7c83a0;
+  --accent: #6ea8fe;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 2;
+}
+
+h1 { font-size: 1.1rem; margin: 0; letter-spacing: 0.02em; }
+h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  margin: 0 0 0.85rem;
+}
+
+main {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem;
+}
+
+.hidden { display: none; }
+.muted { color: var(--muted); }
+
+.note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: -0.4rem 0 1rem;
+  max-width: 78ch;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.25rem;
+  font-size: 0.88rem;
+}
+.grid .key { color: var(--muted); }
+.grid .value { overflow-wrap: anywhere; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+th, td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+th {
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: none; }
+
+/* Reported is styled down and safe is styled up, so the eye lands on the
+   layer that is allowed to authorize rather than the biggest number. */
+td.reported { color: var(--muted); }
+td.safe { color: var(--ok); font-weight: 600; }
+
+.pill {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.pill-ok { color: var(--ok); }
+.pill-warn { color: var(--warn); }
+.pill-bad { color: var(--bad); }
+.pill-unknown { color: var(--unknown); }
+
+.unknown { color: var(--unknown); font-style: italic; }
+
+.progress { display: grid; gap: 0.4rem; }
+.progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.progress-row:last-child { border-bottom: none; }
+
+.defects { margin-top: 0.9rem; display: grid; gap: 0.4rem; }
+.defect {
+  font-size: 0.8rem;
+  color: var(--warn);
+  border-left: 2px solid var(--warn);
+  padding-left: 0.7rem;
+  overflow-wrap: anywhere;
+}
+.error {
+  font-size: 0.85rem;
+  color: var(--bad);
+  border-left: 2px solid var(--bad);
+  padding-left: 0.7rem;
+}
+
+.pool {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.pool:last-child { margin-bottom: 0; }
+.pool-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+.pool-path { font-weight: 600; }
+
+details { margin-top: 0.9rem; }
+summary { cursor: pointer; color: var(--muted); font-size: 0.8rem; }
+pre {
+  background: #0d0e14;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.8rem;
+  overflow: auto;
+  max-height: 22rem;
+  font-size: 0.78rem;
+  margin: 0.6rem 0 0;
+}
+
+button {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { background: rgba(110, 168, 254, 0.12); }
+button:disabled { color: var(--muted); border-color: var(--line); cursor: default; }
+button.danger { color: var(--warn); border-color: var(--warn); }
+button.danger:hover:not(:disabled) { background: rgba(232, 176, 75, 0.12); }
+
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.78rem;
+}
+
+.modes { display: flex; gap: 0.5rem; align-items: center; }
+
+/* Replayed evidence is banded so it can never be mistaken for a live
+   machine at a glance. The product already says so; this makes it loud. */
+body.replay #evidence-panel {
+  border-color: var(--warn);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+body.replay header { box-shadow: inset 0 -2px 0 var(--warn); }

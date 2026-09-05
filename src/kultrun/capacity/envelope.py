@@ -25,6 +25,7 @@ decision, and the host it described may no longer be the host running.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Final
 
 from kultrun.capacity.contracts import (
@@ -45,6 +46,7 @@ from kultrun.kernel.unresolved import (
     Maybe,
     is_resolved,
 )
+from kultrun.storage.contracts import SanityStatus, StorageSanityEvidence
 
 PRODUCER: Final = Name("capacity")
 
@@ -62,12 +64,22 @@ class CapacityService:
     def policy(self) -> HeadroomPolicy:
         return self._policy
 
-    def compute(self, host: HostCapabilities) -> CapacityEnvelope:
-        """Derive the envelope from host facts. Deterministic but for the clock."""
+    def compute(
+        self,
+        host: HostCapabilities,
+        sanity: Mapping[str, StorageSanityEvidence] | None = None,
+    ) -> CapacityEnvelope:
+        """Derive the envelope from host facts. Deterministic but for the clock.
+
+        `sanity` is empirical storage evidence already gathered, keyed by
+        mount point. Passed in rather than fetched, because computing
+        capacity must never be able to cause a filesystem probe — a read
+        that allocates storage is the previous implementation's mistake.
+        """
         defects: list[str] = []
         memory, memory_requirement, memory_note = self._memory(host, defects)
         accelerators = self._accelerators(host, defects)
-        pools = self._pools(host, defects)
+        pools = self._pools(host, defects, sanity or {})
 
         return CapacityEnvelope(
             host_id=host.host_id,
@@ -239,15 +251,23 @@ class CapacityService:
     # -- storage -----------------------------------------------------------
 
     def _pools(
-        self, host: HostCapabilities, defects: list[str]
+        self,
+        host: HostCapabilities,
+        defects: list[str],
+        sanity: Mapping[str, StorageSanityEvidence],
     ) -> tuple[PoolCapacity, ...]:
         return tuple(
-            self._pool(mount, defects)
+            self._pool(mount, defects, sanity.get(mount.mount_point))
             for mount in host.mounts
             if not _is_volatile(mount)
         )
 
-    def _pool(self, mount: MountFacts, defects: list[str]) -> PoolCapacity:
+    def _pool(
+        self,
+        mount: MountFacts,
+        defects: list[str],
+        evidence: StorageSanityEvidence | None,
+    ) -> PoolCapacity:
         """Free space, bounded when the filesystem's own figure proves nothing.
 
         The case this exists for: the reference host mounts a network
@@ -302,6 +322,37 @@ class CapacityService:
                 f"effective bounded at {ceiling} bytes"
             )
 
+        # Empirical evidence may confirm the bound or contradict it
+        # downward. It may never raise it: a probe stopped by a budget
+        # proved nothing about the pool's limit, and expanding a bound needs
+        # evidence this deliberately does not gather. Stage 2.2.
+        status = evidence.status if evidence is not None else SanityStatus.NOT_CHECKED
+        verified = (
+            evidence.verified_lower_bound_bytes
+            if evidence is not None
+            else NOT_PROVIDED
+        )
+        if evidence is not None and status is SanityStatus.CONTRADICTED:
+            floor = verified if is_resolved(verified) else 0
+            if floor < effective:
+                defects.append(
+                    f"pool {mount.mount_point}: a genuine reservation failed "
+                    f"below the policy bound, so effective capacity is "
+                    f"reduced from {effective} to {floor} bytes"
+                )
+                note = (
+                    f"empirical evidence contradicts the policy bound: a "
+                    f"reservation failed at "
+                    f"{evidence.observed_failure_upper_bytes} bytes"
+                )
+                effective = floor
+                requirement = EvidenceRequirement.EMPIRICAL_EVIDENCE_NEEDED
+        elif status is SanityStatus.POLICY_CAP_VERIFIED:
+            note = (
+                f"the policy bound of {effective} bytes is empirically "
+                f"verified by a genuine reservation"
+            )
+
         if effective < reported:
             defects.append(
                 f"pool {mount.mount_point} reports {reported} bytes free but "
@@ -314,11 +365,28 @@ class CapacityService:
             self._policy.storage_reserve_fraction,
             self._policy.storage_reserve_floor_bytes,
         )
-        confidence = (
-            Confidence.HIGH
-            if requirement is EvidenceRequirement.SUFFICIENT
-            else Confidence.LOW
+        if requirement is EvidenceRequirement.SUFFICIENT:
+            confidence = Confidence.HIGH
+        elif status is SanityStatus.POLICY_CAP_VERIFIED:
+            confidence = Confidence.MEDIUM
+        else:
+            confidence = Confidence.LOW
+
+        # A flag, never an action. Whether to spend real time and real bytes
+        # is a decision an operator makes explicitly.
+        wants_check = (
+            requirement is not EvidenceRequirement.SUFFICIENT
+            and reported >= self._policy.sanity_trigger_bytes
+            and status
+            in (SanityStatus.NOT_CHECKED, SanityStatus.PARTIALLY_VERIFIED)
         )
+        if wants_check:
+            defects.append(
+                f"pool {mount.mount_point} is large and not credible; an "
+                f"explicit storage sanity check would establish whether the "
+                f"policy bound is earned"
+            )
+
         return PoolCapacity(
             mount_point=mount.mount_point,
             space=self._layered(reported, effective, safe, confidence),
@@ -326,6 +394,9 @@ class CapacityService:
             filesystem_type=mount.filesystem_type,
             reported_total_bytes=mount.total_bytes,
             note=note,
+            sanity_check_required=wants_check,
+            sanity_status=status,
+            sanity_verified_lower_bound_bytes=verified,
         )
 
     # -- shared ------------------------------------------------------------

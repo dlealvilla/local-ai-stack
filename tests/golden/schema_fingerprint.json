@@ -495,6 +495,13 @@
         "optional": false,
         "type": "str"
       },
+      "sanity_trigger_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "above this, an unbelievable reported size is worth verifying empirically rather than merely bounding",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
       "storage_reserve_floor_bytes": {
         "may_be_unresolved": false,
         "meaning": "minimum pool space kept back regardless of pool size",
@@ -555,6 +562,27 @@
         "nullable": false,
         "optional": false,
         "type": "EvidenceRequirement"
+      },
+      "sanity_check_required": {
+        "may_be_unresolved": false,
+        "meaning": "whether this pool's reported size is both unbelievable and large enough to be worth verifying empirically. A flag, not an action: reading capacity never probes a filesystem",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "sanity_status": {
+        "may_be_unresolved": false,
+        "meaning": "how empirical evidence stands against the policy decision",
+        "nullable": false,
+        "optional": true,
+        "type": "SanityStatus"
+      },
+      "sanity_verified_lower_bound_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "the largest amount a genuine reservation reached. Unresolved when nothing has been verified, which is not the same as zero",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
       },
       "space": {
         "may_be_unresolved": false,
@@ -2553,6 +2581,163 @@
       }
     },
     "python": "StoragePool"
+  },
+  "storage.probe_attempt@1": {
+    "fields": {
+      "detail": {
+        "may_be_unresolved": false,
+        "meaning": "the underlying reason, when there was one",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "duration_seconds": {
+        "may_be_unresolved": false,
+        "meaning": "how long it took, which is the cost",
+        "nullable": false,
+        "optional": false,
+        "type": "float"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "what the attempt established",
+        "nullable": false,
+        "optional": false,
+        "type": "ProbeOutcome"
+      },
+      "reserved_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "how much was genuinely reserved before the attempt ended; an abandoned attempt still reserved something",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "target_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "the amount this attempt tried to reserve",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      }
+    },
+    "python": "ProbeAttempt"
+  },
+  "storage.sanity_evidence@1": {
+    "fields": {
+      "attempts": {
+        "may_be_unresolved": false,
+        "meaning": "every rung, in order, so the conclusion can be argued with",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ProbeAttempt, ...]"
+      },
+      "cleanup_verified": {
+        "may_be_unresolved": false,
+        "meaning": "whether the probe artifact was confirmed gone. Confirmed by absence of the path, never by a free-space delta: deleting a 42,990 MiB probe once returned about 1.1 GB to df immediately",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "elapsed_seconds": {
+        "may_be_unresolved": false,
+        "meaning": "wall clock across the whole ladder",
+        "nullable": false,
+        "optional": true,
+        "type": "float"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "the host it was gathered on; evidence is not portable between hosts",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "the pool this describes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the probe ran, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "observed_failure_upper_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "the smallest amount that genuinely failed for space or quota. Unresolved is the normal outcome and is not a gap in the result",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "orphans_removed": {
+        "may_be_unresolved": false,
+        "meaning": "probe artifacts from an earlier interrupted run, cleaned before this one started",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "policy_target_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "the policy ceiling the probe was asked to support; the ladder never goes beyond it, because nothing above it can change the decision",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "pool_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "the pool's identity, so evidence cannot be reused after the filesystem underneath it changes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "probe_method": {
+        "may_be_unresolved": false,
+        "meaning": "how bytes were reserved",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "probe_policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "the probe policy in force, so an old result stays explicable",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "how the evidence stands against policy",
+        "nullable": false,
+        "optional": false,
+        "type": "SanityStatus"
+      },
+      "stop_reason": {
+        "may_be_unresolved": false,
+        "meaning": "which budget or finding ended it",
+        "nullable": false,
+        "optional": false,
+        "type": "SanityStopReason"
+      },
+      "total_reserved_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "cumulative bytes reserved across the ladder \u2014 the probe's real cost",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "verified_lower_bound_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "the largest amount genuinely reserved. Unresolved when nothing was",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "StorageSanityEvidence"
   },
   "store_defect@1": {
     "fields": {

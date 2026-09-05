@@ -139,6 +139,92 @@ class TestThePackageCanBeBuilt:
         assert f"src/kultrun/{MANIFEST_NAME}" in ignore
         assert not (REPOSITORY / "src" / "kultrun" / MANIFEST_NAME).exists()
 
+    def test_the_console_assets_are_declared_for_the_wheel(
+        self, project: dict[str, object]
+    ) -> None:
+        """A console that vanished from the wheel would fail only on a host.
+
+        The assets are not Python, so nothing else would notice their
+        absence: the wheel builds, the API answers, and `/prototype` serves
+        a blank page on the one machine nobody can edit.
+        """
+        wheel = project["tool"]["hatch"]["build"]["targets"]["wheel"]  # type: ignore[index]
+        declared = " ".join(wheel["include"])
+        for suffix in (".html", ".css", ".js"):
+            assert f"console/*{suffix}" in declared
+
+    def test_the_captured_evidence_is_declared_for_the_wheel(
+        self, project: dict[str, object]
+    ) -> None:
+        """Fixture replay is a product mode, so the evidence must ship.
+
+        Without it an installed Kultrun cannot run locally at all, and the
+        failure would appear only after installation.
+        """
+        wheel = project["tool"]["hatch"]["build"]["targets"]["wheel"]  # type: ignore[index]
+        declared = " ".join(wheel["include"])
+        for pattern in ("fixtures/*/*.json", "fixtures/*/*.xml", "fixtures/*/*.csv"):
+            assert pattern in declared
+
+    def test_every_replayable_shape_has_readable_evidence(self) -> None:
+        from kultrun.adapters.host import fixtures
+
+        for shape_id in fixtures.available():
+            assert fixtures.hwloc_xml(shape_id).strip()
+            assert fixtures.nvidia_csv(shape_id).strip()
+            assert fixtures.native_capture(shape_id)
+            assert fixtures.normalized(shape_id)
+
+    def test_every_console_asset_exists_and_is_not_empty(self) -> None:
+        from kultrun.adapters.http import console
+
+        for name in console.ASSETS:
+            payload = console.read(name)
+            assert payload, f"{name} is missing or empty"
+            assert console.content_type(name) != "application/octet-stream"
+
+    def test_the_console_serves_only_its_own_assets(self) -> None:
+        """An allow-list, so a request path cannot reach another file."""
+        from kultrun.adapters.http import console
+
+        for attempt in (
+            "../main.py",
+            "../../main.py",
+            "/etc/passwd",
+            "__init__.py",
+            "app.js.map",
+        ):
+            assert console.read(attempt) is None, attempt
+
+    def test_the_console_holds_no_product_logic(self) -> None:
+        """The console formats and lays out; the product decides.
+
+        A classification made in the browser would be untested, unversioned
+        and invisible to the architecture tests — and it would drift from
+        the product's own answer without anyone noticing.
+        """
+        from kultrun.adapters.http import console
+
+        script = (console.asset_root() / "app.js").read_text()
+        for forbidden in (
+            "posix_fallocate",
+            "reserve_fraction",
+            "unverified_pool_ceiling",
+            "families_requiring_evidence",
+            "1099511627776",  # a hard-coded 1 TiB trigger threshold
+        ):
+            assert forbidden not in script, f"app.js appears to decide {forbidden}"
+
+    def test_the_console_hard_codes_no_reference_host_numbers(self) -> None:
+        """It renders live API data, never the numbers from a stage report."""
+        from kultrun.adapters.http import console
+
+        script = (console.asset_root() / "app.js").read_text()
+        html = (console.asset_root() / "index.html").read_text()
+        for number in ("251.5", "57.7", "43.3", "31.9", "23.9", "507.8", "57.6"):
+            assert number not in script, f"app.js hard-codes {number}"
+            assert number not in html, f"index.html hard-codes {number}"
+
     def test_the_package_has_no_runtime_dependencies(
         self, project: dict[str, object]
     ) -> None:

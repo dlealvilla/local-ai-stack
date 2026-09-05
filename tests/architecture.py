@@ -138,6 +138,9 @@ ADAPTER_PORT_DOMAIN: Mapping[str, str] = {
     "host": "host",
     "components": "components",
     "execution": "execution",
+    # Genuine space reservation implements storage's own probe port, so it
+    # inherits storage's budget and cannot reach capacity or model.
+    "storage": "storage",
     "container": "execution",
     "runtime": "runtime",
     "model_source": "model",

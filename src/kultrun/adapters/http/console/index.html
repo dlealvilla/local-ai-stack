@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<!--
+  Kultrun Prototype Console.
+
+  A development and acceptance instrument, not the Admin UI. It contains no
+  product intelligence: every number, judgement and status below comes from
+  the Platform API of the running instance. If a panel is empty, the product
+  did not say anything — the console does not fill gaps in.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kultrun — Prototype Console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Kultrun <span class="muted">Prototype Console</span></h1>
+    <div class="modes">
+      <div id="mode" class="pill pill-unknown">mode…</div>
+      <div id="connection" class="pill pill-unknown">connecting…</div>
+    </div>
+  </header>
+
+  <main>
+    <section id="evidence-panel">
+      <h2>Evidence source</h2>
+      <p class="note" id="evidence-note"></p>
+      <div class="grid" id="evidence"></div>
+    </section>
+
+    <section id="build-panel">
+      <h2>Build</h2>
+      <div class="grid" id="build"></div>
+    </section>
+
+    <section id="progress-panel">
+      <h2>What works today</h2>
+      <p class="note">
+        Read from the running instance. Nothing here is aspirational: a
+        subsystem is listed as working only if its API answers.
+      </p>
+      <div id="progress" class="progress"></div>
+    </section>
+
+    <section id="capacity-panel">
+      <h2>Capacity</h2>
+      <p class="note">
+        <b>Reported</b> is what the source said, and it authorizes nothing.
+        <b>Effective</b> is what this deployment can actually use.
+        <b>Safe</b> is what Kultrun is willing to allocate — the only layer
+        that may authorize work.
+      </p>
+      <table id="capacity">
+        <thead>
+          <tr>
+            <th>Resource</th><th>Reported</th><th>Effective</th>
+            <th>Safe</th><th>Basis / reason</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="capacity-defects" class="defects"></div>
+      <details><summary>View JSON</summary><pre id="capacity-json"></pre></details>
+    </section>
+
+    <section id="sanity-panel">
+      <h2>Storage sanity</h2>
+      <p class="note">
+        Empirical evidence may confirm the policy bound or contradict it
+        downward. It never raises it. A check performs real storage work and
+        runs only when asked.
+      </p>
+      <div id="sanity"></div>
+    </section>
+
+    <section id="runtime-panel" class="hidden">
+      <h2>Runtime and execution</h2>
+      <div id="runtime"></div>
+      <details><summary>View JSON</summary><pre id="runtime-json"></pre></details>
+    </section>
+
+    <section id="host-panel">
+      <h2>Host</h2>
+      <div class="grid" id="host"></div>
+      <div id="host-conflicts" class="defects"></div>
+      <details><summary>View JSON</summary><pre id="host-json"></pre></details>
+    </section>
+
+    <section id="providers-panel">
+      <h2>Discovery providers</h2>
+      <table id="providers">
+        <thead><tr><th>Provider</th><th>Status</th><th>Observations</th><th>Detail</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <span id="footer-build" class="muted"></span>
+    <button id="refresh">Refresh</button>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -20,12 +20,11 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-from kultrun.adapters.host import hwloc, native_linux, nvidia
+from kultrun.adapters.host import fixtures, hwloc, native_linux, nvidia
 from kultrun.capacity.contracts import (
     CapacityEnvelope,
     EvidenceRequirement,
@@ -46,8 +45,9 @@ from kultrun.kernel.clock import FixedClock
 from kultrun.kernel.schema import from_dict, to_dict
 from kultrun.kernel.unresolved import Unresolved, is_resolved
 
-FIXTURES = Path(__file__).resolve().parent / "fixtures" / "hosts"
-REFERENCE = FIXTURES / "linux-x86_64-nvidia"
+#: The captured evidence now ships inside the package, because fixture
+#: replay is a product mode rather than only a test aid.
+REFERENCE = fixtures.root()
 INSTANT = dt.datetime(2026, 9, 5, 12, 0, tzinfo=dt.UTC)
 
 #: Short aliases so a fixture signature fits on one line.
@@ -74,9 +74,7 @@ def replayed() -> Host:
 @pytest.fixture(scope="module")
 def captured() -> Captured:
     """What Kultrun concluded on the day of acceptance."""
-    loaded: Captured = json.loads(
-        (REFERENCE / "normalized-host-capabilities.json").read_text()
-    )
+    loaded: Captured = fixtures.normalized()
     return loaded
 
 

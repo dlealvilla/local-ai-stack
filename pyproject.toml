@@ -24,6 +24,21 @@ packages = ["src/kultrun"]
 # though VCS ignores it. Without it the wheel builds fine and every deployed
 # instance silently reports itself as a source checkout.
 artifacts = ["src/kultrun/BUILD.json"]
+# Console assets are not Python, so they are named explicitly rather than
+# relied upon: a wheel that quietly shipped without them would serve a
+# blank page on a deployment target and nowhere else.
+include = [
+  "src/kultrun/adapters/http/console/*.html",
+  "src/kultrun/adapters/http/console/*.css",
+  "src/kultrun/adapters/http/console/*.js",
+  # Captured real-host evidence. Fixture replay is a product mode, so this
+  # is product data: an installed Kultrun runs its real logic against it and
+  # serves the result, which is what makes local development possible
+  # without renting hardware.
+  "src/kultrun/adapters/host/fixtures/*/*.json",
+  "src/kultrun/adapters/host/fixtures/*/*.xml",
+  "src/kultrun/adapters/host/fixtures/*/*.csv",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

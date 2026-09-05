@@ -15,11 +15,13 @@ import os
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
-from kultrun.adapters.host import hwloc, native_linux, nvidia
+from kultrun.adapters.host import fixtures, hwloc, native_linux, nvidia
 from kultrun.adapters.install import apt
 from kultrun.adapters.persistence import file_store
+from kultrun.adapters.storage import posix_reservation, replayed
 
 # Contract registration is a side effect of import, so the catalogue the
 # Platform API serves would otherwise list only whatever the control plane
@@ -37,6 +39,7 @@ from kultrun.components.contracts import ComponentNecessity, ComponentRequiremen
 from kultrun.entitlement import contracts as _entitlement_contracts  # noqa: F401
 from kultrun.evidence import contracts as _evidence_contracts  # noqa: F401
 from kultrun.host import contracts as _host_contracts  # noqa: F401
+from kultrun.host.contracts import HostCapabilities, MountFacts
 from kultrun.host.discovery import HostDiscoveryService
 from kultrun.host.inventory import HostInventory
 from kultrun.host.ports import HostDiscoveryProvider
@@ -45,6 +48,7 @@ from kultrun.install.preparation import ComponentProvisioner, Preparation
 from kultrun.kernel.build import identity as build_identity
 from kultrun.kernel.clock import Clock, SystemClock
 from kultrun.kernel.config import ConfigSchema, Configuration
+from kultrun.kernel.errors import ConfigError
 from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.registry import AdapterRegistry
@@ -65,6 +69,8 @@ from kultrun.platform.state import PlatformStateStore
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
 from kultrun.resource import contracts as _resource_contracts  # noqa: F401
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
+from kultrun.storage.contracts import StorageSanityEvidence
+from kultrun.storage.sanity import StorageSanityService
 from kultrun.training import contracts as _training_contracts  # noqa: F401
 
 PLATFORM_VERSION = "0.1.0"
@@ -153,6 +159,11 @@ class Platform:
     #: would follow the working directory, and durable state that moves when
     #: an operator changes directory is state that will eventually be lost.
     capacity: CapacityService
+    sanity: StorageSanityService
+    #: Whether the facts came from this machine or from captured evidence.
+    evidence_mode: EvidenceMode
+    #: The captured shape being replayed, when one is.
+    fixture_shape: str | None
     state_root: Path
     #: Whether the root was chosen rather than defaulted. An installed
     #: artifact that defaulted is warned about; it must not be silent.
@@ -174,6 +185,37 @@ class Platform:
 #: behaviour, which is a design decision rather than a fix — recorded as
 #: K-22 and deliberately deferred.
 STATE_ROOT_VARIABLE = "KULTRUN_STATE_ROOT"
+
+#: Names a captured host shape to replay instead of inspecting this machine.
+#:
+#: The default development mode, and the reason a rented GPU host is a
+#: laboratory rather than a home: the real parsers, normalization, capacity
+#: policy and sanity controller all run, against evidence captured from a
+#: machine that once existed. `docs/DEVELOPMENT_WORKFLOW.md`.
+FIXTURE_VARIABLE = "KULTRUN_FIXTURE"
+
+
+class EvidenceMode(StrEnum):
+    """Where the platform's facts are coming from.
+
+    Reported everywhere, because replayed evidence must never be mistaken
+    for a live machine. Evidence captured in September, describing a host
+    that has since been released, says nothing about anything running now.
+    """
+
+    LIVE_HOST = "live_host"
+    FIXTURE_REPLAY = "fixture_replay"
+
+
+def resolve_fixture(environment: Mapping[str, str] | None = None) -> str | None:
+    """Which captured shape to replay, if any. None means inspect this host."""
+    source = os.environ if environment is None else environment
+    named = source.get(FIXTURE_VARIABLE, "").strip()
+    if not named:
+        return None
+    if named in ("1", "true", "yes", "default"):
+        return fixtures.DEFAULT_SHAPE
+    return named
 
 
 def resolve_configuration(
@@ -216,6 +258,7 @@ def build(
     providers: Sequence[HostDiscoveryProvider] | None = None,
     requirements: Sequence[ComponentRequirement] | None = None,
     provisioners: Sequence[ComponentProvisioner] | None = None,
+    fixture: str | None = None,
 ) -> Platform:
     """Assemble the platform and run its startup path.
 
@@ -237,27 +280,60 @@ def build(
 
     # Preparation runs before discovery, never after: `host` observes what is
     # present and never asks for anything to be installed.
-    preparation = Preparation(
-        [HWLOC_REQUIREMENT] if requirements is None else requirements,
-        [apt.build()] if provisioners is None else provisioners,
-        clock=resolved_clock,
-        may_provision=settings.may_provision_components,
+    shape = fixture if fixture is not None else resolve_fixture()
+    if shape is not None and shape not in fixtures.available():
+        raise ConfigError(
+            "no such captured host shape",
+            requested=shape,
+            available=list(fixtures.available()),
+        )
+    mode = (
+        EvidenceMode.FIXTURE_REPLAY if shape else EvidenceMode.LIVE_HOST
     )
-    discovery = HostDiscoveryService(
-        [
+
+    if providers is not None:
+        resolved_providers: Sequence[HostDiscoveryProvider] = providers
+    elif shape is not None:
+        # The real parsers and the real normalization, against captured
+        # observations. Only the source of evidence is substituted.
+        resolved_providers = [
+            hwloc.replay(fixtures.hwloc_xml(shape), resolved_clock),
+            nvidia.replay(fixtures.nvidia_csv(shape), resolved_clock),
+            native_linux.replay(fixtures.native_capture(shape), resolved_clock),
+        ]
+    else:
+        resolved_providers = [
             hwloc.build(resolved_clock),
             nvidia.build(resolved_clock),
             native_linux.build(resolved_clock),
         ]
-        if providers is None
-        else providers,
+
+    # Replaying a shape must not provision anything on the machine doing the
+    # replaying: the component requirement belongs to the captured host.
+    preparation = Preparation(
+        ([] if shape else [HWLOC_REQUIREMENT])
+        if requirements is None
+        else requirements,
+        ([] if shape else [apt.build()]) if provisioners is None else provisioners,
         clock=resolved_clock,
+        may_provision=settings.may_provision_components and shape is None,
     )
+    discovery = HostDiscoveryService(resolved_providers, clock=resolved_clock)
     hosts = HostInventory(discovery, store)
     host_phase = _HostDiscoveryPhase(hosts)
     # Derived from host facts on every read, never stored: a persisted
     # envelope invites a stale number authorizing a present decision.
     capacity = CapacityService(clock=resolved_clock)
+    # The probe is wired in but never invoked by a read. Whether to spend
+    # real time and real bytes is an explicit action.
+    # Fixture replay never reserves real space. The ladder, budgets, stop
+    # reasons and interpretation are all the real implementation; only the
+    # reservation primitive is replaced.
+    sanity = StorageSanityService(
+        replayed.build() if shape else posix_reservation.build(resolved_clock),
+        store,
+        clock=resolved_clock,
+    )
 
     startup = Startup(resolved_clock)
     startup.register(StoreReconcilePhase(store))
@@ -281,6 +357,13 @@ def build(
         configuration=resolved_config,
         hosts=hosts,
         capacity=capacity,
+        sanity=sanity,
+        stored_sanity=lambda host: _stored_sanity_with(sanity, host),
+        pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
+        evidence_mode=mode.value,
+        fixture_shape=shape,
+        fixture_description=_describe_fixture(shape),
+        available_fixtures=fixtures.available(),
     )
     return Platform(
         router=register(Router(), plane),
@@ -290,6 +373,9 @@ def build(
         hosts=hosts,
         preparation=preparation,
         capacity=capacity,
+        sanity=sanity,
+        evidence_mode=mode,
+        fixture_shape=shape,
         state_root=state_root,
         state_root_configured=(
             settings.state_root != PlatformSettings().state_root
@@ -412,7 +498,7 @@ def show_host() -> int:
             f"version {resolution.resolved_version} from {resolution.source}"
         )
 
-    envelope = platform.capacity.compute(host)
+    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
     print(f"\ncapacity  policy {envelope.policy_version}")
     print(
         f"  memory       reported {_bytes(envelope.memory.reported_bytes)} | "
@@ -474,10 +560,153 @@ def _bytes(value: object) -> str:
     return f"{value} B"
 
 
-COMMANDS: dict[str, Callable[[], int]] = {
-    "version": show_version,
-    "host": show_host,
-    "serve": serve,
+def _describe_fixture(shape_id: str | None) -> dict[str, str] | None:
+    """What is honest to say about a replayed shape.
+
+    Flattened here rather than passed as an adapter type, so the API layer
+    reports it without importing an adapter.
+    """
+    if shape_id is None:
+        return None
+    shape = fixtures.SHAPES[shape_id]
+    return {
+        "shape_id": shape.shape_id,
+        "description": shape.description,
+        "captured": shape.captured,
+        "evidence_level": shape.evidence_level,
+        "deployment_profile": shape.deployment_profile,
+        "note": shape.note,
+    }
+
+
+def _fingerprint_of(hosts: HostInventory, mount_point: str) -> str | None:
+    """The pool fingerprint for a mount point, or None if it is not one."""
+    mount = next(
+        (m for m in hosts.current.mounts if m.mount_point == mount_point), None
+    )
+    return None if mount is None else _pool_fingerprint(mount)
+
+
+def _stored_sanity_with(
+    sanity: StorageSanityService, host: HostCapabilities
+) -> dict[str, StorageSanityEvidence]:
+    """Evidence already gathered, keyed by mount point. A lookup, never a probe."""
+    found: dict[str, StorageSanityEvidence] = {}
+    for mount in host.mounts:
+        evidence = sanity.evidence_for(
+            mount.mount_point,
+            host_fingerprint=host.fingerprint,
+            pool_fingerprint=_pool_fingerprint(mount),
+        )
+        if evidence is not None:
+            found[mount.mount_point] = evidence
+    return found
+
+
+def _stored_sanity(
+    platform: Platform, host: HostCapabilities
+) -> dict[str, StorageSanityEvidence]:
+    """Evidence already gathered, keyed by mount point.
+
+    A lookup, never a probe. Reading capacity must not be able to cause
+    filesystem work: the previous implementation put a search behind an
+    innocent-looking read and spent 48 minutes there.
+    """
+    return _stored_sanity_with(platform.sanity, host)
+
+
+def _pool_fingerprint(mount: MountFacts) -> str:
+    """Enough pool identity to stop evidence being reused for another pool.
+
+    Filesystem type and reported size: if either changes materially the
+    thing underneath the mount point is not what was measured.
+    """
+    total = mount.total_bytes if isinstance(mount.total_bytes, int) else 0
+    family = mount.filesystem_type if isinstance(mount.filesystem_type, str) else "?"
+    return f"{family}:{total}"
+
+
+def check_storage_sanity(arguments: Sequence[str]) -> int:
+    """Run a bounded storage sanity check on one pool.
+
+    Explicit by design. This reserves real space, and Kultrun has no
+    execution or job lifecycle yet — making it automatic would mean running
+    a long filesystem operation on a background thread, which is precisely
+    how the previous implementation orphaned a 42,990 MiB probe file. Stage
+    1.3 builds the seam that makes scheduling it safe.
+    """
+    if not arguments:
+        print("usage: kultrun storage sanity-check <mount-point>", file=sys.stderr)
+        return 2
+    mount_point = arguments[0]
+
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    pool = next(
+        (p for p in envelope.pools if p.mount_point == mount_point), None
+    )
+    if pool is None:
+        known = ", ".join(p.mount_point for p in envelope.pools) or "none"
+        print(
+            f"kultrun: {mount_point!r} is not a candidate storage pool "
+            f"(known: {known})",
+            file=sys.stderr,
+        )
+        return 2
+
+    target = pool.space.effective_bytes
+    if not isinstance(target, int) or target <= 0:
+        print(
+            f"kultrun: {mount_point} has no effective capacity to verify",
+            file=sys.stderr,
+        )
+        return 2
+
+    mount = next(m for m in host.mounts if m.mount_point == mount_point)
+    print(
+        f"reserving up to {_bytes(target)} on {mount_point} in "
+        f"{_bytes(platform.sanity.policy.chunk_bytes)} units; this performs "
+        f"real storage work"
+    )
+    evidence = platform.sanity.check(
+        mount_point,
+        policy_target_bytes=target,
+        host_fingerprint=host.fingerprint,
+        pool_fingerprint=_pool_fingerprint(mount),
+    )
+    print(f"\nstatus         {evidence.status.value}")
+    print(f"stopped        {evidence.stop_reason.value}")
+    print(f"policy target  {_bytes(evidence.policy_target_bytes)}")
+    print(f"verified up to {_bytes(evidence.verified_lower_bound_bytes)}")
+    print(f"failed at      {_bytes(evidence.observed_failure_upper_bytes)}")
+    print(f"reserved total {_bytes(evidence.total_reserved_bytes)}")
+    print(f"elapsed        {evidence.elapsed_seconds:.1f}s")
+    cleaned = "verified" if evidence.cleanup_verified else "NOT VERIFIED"
+    print(f"cleanup        {cleaned}")
+    print(f"orphans        {evidence.orphans_removed} removed before starting")
+    for attempt in evidence.attempts:
+        print(
+            f"  {_bytes(attempt.target_bytes):>10}  {attempt.outcome.value:16} "
+            f"{attempt.duration_seconds:6.2f}s  {attempt.detail or ''}"
+        )
+    return 0
+
+
+def _storage(arguments: Sequence[str]) -> int:
+    """The `storage` command group."""
+    if not arguments or arguments[0] != "sanity-check":
+        print("usage: kultrun storage sanity-check <mount-point>", file=sys.stderr)
+        return 2
+    return check_storage_sanity(arguments[1:])
+
+
+COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
+    "version": lambda _: show_version(),
+    "host": lambda _: show_host(),
+    "storage": _storage,
+    "serve": lambda _: serve(),
 }
 
 
@@ -498,7 +727,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"kultrun: unknown command {arguments[0]!r}", file=sys.stderr)
         print("usage: kultrun {" + ",".join(COMMANDS) + "}", file=sys.stderr)
         return 2
-    return command()
+    return command(arguments[1:])
 
 
 if __name__ == "__main__":  # pragma: no cover

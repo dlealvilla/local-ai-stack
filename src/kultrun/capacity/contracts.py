@@ -35,6 +35,7 @@ from kultrun.host.contracts import HostId
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import Contract, contract, meaning
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
+from kultrun.storage.contracts import SanityStatus
 
 
 class EvidenceType(StrEnum):
@@ -168,6 +169,11 @@ class HeadroomPolicy(Contract):
         "trusted: the alternative fails open, and any mount nobody had "
         "thought about would become a capacity claim"
     )
+    sanity_trigger_bytes: int = meaning(
+        "above this, an unbelievable reported size is worth verifying "
+        "empirically rather than merely bounding",
+        default=1024**4,
+    )
 
 
 @contract(kind="capacity.accelerator", version=1)
@@ -216,6 +222,21 @@ class PoolCapacity(Contract):
     )
     note: str | None = meaning(
         "why a layer is bounded or unresolved, when it is", default=None
+    )
+    sanity_check_required: bool = meaning(
+        "whether this pool's reported size is both unbelievable and large "
+        "enough to be worth verifying empirically. A flag, not an action: "
+        "reading capacity never probes a filesystem",
+        default=False,
+    )
+    sanity_status: SanityStatus = meaning(
+        "how empirical evidence stands against the policy decision",
+        default=SanityStatus.NOT_CHECKED,
+    )
+    sanity_verified_lower_bound_bytes: Maybe[int] = meaning(
+        "the largest amount a genuine reservation reached. Unresolved when "
+        "nothing has been verified, which is not the same as zero",
+        default=NOT_PROVIDED,
     )
 
 

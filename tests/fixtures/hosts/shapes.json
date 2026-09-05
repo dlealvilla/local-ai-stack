@@ -28,7 +28,7 @@
       "storage_shape": "overlay root plus a 2.15 PB FUSE network mount",
       "unified_memory": false,
       "fixture_available": true,
-      "fixture_path": "tests/fixtures/hosts/linux-x86_64-nvidia/",
+      "fixture_path": "src/kultrun/adapters/host/fixtures/linux-x86_64-nvidia-blackwell-rtxpro4500/",
       "fixture_boundaries": [
         "provider",
         "normalized"
@@ -86,7 +86,9 @@
         "accelerator": "reported 31.9 GiB -> safe 23.9 GiB, one assigned of four visible",
         "workspace_pool": "reported 507.8 TiB -> effective 64.0 GiB -> safe 57.6 GiB",
         "method": "installed artifact, policy only, no probing"
-      }
+      },
+      "shipped_in_wheel": true,
+      "shipped_note": "fixture replay is a product mode: an installed Kultrun runs its real logic against this evidence and serves the result, so the evidence ships in the wheel rather than living only in tests"
     },
     {
       "shape_id": "darwin-arm64-apple-silicon",

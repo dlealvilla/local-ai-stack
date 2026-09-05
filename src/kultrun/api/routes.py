@@ -11,6 +11,7 @@ adding one costs a handful of lines against a table that already exists.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from kultrun.api.contracts import ApiRequest
@@ -22,13 +23,19 @@ from kultrun.host.inventory import HostInventory
 from kultrun.host.profile import shape_of
 from kultrun.kernel.build import identity as build_identity
 from kultrun.kernel.config import Configuration
-from kultrun.kernel.errors import NotFoundError, PreconditionFailedError
+from kultrun.kernel.errors import (
+    NotFoundError,
+    PreconditionFailedError,
+    ValidationError,
+)
 from kultrun.kernel.schema import registered_contracts
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.startup import Startup
 from kultrun.platform.state import PlatformStateStore
+from kultrun.storage.contracts import StorageSanityEvidence
+from kultrun.storage.sanity import StorageSanityService, summarize
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +54,21 @@ class ControlPlane:
     configuration: Configuration
     hosts: HostInventory
     capacity: CapacityService
+    sanity: StorageSanityService
+    #: How the control plane turns host mounts into stored sanity evidence.
+    #: Injected rather than computed here so `api` does not acquire storage
+    #: logic; the composition root owns the wiring.
+    stored_sanity: Callable[[HostCapabilities], dict[str, StorageSanityEvidence]]
+    pool_fingerprint: Callable[[str], str | None]
+    #: Whether the facts came from this machine or from captured evidence.
+    evidence_mode: str
+    #: The captured shape being replayed, when one is.
+    fixture_shape: str | None
+    #: What is honest to say about that shape. Injected by the composition
+    #: root: only `main` may import an adapter, and which shapes exist is an
+    #: adapter's knowledge rather than the API's.
+    fixture_description: Mapping[str, str] | None
+    available_fixtures: tuple[str, ...]
 
 
 def register(router: Router, plane: ControlPlane) -> Router:
@@ -155,6 +177,93 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "acceptable_as_evidence": identity.acceptable_as_evidence,
         }
 
+    def mode(_: ApiRequest) -> dict[str, object]:
+        """Where this instance's facts come from.
+
+        The console shows this prominently, and it is the reason it can:
+        replayed evidence describes a machine that has since been released,
+        so presenting it as live would be a lie the product told itself
+        first. Every consumer gets the same answer from the same place.
+        """
+        replaying = plane.fixture_shape is not None
+        return {
+            "evidence_mode": plane.evidence_mode,
+            "physical_host_connected": not replaying,
+            "storage_evidence_kind": (
+                "replayed_test_evidence"
+                if replaying
+                else "live_empirical_verification"
+            ),
+            "fixture": dict(plane.fixture_description)
+            if plane.fixture_description
+            else None,
+            "available_fixtures": list(plane.available_fixtures),
+        }
+
+    def storage_sanity(_: ApiRequest) -> dict[str, object]:
+        """Empirical storage evidence, and the probe policy behind it.
+
+        A read. It reports what has been established and never establishes
+        anything: a capacity read that allocated storage is the previous
+        implementation's mistake with a new name.
+        """
+        policy = plane.sanity.policy
+        return {
+            "evidence": summarize(plane.sanity.all_evidence()),
+            "policy": {
+                "version": policy.version,
+                "first_checkpoint_bytes": policy.first_checkpoint_bytes,
+                "growth_factor": policy.growth_factor,
+                "max_checkpoints": policy.max_checkpoints,
+                "chunk_bytes": policy.chunk_bytes,
+                "time_budget_seconds": policy.time_budget_seconds,
+                "work_budget_bytes": policy.work_budget_bytes,
+            },
+            "method": "explicit action only; never triggered by a read",
+            "evidence_kind": (
+                "replayed_test_evidence"
+                if plane.fixture_shape is not None
+                else "live_empirical_verification"
+            ),
+        }
+
+    def run_storage_sanity(request: ApiRequest) -> StorageSanityEvidence:
+        """Run a bounded sanity check on one pool. **POST only.**
+
+        The one mutation the console offers. It reserves real space, so it
+        is unreachable by GET and therefore cannot be triggered by loading
+        or refreshing a page.
+        """
+        mount_point = request.query.get("mount_point", "").strip()
+        if not mount_point:
+            raise ValidationError(
+                "a mount point is required", parameter="mount_point"
+            )
+        host = plane.hosts.current
+        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        pool = next(
+            (p for p in envelope.pools if p.mount_point == mount_point), None
+        )
+        if pool is None:
+            raise NotFoundError(
+                "no such candidate storage pool",
+                mount_point=mount_point,
+                known=[p.mount_point for p in envelope.pools],
+            )
+        target = pool.space.effective_bytes
+        fingerprint = plane.pool_fingerprint(mount_point)
+        if not isinstance(target, int) or target <= 0 or fingerprint is None:
+            raise ValidationError(
+                "this pool has no effective capacity to verify",
+                mount_point=mount_point,
+            )
+        return plane.sanity.check(
+            mount_point,
+            policy_target_bytes=target,
+            host_fingerprint=host.fingerprint,
+            pool_fingerprint=fingerprint,
+        )
+
     def capacity(_: ApiRequest) -> CapacityEnvelope:
         """What this host can safely give, with all three layers visible.
 
@@ -164,14 +273,18 @@ def register(router: Router, plane: ControlPlane) -> Router:
         a single number would hide exactly the distinction that keeps the
         platform safe.
         """
-        return plane.capacity.compute(plane.hosts.current)
+        host = plane.hosts.current
+        return plane.capacity.compute(host, plane.stored_sanity(host))
 
     def capacity_policy(_: ApiRequest) -> HeadroomPolicy:
         """The headroom policy in force, so a decision stays explicable."""
         return plane.capacity.policy
 
     router.get("/capacity", capacity)
+    router.get("/storage/sanity", storage_sanity)
+    router.post("/storage/sanity-check", run_storage_sanity)
     router.get("/capacity/policy", capacity_policy)
+    router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)
     router.get("/host", host)
