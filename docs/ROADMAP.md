@@ -981,6 +981,14 @@ reference host; the contract must not encode that.
 
 ### Stage 2.2 — Empirical evidence
 
+**Design record:** `docs/design/EMPIRICAL-STORAGE-CHARACTERIZATION.md`,
+extracted from the previous implementation. Read it before implementing:
+it records the allocation primitive that actually works
+(`posix_fallocate`, never a sparse `truncate`), why network filesystems
+report zero allocated blocks after a successful reservation, the
+bounds-not-a-number result semantics, and the 48-minute search that
+produced decision-bounded characterization. **Not Stage 1.2.**
+
 `StorageEvidence` and immutable `EmpiricalProbeEvidence`, keyed by pool
 and host fingerprint, probe implementation version and policy version.
 

@@ -90,10 +90,20 @@ fix. `docs/DEVELOPMENT_WORKFLOW.md` holds the mechanics. Stage 1.1 was the
 last stage accepted from a source tree and remains accepted as historical
 evidence.
 
+**Testing is layered rather than hardware-hungry.**
+`docs/TESTING_STRATEGY.md` defines six test modes and states which domains
+genuinely need real hardware. CI runs architecture laws, the full suite, the
+Stage 1.1 real-hardware fixture replay, lint, types, a wheel build and a
+clean isolated install on every change, none of it needing an accelerator. A
+GPU host is created only for bounded acceptance work that requires real
+hardware, and released afterwards.
+
 **Next is Stage 1.2 — capacity:** the reported / effective / safe
-three-layer model. The reference host reports a 2.15 PB network mount, which
-is the previous attempt's "239 TB free" trap in a new costume and is
-committed as a fixture precisely so 1.2 can prove it refuses to believe it.
+three-layer model, brief at `STAGE-1.2-capacity.md`. The reference host
+reports a 2.15 PB network mount, which is the previous attempt's "239 TB
+free" trap in a new costume and is committed as a fixture precisely so 1.2
+can prove it refuses to believe it. Most of the stage is developed against
+that fixture with no host at all.
 
 From there to the Milestone 1 gate — a real request reaching a real model
 and returning an answer — every claim is checked against hardware. That gate
