@@ -336,6 +336,100 @@
     },
     "python": "CapacityEvidence"
   },
+  "components.requirement@1": {
+    "fields": {
+      "component": {
+        "may_be_unresolved": false,
+        "meaning": "what is needed, as a stable name",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "minimum_version": {
+        "may_be_unresolved": true,
+        "meaning": "lowest acceptable version; unresolved means any version will do",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "necessity": {
+        "may_be_unresolved": false,
+        "meaning": "whether Kultrun can proceed without it",
+        "nullable": false,
+        "optional": false,
+        "type": "ComponentNecessity"
+      },
+      "probe_command": {
+        "may_be_unresolved": false,
+        "meaning": "how presence is checked, which is an implementation hint rather than part of the requirement",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "purpose": {
+        "may_be_unresolved": false,
+        "meaning": "why it is needed, so a reader can judge whether it still is",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "ComponentRequirement"
+  },
+  "components.resolution@1": {
+    "fields": {
+      "component": {
+        "may_be_unresolved": false,
+        "meaning": "which component this concerns",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "detail": {
+        "may_be_unresolved": false,
+        "meaning": "what went wrong, when something did",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "how the requirement was met, or was not",
+        "nullable": false,
+        "optional": false,
+        "type": "ResolutionOutcome"
+      },
+      "resolved_at": {
+        "may_be_unresolved": false,
+        "meaning": "when resolution ran, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "resolved_version": {
+        "may_be_unresolved": true,
+        "meaning": "the version now available; unresolved when nothing is",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "source": {
+        "may_be_unresolved": true,
+        "meaning": "where it came from, so the result is reproducible",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "verified": {
+        "may_be_unresolved": false,
+        "meaning": "whether the component was confirmed to run after resolution; installing is not the same as working",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      }
+    },
+    "python": "ComponentResolution"
+  },
   "config.platform@1": {
     "fields": {
       "api_address": {
@@ -351,6 +445,13 @@
         "nullable": false,
         "optional": true,
         "type": "int"
+      },
+      "may_provision_components": {
+        "may_be_unresolved": false,
+        "meaning": "whether Kultrun may install a missing platform component; an administrator may forbid it, and preparation then reports the component unavailable rather than acting",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
       },
       "state_root": {
         "may_be_unresolved": false,
@@ -611,6 +712,13 @@
         "optional": true,
         "type": "tuple[Accelerator, ...]"
       },
+      "conflicts": {
+        "may_be_unresolved": false,
+        "meaning": "paths where providers disagreed; those values are unresolved",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ObservationConflict, ...]"
+      },
       "cpu": {
         "may_be_unresolved": false,
         "meaning": "processor facts",
@@ -673,6 +781,27 @@
         "nullable": false,
         "optional": false,
         "type": "OperatingEnvironment"
+      },
+      "profile": {
+        "may_be_unresolved": false,
+        "meaning": "how much Kultrun knows about this host shape, earned from the acceptance level reached on it",
+        "nullable": false,
+        "optional": true,
+        "type": "DeploymentProfile"
+      },
+      "provenance": {
+        "may_be_unresolved": false,
+        "meaning": "where each normalized value came from, by path",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[FieldProvenance, ...]"
+      },
+      "provider_reports": {
+        "may_be_unresolved": false,
+        "meaning": "which providers were consulted, and how each fared",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ProviderReport, ...]"
       }
     },
     "python": "HostCapabilities"
@@ -735,6 +864,46 @@
       }
     },
     "python": "ExecutionCapabilities"
+  },
+  "host.field_provenance@1": {
+    "fields": {
+      "accepted_from": {
+        "may_be_unresolved": false,
+        "meaning": "whose value was used",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "how much weight the accepted value carries",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "derivation": {
+        "may_be_unresolved": false,
+        "meaning": "how the accepted value was obtained",
+        "nullable": false,
+        "optional": false,
+        "type": "Derivation"
+      },
+      "path": {
+        "may_be_unresolved": false,
+        "meaning": "the capability this describes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "providers": {
+        "may_be_unresolved": false,
+        "meaning": "every provider that reported this path, in consultation order",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[Name, ...]"
+      }
+    },
+    "python": "FieldProvenance"
   },
   "host.memory@1": {
     "fields": {
@@ -828,6 +997,65 @@
     },
     "python": "NetworkFacts"
   },
+  "host.observation@1": {
+    "fields": {
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "how much weight it carries",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "derivation": {
+        "may_be_unresolved": false,
+        "meaning": "how the provider obtained it",
+        "nullable": false,
+        "optional": false,
+        "type": "Derivation"
+      },
+      "path": {
+        "may_be_unresolved": false,
+        "meaning": "the capability this concerns, as a dotted path such as 'cpu.physical_cores' or 'accelerator.0000:82:00.0.memory_total_bytes'",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "value": {
+        "may_be_unresolved": false,
+        "meaning": "what the provider reported, JSON-safe",
+        "nullable": true,
+        "optional": false,
+        "type": "JsonValue"
+      }
+    },
+    "python": "Observation"
+  },
+  "host.observation_conflict@1": {
+    "fields": {
+      "observations": {
+        "may_be_unresolved": false,
+        "meaning": "every competing observation, with its provenance intact",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[Observation, ...]"
+      },
+      "path": {
+        "may_be_unresolved": false,
+        "meaning": "the capability they disagreed about",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "resolution": {
+        "may_be_unresolved": false,
+        "meaning": "the field-specific rule that settled it, when one applied; absent means the value is unresolved",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      }
+    },
+    "python": "ObservationConflict"
+  },
   "host.operating_environment@1": {
     "fields": {
       "architecture": {
@@ -836,6 +1064,13 @@
         "nullable": false,
         "optional": false,
         "type": "Architecture"
+      },
+      "distribution": {
+        "may_be_unresolved": true,
+        "meaning": "the distribution or product identifier, where one applies; distinct from the family because two providers reporting 'linux' and 'ubuntu' for one field would look like a disagreement",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "kernel_version": {
         "may_be_unresolved": true,
@@ -846,7 +1081,7 @@
       },
       "os_name": {
         "may_be_unresolved": false,
-        "meaning": "operating system, normalized",
+        "meaning": "operating system family, normalized: 'linux', 'darwin', 'windows'. The family is what capability branching keys on; the distribution is a separate fact",
         "nullable": false,
         "optional": false,
         "type": "str"
@@ -867,6 +1102,53 @@
       }
     },
     "python": "OperatingEnvironment"
+  },
+  "host.provider_report@1": {
+    "fields": {
+      "detail": {
+        "may_be_unresolved": false,
+        "meaning": "why it was unavailable or what it could not answer",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "observations": {
+        "may_be_unresolved": false,
+        "meaning": "what it reported; empty is valid",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[Observation, ...]"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it ran, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "provider": {
+        "may_be_unresolved": false,
+        "meaning": "which provider this is",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "provider_version": {
+        "may_be_unresolved": true,
+        "meaning": "the provider's own version, so an observation is reproducible",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "how it fared",
+        "nullable": false,
+        "optional": false,
+        "type": "ProviderStatus"
+      }
+    },
+    "python": "ProviderReport"
   },
   "identity.access_context@1": {
     "fields": {

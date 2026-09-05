@@ -1,0 +1,132 @@
+{
+  "stage": "1.1",
+  "name": "host-discovery",
+  "milestone": 1,
+  "output": "HostCapabilities v1 + DeploymentProfile v1 + HostDiscoveryProvider",
+  "status": "closed",
+  "acceptance": {
+    "level": "L2",
+    "required": "L2",
+    "real_host": true,
+    "checks_passed": 14,
+    "checks_total": 14,
+    "local_tests": 313,
+    "ruff": "clean",
+    "mypy": "strict clean, 91 files"
+  },
+  "reference_host": {
+    "distribution": "Ubuntu 24.04.3 LTS",
+    "kernel": "6.8.0-106-generic",
+    "architecture": "x86_64",
+    "containerized": true,
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "cpu_physical_cores": 64,
+    "cpu_logical_cores": 128,
+    "memory_total_bytes": 270055956480,
+    "accelerators": [
+      {
+        "vendor": "nvidia",
+        "model": "NVIDIA RTX PRO 4500 Blackwell",
+        "memory_total_bytes": 34207694848,
+        "driver": "580.126.20",
+        "pci": "0000:82:00.0"
+      }
+    ],
+    "accelerators_present_on_bus": 4,
+    "accelerators_assigned": 1,
+    "fingerprint": "4d4efedb286baa4beccba3601cb11c70",
+    "deployment_profile": "compatible",
+    "shape": "linux/x86_64/nvidia"
+  },
+  "providers": [
+    {
+      "name": "hwloc",
+      "version": "2.10.0",
+      "source": "apt",
+      "reports_accelerator_assignment": false,
+      "answers": [
+        "cpu topology",
+        "cores",
+        "numa",
+        "caches",
+        "total memory",
+        "pci tree"
+      ],
+      "gaps": [
+        "accelerator memory",
+        "driver version",
+        "os release",
+        "mounts"
+      ]
+    },
+    {
+      "name": "nvidia",
+      "source": "nvidia-smi",
+      "reports_accelerator_assignment": true,
+      "answers": [
+        "accelerator identity",
+        "memory",
+        "driver",
+        "assignment"
+      ],
+      "gaps": [
+        "non-NVIDIA devices"
+      ]
+    },
+    {
+      "name": "native-linux",
+      "source": "stdlib",
+      "reports_accelerator_assignment": false,
+      "answers": [
+        "os release",
+        "distribution",
+        "available memory",
+        "mounts",
+        "occupied ports"
+      ],
+      "gaps": [
+        "topology",
+        "accelerators"
+      ]
+    }
+  ],
+  "preparation": {
+    "mechanism": "apt",
+    "component": "hwloc",
+    "provisioning_proven": true,
+    "reuse_proven": true,
+    "note": "hwloc was removed from the host and the run repeated, so the product provisioned it rather than finding it"
+  },
+  "findings_from_real_hardware": [
+    "PCI enumeration reported 4 NVIDIA devices where 1 was assigned to this container; believing it would have claimed ~128 GiB of accelerator memory where 32 GiB exists",
+    "An ASPEED management VGA (1a03) was counted as an accelerator; on a CPU-only host this would have produced a phantom accelerator",
+    "A tmpfs at /run/nvidia-ctk-hook<uuid> made the host fingerprint unstable across container restarts, which would have prevented Milestone 2 from ever reusing cached evidence"
+  ],
+  "architecture_finding": "platform's HealthSource and ReconcilePhase ports live at tier 8 and are only directly implementable above tier 8; lower domains report facts and the composition root grades them",
+  "fixtures": {
+    "path": "tests/fixtures/hosts/linux-x86_64-nvidia/",
+    "provider": [
+      "provider-hwloc.xml",
+      "provider-nvidia.csv",
+      "provider-native-linux.json"
+    ],
+    "normalized": "normalized-host-capabilities.json",
+    "sanitized": true,
+    "derived_from_one_reading": true
+  },
+  "debt_added": [
+    "K-13",
+    "K-14",
+    "K-15",
+    "K-16",
+    "K-17",
+    "K-18",
+    "K-19"
+  ],
+  "not_captured": {
+    "apple_silicon": "DC-01, no host available, non-blocking",
+    "cpu_only": "DC-02, covered only by the ASPEED regression test"
+  },
+  "predecessor_commit": "2bac994f9c5544e2ddc55a63fb44aa869ed6b22c",
+  "next": "1.2 \u2014 capacity: the reported / effective / safe three-layer model"
+}

@@ -77,10 +77,12 @@ class TestTheRealTree:
         assert violations(scan(SOURCE_ROOT)) == []
 
     def test_nothing_in_the_core_imports_an_adapter(self) -> None:
+        """Only the composition root. An adapter may still use its own tier."""
         offenders = [
             e.describe()
             for e in scan(SOURCE_ROOT)
-            if e.target_package == "adapters" and e.source_package != "main"
+            if e.target_package == "adapters"
+            and e.source_package not in ("main", "adapters")
         ]
         assert offenders == []
 

@@ -5,7 +5,7 @@
 Brief in the format of `docs/ROADMAP.md` Part V. The output package is
 appended when the stage closes.
 
-Status: **BRIEF — not yet implemented. Requires real hosts to close.**
+Status: **CLOSED.** `L2` acceptance passed on the reference host, 14/14.
 
 > Revised twice. First, discovery became a **provider architecture** rather
 > than a Kultrun-written detector: mature tooling observes, Kultrun
@@ -545,4 +545,168 @@ Expected:
 
 ## OUTPUT PACKAGE
 
-*To be completed when the stage closes, on real hardware.*
+**Output:** `HostCapabilities v1 + DeploymentProfile v1 + HostDiscoveryProvider` ·
+**Acceptance:** `L2`, 14/14 on the reference host · 313 tests ·
+**Checkpoint:** `checkpoints/STAGE-1.1-host-discovery.json`
+
+### The reference host
+
+Rented at random, which was the point — nothing about it was assumed.
+
+| | |
+|---|---|
+| Distribution | Ubuntu 24.04.3 LTS, kernel 6.8.0-106-generic |
+| Architecture | x86_64, containerized |
+| CPU | AMD EPYC 7763, 64 cores / 128 threads, 1 socket, 8 L3 caches, 1 NUMA node |
+| Memory | 251.5 GiB total |
+| Accelerator | 1 × NVIDIA RTX PRO 4500 Blackwell, 31.9 GiB, driver 580.126.20, PCI `0000:82:00.0` |
+| Storage | `/` overlay 30 GiB; `/workspace` fuse network mount, **2.15 PB** |
+| Fingerprint | `4d4efedb286baa4beccba3601cb11c70` |
+
+An AMD CPU with an NVIDIA accelerator, which was useful by accident: it
+exercised the fact that accelerator vendor and CPU vendor are unrelated.
+
+### The spike, and what it settled
+
+hwloc 2.10.0 from Ubuntu's `apt`. Exit condition met on all five points, and
+provider exploration stopped there.
+
+| Provider | Answers | Does not |
+|---|---|---|
+| **hwloc** | CPU vendor and model, cores, threads, caches, NUMA, total memory, the PCI tree | accelerator memory, driver version, OS release, mounts |
+| **nvidia** | accelerator identity, memory, driver, and **which devices are assigned here** | anything not NVIDIA |
+| **native-linux** | OS release, distribution, available memory, mounts, occupied ports | topology, accelerators |
+
+The Ubuntu hwloc build ships no NVML or CUDA plugin, so an NVIDIA device
+appears as a PCI entry with DRM render nodes and nothing about its memory.
+That is the measured gap the vendor supplement closes, and it is the reason
+the shape is "general provider plus supplement" rather than one tool.
+
+**No demonstrated need for Kultrun to write commodity enumeration.** Three
+mature sources answered everything Stage 1.2 requires, and the only code
+Kultrun wrote was normalization — which is the part that is ours.
+
+### Three findings that only real hardware could produce
+
+Each of these passed every local test before the host found it.
+
+**1. PCI enumeration overcounts accelerators in a container.** hwloc found
+four NVIDIA devices on the bus; one was assigned to this container. Believing
+the enumeration would have claimed roughly 128 GiB of accelerator memory
+where 32 GiB exists — a capacity error large enough to make every subsequent
+admission decision wrong, and invisible to a unit test.
+
+This is what justifies the single field-specific reconciliation rule:
+accelerator presence comes from a provider that reports device *assignment*,
+declared through `reports_accelerator_assignment` rather than by naming a
+vendor. The three unassigned devices are kept as conflict evidence, because
+an operator asking "why only one GPU" needs to see that three others exist
+physically.
+
+**2. Not every display controller is an accelerator.** The host carries an
+ASPEED management VGA (`1a03`), as most servers do. Mapping PCI display class
+to "accelerator" gave it a phantom accelerator entry with unknown vendor and
+unknown memory. On a **CPU-only** host — a shape we care about and did not
+test here — that would have produced one phantom accelerator with nothing
+behind it. hwloc now asserts an accelerator only for a recognised accelerator
+vendor; other display devices remain in the raw fixture.
+
+**3. Mount identity was a worse volatility trap than free space.** The host
+mounts a tmpfs at `/run/nvidia-ctk-hook<random-uuid>`, and that UUID changes
+on every container start. A mount point is a **fingerprint input**, so the
+host fingerprint would have changed on every restart — and the fingerprint is
+the key by which Milestone 2 judges cached evidence reusable. Nothing would
+ever have been reused, and the cause would have been almost undiagnosable.
+
+Free space was the obvious trap and the brief already excluded it. This one
+arrived through the identity of the mount rather than its contents. Mounts
+are now filtered to candidate storage locations, which on this host leaves
+exactly `/` and `/workspace`.
+
+### Architecture
+
+**The harness caught a real violation in my own code.** `host/inventory.py`
+imported `platform.contracts` to produce health and phase reports — tier 2
+reaching tier 8. That exposed something worth recording: **`platform`'s ports
+are only directly implementable by tiers above 8.** Every lower domain must
+be adapted.
+
+Rather than move contracts or add a position, the domain now **reports facts**
+— which providers answered, what changed — and the composition root grades
+them into a `PhaseReport` and a `ComponentHealth`. That is the same division
+the record store already uses, and it is arguably better: whether a missing
+provider makes the platform "degraded" depends on the whole platform's state,
+which is not knowable from inside one subsystem. `docs/ARCHITECTURE.md` is
+updated to say so.
+
+Everything else held. No concrete technology appears in a core module, contract
+field or signature; a test asserts that literally. Law 5 keeps all three
+providers inside tier 2's budget, so none can reach `model`, `planning`,
+`resource`, `runtime` or `inference`. Provider handles never became identity —
+devices are keyed by PCI bus address, and the two tools' different spellings
+of the same address are reconciled inside the adapter.
+
+### Preparation
+
+`hwloc` was **removed from the host** and the run repeated, so provisioning
+was genuinely exercised rather than observed: `provisioned version=2.10.0
+source=apt`. The following run reported `already_present`, proving reuse. On
+a metered host, a platform that reinstalled its dependencies on every start
+would also be paying to do it.
+
+Discovery never installs anything. A provider reports available, unavailable,
+failed, partially capable or missing a prerequisite; `install` acts.
+
+### Fixtures
+
+Both boundaries, captured from **one reading**. The first attempt captured
+them independently and free space moved between the two reads, making the
+pair inconsistent — so the normalized fixture is now derived from exactly the
+provider output that was saved.
+
+| Fixture | Catches |
+|---|---|
+| `provider-hwloc.xml` (112 KiB) | topology parsing, and a change in what hwloc reports |
+| `provider-nvidia.csv` | vendor CSV parsing and bus-address normalization |
+| `provider-native-linux.json` | OS release, memory and mount reading |
+| `normalized-host-capabilities.json` | what Kultrun *concluded* from unchanged input |
+
+Sanitized: the pod container id and the storage provider's endpoint were
+replaced with placeholders, and distribution boilerplate URLs dropped. Every
+hardware-relevant fact is intact, and no fingerprint input was altered — which
+the first sanitization pass got wrong and the fixture test caught.
+
+### Acceptance evidence
+
+`L2`, 14/14 on the reference host, covering all ten points the brief
+requires plus mount filtering and fingerprint stability. 313 local tests,
+ruff clean, mypy strict clean across 91 files.
+
+The test worth naming: **discovery completes with the vendor tool absent.**
+That is the one that proves absence is a state rather than a crash, and it is
+what will let an AMD or CPU-only host be described before any provider exists
+for it.
+
+### Deployment profile
+
+The reference shape — `linux/x86_64/nvidia` — earned **`COMPATIBLE`**.
+Detection and normalization are real; inference is not, so it is not
+`SUPPORTED`. It becomes `SUPPORTED` at Stage 1.6 and `CERTIFIED` at the
+Milestone 1 gate.
+
+Every other shape remains `EXPERIMENTAL`. One validated NVIDIA host does not
+certify NVIDIA.
+
+### Non-blocking shapes: not captured
+
+Apple Silicon and CPU-only were not captured. Both remain `DC-01` and `DC-02`
+with their revisit triggers unchanged. Honest cost: the CPU-only path is
+tested only through the ASPEED regression above, not against real hardware,
+and finding 2 shows that is exactly where a false accelerator would hide.
+
+### What this stage does not do
+
+No capacity interpretation — reported facts only, and the 2.15 PB mount is
+reported precisely so Stage 1.2 can refuse to believe it. No storage pools,
+no model work, no runtime, no inference, no container execution, no AMD or
+Intel provider, no generalized provisioning.

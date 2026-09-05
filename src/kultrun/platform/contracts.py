@@ -198,3 +198,9 @@ class PlatformSettings(Contract):
         default="127.0.0.1",
     )
     api_port: int = meaning("port the Platform API binds to", default=8420)
+    may_provision_components: bool = meaning(
+        "whether Kultrun may install a missing platform component; an "
+        "administrator may forbid it, and preparation then reports the "
+        "component unavailable rather than acting",
+        default=True,
+    )

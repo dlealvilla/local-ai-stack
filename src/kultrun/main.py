@@ -11,9 +11,12 @@ way to prove the seams were real before there was a program to run.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from kultrun.adapters.host import hwloc, native_linux, nvidia
+from kultrun.adapters.install import apt
 from kultrun.adapters.persistence import file_store
 
 # Contract registration is a side effect of import, so the catalogue the
@@ -27,19 +30,31 @@ from kultrun.api.router import Router
 from kultrun.api.routes import ControlPlane, register
 from kultrun.audit import contracts as _audit_contracts  # noqa: F401
 from kultrun.capacity import contracts as _capacity_contracts  # noqa: F401
+from kultrun.components.contracts import ComponentNecessity, ComponentRequirement
 from kultrun.entitlement import contracts as _entitlement_contracts  # noqa: F401
 from kultrun.evidence import contracts as _evidence_contracts  # noqa: F401
 from kultrun.host import contracts as _host_contracts  # noqa: F401
+from kultrun.host.discovery import HostDiscoveryService
+from kultrun.host.inventory import HostInventory
+from kultrun.host.ports import HostDiscoveryProvider
 from kultrun.inference import contracts as _inference_contracts  # noqa: F401
+from kultrun.install.preparation import ComponentProvisioner, Preparation
 from kultrun.kernel.clock import Clock, SystemClock
 from kultrun.kernel.config import ConfigSchema, Configuration
+from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.registry import AdapterRegistry
 from kultrun.kernel.schema import validate_registry
 from kultrun.knowledge import contracts as _knowledge_contracts  # noqa: F401
 from kultrun.model import contracts as _model_contracts  # noqa: F401
 from kultrun.platform.approval import ApprovalLog
-from kultrun.platform.contracts import PlatformSettings, StartupReport
+from kultrun.platform.contracts import (
+    ComponentHealth,
+    HealthStatus,
+    PhaseReport,
+    PlatformSettings,
+    StartupReport,
+)
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
@@ -51,6 +66,75 @@ from kultrun.training import contracts as _training_contracts  # noqa: F401
 PLATFORM_VERSION = "0.1.0"
 
 
+#: The one component Stage 1.1 requires. Stated here, in the composition
+#: root, because which discovery tooling Kultrun prefers is a build-time
+#: choice rather than something `host` should know: the domain reports that a
+#: provider was unavailable and never asks for it to be installed.
+HWLOC_REQUIREMENT = ComponentRequirement(
+    component=Name("hwloc"),
+    necessity=ComponentNecessity.REQUIRED,
+    purpose=(
+        "general host topology discovery: CPU, cores, NUMA, memory and the "
+        "PCI tree. Preferred initial provider; not a core dependency"
+    ),
+    minimum_version="2.0",
+    probe_command="hwloc-info",
+)
+
+
+class _HostDiscoveryPhase:
+    """Adapts `host` to the control plane's startup port.
+
+    `platform` declares `ReconcilePhase` at tier 8, so a tier-2 domain cannot
+    implement it directly without importing upward. The domain therefore
+    reports facts and this adapter grades them — which is where grading
+    belongs anyway, since "degraded" depends on the whole platform's state
+    rather than on one subsystem's view of itself.
+    """
+
+    phase = Name("host-discovery")
+    component = Name("host-discovery")
+
+    def __init__(self, inventory: HostInventory) -> None:
+        self._inventory = inventory
+
+    def reconcile(self) -> PhaseReport:
+        try:
+            outcome = self._inventory.establish()
+        except Exception as error:
+            return PhaseReport(
+                phase=self.phase,
+                succeeded=False,
+                detail=f"host discovery failed: {error}",
+            )
+        # As with preparation: the phase ran. A host that could not be
+        # observed is a defect and a degraded health report, not a refusal
+        # to start — the Platform API is the only surface an administrator
+        # has for finding out why.
+        return PhaseReport(
+            phase=self.phase,
+            succeeded=True,
+            detail=f"{outcome.change.value}: {outcome.detail}",
+            defects=self._inventory.defects(),
+        )
+
+    def check_health(self) -> ComponentHealth:
+        if not self._inventory.is_loaded:
+            return ComponentHealth(
+                component=self.component,
+                status=HealthStatus.UNKNOWN,
+                detail="host discovery has not run",
+            )
+        unavailable = self._inventory.unavailable_providers()
+        if unavailable:
+            return ComponentHealth(
+                component=self.component,
+                status=HealthStatus.DEGRADED,
+                detail=f"providers unavailable: {', '.join(unavailable)}",
+            )
+        return ComponentHealth(component=self.component, status=HealthStatus.HEALTHY)
+
+
 @dataclass(frozen=True, slots=True)
 class Platform:
     """An assembled, started platform."""
@@ -59,6 +143,8 @@ class Platform:
     plane: ControlPlane
     settings: PlatformSettings
     startup_report: StartupReport
+    hosts: HostInventory
+    preparation: Preparation
 
     def call(self, request: ApiRequest) -> ApiResponse:
         """Invoke the Platform API without a transport."""
@@ -84,6 +170,9 @@ def build(
     *,
     clock: Clock | None = None,
     store_adapter: str = "file",
+    providers: Sequence[HostDiscoveryProvider] | None = None,
+    requirements: Sequence[ComponentRequirement] | None = None,
+    provisioners: Sequence[ComponentProvisioner] | None = None,
 ) -> Platform:
     """Assemble the platform and run its startup path.
 
@@ -102,13 +191,38 @@ def build(
     state = PlatformStateStore(store, resolved_clock, PLATFORM_VERSION)
     approvals = ApprovalLog(store, resolved_clock)
 
+    # Preparation runs before discovery, never after: `host` observes what is
+    # present and never asks for anything to be installed.
+    preparation = Preparation(
+        [HWLOC_REQUIREMENT] if requirements is None else requirements,
+        [apt.build()] if provisioners is None else provisioners,
+        clock=resolved_clock,
+        may_provision=settings.may_provision_components,
+    )
+    discovery = HostDiscoveryService(
+        [
+            hwloc.build(resolved_clock),
+            nvidia.build(resolved_clock),
+            native_linux.build(resolved_clock),
+        ]
+        if providers is None
+        else providers,
+        clock=resolved_clock,
+    )
+    hosts = HostInventory(discovery, store)
+    host_phase = _HostDiscoveryPhase(hosts)
+
     startup = Startup(resolved_clock)
     startup.register(StoreReconcilePhase(store))
     startup.register(state)
+    startup.register(preparation)
+    startup.register(host_phase)
 
     health = HealthAggregator(resolved_clock)
     health.register(state)
     health.register(approvals)
+    health.register(preparation)
+    health.register(host_phase)
 
     report = startup.run(state=state)
 
@@ -118,12 +232,15 @@ def build(
         health=health,
         approvals=approvals,
         configuration=resolved_config,
+        hosts=hosts,
     )
     return Platform(
         router=register(Router(), plane),
         plane=plane,
         settings=settings,
         startup_report=report,
+        hosts=hosts,
+        preparation=preparation,
     )
 
 

@@ -15,6 +15,9 @@ from dataclasses import dataclass
 
 from kultrun.api.contracts import ApiRequest
 from kultrun.api.router import Router
+from kultrun.host.contracts import DeploymentProfile, HostCapabilities
+from kultrun.host.inventory import HostInventory
+from kultrun.host.profile import shape_of
 from kultrun.kernel.config import Configuration
 from kultrun.kernel.errors import NotFoundError, PreconditionFailedError
 from kultrun.kernel.schema import registered_contracts
@@ -39,6 +42,7 @@ class ControlPlane:
     health: HealthAggregator
     approvals: ApprovalLog
     configuration: Configuration
+    hosts: HostInventory
 
 
 def register(router: Router, plane: ControlPlane) -> Router:
@@ -93,7 +97,48 @@ def register(router: Router, plane: ControlPlane) -> Router:
             raise NotFoundError("no such approval", approval_id=approval_id)
         return found
 
+    def host(_: ApiRequest) -> HostCapabilities:
+        return plane.hosts.current
+
+    def host_profile(_: ApiRequest) -> dict[str, object]:
+        """The profile and the reason for it.
+
+        The reason matters more than the tier. An administrator on unusual
+        hardware needs to know what is and is not validated, and a bare
+        label does not say.
+        """
+        current = plane.hosts.current
+        return {
+            "profile": current.profile.value,
+            "shape": shape_of(current).describe(),
+            "fingerprint": current.fingerprint,
+            "earned_by": (
+                "L2 real-host discovery on this shape"
+                if current.profile is not DeploymentProfile.EXPERIMENTAL
+                else "no acceptance evidence for this shape"
+            ),
+        }
+
+    def host_providers(_: ApiRequest) -> list[dict[str, object]]:
+        """Which providers were consulted, and how each fared.
+
+        This is what turns "the GPU is missing" into "the vendor tool did not
+        load", which is the difference between a support ticket and a fix.
+        """
+        return [
+            {
+                "provider": report.provider.value,
+                "status": report.status.value,
+                "observations": len(report.observations),
+                "detail": report.detail,
+            }
+            for report in plane.hosts.current.provider_reports
+        ]
+
     router.get("/health", health)
+    router.get("/host", host)
+    router.get("/host/profile", host_profile)
+    router.get("/host/providers", host_providers)
     router.get("/platform", platform)
     router.get("/contracts", contracts)
     router.get("/config", configuration)

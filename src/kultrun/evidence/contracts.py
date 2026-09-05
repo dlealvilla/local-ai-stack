@@ -51,6 +51,29 @@ class Confidence(StrEnum):
     UNKNOWN = "unknown"
 
 
+class Derivation(StrEnum):
+    """How a value was obtained, as distinct from what it may authorize.
+
+    :class:`Basis` answers which layer of credibility a value sits at, and
+    therefore whether it may authorize anything. This answers how it came to
+    be known. Both are needed: a value can be
+    ``basis=reported, derivation=measured`` when a tool read it off a device,
+    and ``basis=reported, derivation=configured`` when an administrator typed
+    it in. Neither authorizes, and only one is evidence.
+    """
+
+    #: A tool read it from the thing itself.
+    MEASURED = "measured"
+    #: A source stated it without measuring it here.
+    REPORTED_BY_SOURCE = "reported_by_source"
+    #: Computed from other observations.
+    DERIVED = "derived"
+    #: Supplied by an administrator or a configuration file.
+    CONFIGURED = "configured"
+    #: Inferred from something adjacent, without measuring it.
+    ESTIMATED = "estimated"
+
+
 @contract(kind="evidence.provenance", version=1)
 @dataclass(frozen=True, slots=True)
 class Provenance(Contract):

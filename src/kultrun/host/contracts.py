@@ -25,9 +25,10 @@ import datetime as dt
 from dataclasses import dataclass
 from enum import StrEnum
 
-from kultrun.kernel.ids import EntityId
-from kultrun.kernel.schema import Contract, contract, meaning
-from kultrun.kernel.unresolved import Maybe
+from kultrun.evidence.contracts import Confidence, Derivation
+from kultrun.kernel.ids import EntityId, Name
+from kultrun.kernel.schema import Contract, JsonValue, contract, meaning
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
 
 
 class HostId(EntityId):
@@ -59,12 +60,22 @@ class AcceleratorVendor(StrEnum):
 class OperatingEnvironment(Contract):
     """The operating system and how it is hosted."""
 
-    os_name: str = meaning("operating system, normalized")
+    os_name: str = meaning(
+        "operating system family, normalized: 'linux', 'darwin', 'windows'. "
+        "The family is what capability branching keys on; the distribution "
+        "is a separate fact"
+    )
     os_version: str = meaning("operating system version as reported")
     architecture: Architecture = meaning("processor architecture, normalized")
     kernel_version: Maybe[str] = meaning("kernel version where meaningful")
     virtualized: Maybe[bool] = meaning(
         "whether this is a virtual machine; unknown is common and honest"
+    )
+    distribution: Maybe[str] = meaning(
+        "the distribution or product identifier, where one applies; distinct "
+        "from the family because two providers reporting 'linux' and 'ubuntu' "
+        "for one field would look like a disagreement",
+        default=NOT_PROVIDED,
     )
 
 
@@ -167,6 +178,120 @@ class NetworkFacts(Contract):
     )
 
 
+class ProviderStatus(StrEnum):
+    """How a discovery provider fared.
+
+    ``PARTIAL`` is separate from ``AVAILABLE`` because a provider that
+    answered some questions and not others is not a failure, and treating it
+    as one would discard the answers it did give.
+    """
+
+    AVAILABLE = "available"
+    PARTIAL = "partial"
+    UNAVAILABLE = "unavailable"
+    FAILED = "failed"
+    MISSING_PREREQUISITE = "missing_prerequisite"
+
+
+class DeploymentProfile(StrEnum):
+    """How much Kultrun actually knows about a host shape.
+
+    Earned from the acceptance level reached on that shape, never declared.
+    `docs/PRODUCT_VISION.md` §89.
+    """
+
+    CERTIFIED = "certified"
+    SUPPORTED = "supported"
+    COMPATIBLE = "compatible"
+    EXPERIMENTAL = "experimental"
+    UNSUPPORTED = "unsupported"
+
+
+@contract(kind="host.observation", version=1)
+@dataclass(frozen=True, slots=True)
+class Observation(Contract):
+    """One provider's answer about one capability path.
+
+    A provider speaks **paths and JSON-safe values**, never contract types.
+    That is what keeps a provider's schema out of the platform: the service
+    owns the vocabulary of paths, so no provider can introduce a concept by
+    reporting it.
+    """
+
+    path: str = meaning(
+        "the capability this concerns, as a dotted path such as "
+        "'cpu.physical_cores' or 'accelerator.0000:82:00.0.memory_total_bytes'"
+    )
+    value: JsonValue = meaning("what the provider reported, JSON-safe")
+    derivation: Derivation = meaning("how the provider obtained it")
+    confidence: Confidence = meaning("how much weight it carries")
+
+
+@contract(kind="host.provider_report", version=1)
+@dataclass(frozen=True, slots=True)
+class ProviderReport(Contract):
+    """What one provider returned, including having returned nothing.
+
+    A provider that failed still produces a report. "That source was
+    unavailable" is a fact an administrator needs, and it is different from
+    "this host has no accelerator".
+    """
+
+    provider: Name = meaning("which provider this is")
+    status: ProviderStatus = meaning("how it fared")
+    observed_at: dt.datetime = meaning("when it ran, UTC")
+    provider_version: Maybe[str] = meaning(
+        "the provider's own version, so an observation is reproducible",
+        default=NOT_PROVIDED,
+    )
+    observations: tuple[Observation, ...] = meaning(
+        "what it reported; empty is valid", default=()
+    )
+    detail: str | None = meaning(
+        "why it was unavailable or what it could not answer", default=None
+    )
+
+
+@contract(kind="host.field_provenance", version=1)
+@dataclass(frozen=True, slots=True)
+class FieldProvenance(Contract):
+    """Where one normalized value came from.
+
+    Recorded beside the values rather than wrapping every leaf, keyed by the
+    same dotted path. A number with no history cannot be argued with, and
+    `docs/PRODUCT_VISION.md` §5.5 requires recommendations to be arguable.
+    """
+
+    path: str = meaning("the capability this describes")
+    providers: tuple[Name, ...] = meaning(
+        "every provider that reported this path, in consultation order"
+    )
+    accepted_from: Name = meaning("whose value was used")
+    derivation: Derivation = meaning("how the accepted value was obtained")
+    confidence: Confidence = meaning("how much weight the accepted value carries")
+
+
+@contract(kind="host.observation_conflict", version=1)
+@dataclass(frozen=True, slots=True)
+class ObservationConflict(Contract):
+    """Two credible providers disagreed and no rule resolved it.
+
+    The value is left unresolved. An unresolved value that says two sources
+    disagreed is more useful than a confident value that is wrong, and the
+    platform already refuses to authorize against unknowns.
+    """
+
+    path: str = meaning("the capability they disagreed about")
+    observations: tuple[Observation, ...] = meaning(
+        "every competing observation, with its provenance intact"
+    )
+    resolution: str | None = meaning(
+        "the field-specific rule that settled it, when one applied; absent "
+        "means the value is unresolved",
+        default=None,
+    )
+
+
 @contract(kind="host.capabilities", version=1)
 @dataclass(frozen=True, slots=True)
 class HostCapabilities(Contract):
@@ -193,4 +318,19 @@ class HostCapabilities(Contract):
     )
     mounts: tuple[MountFacts, ...] = meaning(
         "every relevant filesystem mount", default=()
+    )
+    profile: DeploymentProfile = meaning(
+        "how much Kultrun knows about this host shape, earned from the "
+        "acceptance level reached on it",
+        default=DeploymentProfile.EXPERIMENTAL,
+    )
+    provenance: tuple[FieldProvenance, ...] = meaning(
+        "where each normalized value came from, by path", default=()
+    )
+    conflicts: tuple[ObservationConflict, ...] = meaning(
+        "paths where providers disagreed; those values are unresolved",
+        default=(),
+    )
+    provider_reports: tuple[ProviderReport, ...] = meaning(
+        "which providers were consulted, and how each fared", default=()
     )

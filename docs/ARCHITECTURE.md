@@ -932,7 +932,7 @@ else can be bypassed by a new caller.
 |---|---|
 | **Owns** | `PlatformState`, installation identity, platform version, configuration wiring, the startup sequence, the **single** reconciliation path, health aggregation, and `Approval`. |
 | **Consumes** | Every domain's `reconcile` and `health` |
-| **Ports** | `HealthSource` and `ReconcilePhase`, implemented by each domain |
+| **Ports** | `HealthSource` and `ReconcilePhase`. These live at tier 8, so only tiers **above** 8 implement them directly. A lower domain reports facts in its own vocabulary and the composition root adapts them — discovered implementing Stage 1.1, where `host` needed to report health from tier 2. Not a workaround: whether a missing provider makes the platform "degraded" depends on the whole platform's state, which one subsystem cannot know, so grading belongs to the aggregator. The same division the record store uses — the store returns facts, policy decides. |
 | **Must not** | Contain domain algorithms. Own state that a domain should own. Require a model to be present in order to start. |
 | **Created** | 0.3 · **Deepened** 6.3 idempotent startup |
 

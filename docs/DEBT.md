@@ -266,6 +266,99 @@ open**, because their stages have not run:
 
 ---
 
+### K-13 — hwloc topology is parsed from CLI XML, not the library
+
+**Stage** 1.1 · **Kind** approximation · **Risk** low
+
+The hwloc provider runs `lstopo-no-graphics --output-format xml` and parses
+the result rather than binding to `libhwloc`. Documented stable output and no
+compiled dependency, but it costs a process launch per discovery and cannot
+reach anything the XML omits.
+
+**Retires when** discovery latency is measured as material, or a needed fact
+is only available through the library. Not before: adding a C binding to
+avoid one subprocess at startup would be a poor trade.
+
+### K-14 — accelerator memory comes from the vendor CLI, not NVML
+
+**Stage** 1.1 · **Kind** approximation · **Risk** low
+
+`nvidia-smi --query-gpu` rather than NVML directly. Sufficient for identity,
+memory, driver and assignment, and it is the interface most likely to exist
+on any host with NVIDIA tooling at all. NVML would give richer detail and
+per-process accounting.
+
+**Retires when** Milestone 2 needs live utilization or per-process
+accounting, which the CLI reports poorly.
+
+### K-15 — the support matrix is a literal in `host/profile.py`
+
+**Stage** 1.1 · **Kind** provisional · **Risk** low
+
+Which shapes have earned which profile is a dictionary in source. Correct
+while one shape is validated; it will need to be data an operator can read
+once several are, and it cannot currently express "certified for inference
+but not for multi-accelerator".
+
+**Retires when** a third shape earns a profile, or a shape needs a
+per-capability profile rather than a single tier.
+
+### K-16 — the shape key is coarse
+
+**Stage** 1.1 · **Kind** approximation · **Risk** medium
+
+A profile is keyed on OS family, architecture and accelerator vendor, so one
+validated NVIDIA host makes every `linux/x86_64/nvidia` host `COMPATIBLE` —
+including hardware with a different driver generation or an accelerator with
+materially different capabilities.
+
+Deliberate: a key including the exact model would never match twice and the
+ladder would be useless. But this is the place where a support claim can
+outrun its evidence.
+
+**Retires when** a host matching a validated shape fails discovery, which is
+the evidence that the key is too coarse.
+
+### K-17 — one reconciliation rule, and no framework for a second
+
+**Stage** 1.1 · **Kind** provisional · **Risk** low
+
+Accelerator assignment is resolved by a declared provider capability; every
+other conflict leaves the value unresolved. Deliberately un-generalized — a
+precedence framework built before a second rule exists would encode guesses.
+
+**Retires when** a second field genuinely needs a rule. Two justify a shape;
+one does not.
+
+### K-18 — `apt` is the only provisioning mechanism
+
+**Stage** 1.1 · **Kind** provisional · **Risk** medium
+
+`AptProvisioner` supports Debian-family hosts and one mapped component. A
+host with `dnf`, an air-gapped host or an immutable image gets `UNAVAILABLE`
+and a degraded platform, and must install hwloc by hand.
+
+It sits behind the `ComponentProvisioner` port, so adding a mechanism does
+not change `install`. `DC-07` covers the verified-release path.
+
+**Retires when** a supported environment is not Debian-family, or an
+enterprise requires an offline bundle.
+
+### K-19 — CPU topology detail is observed but not carried
+
+**Stage** 1.1 · **Kind** deferred · **Risk** low
+
+hwloc reports NUMA nodes, cache hierarchy and PCI locality; `CpuFacts`
+carries vendor, model and two core counts. The reference host has 8 L3
+caches and 1 NUMA node, none of which reaches a contract.
+
+Correct under the Stage 0.2 field test — nothing consumes it yet and the raw
+fixture preserves it. But NUMA locality is exactly the kind of fact that
+matters for large-model placement.
+
+**Retires when** placement or a runtime needs locality. The provider already
+sees it; only the contract needs widening.
+
 ## Deferred capability register
 
 Distinct from the debt entries above. A debt entry records an approximation
@@ -293,6 +386,9 @@ because the architecture permits it — that claim belongs to
 `DeploymentProfile`, and it is earned.
 
 ### DC-01 — Apple Silicon / macOS
+
+**Revisited at Stage 1.1** — not captured. No Apple host was available and
+the brief made the shape non-blocking. Trigger unchanged.
 Architecture:    ARCHITECTURE-READY
 Implementation:  ADAPTER-NOT-IMPLEMENTED
 Evidence:        none; may be captured opportunistically, **not Stage 1.1 blocking**
@@ -304,6 +400,11 @@ Revisit:         after the first live inference vertical, or when Apple runtime
                  support becomes a roadmap priority
 
 ### DC-02 — CPU-only hosts
+
+**Revisited at Stage 1.1** — not captured on real hardware. Partially
+covered by a regression test built from the reference host's ASPEED
+management VGA, which is the device that would have produced a phantom
+accelerator on a CPU-only machine. Real-hardware confirmation still owed.
 Architecture:    ARCHITECTURE-READY
 Implementation:  ADAPTER-NOT-IMPLEMENTED
 Evidence:        none; may be captured opportunistically, **not Stage 1.1 blocking**

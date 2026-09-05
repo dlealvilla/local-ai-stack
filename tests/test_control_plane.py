@@ -14,6 +14,8 @@ import pytest
 from kultrun.adapters.http.server import serving
 from kultrun.api.contracts import ApiRequest, Method
 from kultrun.api.router import Router
+from kultrun.evidence.contracts import Confidence, Derivation
+from kultrun.host.contracts import Observation, ProviderReport, ProviderStatus
 from kultrun.identity.contracts import PrincipalKind, SubjectId
 from kultrun.kernel.clock import FixedClock
 from kultrun.kernel.errors import (
@@ -37,12 +39,52 @@ from kultrun.platform.health import aggregate_status
 INSTANT = dt.datetime(2026, 9, 5, 6, 30, tzinfo=dt.UTC)
 
 
-@pytest.fixture
-def platform(tmp_path: Path, clock: FixedClock) -> Platform:
+class StubProvider:
+    """A host provider that answers, so control-plane tests stay portable.
+
+    Stage 0.3's tests are about the control plane, not discovery. Without a
+    stub they would assert whatever the machine running them happens to
+    have — green on the Linux reference host and degraded on a developer's
+    Mac — which would make them a test of the laptop rather than of the
+    shell.
+    """
+
+    provider = Name("stub")
+    reports_accelerator_assignment = False
+
+    def observe(self) -> ProviderReport:
+        return ProviderReport(
+            provider=self.provider,
+            status=ProviderStatus.AVAILABLE,
+            observed_at=INSTANT,
+            observations=(
+                Observation(
+                    path="operating_environment.os_name",
+                    value="linux",
+                    derivation=Derivation.MEASURED,
+                    confidence=Confidence.HIGH,
+                ),
+            ),
+        )
+
+
+def build_platform(tmp_path: Path, clock: FixedClock, **overrides: object) -> Platform:
     configuration = config_schema().load(
         {"platform": {"state_root": str(tmp_path / "state")}}
     )
-    return build(configuration, clock=clock)
+    return build(
+        configuration,
+        clock=clock,
+        providers=[StubProvider()],
+        requirements=[],
+        provisioners=[],
+        **overrides,  # type: ignore[arg-type]
+    )
+
+
+@pytest.fixture
+def platform(tmp_path: Path, clock: FixedClock) -> Platform:
+    return build_platform(tmp_path, clock)
 
 
 def call(platform: Platform, path: str, **query: str) -> Any:
@@ -75,7 +117,12 @@ class TestStartingFromNothing:
 
     def test_every_phase_is_recorded_in_order(self, platform: Platform) -> None:
         phases = [phase.phase.value for phase in platform.startup_report.phases]
-        assert phases == ["record-store", "platform-state"]
+        assert phases == [
+            "record-store",
+            "platform-state",
+            "component-preparation",
+            "host-discovery",
+        ]
 
     def test_the_store_reconciles_before_anything_reads_it(
         self, platform: Platform
@@ -89,11 +136,8 @@ class TestRestart:
         self, tmp_path: Path, clock: FixedClock
     ) -> None:
         """Minting a new identity would orphan every record referencing the old."""
-        configuration = config_schema().load(
-            {"platform": {"state_root": str(tmp_path / "state")}}
-        )
-        first = build(configuration, clock=clock)
-        second = build(configuration, clock=clock)
+        first = build_platform(tmp_path, clock)
+        second = build_platform(tmp_path, clock)
         assert (
             first.plane.state.current.installation_id
             == second.plane.state.current.installation_id
@@ -103,11 +147,8 @@ class TestRestart:
     def test_a_second_start_reuses_the_administrator(
         self, tmp_path: Path, clock: FixedClock
     ) -> None:
-        configuration = config_schema().load(
-            {"platform": {"state_root": str(tmp_path / "state")}}
-        )
-        first = build(configuration, clock=clock)
-        second = build(configuration, clock=clock)
+        first = build_platform(tmp_path, clock)
+        second = build_platform(tmp_path, clock)
         assert (
             first.plane.state.administrator.subject_id
             == second.plane.state.administrator.subject_id
@@ -118,11 +159,10 @@ class TestRestart:
     ) -> None:
         """Silently minting a new identity is the failure mode worth preventing."""
         root = tmp_path / "state"
-        configuration = config_schema().load({"platform": {"state_root": str(root)}})
-        build(configuration, clock=clock)
+        build_platform(tmp_path, clock)
         (root / "platform.state" / "current.json").write_text("{", encoding="utf-8")
 
-        rebuilt = build(configuration, clock=clock)
+        rebuilt = build_platform(tmp_path, clock)
         assert not rebuilt.startup_report.completed
         state_phase = rebuilt.startup_report.phases[1]
         assert not state_phase.succeeded
@@ -133,8 +173,7 @@ class TestRestart:
         self, tmp_path: Path, clock: FixedClock
     ) -> None:
         root = tmp_path / "state"
-        configuration = config_schema().load({"platform": {"state_root": str(root)}})
-        first = build(configuration, clock=clock)
+        first = build_platform(tmp_path, clock)
         subject_file = (
             root
             / "identity.subject"
@@ -142,7 +181,7 @@ class TestRestart:
         )
         subject_file.unlink()
 
-        rebuilt = build(configuration, clock=clock)
+        rebuilt = build_platform(tmp_path, clock)
         assert not rebuilt.startup_report.completed
 
     def test_a_store_defect_is_surfaced_but_does_not_stop_startup(
@@ -150,11 +189,10 @@ class TestRestart:
     ) -> None:
         """An administrator diagnoses through the API, so it has to keep serving."""
         root = tmp_path / "state"
-        configuration = config_schema().load({"platform": {"state_root": str(root)}})
-        build(configuration, clock=clock)
+        build_platform(tmp_path, clock)
         (root / "platform.state" / "stray.json").write_text("{ nope", encoding="utf-8")
 
-        rebuilt = build(configuration, clock=clock)
+        rebuilt = build_platform(tmp_path, clock)
         assert rebuilt.startup_report.completed
         assert rebuilt.startup_report.defects
         assert call(rebuilt, "/health")

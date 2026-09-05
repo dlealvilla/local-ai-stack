@@ -1,0 +1,867 @@
+{
+  "accelerators": [
+    {
+      "driver_version": "580.126.20",
+      "index": 0,
+      "kind": "host.accelerator",
+      "memory_total_bytes": 34207694848,
+      "model_name": "NVIDIA RTX PRO 4500 Blackwell",
+      "schema_version": 1,
+      "unified_memory": false,
+      "vendor": "nvidia"
+    }
+  ],
+  "conflicts": [
+    {
+      "kind": "host.observation_conflict",
+      "observations": [
+        {
+          "confidence": "high",
+          "derivation": "derived",
+          "kind": "host.observation",
+          "path": "accelerator.0000:81:00.0.assigned",
+          "schema_version": 1,
+          "value": false
+        },
+        {
+          "confidence": "high",
+          "derivation": "derived",
+          "kind": "host.observation",
+          "path": "accelerator.0000:c1:00.0.assigned",
+          "schema_version": 1,
+          "value": false
+        },
+        {
+          "confidence": "high",
+          "derivation": "derived",
+          "kind": "host.observation",
+          "path": "accelerator.0000:c2:00.0.assigned",
+          "schema_version": 1,
+          "value": false
+        }
+      ],
+      "path": "accelerators",
+      "resolution": "accelerator presence is taken from a provider that reports device assignment to this execution context; enumeration of the physical bus is retained as evidence",
+      "schema_version": 1
+    }
+  ],
+  "cpu": {
+    "kind": "host.cpu",
+    "logical_cores": 128,
+    "model_name": "AMD EPYC 7763 64-Core Processor                ",
+    "physical_cores": 64,
+    "schema_version": 1,
+    "vendor": "AuthenticAMD"
+  },
+  "detected_at": "2026-09-05T12:05:52.914450Z",
+  "execution": {
+    "docker": {
+      "$unresolved": {
+        "detail": null,
+        "reason": "not_provided"
+      }
+    },
+    "kind": "host.execution",
+    "native_process": true,
+    "podman": {
+      "$unresolved": {
+        "detail": null,
+        "reason": "not_provided"
+      }
+    },
+    "schema_version": 1
+  },
+  "fingerprint": "4d4efedb286baa4beccba3601cb11c70",
+  "host_id": "host_ac9976fa916e68b8",
+  "kind": "host.capabilities",
+  "memory": {
+    "available_bytes": 184451727360,
+    "kind": "host.memory",
+    "schema_version": 1,
+    "total_bytes": 270055956480,
+    "unified_with_accelerator": {
+      "$unresolved": {
+        "detail": null,
+        "reason": "not_provided"
+      }
+    }
+  },
+  "mounts": [
+    {
+      "device": "overlay",
+      "filesystem_type": "overlay",
+      "free_bytes": 32133029888,
+      "kind": "host.mount",
+      "mount_point": "/",
+      "schema_version": 1,
+      "total_bytes": 32212254720
+    },
+    {
+      "device": "mfs\\043network-store.example:9421",
+      "filesystem_type": "fuse",
+      "free_bytes": 561548113805312,
+      "kind": "host.mount",
+      "mount_point": "/workspace",
+      "schema_version": 1,
+      "total_bytes": 2150053787467776
+    }
+  ],
+  "network": {
+    "hostname": "reference-host",
+    "kind": "host.network",
+    "loopback_address": {
+      "$unresolved": {
+        "detail": null,
+        "reason": "not_provided"
+      }
+    },
+    "occupied_ports": [
+      22,
+      3001,
+      7270,
+      7861,
+      8001,
+      8081,
+      8888,
+      9091,
+      38843
+    ],
+    "schema_version": 1
+  },
+  "operating_environment": {
+    "architecture": "x86_64",
+    "distribution": "ubuntu",
+    "kernel_version": "6.8.0-106-generic",
+    "kind": "host.operating_environment",
+    "os_name": "linux",
+    "os_version": "24.04",
+    "schema_version": 1,
+    "virtualized": true
+  },
+  "profile": "compatible",
+  "provenance": [
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "accelerator.0000:81:00.0.vendor",
+      "providers": [
+        "hwloc"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "nvidia",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "accelerator.0000:82:00.0.driver_version",
+      "providers": [
+        "nvidia"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "nvidia",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "accelerator.0000:82:00.0.memory_total_bytes",
+      "providers": [
+        "nvidia"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "nvidia",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "accelerator.0000:82:00.0.model_name",
+      "providers": [
+        "nvidia"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "nvidia",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "accelerator.0000:82:00.0.unified_memory",
+      "providers": [
+        "nvidia"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "accelerator.0000:82:00.0.vendor",
+      "providers": [
+        "hwloc",
+        "nvidia"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "accelerator.0000:c1:00.0.vendor",
+      "providers": [
+        "hwloc"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "accelerator.0000:c2:00.0.vendor",
+      "providers": [
+        "hwloc"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "cpu.logical_cores",
+      "providers": [
+        "hwloc"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "cpu.model_name",
+      "providers": [
+        "hwloc"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "cpu.physical_cores",
+      "providers": [
+        "hwloc"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "cpu.vendor",
+      "providers": [
+        "hwloc"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "memory.available_bytes",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "memory.total_bytes",
+      "providers": [
+        "hwloc",
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "reported_by_source",
+      "kind": "host.field_provenance",
+      "path": "mount./.device",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "reported_by_source",
+      "kind": "host.field_provenance",
+      "path": "mount./.filesystem_type",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "mount./.free_bytes",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "mount./.mount_point",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "mount./.total_bytes",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "reported_by_source",
+      "kind": "host.field_provenance",
+      "path": "mount./workspace.device",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "reported_by_source",
+      "kind": "host.field_provenance",
+      "path": "mount./workspace.filesystem_type",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "mount./workspace.free_bytes",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "mount./workspace.mount_point",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "mount./workspace.total_bytes",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "network.hostname",
+      "providers": [
+        "hwloc",
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "network.occupied_ports",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "operating_environment.architecture",
+      "providers": [
+        "hwloc",
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "reported_by_source",
+      "kind": "host.field_provenance",
+      "path": "operating_environment.distribution",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "operating_environment.kernel_version",
+      "providers": [
+        "hwloc",
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "hwloc",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "operating_environment.os_name",
+      "providers": [
+        "hwloc",
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "reported_by_source",
+      "kind": "host.field_provenance",
+      "path": "operating_environment.os_version",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "derived",
+      "kind": "host.field_provenance",
+      "path": "operating_environment.virtualized",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    }
+  ],
+  "provider_reports": [
+    {
+      "detail": "topology and PCI presence only; accelerator memory, driver version, OS release and mounts are not hwloc's to report",
+      "kind": "host.provider_report",
+      "observations": [
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "operating_environment.os_name",
+          "schema_version": 1,
+          "value": "linux"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "operating_environment.kernel_version",
+          "schema_version": 1,
+          "value": "6.8.0-106-generic"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "network.hostname",
+          "schema_version": 1,
+          "value": "reference-host"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "operating_environment.architecture",
+          "schema_version": 1,
+          "value": "x86_64"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "cpu.vendor",
+          "schema_version": 1,
+          "value": "AuthenticAMD"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "cpu.model_name",
+          "schema_version": 1,
+          "value": "AMD EPYC 7763 64-Core Processor                "
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "cpu.physical_cores",
+          "schema_version": 1,
+          "value": 64
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "cpu.logical_cores",
+          "schema_version": 1,
+          "value": 128
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "memory.total_bytes",
+          "schema_version": 1,
+          "value": 270055956480
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "accelerator.0000:81:00.0.vendor",
+          "schema_version": 1,
+          "value": "nvidia"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "accelerator.0000:82:00.0.vendor",
+          "schema_version": 1,
+          "value": "nvidia"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "accelerator.0000:c1:00.0.vendor",
+          "schema_version": 1,
+          "value": "nvidia"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "accelerator.0000:c2:00.0.vendor",
+          "schema_version": 1,
+          "value": "nvidia"
+        }
+      ],
+      "observed_at": "2026-09-05T12:05:52.913484Z",
+      "provider": "hwloc",
+      "provider_version": {
+        "$unresolved": {
+          "detail": null,
+          "reason": "not_provided"
+        }
+      },
+      "schema_version": 1,
+      "status": "partial"
+    },
+    {
+      "detail": "accelerator identity, memory and driver for devices assigned to this context",
+      "kind": "host.provider_report",
+      "observations": [
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "accelerator.0000:82:00.0.vendor",
+          "schema_version": 1,
+          "value": "nvidia"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "accelerator.0000:82:00.0.model_name",
+          "schema_version": 1,
+          "value": "NVIDIA RTX PRO 4500 Blackwell"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "accelerator.0000:82:00.0.memory_total_bytes",
+          "schema_version": 1,
+          "value": 34207694848
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "accelerator.0000:82:00.0.driver_version",
+          "schema_version": 1,
+          "value": "580.126.20"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "accelerator.0000:82:00.0.unified_memory",
+          "schema_version": 1,
+          "value": false
+        }
+      ],
+      "observed_at": "2026-09-05T12:05:52.914213Z",
+      "provider": "nvidia",
+      "provider_version": {
+        "$unresolved": {
+          "detail": null,
+          "reason": "not_provided"
+        }
+      },
+      "schema_version": 1,
+      "status": "partial"
+    },
+    {
+      "detail": "replayed from a captured observation",
+      "kind": "host.provider_report",
+      "observations": [
+        {
+          "confidence": "high",
+          "derivation": "derived",
+          "kind": "host.observation",
+          "path": "operating_environment.os_name",
+          "schema_version": 1,
+          "value": "linux"
+        },
+        {
+          "confidence": "high",
+          "derivation": "reported_by_source",
+          "kind": "host.observation",
+          "path": "operating_environment.distribution",
+          "schema_version": 1,
+          "value": "ubuntu"
+        },
+        {
+          "confidence": "high",
+          "derivation": "reported_by_source",
+          "kind": "host.observation",
+          "path": "operating_environment.os_version",
+          "schema_version": 1,
+          "value": "24.04"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "operating_environment.architecture",
+          "schema_version": 1,
+          "value": "x86_64"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "operating_environment.kernel_version",
+          "schema_version": 1,
+          "value": "6.8.0-106-generic"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "network.hostname",
+          "schema_version": 1,
+          "value": "reference-host"
+        },
+        {
+          "confidence": "high",
+          "derivation": "derived",
+          "kind": "host.observation",
+          "path": "operating_environment.virtualized",
+          "schema_version": 1,
+          "value": true
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "memory.total_bytes",
+          "schema_version": 1,
+          "value": 270055956480
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "memory.available_bytes",
+          "schema_version": 1,
+          "value": 184451727360
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "mount./.mount_point",
+          "schema_version": 1,
+          "value": "/"
+        },
+        {
+          "confidence": "high",
+          "derivation": "reported_by_source",
+          "kind": "host.observation",
+          "path": "mount./.device",
+          "schema_version": 1,
+          "value": "overlay"
+        },
+        {
+          "confidence": "high",
+          "derivation": "reported_by_source",
+          "kind": "host.observation",
+          "path": "mount./.filesystem_type",
+          "schema_version": 1,
+          "value": "overlay"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "mount./.total_bytes",
+          "schema_version": 1,
+          "value": 32212254720
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "mount./.free_bytes",
+          "schema_version": 1,
+          "value": 32133029888
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "mount./workspace.mount_point",
+          "schema_version": 1,
+          "value": "/workspace"
+        },
+        {
+          "confidence": "high",
+          "derivation": "reported_by_source",
+          "kind": "host.observation",
+          "path": "mount./workspace.device",
+          "schema_version": 1,
+          "value": "mfs\\043network-store.example:9421"
+        },
+        {
+          "confidence": "high",
+          "derivation": "reported_by_source",
+          "kind": "host.observation",
+          "path": "mount./workspace.filesystem_type",
+          "schema_version": 1,
+          "value": "fuse"
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "mount./workspace.total_bytes",
+          "schema_version": 1,
+          "value": 2150053787467776
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "mount./workspace.free_bytes",
+          "schema_version": 1,
+          "value": 561548113805312
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "network.occupied_ports",
+          "schema_version": 1,
+          "value": [
+            22,
+            3001,
+            7270,
+            7861,
+            8001,
+            8081,
+            8888,
+            9091,
+            38843
+          ]
+        }
+      ],
+      "observed_at": "2026-09-05T12:05:52.914218Z",
+      "provider": "native-linux",
+      "provider_version": {
+        "$unresolved": {
+          "detail": null,
+          "reason": "not_provided"
+        }
+      },
+      "schema_version": 1,
+      "status": "partial"
+    }
+  ],
+  "schema_version": 1
+}
