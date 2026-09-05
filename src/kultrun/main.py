@@ -32,6 +32,7 @@ from kultrun.api.router import Router
 from kultrun.api.routes import ControlPlane, register
 from kultrun.audit import contracts as _audit_contracts  # noqa: F401
 from kultrun.capacity import contracts as _capacity_contracts  # noqa: F401
+from kultrun.capacity.envelope import CapacityService
 from kultrun.components.contracts import ComponentNecessity, ComponentRequirement
 from kultrun.entitlement import contracts as _entitlement_contracts  # noqa: F401
 from kultrun.evidence import contracts as _evidence_contracts  # noqa: F401
@@ -151,6 +152,7 @@ class Platform:
     #: Absolute, resolved once at startup. Absolute because a relative root
     #: would follow the working directory, and durable state that moves when
     #: an operator changes directory is state that will eventually be lost.
+    capacity: CapacityService
     state_root: Path
     #: Whether the root was chosen rather than defaulted. An installed
     #: artifact that defaulted is warned about; it must not be silent.
@@ -253,6 +255,9 @@ def build(
     )
     hosts = HostInventory(discovery, store)
     host_phase = _HostDiscoveryPhase(hosts)
+    # Derived from host facts on every read, never stored: a persisted
+    # envelope invites a stale number authorizing a present decision.
+    capacity = CapacityService(clock=resolved_clock)
 
     startup = Startup(resolved_clock)
     startup.register(StoreReconcilePhase(store))
@@ -275,6 +280,7 @@ def build(
         approvals=approvals,
         configuration=resolved_config,
         hosts=hosts,
+        capacity=capacity,
     )
     return Platform(
         router=register(Router(), plane),
@@ -283,6 +289,7 @@ def build(
         startup_report=report,
         hosts=hosts,
         preparation=preparation,
+        capacity=capacity,
         state_root=state_root,
         state_root_configured=(
             settings.state_root != PlatformSettings().state_root
@@ -404,6 +411,32 @@ def show_host() -> int:
             f"  {resolution.component.value:12} {resolution.outcome.value:16} "
             f"version {resolution.resolved_version} from {resolution.source}"
         )
+
+    envelope = platform.capacity.compute(host)
+    print(f"\ncapacity  policy {envelope.policy_version}")
+    print(
+        f"  memory       reported {_bytes(envelope.memory.reported_bytes)} | "
+        f"effective {_bytes(envelope.memory.effective_bytes)} | "
+        f"safe {_bytes(envelope.memory.safe_bytes)}"
+    )
+    if envelope.memory_note:
+        print(f"               {envelope.memory_note}")
+    for entry in envelope.accelerators:
+        print(
+            f"  accel [{entry.index}]  reported "
+            f"{_bytes(entry.memory.reported_bytes)} | "
+            f"effective {_bytes(entry.memory.effective_bytes)} | "
+            f"safe {_bytes(entry.memory.safe_bytes)}"
+        )
+    for pool in envelope.pools:
+        print(
+            f"  pool {pool.mount_point:11} reported "
+            f"{_bytes(pool.space.reported_bytes)} | "
+            f"effective {_bytes(pool.space.effective_bytes)} | "
+            f"safe {_bytes(pool.space.safe_bytes)}  [{pool.requirement.value}]"
+        )
+    for defect in envelope.defects:
+        print(f"  ! {defect}")
 
     print("\nproviders")
     for report in host.provider_reports:

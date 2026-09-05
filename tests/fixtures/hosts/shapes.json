@@ -8,7 +8,6 @@
     "L4": "integrated acceptance: admission, lifecycle, restart, teardown"
   },
   "fixture_meaning": "A fixture proves the current code still understands evidence captured from that machine. It does NOT prove the code works on that hardware today. See docs/TESTING_STRATEGY.md 'What a fixture does not prove'.",
-
   "shapes": [
     {
       "shape_id": "linux-x86_64-nvidia-blackwell-rtxpro4500",
@@ -28,10 +27,12 @@
       "environment": "container",
       "storage_shape": "overlay root plus a 2.15 PB FUSE network mount",
       "unified_memory": false,
-
       "fixture_available": true,
       "fixture_path": "tests/fixtures/hosts/linux-x86_64-nvidia/",
-      "fixture_boundaries": ["provider", "normalized"],
+      "fixture_boundaries": [
+        "provider",
+        "normalized"
+      ],
       "fixture_files": [
         "provider-hwloc.xml",
         "provider-nvidia.csv",
@@ -43,14 +44,12 @@
       "sanitization_note": "pod container id and storage provider endpoint replaced; distribution boilerplate URLs dropped; no fingerprint input altered",
       "replayed_by": "tests/test_host_fixtures.py",
       "replayed_in_ci": true,
-
       "provider_versions": {
         "hwloc": "2.10.0",
         "nvidia-smi": "580.126.20",
         "native-linux": "stdlib"
       },
-      "host_fingerprint": "4d4efedb286baa4beccba3601cb11c70",
-
+      "host_fingerprint": "2abe07033e90a057368c2e7a6575251b",
       "evidence_level": "L2",
       "evidence_date": "2026-09-05",
       "evidence_stage": "1.1",
@@ -63,10 +62,19 @@
       "regressions_pinned": [
         "PCI enumeration overcounts accelerators in a container",
         "an ASPEED management VGA is not an accelerator",
-        "ephemeral container mounts must not enter the host fingerprint"
-      ]
+        "ephemeral container mounts must not enter the host fingerprint",
+        "a reported string's padding must not reach the host fingerprint"
+      ],
+      "host_fingerprint_history": [
+        {
+          "fingerprint": "4d4efedb286baa4beccba3601cb11c70",
+          "valid_until": "Stage 1.2",
+          "changed_because": "K-21: the topology tool reports the CPU model padded to a fixed width, and cpu.model_name is a fingerprint input. Normalization now strips reported strings, so the same machine hashes differently. The provider evidence is unchanged; only the conclusion drawn from it moved."
+        }
+      ],
+      "fixture_recaptured": "2026-09-05, normalized boundary only, by replaying the committed provider evidence",
+      "known_fixture_gap": "captured before host discovery observed the container memory limit, so memory.limit_bytes replays as unresolved. The live host is limited to 61999996928 bytes against a reported 270055956480. Re-capture the native provider fixture at the next real-host run."
     },
-
     {
       "shape_id": "darwin-arm64-apple-silicon",
       "os_family": "darwin",
@@ -82,7 +90,6 @@
       "revisit_trigger": "an Apple Silicon host becomes available, or Apple support is planned commercially",
       "note": "The non-blocking macOS CI job proves packaging and hardware-independent logic on ARM64. It says nothing about Apple Silicon support and does not move this profile."
     },
-
     {
       "shape_id": "linux-x86_64-cpu-only",
       "os_family": "linux",
@@ -98,7 +105,6 @@
       "gap": "no CPU-only host captured. Stage 1.1 finding 2 showed this is precisely where a phantom accelerator would hide.",
       "revisit_trigger": "any non-accelerator Linux host becomes available; capture is cheap and closes DC-02"
     },
-
     {
       "shape_id": "linux-x86_64-amd-rocm",
       "os_family": "linux",
@@ -112,7 +118,6 @@
       "gap": "no AMD provider adapter, no host captured",
       "revisit_trigger": "AMD support is planned, or an AMD host becomes available"
     },
-
     {
       "shape_id": "linux-x86_64-intel-accelerator",
       "os_family": "linux",
@@ -126,7 +131,6 @@
       "gap": "no Level Zero provider adapter, no host captured",
       "revisit_trigger": "Intel accelerator support is planned"
     },
-
     {
       "shape_id": "linux-x86_64-nvidia-multi-gpu",
       "os_family": "linux",

@@ -204,6 +204,7 @@ class HostDiscoveryService:
             memory=MemoryFacts(
                 total_bytes=_maybe(accepted, "memory.total_bytes"),
                 available_bytes=_maybe(accepted, "memory.available_bytes"),
+                limit_bytes=_maybe(accepted, "memory.limit_bytes"),
                 unified_with_accelerator=_maybe(
                     accepted, "memory.unified_with_accelerator"
                 ),
@@ -365,8 +366,32 @@ def _group_by_path(
     grouped: dict[str, list[tuple[Name, Observation]]] = defaultdict(list)
     for report in reports:
         for observation in report.observations:
-            grouped[observation.path].append((report.provider, observation))
+            grouped[observation.path].append(
+                (report.provider, _tidied(observation))
+            )
     return dict(grouped)
+
+
+def _tidied(observation: Observation) -> Observation:
+    """Strip surrounding whitespace from a reported string.
+
+    `docs/DEBT.md` K-21: a topology tool reports the CPU model padded to a
+    fixed width, and `cpu.model_name` is a **host fingerprint input**. Left
+    alone, a change in that padding between tool versions would change host
+    identity and discard cached evidence for no real reason — the same class
+    of latent instability as the container mount whose name carried a random
+    UUID.
+
+    Done here rather than in each provider so that two providers reporting
+    the same value with different padding are recognised as agreeing, which
+    is the other half of the bug.
+    """
+    if not isinstance(observation.value, str):
+        return observation
+    tidied = observation.value.strip()
+    if tidied == observation.value:
+        return observation
+    return replace(observation, value=tidied)
 
 
 def _hashable(value: Any) -> Any:

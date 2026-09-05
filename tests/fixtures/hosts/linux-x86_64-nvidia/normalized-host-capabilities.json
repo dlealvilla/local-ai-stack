@@ -48,7 +48,7 @@
   "cpu": {
     "kind": "host.cpu",
     "logical_cores": 128,
-    "model_name": "AMD EPYC 7763 64-Core Processor                ",
+    "model_name": "AMD EPYC 7763 64-Core Processor",
     "physical_cores": 64,
     "schema_version": 1,
     "vendor": "AuthenticAMD"
@@ -71,12 +71,18 @@
     },
     "schema_version": 1
   },
-  "fingerprint": "4d4efedb286baa4beccba3601cb11c70",
+  "fingerprint": "2abe07033e90a057368c2e7a6575251b",
   "host_id": "host_ac9976fa916e68b8",
   "kind": "host.capabilities",
   "memory": {
     "available_bytes": 184451727360,
     "kind": "host.memory",
+    "limit_bytes": {
+      "$unresolved": {
+        "detail": null,
+        "reason": "not_provided"
+      }
+    },
     "schema_version": 1,
     "total_bytes": 270055956480,
     "unified_with_accelerator": {

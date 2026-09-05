@@ -106,6 +106,14 @@ class MemoryFacts(Contract):
     unified_with_accelerator: Maybe[bool] = meaning(
         "whether system and accelerator memory are one pool"
     )
+    limit_bytes: Maybe[int] = meaning(
+        "the ceiling this execution context may actually use, where the "
+        "environment imposes one. Distinct from total: the Stage 1.1 "
+        "reference host reports 251.5 GiB of system memory while its "
+        "container may use 57.7 GiB, and admitting against the larger "
+        "number would get workloads killed",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="host.accelerator", version=1)

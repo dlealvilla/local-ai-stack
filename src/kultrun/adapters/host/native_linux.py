@@ -129,6 +129,7 @@ class NativeLinuxProvider:
             "kernel_version": platform.release(),
             "hostname": _hostname(),
             "meminfo": _read_meminfo(self._root),
+            "memory_limit_bytes": _read_memory_limit(self._root),
             "mounts": _read_mounts(self._root),
             "occupied_ports": _read_ports(self._root),
             "container": (self._root / ".dockerenv").exists(),
@@ -200,6 +201,10 @@ def _from_capture(capture: dict[str, object]) -> list[Observation]:
         if isinstance(available, int):
             add("memory.available_bytes", available, Derivation.MEASURED)
 
+    limit = capture.get("memory_limit_bytes")
+    if isinstance(limit, int):
+        add("memory.limit_bytes", limit, Derivation.MEASURED)
+
     mounts = capture.get("mounts")
     if isinstance(mounts, list):
         for mount in mounts:
@@ -249,6 +254,43 @@ def _read_meminfo(root: Path) -> dict[str, int]:
         if len(fields) >= 2 and fields[0].isdigit() and fields[1] == "kB":
             parsed[key.strip()] = int(fields[0]) * 1024
     return parsed
+
+
+def _read_memory_limit(root: Path) -> int | None:
+    """The memory ceiling this execution context may use, if one is imposed.
+
+    Read because the Stage 1.1 reference host reports 251.5 GiB of system
+    memory while its container is limited to 57.7 GiB. `MemTotal` describes
+    the machine; this describes what the platform may have. Admitting
+    against the machine would get workloads OOM-killed, which is the same
+    class of error as counting accelerators nobody assigned.
+
+    cgroup v2 first, then v1. A limit of `max`, or one at or above the
+    machine's own memory, is not a restriction and reports None.
+    """
+    candidates = (
+        root / "sys" / "fs" / "cgroup" / "memory.max",
+        root / "sys" / "fs" / "cgroup" / "memory" / "memory.limit_in_bytes",
+    )
+    for path in candidates:
+        try:
+            raw = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if not raw or raw == "max":
+            return None
+        try:
+            value = int(raw)
+        except ValueError:
+            continue
+        # cgroup v1 signals "no limit" with an implausibly large sentinel
+        # rather than a word, so treat anything beyond the machine's own
+        # memory as absent rather than as a restriction.
+        total = _read_meminfo(root).get("MemTotal")
+        if value <= 0 or (isinstance(total, int) and value >= total):
+            return None
+        return value
+    return None
 
 
 def _read_mounts(root: Path) -> list[dict[str, object]]:

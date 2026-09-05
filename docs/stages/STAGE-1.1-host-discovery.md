@@ -704,6 +704,35 @@ with their revisit triggers unchanged. Honest cost: the CPU-only path is
 tested only through the ASPEED regression above, not against real hardware,
 and finding 2 shows that is exactly where a false accelerator would hide.
 
+### Amendment at Stage 1.2 — the fingerprint changed, honestly
+
+**The acceptance above stands. This records a later correction to it.**
+
+Stage 1.2 fixed `K-21`: the topology tool reports the CPU model padded to a
+fixed width, and `cpu.model_name` is a **host fingerprint input**.
+Normalization now strips reported strings, so the fingerprint for this exact
+machine moved:
+
+```
+4d4efedb286baa4beccba3601cb11c70   as accepted at de9219e
+2abe07033e90a057368c2e7a6575251b   after K-21, same machine
+```
+
+The provider evidence is untouched; only the conclusion drawn from it
+changed. The normalized fixture was re-captured by replaying the committed
+provider output — no host was needed, which is what the fixture library is
+for. The old value is recorded rather than erased, because a fingerprint
+that silently changes is the failure this stage was trying to prevent.
+
+Stage 1.2 also found something this stage should have caught. The container
+is limited to **57.7 GiB** of memory while `MemTotal` reports **251.5 GiB**,
+and Stage 1.1 observed no memory limit at all — the same class of error as
+counting accelerators nobody assigned, and it would have let capacity
+authorize four times the memory available. `MemoryFacts.limit_bytes` and the
+cgroup reading were added at 1.2. The committed provider fixture predates
+the field and replays it as unresolved; it is re-captured at the next
+real-host run.
+
 ### Retrospective — the last stage accepted from a source tree
 
 Recorded after the fact. **Nothing above is changed and the acceptance

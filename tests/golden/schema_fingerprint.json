@@ -226,6 +226,114 @@
     },
     "python": "AuditEvent"
   },
+  "capacity.accelerator@1": {
+    "fields": {
+      "index": {
+        "may_be_unresolved": false,
+        "meaning": "which accelerator, as host discovery numbered it",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "memory": {
+        "may_be_unresolved": false,
+        "meaning": "device memory, reported through safe",
+        "nullable": false,
+        "optional": false,
+        "type": "LayeredBytes"
+      },
+      "note": {
+        "may_be_unresolved": false,
+        "meaning": "why a layer is bounded or unresolved, when it is",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "requirement": {
+        "may_be_unresolved": false,
+        "meaning": "whether the reported figure could be believed for this purpose",
+        "nullable": false,
+        "optional": false,
+        "type": "EvidenceRequirement"
+      }
+    },
+    "python": "AcceleratorCapacity"
+  },
+  "capacity.envelope@1": {
+    "fields": {
+      "accelerators": {
+        "may_be_unresolved": false,
+        "meaning": "every **assigned** accelerator; plural on a host that has one",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[AcceleratorCapacity, ...]"
+      },
+      "computed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it was computed, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "defects": {
+        "may_be_unresolved": false,
+        "meaning": "what could not be assessed, and why. A resource whose safe layer is unresolved appears here so an administrator is told rather than left to infer it from a missing number",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "the host shape it was computed for; an envelope from another shape is invalid rather than stale",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "which host this describes, by identifier",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "memory": {
+        "may_be_unresolved": false,
+        "meaning": "system memory, reported through safe",
+        "nullable": false,
+        "optional": false,
+        "type": "LayeredBytes"
+      },
+      "memory_note": {
+        "may_be_unresolved": false,
+        "meaning": "why a memory layer is bounded or unresolved, when it is",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "memory_requirement": {
+        "may_be_unresolved": false,
+        "meaning": "whether reported system memory could be believed for this purpose",
+        "nullable": false,
+        "optional": false,
+        "type": "EvidenceRequirement"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "the headroom policy in force",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "pools": {
+        "may_be_unresolved": false,
+        "meaning": "every candidate storage location",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[PoolCapacity, ...]"
+      }
+    },
+    "python": "CapacityEnvelope"
+  },
   "capacity.evidence@1": {
     "fields": {
       "activation_bytes": {
@@ -335,6 +443,128 @@
       }
     },
     "python": "CapacityEvidence"
+  },
+  "capacity.headroom_policy@1": {
+    "fields": {
+      "accelerator_reserve_floor_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "minimum accelerator memory kept back regardless of device size",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "accelerator_reserve_fraction": {
+        "may_be_unresolved": false,
+        "meaning": "share of effective accelerator memory kept back for runtime overhead, fragmentation and allocator behaviour",
+        "nullable": false,
+        "optional": false,
+        "type": "float"
+      },
+      "families_requiring_evidence": {
+        "may_be_unresolved": false,
+        "meaning": "filesystem families whose reported size does not corroborate usable capacity \u2014 network and distributed filesystems, whose totals describe a backend rather than an entitlement",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "families_with_credible_size": {
+        "may_be_unresolved": false,
+        "meaning": "filesystem families whose reported free space is credible evidence. An allow-list, so an unrecognised family is disbelieved rather than trusted: the alternative fails open, and any mount nobody had thought about would become a capacity claim",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "memory_reserve_floor_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "minimum system memory kept back regardless of size",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "memory_reserve_fraction": {
+        "may_be_unresolved": false,
+        "meaning": "share of effective system memory kept back for the operating system and everything Kultrun does not manage",
+        "nullable": false,
+        "optional": false,
+        "type": "float"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "which policy produced a value, so an old decision stays explicable after the policy changes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "storage_reserve_floor_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "minimum pool space kept back regardless of pool size",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "storage_reserve_fraction": {
+        "may_be_unresolved": false,
+        "meaning": "share of effective pool space kept back so a full pool cannot be reached by a managed write",
+        "nullable": false,
+        "optional": false,
+        "type": "float"
+      },
+      "unverified_pool_ceiling_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "the most Kultrun will treat as effective in a pool whose reported size is not credible evidence. Not a claim about the pool: a bound on how much may be believed without having verified anything",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      }
+    },
+    "python": "HeadroomPolicy"
+  },
+  "capacity.pool@1": {
+    "fields": {
+      "filesystem_type": {
+        "may_be_unresolved": true,
+        "meaning": "the filesystem family, which decides credibility",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "where the pool is mounted, its identity here",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "note": {
+        "may_be_unresolved": false,
+        "meaning": "why a layer is bounded or unresolved, when it is",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "reported_total_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "the pool's reported size, for explanation only",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "requirement": {
+        "may_be_unresolved": false,
+        "meaning": "whether the reported figure could be believed for this purpose",
+        "nullable": false,
+        "optional": false,
+        "type": "EvidenceRequirement"
+      },
+      "space": {
+        "may_be_unresolved": false,
+        "meaning": "free space, reported through safe",
+        "nullable": false,
+        "optional": false,
+        "type": "LayeredBytes"
+      }
+    },
+    "python": "PoolCapacity"
   },
   "components.requirement@1": {
     "fields": {
@@ -912,6 +1142,13 @@
         "meaning": "memory free at detection time",
         "nullable": false,
         "optional": false,
+        "type": "int | Unresolved"
+      },
+      "limit_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "the ceiling this execution context may actually use, where the environment imposes one. Distinct from total: the Stage 1.1 reference host reports 251.5 GiB of system memory while its container may use 57.7 GiB, and admitting against the larger number would get workloads killed",
+        "nullable": false,
+        "optional": true,
         "type": "int | Unresolved"
       },
       "total_bytes": {

@@ -15,6 +15,8 @@ from dataclasses import dataclass
 
 from kultrun.api.contracts import ApiRequest
 from kultrun.api.router import Router
+from kultrun.capacity.contracts import CapacityEnvelope, HeadroomPolicy
+from kultrun.capacity.envelope import CapacityService
 from kultrun.host.contracts import DeploymentProfile, HostCapabilities
 from kultrun.host.inventory import HostInventory
 from kultrun.host.profile import shape_of
@@ -44,6 +46,7 @@ class ControlPlane:
     approvals: ApprovalLog
     configuration: Configuration
     hosts: HostInventory
+    capacity: CapacityService
 
 
 def register(router: Router, plane: ControlPlane) -> Router:
@@ -152,6 +155,23 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "acceptable_as_evidence": identity.acceptable_as_evidence,
         }
 
+    def capacity(_: ApiRequest) -> CapacityEnvelope:
+        """What this host can safely give, with all three layers visible.
+
+        All three deliberately, not just the safe figure. An administrator
+        asking why a model will not run needs to see that a pool reports
+        two petabytes while only a bounded amount is treated as effective —
+        a single number would hide exactly the distinction that keeps the
+        platform safe.
+        """
+        return plane.capacity.compute(plane.hosts.current)
+
+    def capacity_policy(_: ApiRequest) -> HeadroomPolicy:
+        """The headroom policy in force, so a decision stays explicable."""
+        return plane.capacity.policy
+
+    router.get("/capacity", capacity)
+    router.get("/capacity/policy", capacity_policy)
     router.get("/version", version)
     router.get("/health", health)
     router.get("/host", host)
