@@ -9,13 +9,22 @@ moment it was needed.
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
+from kultrun.host.contracts import HostId
+from kultrun.identity.contracts import Subject
+from kultrun.kernel.schema import Contract, contract, meaning, registered_contracts
 from tests.architecture import (
     KERNEL_CONCEPTS,
     ImportEdge,
+    host_scoping_violations,
+    import_all_contracts,
+    reference_violations,
     scan,
     unassigned_packages,
     violations,
@@ -154,3 +163,103 @@ def _top_level_imports(path: Path) -> set[str]:
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             found.add(node.module.split(".")[0])
     return found
+
+
+class TestContractShape:
+    """The two checks that needed contracts to inspect. Stage 0.2 adds them."""
+
+    def test_cross_package_references_are_by_identifier(self) -> None:
+        assert reference_violations(_production_contracts()) == []
+
+    def test_host_scoped_contracts_carry_a_host_id_and_stay_plural(self) -> None:
+        problems = host_scoping_violations(
+            _production_contracts(), host_id_type=HostId
+        )
+        assert problems == []
+
+    def test_a_value_object_may_be_embedded_across_packages(self) -> None:
+        """`Provenance` has no identity, so embedding it is not a reference."""
+        embedded = {
+            key: cls
+            for key, cls in _production_contracts().items()
+            if key[0] == "capacity.evidence"
+        }
+        assert reference_violations(embedded) == []
+
+
+class TestTheContractCheckerFinds:
+    """Synthetic violations, so the checks are not merely vacuous."""
+
+    def test_an_embedded_entity_from_another_package(self) -> None:
+        @contract(kind="test.arch.embeds_entity", version=1)
+        @dataclass(frozen=True, slots=True)
+        class EmbedsEntity(Contract):
+            actor: Subject = meaning("embedded rather than referenced")
+
+        offender = {("test.arch.embeds_entity", 1): EmbedsEntity}
+        problems = reference_violations(offender)
+        assert problems != []
+        assert "reference it by identifier" in problems[0]
+
+    def test_a_host_scoped_contract_with_no_host_id(self) -> None:
+        @contract(kind="test.arch.unscoped", version=1)
+        @dataclass(frozen=True, slots=True)
+        class Unscoped(Contract):
+            label: str = meaning("anything")
+
+        with _host_scoped({"test.arch.unscoped"}):
+            problems = host_scoping_violations(
+                {("test.arch.unscoped", 1): Unscoped}, host_id_type=HostId
+            )
+        assert problems != []
+        assert "host_id" in problems[0]
+
+    def test_a_singular_field_where_plurality_is_required(self) -> None:
+        @contract(kind="test.arch.singular", version=1)
+        @dataclass(frozen=True, slots=True)
+        class Singular(Contract):
+            host_id: HostId = meaning("scoped correctly")
+            accelerators: str = meaning("but singular, which is the defect")
+
+        singular: dict[str, tuple[str, ...]] = {
+            "test.arch.singular": ("accelerators",)
+        }
+        with _host_scoped(set()), _plural_fields(singular):
+            problems = host_scoping_violations(
+                {("test.arch.singular", 1): Singular}, host_id_type=HostId
+            )
+        assert problems != []
+        assert "collection" in problems[0]
+
+
+@contextmanager
+def _host_scoped(kinds: set[str]) -> Iterator[None]:
+    import tests.architecture as module
+
+    original = module.HOST_SCOPED_KINDS
+    module.HOST_SCOPED_KINDS = frozenset(kinds)
+    try:
+        yield
+    finally:
+        module.HOST_SCOPED_KINDS = original
+
+
+@contextmanager
+def _plural_fields(mapping: dict[str, tuple[str, ...]]) -> Iterator[None]:
+    import tests.architecture as module
+
+    original = module.PLURAL_FIELDS
+    module.PLURAL_FIELDS = mapping
+    try:
+        yield
+    finally:
+        module.PLURAL_FIELDS = original
+
+
+def _production_contracts() -> dict[tuple[str, int], type[Contract]]:
+    import_all_contracts(SOURCE_ROOT)
+    return {
+        key: cls
+        for key, cls in registered_contracts().items()
+        if cls.__module__.startswith("kultrun.")
+    }

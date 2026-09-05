@@ -1,4 +1,381 @@
 {
+  "analytics.usage_event@1": {
+    "fields": {
+      "actual_model": {
+        "may_be_unresolved": false,
+        "meaning": "the model that answered, which is not always the one requested",
+        "nullable": true,
+        "optional": true,
+        "type": "Name | None"
+      },
+      "application": {
+        "may_be_unresolved": false,
+        "meaning": "the application that made it, distinct from the person",
+        "nullable": true,
+        "optional": true,
+        "type": "Name | None"
+      },
+      "correlation_id": {
+        "may_be_unresolved": false,
+        "meaning": "ties this record to the request that produced it",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "cost_micros": {
+        "may_be_unresolved": true,
+        "meaning": "cost in millionths of a currency unit, for external providers",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "error_class": {
+        "may_be_unresolved": false,
+        "meaning": "how it failed, if it failed; a failed request is still a use",
+        "nullable": true,
+        "optional": true,
+        "type": "Name | None"
+      },
+      "input_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "tokens consumed",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "instance_id": {
+        "may_be_unresolved": false,
+        "meaning": "the serving instance, by identifier",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "latency_seconds": {
+        "may_be_unresolved": true,
+        "meaning": "wall time to complete the request",
+        "nullable": false,
+        "optional": true,
+        "type": "float | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "the name the client asked for, as exposed to applications",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "occurred_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the request was served, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "output_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "tokens produced",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "provider": {
+        "may_be_unresolved": false,
+        "meaning": "what served it, such as a local runtime or an external API",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "queue_seconds": {
+        "may_be_unresolved": true,
+        "meaning": "time spent waiting before work began",
+        "nullable": false,
+        "optional": true,
+        "type": "float | Unresolved"
+      },
+      "requested_model": {
+        "may_be_unresolved": false,
+        "meaning": "the model the client asked for, when it named one",
+        "nullable": true,
+        "optional": true,
+        "type": "Name | None"
+      },
+      "route_reason": {
+        "may_be_unresolved": false,
+        "meaning": "why this route was chosen, which is what makes routing auditable",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "service_id": {
+        "may_be_unresolved": false,
+        "meaning": "the platform service that handled it",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "subject_id": {
+        "may_be_unresolved": false,
+        "meaning": "who made the request",
+        "nullable": true,
+        "optional": true,
+        "type": "SubjectId | None"
+      },
+      "team_id": {
+        "may_be_unresolved": false,
+        "meaning": "the team scope it was made under",
+        "nullable": true,
+        "optional": true,
+        "type": "TeamId | None"
+      },
+      "ttft_seconds": {
+        "may_be_unresolved": true,
+        "meaning": "time to first token, where the runtime reports it",
+        "nullable": false,
+        "optional": true,
+        "type": "float | Unresolved"
+      },
+      "usage_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this record",
+        "nullable": false,
+        "optional": false,
+        "type": "UsageId"
+      }
+    },
+    "python": "UsageEvent"
+  },
+  "audit.event@1": {
+    "fields": {
+      "action": {
+        "may_be_unresolved": false,
+        "meaning": "what was attempted, as a stable dotted name such as 'model.install'",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "actor_id": {
+        "may_be_unresolved": false,
+        "meaning": "who attempted it",
+        "nullable": false,
+        "optional": false,
+        "type": "SubjectId"
+      },
+      "approval_id": {
+        "may_be_unresolved": false,
+        "meaning": "the administrator approval that authorized it, for actions that require one",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "audit_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this entry",
+        "nullable": false,
+        "optional": false,
+        "type": "AuditId"
+      },
+      "correlation_id": {
+        "may_be_unresolved": false,
+        "meaning": "ties this entry to the request or operation that caused it",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "decision": {
+        "may_be_unresolved": false,
+        "meaning": "whether the action was permitted",
+        "nullable": false,
+        "optional": false,
+        "type": "AuditDecision"
+      },
+      "occurred_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the action was attempted, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "how it ended; a permitted action can still fail or be cancelled",
+        "nullable": false,
+        "optional": false,
+        "type": "AuditOutcome"
+      },
+      "reason": {
+        "may_be_unresolved": false,
+        "meaning": "why it was denied, or why it failed; the explanation an administrator needs and cannot reconstruct later",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "target_id": {
+        "may_be_unresolved": false,
+        "meaning": "which one, by identifier",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "target_kind": {
+        "may_be_unresolved": false,
+        "meaning": "what sort of thing was acted on",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      }
+    },
+    "python": "AuditEvent"
+  },
+  "capacity.evidence@1": {
+    "fields": {
+      "activation_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator memory held by activations",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "assumptions": {
+        "may_be_unresolved": false,
+        "meaning": "what the provider assumed, so a reader can judge whether it holds here",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "how much weight this evidence carries",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "evidence_type": {
+        "may_be_unresolved": false,
+        "meaning": "whether this was derived or measured",
+        "nullable": false,
+        "optional": false,
+        "type": "EvidenceType"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "the host shape it applies to; evidence is not portable across shapes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_memory_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "system memory required to load and serve",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "kv_cache_bytes_per_token": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator memory per token of context, which is what makes context length a capacity question rather than a setting",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "max_context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "largest context the provider believes fits",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "model_ref": {
+        "may_be_unresolved": false,
+        "meaning": "which model this concerns, by identifier",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "provenance": {
+        "may_be_unresolved": false,
+        "meaning": "which provider produced it, when, at what version",
+        "nullable": false,
+        "optional": false,
+        "type": "Provenance"
+      },
+      "runtime": {
+        "may_be_unresolved": true,
+        "meaning": "the runtime the estimate assumes",
+        "nullable": false,
+        "optional": false,
+        "type": "Name | Unresolved"
+      },
+      "runtime_overhead_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator memory the runtime itself holds",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "the runtime version the estimate assumes",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "total_memory_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "the provider's total, which may differ from the sum of its parts",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "weights_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator memory held by model weights",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "CapacityEvidence"
+  },
+  "entitlement.claim@1": {
+    "fields": {
+      "claim": {
+        "may_be_unresolved": false,
+        "meaning": "what is claimed, as a generic name such as 'advanced_routing' or 'hosts'",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "entitlement_kind": {
+        "may_be_unresolved": false,
+        "meaning": "whether this unlocks a capability or bounds a quantity",
+        "nullable": false,
+        "optional": false,
+        "type": "EntitlementKind"
+      },
+      "grace_until": {
+        "may_be_unresolved": false,
+        "meaning": "how long the claim still holds after lapsing, so that a lost connection never interrupts production",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "granted_until": {
+        "may_be_unresolved": false,
+        "meaning": "when the grant lapses; absent means perpetual",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "limit": {
+        "may_be_unresolved": true,
+        "meaning": "the bound for a capacity claim; absent for a feature claim, unresolved when the grant is unreadable rather than unlimited",
+        "nullable": true,
+        "optional": true,
+        "type": "int | Unresolved | None"
+      }
+    },
+    "python": "Entitlement"
+  },
   "error_detail@1": {
     "fields": {
       "code": {
@@ -79,6 +456,1239 @@
     },
     "python": "Event"
   },
+  "evidence.layered_bytes@1": {
+    "fields": {
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "how much weight this quantity carries",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "effective_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "reported corrected for real usability; still never authorizes",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "provenance": {
+        "may_be_unresolved": false,
+        "meaning": "who produced it, when, under which policy",
+        "nullable": false,
+        "optional": false,
+        "type": "Provenance"
+      },
+      "reported_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "what the source claims; may be displayed, never authorizes",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "safe_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "effective minus protected headroom; the only layer that may authorize",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "LayeredBytes"
+  },
+  "evidence.provenance@1": {
+    "fields": {
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the value was produced, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "policy_version": {
+        "may_be_unresolved": true,
+        "meaning": "the policy version the value was derived under; a fact outlives it",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "producer": {
+        "may_be_unresolved": false,
+        "meaning": "the module or provider that produced the value",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "producer_version": {
+        "may_be_unresolved": true,
+        "meaning": "the producer's version, so a value can be reproduced or distrusted",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "Provenance"
+  },
+  "host.accelerator@1": {
+    "fields": {
+      "driver_version": {
+        "may_be_unresolved": true,
+        "meaning": "driver version, for compatibility checks",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "index": {
+        "may_be_unresolved": false,
+        "meaning": "device ordinal on this host",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "memory_total_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "device memory installed",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "model_name": {
+        "may_be_unresolved": true,
+        "meaning": "device model as reported",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "unified_memory": {
+        "may_be_unresolved": true,
+        "meaning": "whether this device shares the system memory pool",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      },
+      "vendor": {
+        "may_be_unresolved": false,
+        "meaning": "accelerator family, normalized",
+        "nullable": false,
+        "optional": false,
+        "type": "AcceleratorVendor"
+      }
+    },
+    "python": "Accelerator"
+  },
+  "host.capabilities@1": {
+    "fields": {
+      "accelerators": {
+        "may_be_unresolved": false,
+        "meaning": "every accelerator, per device and never aggregated",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[Accelerator, ...]"
+      },
+      "cpu": {
+        "may_be_unresolved": false,
+        "meaning": "processor facts",
+        "nullable": false,
+        "optional": false,
+        "type": "CpuFacts"
+      },
+      "detected_at": {
+        "may_be_unresolved": false,
+        "meaning": "when detection ran, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "execution": {
+        "may_be_unresolved": false,
+        "meaning": "how workloads can be run here",
+        "nullable": false,
+        "optional": false,
+        "type": "ExecutionCapabilities"
+      },
+      "fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "digest of the stable facts; the key by which cached evidence is later judged reusable",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this host",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "memory": {
+        "may_be_unresolved": false,
+        "meaning": "system memory facts",
+        "nullable": false,
+        "optional": false,
+        "type": "MemoryFacts"
+      },
+      "mounts": {
+        "may_be_unresolved": false,
+        "meaning": "every relevant filesystem mount",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[MountFacts, ...]"
+      },
+      "network": {
+        "may_be_unresolved": false,
+        "meaning": "networking facts",
+        "nullable": false,
+        "optional": false,
+        "type": "NetworkFacts"
+      },
+      "operating_environment": {
+        "may_be_unresolved": false,
+        "meaning": "OS and virtualization",
+        "nullable": false,
+        "optional": false,
+        "type": "OperatingEnvironment"
+      }
+    },
+    "python": "HostCapabilities"
+  },
+  "host.cpu@1": {
+    "fields": {
+      "logical_cores": {
+        "may_be_unresolved": true,
+        "meaning": "logical processor count including threads",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "model_name": {
+        "may_be_unresolved": true,
+        "meaning": "processor model as reported",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "physical_cores": {
+        "may_be_unresolved": true,
+        "meaning": "physical core count",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "vendor": {
+        "may_be_unresolved": true,
+        "meaning": "processor vendor",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "CpuFacts"
+  },
+  "host.execution@1": {
+    "fields": {
+      "docker": {
+        "may_be_unresolved": true,
+        "meaning": "whether a usable Docker daemon is present",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      },
+      "native_process": {
+        "may_be_unresolved": false,
+        "meaning": "native process execution, always available",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "podman": {
+        "may_be_unresolved": true,
+        "meaning": "whether Podman is present",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      }
+    },
+    "python": "ExecutionCapabilities"
+  },
+  "host.memory@1": {
+    "fields": {
+      "available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "memory free at detection time",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "total_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "installed system memory",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "unified_with_accelerator": {
+        "may_be_unresolved": true,
+        "meaning": "whether system and accelerator memory are one pool",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      }
+    },
+    "python": "MemoryFacts"
+  },
+  "host.mount@1": {
+    "fields": {
+      "device": {
+        "may_be_unresolved": true,
+        "meaning": "backing device as reported",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "filesystem_type": {
+        "may_be_unresolved": true,
+        "meaning": "filesystem type",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "free_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "free space as reported; may be displayed, never authorizes",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "path at which the filesystem is mounted",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "total_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "filesystem size as reported",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "MountFacts"
+  },
+  "host.network@1": {
+    "fields": {
+      "hostname": {
+        "may_be_unresolved": true,
+        "meaning": "host name as reported",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "loopback_address": {
+        "may_be_unresolved": true,
+        "meaning": "address the control plane binds to",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "occupied_ports": {
+        "may_be_unresolved": false,
+        "meaning": "ports already in use, so the platform does not collide with them",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[int, ...]"
+      }
+    },
+    "python": "NetworkFacts"
+  },
+  "host.operating_environment@1": {
+    "fields": {
+      "architecture": {
+        "may_be_unresolved": false,
+        "meaning": "processor architecture, normalized",
+        "nullable": false,
+        "optional": false,
+        "type": "Architecture"
+      },
+      "kernel_version": {
+        "may_be_unresolved": true,
+        "meaning": "kernel version where meaningful",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "os_name": {
+        "may_be_unresolved": false,
+        "meaning": "operating system, normalized",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "os_version": {
+        "may_be_unresolved": false,
+        "meaning": "operating system version as reported",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "virtualized": {
+        "may_be_unresolved": true,
+        "meaning": "whether this is a virtual machine; unknown is common and honest",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      }
+    },
+    "python": "OperatingEnvironment"
+  },
+  "identity.access_context@1": {
+    "fields": {
+      "correlation_id": {
+        "may_be_unresolved": false,
+        "meaning": "ties this authorization to the request that prompted it",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "on_behalf_of": {
+        "may_be_unresolved": false,
+        "meaning": "the principal an application is acting for, when it is acting for one",
+        "nullable": true,
+        "optional": true,
+        "type": "Subject | None"
+      },
+      "subject": {
+        "may_be_unresolved": false,
+        "meaning": "the principal whose permissions apply",
+        "nullable": false,
+        "optional": false,
+        "type": "Subject"
+      },
+      "team_ids": {
+        "may_be_unresolved": false,
+        "meaning": "teams whose scope this request may draw on",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[TeamId, ...]"
+      }
+    },
+    "python": "AccessContext"
+  },
+  "identity.subject@1": {
+    "fields": {
+      "display_name": {
+        "may_be_unresolved": false,
+        "meaning": "name shown to an administrator; never used for authorization",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "external_ref": {
+        "may_be_unresolved": false,
+        "meaning": "identity in the upstream provider, kept verbatim for reconciliation",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "principal_kind": {
+        "may_be_unresolved": false,
+        "meaning": "what sort of principal this is",
+        "nullable": false,
+        "optional": false,
+        "type": "PrincipalKind"
+      },
+      "subject_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this principal",
+        "nullable": false,
+        "optional": false,
+        "type": "SubjectId"
+      }
+    },
+    "python": "Subject"
+  },
+  "inference.endpoint@1": {
+    "fields": {
+      "address": {
+        "may_be_unresolved": false,
+        "meaning": "host or address the instance is bound to",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "base_path": {
+        "may_be_unresolved": false,
+        "meaning": "path prefix the runtime serves under",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "port": {
+        "may_be_unresolved": false,
+        "meaning": "port the instance is bound to",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "scheme": {
+        "may_be_unresolved": false,
+        "meaning": "transport scheme",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "InferenceEndpoint"
+  },
+  "inference.instance@1": {
+    "fields": {
+      "access_policy_ref": {
+        "may_be_unresolved": false,
+        "meaning": "the policy governing who may use it, by identifier",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "configuration_version": {
+        "may_be_unresolved": false,
+        "meaning": "advances when the serving configuration changes, so a restart can tell a stale instance from a current one",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "context_length_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "configured context length, which is a capacity decision not a setting",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "endpoint": {
+        "may_be_unresolved": false,
+        "meaning": "where it is reachable, once it is",
+        "nullable": true,
+        "optional": true,
+        "type": "InferenceEndpoint | None"
+      },
+      "executor": {
+        "may_be_unresolved": false,
+        "meaning": "the executor running the process",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "health": {
+        "may_be_unresolved": false,
+        "meaning": "whether the API functions, as distinct from status",
+        "nullable": false,
+        "optional": false,
+        "type": "HealthState"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "the host it runs on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "instance_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this instance",
+        "nullable": false,
+        "optional": false,
+        "type": "InstanceId"
+      },
+      "lifecycle_state": {
+        "may_be_unresolved": false,
+        "meaning": "what the platform intends and observes",
+        "nullable": false,
+        "optional": false,
+        "type": "LifecycleState"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "the model it serves",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "model_revision": {
+        "may_be_unresolved": true,
+        "meaning": "the model revision being served",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "platform_max_concurrent_requests": {
+        "may_be_unresolved": true,
+        "meaning": "the gateway's limit for this instance, a different dimension from runtime concurrency",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "reachable": {
+        "may_be_unresolved": true,
+        "meaning": "whether the port answers; a reachable port is not a working API",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
+      "reservation_id": {
+        "may_be_unresolved": false,
+        "meaning": "the resources held for it; absent means nothing is held",
+        "nullable": true,
+        "optional": true,
+        "type": "ReservationId | None"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "the inference runtime adapter serving it",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_concurrency": {
+        "may_be_unresolved": true,
+        "meaning": "simultaneous requests this instance is configured to handle",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "started_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it began serving; absent until it does",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      }
+    },
+    "python": "InferenceInstance"
+  },
+  "knowledge.item@1": {
+    "fields": {
+      "checksum": {
+        "may_be_unresolved": true,
+        "meaning": "content digest, where obtainable",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "content_location": {
+        "may_be_unresolved": false,
+        "meaning": "where the content lives; a reference, because content need not be copied into the platform to be indexed",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "external_id": {
+        "may_be_unresolved": false,
+        "meaning": "its identity in the source, kept verbatim",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "indexing_state": {
+        "may_be_unresolved": false,
+        "meaning": "whether this item is retrievable",
+        "nullable": false,
+        "optional": false,
+        "type": "IndexingState"
+      },
+      "item_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this item",
+        "nullable": false,
+        "optional": false,
+        "type": "KnowledgeItemId"
+      },
+      "media_type": {
+        "may_be_unresolved": true,
+        "meaning": "content type; unknown means unclassified, not plain text",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "modified_at": {
+        "may_be_unresolved": true,
+        "meaning": "when the source last changed it",
+        "nullable": false,
+        "optional": true,
+        "type": "datetime | Unresolved"
+      },
+      "owner_ref": {
+        "may_be_unresolved": false,
+        "meaning": "who owns it in the source, by the source's own reference",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "path": {
+        "may_be_unresolved": false,
+        "meaning": "location within the source, where the source has paths",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "permission_ref": {
+        "may_be_unresolved": false,
+        "meaning": "pointer to the source's authorization for this item, so permissions are revalidated rather than copied and left to go stale",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "source_id": {
+        "may_be_unresolved": false,
+        "meaning": "the source it came from",
+        "nullable": false,
+        "optional": false,
+        "type": "KnowledgeSourceId"
+      },
+      "version": {
+        "may_be_unresolved": true,
+        "meaning": "source version identifier",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "KnowledgeItem"
+  },
+  "knowledge.source@1": {
+    "fields": {
+      "capabilities": {
+        "may_be_unresolved": false,
+        "meaning": "what this connector can actually do, so the retrieval path never assumes a capability the source lacks",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[Name, ...]"
+      },
+      "connector": {
+        "may_be_unresolved": false,
+        "meaning": "the connector adapter that reaches it",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "display_name": {
+        "may_be_unresolved": false,
+        "meaning": "name shown to an administrator",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "indexing_state": {
+        "may_be_unresolved": false,
+        "meaning": "whether it can currently be retrieved from",
+        "nullable": false,
+        "optional": false,
+        "type": "IndexingState"
+      },
+      "last_indexed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the index was last rebuilt",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "permission_model": {
+        "may_be_unresolved": false,
+        "meaning": "how authorization for this source is determined",
+        "nullable": true,
+        "optional": true,
+        "type": "Name | None"
+      },
+      "source_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this source",
+        "nullable": false,
+        "optional": false,
+        "type": "KnowledgeSourceId"
+      }
+    },
+    "python": "KnowledgeSource"
+  },
+  "model.artifact@1": {
+    "fields": {
+      "artifact_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of these bytes",
+        "nullable": false,
+        "optional": false,
+        "type": "ArtifactId"
+      },
+      "checksum": {
+        "may_be_unresolved": true,
+        "meaning": "integrity digest; absence means the bytes are unverified, not sound",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "download_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "transfer size as stated upstream; frequently absent",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "installed_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "size once written to a pool, which is not the transfer size",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "the model these bytes are for",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "pool_id": {
+        "may_be_unresolved": false,
+        "meaning": "the pool holding them; absent while the artifact is still remote",
+        "nullable": true,
+        "optional": true,
+        "type": "StoragePoolId | None"
+      },
+      "revision": {
+        "may_be_unresolved": true,
+        "meaning": "the immutable revision these bytes came from",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "ModelArtifact"
+  },
+  "model.inventory_record@1": {
+    "fields": {
+      "artifact_id": {
+        "may_be_unresolved": false,
+        "meaning": "the stored bytes, once there are any",
+        "nullable": true,
+        "optional": true,
+        "type": "ArtifactId | None"
+      },
+      "derivation": {
+        "may_be_unresolved": false,
+        "meaning": "how it was derived from that parent",
+        "nullable": true,
+        "optional": true,
+        "type": "DerivationType | None"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "the host this record describes",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "last_used_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it last served a request, for portfolio decisions later",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "managed_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "storage this model occupies under platform management; unknown must never be summed as zero",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "the model this record concerns",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "parent_model_id": {
+        "may_be_unresolved": false,
+        "meaning": "the model this was derived from, for a derived artifact",
+        "nullable": true,
+        "optional": true,
+        "type": "ModelId | None"
+      },
+      "pool_id": {
+        "may_be_unresolved": false,
+        "meaning": "the pool holding them, once there is one",
+        "nullable": true,
+        "optional": true,
+        "type": "StoragePoolId | None"
+      },
+      "state": {
+        "may_be_unresolved": false,
+        "meaning": "where the model is in its lifecycle here",
+        "nullable": false,
+        "optional": false,
+        "type": "InventoryState"
+      }
+    },
+    "python": "ModelInventoryRecord"
+  },
+  "model.metadata@1": {
+    "fields": {
+      "commercial_use_restricted": {
+        "may_be_unresolved": true,
+        "meaning": "whether the licence restricts commercial use; unknown is not permission",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      },
+      "context_length_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "maximum context the model supports; frequently absent upstream",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "family": {
+        "may_be_unresolved": true,
+        "meaning": "model family, where the source states one",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "license_id": {
+        "may_be_unresolved": true,
+        "meaning": "licence identifier as stated by the source",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "normalized platform name, distinct from the minted identity and from the upstream reference",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this model",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "parameter_count": {
+        "may_be_unresolved": true,
+        "meaning": "parameter count, where stated",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "quantization scheme, where applicable",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "source": {
+        "may_be_unresolved": false,
+        "meaning": "which source adapter this came from",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "source_ref": {
+        "may_be_unresolved": false,
+        "meaning": "the upstream reference, kept verbatim",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "source_revision": {
+        "may_be_unresolved": true,
+        "meaning": "immutable revision; an acquisition without one is not reproducible",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "ModelMetadata"
+  },
+  "model.requirement@1": {
+    "fields": {
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "how much weight this requirement carries",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "the model this requirement describes",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "peak_additional_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "most additional storage needed at any moment during acquisition, including staging and conversion; admission is against this",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "system memory needed to load and serve",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "required_compute_features": {
+        "may_be_unresolved": false,
+        "meaning": "compute capabilities the model needs, such as a quantization kernel",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "steady-state size once installed",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "vram_kv_bytes_per_token": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator memory per token of context",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "vram_overhead_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator memory held by the runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "vram_weights_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator memory held by weights",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "ModelRequirement"
+  },
+  "policy.reference@1": {
+    "fields": {
+      "effective_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this version took effect, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "policy_id": {
+        "may_be_unresolved": false,
+        "meaning": "which policy, as a stable dotted name such as 'capacity.headroom'",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "version": {
+        "may_be_unresolved": false,
+        "meaning": "policy version; a decision is reproducible only against the same one",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      }
+    },
+    "python": "PolicyRef"
+  },
+  "resource.reservation@1": {
+    "fields": {
+      "accelerator_index": {
+        "may_be_unresolved": false,
+        "meaning": "which device the accelerator memory is held on; absent for workloads that need none",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "admitted_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "system memory granted",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "admitted_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "pool storage granted",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "admitted_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator memory granted, on the device named below",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it was admitted, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "the host whose resources are held",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "released_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the grant ended; absent while it is still held",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "reservation_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this grant",
+        "nullable": false,
+        "optional": false,
+        "type": "ReservationId"
+      },
+      "state": {
+        "may_be_unresolved": false,
+        "meaning": "where this reservation is in its life",
+        "nullable": false,
+        "optional": false,
+        "type": "ReservationState"
+      },
+      "workload_id": {
+        "may_be_unresolved": false,
+        "meaning": "the workload it was granted to",
+        "nullable": false,
+        "optional": false,
+        "type": "WorkloadId"
+      }
+    },
+    "python": "ResourceReservation"
+  },
+  "resource.workload@1": {
+    "fields": {
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it was requested, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "the host it would run on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "the model it serves, for workload types that have one",
+        "nullable": true,
+        "optional": true,
+        "type": "ModelId | None"
+      },
+      "priority": {
+        "may_be_unresolved": false,
+        "meaning": "relative importance; higher wins when capacity is contested",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "workload_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this work",
+        "nullable": false,
+        "optional": false,
+        "type": "WorkloadId"
+      },
+      "workload_type": {
+        "may_be_unresolved": false,
+        "meaning": "what sort of work it is",
+        "nullable": false,
+        "optional": false,
+        "type": "WorkloadType"
+      }
+    },
+    "python": "Workload"
+  },
+  "resource.workload_profile@1": {
+    "fields": {
+      "average_input_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "typical prompt length",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "average_output_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "typical completion length",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "expected_concurrency": {
+        "may_be_unresolved": true,
+        "meaning": "expected simultaneous requests",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "maximum_input_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "largest prompt to plan for",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "maximum_output_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "largest completion to plan for",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "requests_per_second": {
+        "may_be_unresolved": true,
+        "meaning": "expected steady request rate",
+        "nullable": false,
+        "optional": false,
+        "type": "float | Unresolved"
+      },
+      "streaming": {
+        "may_be_unresolved": true,
+        "meaning": "whether responses are streamed",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      },
+      "target_ttft_seconds": {
+        "may_be_unresolved": true,
+        "meaning": "time-to-first-token objective",
+        "nullable": false,
+        "optional": false,
+        "type": "float | Unresolved"
+      }
+    },
+    "python": "WorkloadProfile"
+  },
   "result@1": {
     "fields": {
       "correlation_id": {
@@ -104,6 +1714,67 @@
       }
     },
     "python": "Result"
+  },
+  "storage.pool@1": {
+    "fields": {
+      "filesystem_type": {
+        "may_be_unresolved": true,
+        "meaning": "filesystem type as reported",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "digest of mount identity, filesystem type and quota identity; evidence is keyed on this and is invalid when it changes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "generation": {
+        "may_be_unresolved": false,
+        "meaning": "advances on every successful mutation, invalidating earlier evidence",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "the host this pool belongs to",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "path at which the pool's filesystem is mounted",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "pool_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this pool",
+        "nullable": false,
+        "optional": false,
+        "type": "StoragePoolId"
+      },
+      "provider_class": {
+        "may_be_unresolved": false,
+        "meaning": "what backs the pool, which governs whether its evidence is reusable",
+        "nullable": false,
+        "optional": false,
+        "type": "ProviderClass"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "the quota this pool is bounded by, where one applies; a quota failure bounds capacity differently from a disk-full failure",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "StoragePool"
   },
   "store_defect@1": {
     "fields": {
@@ -156,5 +1827,120 @@
       }
     },
     "python": "ReconciliationReport"
+  },
+  "training.dataset_snapshot@1": {
+    "fields": {
+      "authorized_by": {
+        "may_be_unresolved": false,
+        "meaning": "who granted that permission",
+        "nullable": true,
+        "optional": true,
+        "type": "SubjectId | None"
+      },
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it was captured, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "provenance_refs": {
+        "may_be_unresolved": false,
+        "meaning": "where the material came from, by identifier, so a derived model's sources remain traceable",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "retention_days": {
+        "may_be_unresolved": true,
+        "meaning": "how long the material may be kept",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "scope_team_id": {
+        "may_be_unresolved": false,
+        "meaning": "the team whose material this is, which bounds what may be derived from it",
+        "nullable": true,
+        "optional": true,
+        "type": "TeamId | None"
+      },
+      "snapshot_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this set",
+        "nullable": false,
+        "optional": false,
+        "type": "DatasetSnapshotId"
+      },
+      "training_authorized": {
+        "may_be_unresolved": false,
+        "meaning": "explicit permission to train on this material; never inferred from permission to read it",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      }
+    },
+    "python": "DatasetSnapshot"
+  },
+  "training.derived_model@1": {
+    "fields": {
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it was produced, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "derivation_type": {
+        "may_be_unresolved": false,
+        "meaning": "how it was derived; an adapter is not a base model",
+        "nullable": false,
+        "optional": false,
+        "type": "DerivationType"
+      },
+      "derived_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this derivative",
+        "nullable": false,
+        "optional": false,
+        "type": "DerivedModelId"
+      },
+      "owner_team_id": {
+        "may_be_unresolved": false,
+        "meaning": "the team it belongs to",
+        "nullable": true,
+        "optional": true,
+        "type": "TeamId | None"
+      },
+      "parent_model_id": {
+        "may_be_unresolved": false,
+        "meaning": "the model it was derived from",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "parent_revision": {
+        "may_be_unresolved": true,
+        "meaning": "the parent revision it was derived from; without this the derivation is not reproducible",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "promotion_state": {
+        "may_be_unresolved": false,
+        "meaning": "how far it has progressed",
+        "nullable": false,
+        "optional": false,
+        "type": "PromotionState"
+      },
+      "snapshot_id": {
+        "may_be_unresolved": false,
+        "meaning": "the training material used, for derivations that used any",
+        "nullable": true,
+        "optional": true,
+        "type": "DatasetSnapshotId | None"
+      }
+    },
+    "python": "DerivedModel"
   }
 }

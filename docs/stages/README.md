@@ -65,13 +65,11 @@ runtime. Milestones 1 through 4 each require `L2` or above.
 
 ## Current position
 
-**Stage 0.1 is closed** — `PlatformKernel v1`, at `L1`. See
-`STAGE-0.1-platform-kernel.md`.
+**Stages 0.1 and 0.2 are closed** — `PlatformKernel v1` and
+`PlatformContracts v1`, both at `L1`.
 
-Milestone 0 continues with Stage 0.2, the contracts that must exist
-before their subsystems, and Stage 0.3, the control plane shell. Its
-output is `PlatformContracts v1 + PlatformState v1 + ControlPlaneShell
-v1`, and it is deliberately small.
+Milestone 0 finishes with Stage 0.3, the control plane shell. Its output
+is `PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`.
 
 **Milestone 1 is the first working vertical**, and its gate — fresh-host
 live inference on real hardware — is the proof the previous attempt never

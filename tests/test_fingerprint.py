@@ -13,12 +13,18 @@ import os
 from pathlib import Path
 from typing import Any
 
-# Importing these registers the production contracts.
+# Importing these registers the kernel's own contracts.
 from kultrun.kernel import events, persistence, results  # noqa: F401
 from kultrun.kernel.schema import fingerprint
+from tests.architecture import import_all_contracts
 from tests.schema_compat import breaking_changes, compatible_additions
 
 GOLDEN = Path(__file__).resolve().parent / "golden" / "schema_fingerprint.json"
+SOURCE_ROOT = Path(__file__).resolve().parent.parent / "src"
+
+# Registration is a side effect of import, so the fingerprint would otherwise
+# depend on which tests happened to run.
+import_all_contracts(SOURCE_ROOT)
 
 
 def _committed() -> dict[str, Any]:

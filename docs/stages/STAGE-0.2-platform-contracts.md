@@ -6,7 +6,7 @@ This file holds the **brief**, in the format of `docs/ROADMAP.md` Part V.
 The output package required by Part II §4.9 is appended here when the stage
 closes.
 
-Status: **BRIEF — not yet implemented.**
+Status: **CLOSED.** Brief below, output package at the end.
 
 ---
 
@@ -243,4 +243,120 @@ output.
 
 ## OUTPUT PACKAGE
 
-*To be completed when the stage closes.*
+**Output:** `PlatformContracts v1` · **Acceptance:** `L1`, 196 tests passing ·
+**Checkpoint:** `checkpoints/STAGE-0.2-platform-contracts.json`
+
+Fourteen packages, thirty-one domain contracts, thirty-six in total with the
+kernel's five. The brief said thirteen packages; it undercounted by one.
+
+| Package | Tier | Contracts |
+|---|---|---|
+| `evidence` | 1 | `Provenance`, `LayeredBytes` |
+| `policy` | 1 | `PolicyRef` |
+| `identity` | 1 | `Subject`, `AccessContext` |
+| `entitlement` | 1 | `Entitlement` |
+| `audit` | 1 | `AuditEvent` |
+| `host` | 2 | `HostCapabilities` and its six fact types |
+| `storage` | 2 | `StoragePool` |
+| `capacity` | 2 | `CapacityEvidence` |
+| `model` | 3 | `ModelMetadata`, `ModelArtifact`, `ModelRequirement`, `ModelInventoryRecord` |
+| `resource` | 4 | `Workload`, `WorkloadProfile`, `ResourceReservation` |
+| `inference` | 6 | `InferenceInstance`, `InferenceEndpoint` |
+| `analytics` | 6 | `UsageEvent` |
+| `knowledge` | 7 | `KnowledgeSource`, `KnowledgeItem` |
+| `training` | 7 | `DatasetSnapshot`, `DerivedModel` |
+
+### The discipline, and where it was refined
+
+The brief set a three-part test for whether a field belongs in v1. In
+practice a fourth distinction did the most work, and it is worth recording
+because it resolves a tension the brief did not anticipate.
+
+**A specified field set is transcription; an unspecified one is
+speculation.** `docs/PRODUCT_VISION.md` §8 enumerates what host inspection
+must cover, §23 enumerates capacity evidence, §39 knowledge items, §46
+usage events, §75 derived-model lineage. Writing those out is not guessing
+at a future caller's needs — the constitution already decided them, and
+deferring them would mean Stage 1.1 rediscovering a list that already
+exists. Where the constitution is silent, the contract stays minimal:
+`StoragePool` has eight fields, `PolicyRef` three.
+
+Without that distinction the brief's rule would have forced
+`HostCapabilities` to be an empty shell until Stage 1.1, and then required
+a `schema_version` bump to fill it — churn with no reader benefit, since
+nothing had shipped.
+
+### Distinctions the contracts are built to preserve
+
+Each of these is a conflation the previous attempt made, or was explicitly
+warned against, and each has a test that fails if it is undone.
+
+| Distinction | Where |
+|---|---|
+| Five identities on a usage event, plus requested versus actual model | `analytics` |
+| Reported, effective and safe, with only safe authorizing | `evidence` |
+| Whether an action was permitted, versus whether it worked | `audit` |
+| Requested, admitted, observed and peak consumption | `resource` |
+| Port reachable, versus API healthy | `inference` |
+| Peak additional storage, versus installed size | `model` |
+| Permission to retrieve, versus permission to train | `training` |
+| Model requirement independent of any host | `model` |
+| Mount facts as inspection, versus pool as allocatable capacity | `host` / `storage` |
+
+### Two architecture checks added
+
+Both needed contracts to inspect, which is why Stage 0.1 could not write
+them.
+
+**Reference by identifier** distinguishes an entity from a value object,
+which turned out to be the load-bearing detail. A contract may embed
+`Provenance` from another package, because a value object has no identity
+to be referenced by; it may not embed `Subject`, because that would give
+one thing's shape two owners. The rule is implemented as: a cross-package
+contract field is a violation if the referenced contract carries its own
+minted identifier. Verified by embedding `Subject` in a synthetic contract
+and confirming the failure names the rule.
+
+**Host scoping** asserts that the six host-scoped contracts carry a
+`HostId`, and that `accelerators` and `mounts` are collections on a
+reference host that has one of each. This is the whole of what keeps
+Milestone 14 an extension rather than a rewrite.
+
+Both discover contract modules from the tree rather than from a list, so a
+new domain package is covered the moment it exists — the same property that
+makes the tier-assignment check useful.
+
+### Acceptance evidence
+
+`L1`, 196 tests, ruff clean, mypy strict clean on 57 files.
+
+Every contract round-trips, including unresolved values carrying each
+reason. The registry-and-fingerprint test asserts the two mechanisms agree,
+rather than checking a magic number that would drift.
+
+One test was found to be order-dependent — contract registration is an
+import side effect, so a check reading the registry saw only what happened
+to have been imported. That is now fixed at the source: both the fingerprint
+and the architecture checks import every `contracts.py` in the tree first.
+
+### Debt
+
+No new entries. Nothing here can mutate, so nothing here can authorize one.
+`K-03` — no migration engine — remains the only entry with a hard deadline,
+and it is now more load-bearing than it was: thirty-one contracts are at
+version 1, and the first bump needs a migration path.
+
+### Deferred
+
+Ports, `CapacityEnvelope`, `FeasibilityResult`, `DeploymentPlan`,
+`ComponentManifest`, the identity directory behind `Subject`, `ModelOutcome`
+and observed capacity fields — each named in the brief with the stage that
+owns it.
+
+### What this stage does not prove
+
+`L1`, and less than that suggests. These contracts have been serialized and
+inspected; not one has been populated from a real host, a real model or a
+real request. `HostCapabilities` describes a machine nothing has looked at
+yet. The first evidence that any of these shapes is right arrives at the
+Stage 1.1 gate, on hardware.

@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
+from typing import Any, cast, get_args, get_origin, get_type_hints
+
+from kultrun.kernel.ids import EntityId
+from kultrun.kernel.schema import Contract
 
 #: Part II §1. Tiers are bands; imports may only go downward between them.
 TIERS: Mapping[str, int] = {
@@ -97,6 +101,26 @@ CONTRACT_MODULE = "contracts"
 
 #: Tiers below `adapters` that may never import it (Law 3).
 ADAPTER_TIER = TIERS["adapters"]
+
+#: Part II §6. Contracts scoped to a single host, which must carry a host
+#: identifier from v1. Milestone 14 extends these into a fleet; that is an
+#: extension only if the scoping is already there.
+HOST_SCOPED_KINDS: frozenset[str] = frozenset(
+    {
+        "host.capabilities",
+        "storage.pool",
+        "model.inventory_record",
+        "resource.workload",
+        "resource.reservation",
+        "inference.instance",
+    }
+)
+
+#: Part II §6. Collections that must be plural from v1 even where the
+#: reference host has one, because a singular field is a rewrite later.
+PLURAL_FIELDS: Mapping[str, tuple[str, ...]] = {
+    "host.capabilities": ("accelerators", "mounts"),
+}
 
 #: Part IV tier 0. One concept, one module. Reviewed at every consolidation
 #: checkpoint; a new kernel module must be a new kernel concept.
@@ -291,3 +315,135 @@ def _check(edge: ImportEdge) -> list[str]:
         )
 
     return problems
+
+
+# ---------------------------------------------------------------------------
+# Contract-shape checks — Part II §2 Law 2 and Part II §6
+# ---------------------------------------------------------------------------
+
+
+def owning_package(contract_type: type) -> str:
+    """The domain package a type belongs to."""
+    parts = contract_type.__module__.split(".")
+    return parts[1] if len(parts) > 1 else ""
+
+
+def _mentioned_types(annotation: Any) -> list[Any]:
+    """Flatten an annotation into the concrete types it mentions."""
+    args = get_args(annotation)
+    if not args:
+        return [annotation]
+    found: list[Any] = []
+    for arg in args:
+        if arg is Ellipsis or arg is type(None):
+            continue
+        found.extend(_mentioned_types(arg))
+    return found
+
+
+def _carries_identity(contract_type: type[Contract]) -> bool:
+    """Whether a contract has its own minted identity.
+
+    This is what separates an entity from a value object. `Provenance` has
+    no identity and may be embedded anywhere; `Subject` has one and must be
+    referenced by it.
+    """
+    hints = get_type_hints(contract_type)
+    return any(
+        isinstance(hints[field.name], type)
+        and issubclass(hints[field.name], EntityId)
+        for field in fields(cast("Any", contract_type))
+    )
+
+
+def reference_violations(
+    contracts: Mapping[tuple[str, int], type[Contract]],
+) -> list[str]:
+    """Law 2: cross-package references are by identifier, not by import.
+
+    A contract may embed a **value object** from another package, because a
+    value has no identity to reference it by. It may not embed another
+    package's **entity**: that would give one thing's shape two owners and
+    stop the contract graph being a DAG.
+    """
+    problems: list[str] = []
+    for (kind, version), contract_type in sorted(contracts.items()):
+        package = owning_package(contract_type)
+        if package == "kernel":
+            continue  # the kernel defines the mechanism; Event.payload is generic
+        hints = get_type_hints(contract_type)
+        for field in fields(cast("Any", contract_type)):
+            for mentioned in _mentioned_types(hints[field.name]):
+                if not isinstance(mentioned, type):
+                    continue
+                if not issubclass(mentioned, Contract) or mentioned is Contract:
+                    continue
+                if owning_package(mentioned) in (package, "", "kernel"):
+                    continue
+                if not _carries_identity(mentioned):
+                    continue  # a value object; safe to embed
+                problems.append(
+                    f"{kind}@{version}.{field.name}: embeds entity "
+                    f"'{mentioned.__name__}' owned by '{owning_package(mentioned)}'; "
+                    f"reference it by identifier instead (Part II §2 Law 2)"
+                )
+    return problems
+
+
+def host_scoping_violations(
+    contracts: Mapping[tuple[str, int], type[Contract]], *, host_id_type: type
+) -> list[str]:
+    """Part II §6: host-scoped contracts carry a host id and stay plural.
+
+    Milestone 14 turns these contracts into a fleet. That is an extension
+    only if the scoping is already present; otherwise it is a rewrite of
+    every capacity and lifecycle contract.
+    """
+    problems: list[str] = []
+    by_kind = {kind: cls for (kind, _), cls in contracts.items()}
+
+    for kind in sorted(HOST_SCOPED_KINDS):
+        contract_type = by_kind.get(kind)
+        if contract_type is None:
+            problems.append(f"{kind}: declared host-scoped but not registered")
+            continue
+        hints = get_type_hints(contract_type)
+        if "host_id" not in hints:
+            problems.append(
+                f"{kind}: a host-scoped contract must carry 'host_id' from v1"
+            )
+        elif hints["host_id"] is not host_id_type:
+            problems.append(f"{kind}.host_id: must be typed HostId")
+
+    for kind, plural in PLURAL_FIELDS.items():
+        contract_type = by_kind.get(kind)
+        if contract_type is None:
+            problems.append(
+                f"{kind}: declared to have plural fields but not registered"
+            )
+            continue
+        hints = get_type_hints(contract_type)
+        for name in plural:
+            if name not in hints:
+                problems.append(f"{kind}.{name}: declared plural but absent")
+            elif get_origin(hints[name]) not in (tuple, list):
+                problems.append(
+                    f"{kind}.{name}: must be a collection from v1, even where "
+                    f"the reference host has one (Part II §6)"
+                )
+    return problems
+
+
+def import_all_contracts(source_root: Path) -> None:
+    """Import every ``<package>/contracts.py`` in the tree.
+
+    Contract registration is a side effect of import, so a check that reads
+    the registry sees only what happens to have been imported. Discovering
+    the modules from the tree rather than listing them means a new domain
+    package is covered by these checks the moment it exists, which is the
+    same property that makes the tier assignment check useful.
+    """
+    import importlib
+
+    for path in sorted((source_root / "kultrun").glob("*/contracts.py")):
+        importlib.import_module(f"kultrun.{path.parent.name}.contracts")

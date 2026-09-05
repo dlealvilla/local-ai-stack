@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "stage": "0.2",
+  "name": "platform-contracts",
+  "milestone": 0,
+  "output": "PlatformContracts v1",
+  "status": "CLOSED",
+  "produced_at": "2026-09-05T07:34:00.439927Z",
+  "contract_surface_token": "db09f9ba1665bcfa",
+  "consumed_predecessor": {
+    "stage": "0.1",
+    "contract_surface_token": "f4f256efb2541451"
+  },
+  "acceptance": {
+    "level": "L1",
+    "why_sufficient": "Contracts that import no runtime and hold no state have nothing an L2 run would reveal. The Milestone 0 gate is exactly this.",
+    "tests_passed": 196,
+    "tests_failed": 0,
+    "lint": "clean",
+    "types": "strict, clean"
+  },
+  "packages_created": [
+    "analytics",
+    "audit",
+    "capacity",
+    "entitlement",
+    "evidence",
+    "host",
+    "identity",
+    "inference",
+    "kernel",
+    "knowledge",
+    "model",
+    "policy",
+    "resource",
+    "storage",
+    "training"
+  ],
+  "contracts": {
+    "analytics": [
+      "analytics.usage_event@1"
+    ],
+    "audit": [
+      "audit.event@1"
+    ],
+    "capacity": [
+      "capacity.evidence@1"
+    ],
+    "entitlement": [
+      "entitlement.claim@1"
+    ],
+    "kernel": [
+      "error_detail@1",
+      "event@1",
+      "result@1",
+      "store_defect@1",
+      "store_reconciliation@1"
+    ],
+    "evidence": [
+      "evidence.layered_bytes@1",
+      "evidence.provenance@1"
+    ],
+    "host": [
+      "host.accelerator@1",
+      "host.capabilities@1",
+      "host.cpu@1",
+      "host.execution@1",
+      "host.memory@1",
+      "host.mount@1",
+      "host.network@1",
+      "host.operating_environment@1"
+    ],
+    "identity": [
+      "identity.access_context@1",
+      "identity.subject@1"
+    ],
+    "inference": [
+      "inference.endpoint@1",
+      "inference.instance@1"
+    ],
+    "knowledge": [
+      "knowledge.item@1",
+      "knowledge.source@1"
+    ],
+    "model": [
+      "model.artifact@1",
+      "model.inventory_record@1",
+      "model.metadata@1",
+      "model.requirement@1"
+    ],
+    "policy": [
+      "policy.reference@1"
+    ],
+    "resource": [
+      "resource.reservation@1",
+      "resource.workload@1",
+      "resource.workload_profile@1"
+    ],
+    "storage": [
+      "storage.pool@1"
+    ],
+    "training": [
+      "training.dataset_snapshot@1",
+      "training.derived_model@1"
+    ]
+  },
+  "contract_count": {
+    "domain": 31,
+    "kernel": 5
+  },
+  "ports": [],
+  "persists_state": false,
+  "reconciliation": "not applicable; this stage holds no state",
+  "orphans_possible": [],
+  "architecture_checks_added": [
+    "reference by identifier: a cross-package field may embed a value object but not an entity",
+    "host scoping: host-scoped contracts carry a HostId and stay plural"
+  ],
+  "debt": {
+    "open": [
+      "K-01",
+      "K-02",
+      "K-03",
+      "K-04",
+      "K-05",
+      "K-06",
+      "K-07"
+    ],
+    "opened_here": [],
+    "authorizing": [],
+    "hard_deadline": {
+      "K-03": "before the first schema_version bump ships"
+    }
+  },
+  "deferred": [
+    "ports for every domain, with the stage that owns the behaviour",
+    "CapacityEnvelope (1.2), FeasibilityResult and DeploymentPlan (M3)",
+    "ComponentManifest (1.3)",
+    "identity directory: User, Group, Team, AccessPolicy (5.1)",
+    "ModelOutcome and observed capacity fields (M11)"
+  ],
+  "package": "docs/stages/STAGE-0.2-platform-contracts.md",
+  "next_stage": {
+    "stage": "0.3",
+    "consumes": [
+      "Subject, for local administrator identity",
+      "the full contract set, for the Platform API contracts endpoint",
+      "AuditEvent and Approval, which 0.3 must create the recording path for",
+      "HealthSource, the port 0.3 declares for every domain to implement"
+    ]
+  }
+}
