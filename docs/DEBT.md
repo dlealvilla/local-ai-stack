@@ -497,6 +497,69 @@ the roadmap warns about.
 **Retires when** Stage 1.5 needs to admit against live availability, or
 Stage 11.1 fuses observed evidence.
 
+### K-27 — storage sanity runs only when asked
+
+**Stage** 1.2A · **Kind** provisional · **Risk** low
+
+A pool is flagged as worth verifying and an operator decides. Nothing
+schedules the probe, so a pool can stay unverified indefinitely and its
+capacity stays bounded by policy.
+
+Deliberate. Kultrun has no execution or job lifecycle yet, so making it
+automatic would mean running a long filesystem operation on a background
+thread — precisely how the previous implementation orphaned a 42,990 MiB
+probe file when shutdown did not await the daemon thread that owned it.
+
+**Retires when** Stage 1.3's executor exists and can own a cancellable
+background job with cleanup that runs.
+
+### K-28 — one reservation primitive, POSIX only
+
+**Stage** 1.2A · **Kind** provisional · **Risk** medium
+
+`posix_fallocate` is the only genuine reservation mechanism, so a sanity
+check on macOS reports `UNSUPPORTED` and gathers nothing. The policy bound
+stands unchanged, which is the correct fail-closed outcome — but it means
+the subsystem cannot verify anything on a developer machine.
+
+The tempting substitute is `truncate` or a sparse write. Both would succeed
+instantly at any size and "verify" a petabyte on the very mounts this
+exists to distrust, so no evidence beats fake evidence.
+
+**Retires when** macOS or Windows becomes a supported deployment target and
+a genuine platform primitive is wired — `F_PREALLOCATE` on Darwin.
+
+### K-29 — the sanity mutation is unauthenticated and unaudited
+
+**Stage** 1.2A · **Kind** deferred · **Risk** medium
+
+`POST /v1/storage/sanity-check` reserves real space and is reachable by
+anyone who can reach the API. Tolerable only because the API binds to
+loopback and there is no authentication anywhere yet (`K-08`), so this adds
+no exposure that did not already exist.
+
+It also writes no `AuditEvent`, though it is a deliberate operator action
+against a real resource — exactly the shape audit exists for.
+
+**Retires when** authentication arrives, or when Stage 1.5 makes mutating
+endpoints pass through admission and audit. Whichever comes first.
+
+### K-30 — the console has no automated visual regression
+
+**Stage** 1.2A · **Kind** deferred · **Risk** low
+
+Two real defects were found by looking at the rendered page and by nothing
+else: a relative asset path that blanked every panel, and a capacity note
+that called a replayed reservation genuine. Both now have tests, but both
+were found by eye.
+
+There is no screenshot comparison, no DOM assertion beyond served markup,
+and no check that a panel actually displays the value the API returned.
+
+**Retires when** the console carries something a customer relies on. Until
+then, looking at it is part of the acceptance ritual and cheaper than the
+infrastructure would be.
+
 ## Deferred capability register
 
 Distinct from the debt entries above. A debt entry records an approximation
@@ -666,6 +729,20 @@ Downstream redesign expected: unknown — this is the one deferred shape that
                  might genuinely reach classification E at a breadth review
 Revisit:         only if multi-host placement enters the roadmap. Explicitly not
                  brought forward
+
+### DC-14 — a genuine reservation primitive beyond POSIX
+
+Architecture:    ARCHITECTURE-READY — `StorageSanityProbe` is the seam
+Implementation:  ADAPTER-NOT-IMPLEMENTED for anything but `posix_fallocate`
+Fixture:         n/a
+Evidence:        none. A sanity check on Darwin reports UNSUPPORTED, which
+                 leaves the policy bound standing and lowers nothing
+Seam:            `kultrun.storage.ports.StorageSanityProbe`
+Unproven:        whether `F_PREALLOCATE` on Darwin gives comparable evidence
+Downstream redesign expected: NO
+Revisit:         when macOS or Windows becomes a supported deployment target.
+                 Never by substituting a sparse write: it would succeed at any
+                 size and verify a petabyte that is not there
 
 ### DC-11 — automated ephemeral hardware acceptance
 

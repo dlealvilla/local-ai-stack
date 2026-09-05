@@ -1,0 +1,125 @@
+{
+  "record": "post-stage enhancement",
+  "stage": "1.2A",
+  "name": "storage sanity v0 and prototype console",
+  "status": "closed",
+  "output": "StorageSanityProbe + StorageSanityEvidence + Prototype Console + fixture replay mode",
+  "START_LINK": {
+    "predecessor_accepted_commit": "ea170525997fca7dd92704f604d6ef2c5deac4e0",
+    "stage_1_2_commit": "2e3b3f1",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.2-capacity.json"
+    ]
+  },
+  "storage_sanity": {
+    "question": "can a genuine reservation reach the amount policy already decided to allow?",
+    "not_the_question": "what is this filesystem's maximum?",
+    "port": "kultrun.storage.ports.StorageSanityProbe",
+    "implementations": {
+      "posix-fallocate": "genuine, chunked reservation; Linux",
+      "replayed-no-allocation": "scripted outcomes for fixture mode and tests"
+    },
+    "trigger": "reported free >= 1 TiB AND the family's reported size is not credible. A flag only; a read never probes",
+    "ladder": "8, 16, 32, 64 GiB \u2014 last rung is the policy ceiling",
+    "budgets": [
+      "5 checkpoints",
+      "policy ceiling as max target",
+      "120s wall clock",
+      "128 GiB cumulative work",
+      "512 MiB chunks",
+      "cancellation between rungs"
+    ],
+    "policy_interaction": {
+      "no_evidence": "policy bound stands",
+      "partial": "policy bound stands; a budget expiring proves nothing about the pool",
+      "policy_cap_verified": "bound confirmed, not raised",
+      "failure_below_policy": "capacity reduced to the verified lower bound",
+      "can_raise_the_bound": false
+    },
+    "result_shape": "verified lower bound, optional observed failure upper bound, UNKNOWN upper bound; never a midpoint",
+    "failure_classification": "only ENOSPC and EDQUOT bound capacity; EOPNOTSUPP is an absence of method",
+    "persistence": "after every rung, before the next begins",
+    "cleanup": "removed in finally, confirmed by path absence, never by a free-space delta; orphans cleared before each probe",
+    "daemon_thread_introduced": false,
+    "execution": "explicit only \u2014 CLI `kultrun storage sanity-check` and POST /v1/storage/sanity-check; unreachable by GET"
+  },
+  "prototype_console": {
+    "technology": "HTML, CSS, vanilla JavaScript; no framework, no build step",
+    "route": "/prototype, served by the HTTP adapter from the same artifact",
+    "packaged_in_wheel": true,
+    "product_logic_in_frontend": false,
+    "source_checkout_required": false,
+    "page_load_mutations": false,
+    "panels": [
+      "evidence source",
+      "build",
+      "what works today",
+      "capacity",
+      "storage sanity",
+      "runtime (hidden until 1.3)",
+      "host",
+      "discovery providers"
+    ],
+    "binds": "127.0.0.1 \u2014 no authentication exists yet"
+  },
+  "fixture_replay_mode": {
+    "amendment": "the console must work locally by default; a rented host is a laboratory, not a home",
+    "selector": "KULTRUN_FIXTURE=default or a shape id",
+    "captured_evidence_ships_in_wheel": true,
+    "runs_real_logic": "real parsers, normalization, capacity policy and sanity controller; only the evidence source and the reservation primitive are substituted",
+    "reproduces_reference_host": {
+      "memory": "251.5 GiB -> 57.7 GiB -> 43.3 GiB",
+      "accelerator": "31.9 GiB -> 23.9 GiB, one assigned of four visible",
+      "root": "29.9 GiB -> 29.9 GiB -> 24.9 GiB",
+      "workspace": "507.7 TiB -> 64.0 GiB -> 57.6 GiB"
+    },
+    "never_presented_as_live": "every surface reports evidence_mode, physical_host_connected and storage_evidence_kind",
+    "allocates_nothing": true
+  },
+  "local_acceptance": {
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "970746970067196f15c175638e146f8d49bcd35f9910f0c97c7f5453f4f29a91",
+    "build_id": "0.1.0+ec47f560a65c",
+    "isolated_install": "/tmp/kultrun-local venv, no repository on sys.path",
+    "prototype_http": 200,
+    "assets_served": [
+      "index.html",
+      "style.css",
+      "app.js"
+    ],
+    "traversal_attempt": 404,
+    "get_on_the_mutation": 404,
+    "sanity_ladder": "8/16/32/64 GiB, policy_cap_verified, stop=policy_cap_reached, method=replayed-no-allocation",
+    "capacity_after": "policy_cap_verified and still 64 GiB \u2014 confirmed, not expanded",
+    "start_command": "KULTRUN_FIXTURE=default KULTRUN_STATE_ROOT=/tmp/kultrun-local-state kultrun serve",
+    "browser_url": "http://127.0.0.1:8420/prototype",
+    "ssh_tunnel_required": false
+  },
+  "defects_found_by_looking": [
+    "index.html referenced assets relatively, so at /prototype without a trailing slash the browser resolved app.js to /app.js, 404ed, and rendered every panel blank. Every asset test passed because each fetched the asset directly",
+    "capacity called a verified bound 'empirically verified by a genuine reservation' even in fixture replay, where nothing was reserved \u2014 the product overstating its own evidence"
+  ],
+  "tests": {
+    "total": 458,
+    "storage_sanity": 33,
+    "console_and_modes": 24,
+    "ruff": "clean",
+    "mypy": "strict clean, 109 files"
+  },
+  "debt": {
+    "added": [
+      "K-27",
+      "K-28",
+      "K-29",
+      "K-30"
+    ],
+    "deferred_added": [
+      "DC-14"
+    ]
+  },
+  "stage_2_2": {
+    "still_the_sophistication_stage": true,
+    "implemented": false
+  },
+  "next": "Phase B \u2014 Stage 1.3 runtime and executor exoskeleton"
+}
