@@ -1,0 +1,398 @@
+# Stage 1.1 — Host discovery
+
+**Milestone 1 — Walking skeleton.** First stage.
+
+Brief in the format of `docs/ROADMAP.md` Part V. The output package is
+appended when the stage closes.
+
+Status: **BRIEF — not yet implemented. Requires real hosts to close.**
+
+> Revised after the host-discovery design review. Discovery is now a
+> **provider architecture** rather than a Kultrun-written detector: mature
+> tooling observes, Kultrun normalizes, reconciles and decides. See
+> `docs/ARCHITECTURE.md` Part IX for the external technology positions.
+
+---
+
+## CURRENT STAGE
+
+`HostDiscoveryService` producing normalized `HostCapabilities`, plus the
+`DeploymentProfile` that says how much the platform actually knows about a
+host of this shape.
+
+**This is the first stage that can be wrong in a way a test on the
+development machine cannot detect.** Everything through Milestone 0 was
+`L1`: contracts serialized, a control plane started, and nothing described
+anything real. From here every claim is checked against hardware, because
+the previous attempt's own record is unambiguous that hardware was the only
+oracle that mattered — a probe that ran 48 minutes and kept nothing, a
+filesystem advertising 239 TB free while a 6.70 GiB install was correctly
+refused, a deletion returning 1.1 GB to `df` out of 42,990 MiB. None of
+that was visible to a unit test.
+
+**And Kultrun does not write the enumeration.** Discovering CPU topology,
+NUMA, PCI devices and accelerators across Linux, macOS, ARM64 and x86_64 is
+commodity work that mature projects already do, on more platforms than this
+project will ever validate. Building it would be a large proprietary
+investment in something no customer would notice. What Kultrun owns is what
+those observations *mean*, and what may safely be done with them.
+
+## PREDECESSOR OUTPUTS
+
+`PlatformState v1 + ControlPlaneShell v1`, Stage 0.3, checkpoint
+`checkpoints/STAGE-0.3-control-plane-shell.json`, contract surface token
+`389bbd938668f5e6`.
+
+| Consumed | From |
+|---|---|
+| `HostCapabilities` and its six fact contracts | `host/contracts.py` (Stage 0.2) |
+| `Basis`, `Confidence`, `Provenance` | `evidence/contracts.py` |
+| `Maybe[...]`, so an unreadable value is unknown and not zero | `kernel/unresolved.py` |
+| `AdapterRegistry`, the seam by which providers are resolved | `kernel/registry.py` |
+| `Store`, for the durable host record | `kernel/persistence.py` |
+| `ReconcilePhase`, `HealthSource` | `platform/ports.py` |
+| `api/routes.py`, where host endpoints are added | Stage 0.3 |
+| The composition root | `main.py` |
+
+**One discrepancy with the predecessor checkpoint, reconciled here.** The
+Stage 0.3 checkpoint records that its successor will resolve a
+`HostDetector` adapter. That port is now `HostDiscoveryProvider`, and there
+are several of them rather than one. The checkpoint is left unedited — a
+closed checkpoint is a record of what was true and believed at close, and
+rewriting it would destroy the evidence it exists to hold. The rename is
+recorded here instead, which is where a successor is supposed to reconcile
+what it inherited against what it now needs.
+
+Nothing else is rediscovered. The contract shape was fixed at Stage 0.2;
+this stage populates it. The Stage 0.2 review confirmed those contracts
+need no change: provenance arrives here as optional fields, compatibly.
+
+## THIS STAGE'S REQUIRED OUTPUT
+
+`HostCapabilities v1 + DeploymentProfile v1 + HostDiscoveryProvider`.
+
+| Module | Owns |
+|---|---|
+| `host/ports.py` | `HostDiscoveryProvider` |
+| `host/discovery.py` | `HostDiscoveryService` — collect, normalize, reconcile |
+| `host/fingerprint.py` | What identifies a host across restarts |
+| `host/profile.py` | `DeploymentProfile` and the support matrix |
+| `host/inventory.py` | The durable record, its restart reconciliation, health |
+| `adapters/host/…` | The smallest provider set the spike proves necessary |
+
+Contract additions, all optional and therefore compatible:
+`ProviderReport`, `FieldObservation`, `ObservationConflict`,
+`DeploymentProfile`, and `Derivation` in `evidence`.
+
+Plus `GET /v1/host`, `GET /v1/host/profile`, `GET /v1/host/providers`, and
+a command that captures the current host to fixtures.
+
+### Step 0 — the provider validation spike
+
+**Bounded, and first.** Not a research project: a short empirical exercise
+on the machines actually available, whose output is a decision and a set of
+captured observations.
+
+It answers, per available shape:
+
+- what does a general topology tool report here, and what does it miss;
+- is it practical to provision — packaged, licensed, installable without
+  making the platform hostile to install;
+- which vendor or native supplement is *actually required* to answer a
+  question capacity will ask, rather than merely available;
+- do the outputs normalize cleanly into `HostCapabilities`, and where do
+  they conflict or overlap;
+- what does the platform do when the tool is absent.
+
+**No custom fallback is written until a real gap is demonstrated on a real
+machine.** Documentation says what a tool can do somewhere; only a run says
+what it does here. The general provider's own documentation states that
+"platforms and/or operating system versions will only report a subset" of
+its information, so partial results are the expected outcome and are not by
+themselves a gap — a gap is a question capacity needs answered that no
+available provider answers.
+
+Then implement the smallest provider stack that acceptance requires. The
+expectation, to be confirmed rather than assumed, is a general provider
+plus a vendor supplement on the NVIDIA host, and a general provider plus a
+small native supplement on Apple Silicon **only if** the supplement proves
+necessary. No AMD or Intel provider is written for completeness.
+
+## CORE CONTRACTS AFFECTED
+
+`HostCapabilities` and its fact types exist and do not change shape. Five
+decisions govern how they are filled.
+
+**A provider observes; it never decides.** It reports what a machine
+appears to contain, records where the observation came from, and may be
+partial, stale, slow, absent or wrong. It may not compute safe capacity,
+choose a model, select a runtime or authorize a workload. Law 5 in
+`docs/ARCHITECTURE.md` makes that structural: a provider inherits tier 2's
+import budget and has no path to `model`, `planning`, `resource`, `runtime`
+or `inference`.
+
+**The service owns meaning.** It selects providers, collects observations,
+normalizes them into Kultrun's vocabulary, reconciles overlaps, preserves
+unknowns and surfaces conflicts. Merge rules for this stage: a later
+observation never blindly overwrites an earlier one; a vendor observation
+may enrich a general one, because richer detail about the same device is
+not a conflict; two credible observations that genuinely disagree leave the
+value unresolved and record a conflict; a provider that is absent or fails
+means *that source was unavailable*, not that the host is unsupported; what
+no provider reported stays unknown.
+
+Note the naming: **merging observations is not restart reconciliation.**
+They are different operations and live in different modules, because a word
+that means two things is how a concept begins to fragment.
+
+**Detection reports; it never interprets and never authorizes.**
+`MountFacts.free_bytes` is what a filesystem claims and may be displayed;
+it may not authorize a storage mutation. Stage 1.2 is where interpretation
+begins and Milestone 2 is where storage evidence becomes credible.
+
+**A probe that fails produces `Unresolved`, never a default.** If a vendor
+tool is absent, VRAM is not known — it is not zero, and the host does not
+have "no accelerator". The distinction between "this host has no GPU" and
+"we could not find out" is the difference between a correct refusal and a
+wrong one, and the contracts already carry it.
+
+**The fingerprint covers stable facts only.** This is the decision most
+likely to cause trouble later if taken carelessly. The fingerprint is the
+key by which cached evidence is judged reusable from Milestone 2 onward, so
+it must include architecture, CPU model, accelerator models and count, and
+mount identity — and must exclude available memory, free bytes and anything
+else that changes minute to minute. A fingerprint over volatile values
+invalidates every cached probe on every restart, turning Milestone 2's most
+expensive work into something never reused.
+
+It must also exclude **provider-assigned handles**. AMD's own documentation
+warns that a device handle "may change after restarting the application, so
+it should not be considered a persistent identifier across processes." A
+fingerprint built on one would be unstable for a reason nothing in Kultrun
+could diagnose.
+
+### Explainability without an envelope per field
+
+Every value must remain explainable. Wrapping every leaf would double the
+size of every contract, so provenance is recorded beside the values, keyed
+by the dotted field path that `unresolved_fields` already produces.
+
+`FieldObservation` records path, provider, derivation, confidence and
+observation time. `ObservationConflict` records a path and the competing
+observations. Both are optional collections on `HostCapabilities`, so this
+is a compatible addition rather than a revision.
+
+`Derivation` is added to `evidence`: measured, reported by source, derived,
+configured, estimated. It answers *how a value was obtained*, which is a
+different question from `Basis` — *which layer of credibility it sits at,
+and therefore whether it may authorize anything*. A value can be
+`basis=reported, derivation=measured` when a vendor tool read it, and
+`basis=reported, derivation=configured` when an administrator typed it;
+both are unauthorizing, and only one is evidence.
+
+`Basis` is narrowed to that authorization axis. It is declared today but
+used by no field and absent from the committed fingerprint, so this costs
+nothing and is not a contract change.
+
+### `DeploymentProfile`, earned rather than declared
+
+`docs/PRODUCT_VISION.md` §89 defines five support tiers so the product can
+support broad hardware "without pretending every environment has identical
+guarantees." Nothing owned that concept until now.
+
+A tier states **what evidence exists for this host shape**:
+
+| Profile | Meaning | Earned by |
+|---|---|---|
+| `CERTIFIED` | Extensively validated | `L4` on this shape |
+| `SUPPORTED` | Expected to work | `L3` — live inference proven |
+| `COMPATIBLE` | Likely to work | `L2` — real detection and capacity, no inference |
+| `EXPERIMENTAL` | May work | Captured observation only, or partial detection |
+| `UNSUPPORTED` | Known incompatibility | An explicit refusal, with a reason |
+
+A profile applies to a defined hardware, software and environment shape.
+One validated NVIDIA system does not certify every NVIDIA system.
+
+The classifier matches detected capabilities against a shipped support
+matrix. That matrix is data, not logic, and it is the one place a claim
+about hardware support is made, so claims cannot scatter.
+
+After this stage the reference Linux host is `COMPATIBLE`: detection is
+real, inference is not yet. It becomes `SUPPORTED` at Stage 1.6 and
+`CERTIFIED` at the Milestone 1 gate. Written this way, a tier cannot get
+ahead of its evidence.
+
+**An unsupported profile does not prevent the platform from starting.**
+Fail-closed governs mutations, not existence. A platform that refuses to
+boot on unusual hardware cannot tell its administrator why, and the
+Platform API is the only surface that administrator has.
+
+## ADAPTERS AFFECTED
+
+`HostDiscoveryProvider` is the first port with several real
+implementations, which makes it the first genuine test of the adapter
+boundary.
+
+- **A general discovery provider** — the spike's first candidate. Portable
+  across the shapes we care about, packaged by most distributions, and
+  BSD-licensed. Reports topology and device presence; not device memory.
+- **A vendor supplement on NVIDIA hosts** — device memory, driver version,
+  per-device detail the general tool does not carry.
+- **A native supplement on Apple Silicon** — only if the spike shows the
+  general provider misses something capacity needs. Apple-specific
+  collection stays inside the adapter, and no Apple-specific concept enters
+  `HostCapabilities` unless it describes a genuinely cross-platform
+  capability. Unified memory does, because it changes how any host's memory
+  budget must be computed. A Metal-specific detail does not.
+- **A captured-fixture provider** — replays a committed observation. Not a
+  mock: it replays a real machine's real answers.
+
+Every provider is advisory with a mandatory internal fallback: if it is
+absent, broken or slow, the affected values become unresolved and discovery
+still completes. `llmfit` was integrated, found nondeterministic on the
+real host and demoted; that outcome is the default assumption.
+
+## PERSISTED STATE
+
+One `HostCapabilities` record per host, keyed by host identifier, plus a
+pointer to the current host, plus the last `ProviderReport` set.
+
+**Restart reconciliation** re-runs discovery and compares fingerprints.
+Four outcomes, each a fact rather than a decision:
+
+- unchanged — the record stands;
+- changed — the record is superseded and the change is reported, which from
+  Milestone 2 invalidates cached evidence;
+- unchanged shape, fewer providers — the record stands, values the missing
+  provider supplied become unresolved, and the loss is reported. A host does
+  not lose a GPU because a library stopped loading;
+- discovery failed entirely — the stored record is retained and marked
+  stale rather than deleted, because a host we cannot currently inspect is
+  not a host that has ceased to exist.
+
+The platform starts in all four cases.
+
+## MUTATION / FAILURE BOUNDARY
+
+Discovery performs no mutation. It reads, and it may execute read-only
+vendor tools.
+
+What fails closed: an external tool that hangs is abandoned at a timeout
+and its values become unresolved; unparseable output yields unresolved,
+never a guess; an unrecognised architecture is `UNKNOWN` and profiles as
+`EXPERIMENTAL`, never silently treated as x86_64; two credible conflicting
+observations leave the value unresolved and record the conflict rather than
+picking a winner.
+
+## CANCELLATION / CLEANUP
+
+Discovery is bounded and side-effect free. Each provider call has a
+timeout, and abandoning one leaves no artifact and no process — the
+executor's PID discipline arrives at Stage 1.3, so this stage spawns
+nothing it cannot reap synchronously.
+
+## ACCEPTANCE LEVEL
+
+**`L2` — real host.** `L1` cannot close a stage that touches hardware, and
+this is the stage that defines what "touches hardware" means.
+
+**Three real shapes**, each exercising a distinct failure mode rather than
+inflating a count:
+
+| Shape | Why it is worth a real run | Cost |
+|---|---|---|
+| Apple Silicon, arm64 | Unified memory, where system and accelerator memory are one pool; ARM64; no CUDA and no container GPU passthrough | free — the development machine, an M1 |
+| Linux x86_64, CPU-only | The zero-accelerator path, most likely to be quietly broken by code written on a GPU box | cents |
+| Linux x86_64 + NVIDIA | The reference: vendor tooling, driver versions, per-device VRAM | already rented |
+
+The third shape **is** specified: Linux x86_64 with an NVIDIA accelerator,
+on a rented pod. What is not yet fixed is the exact instance type, which is
+an execution detail rather than a design one.
+
+AMD and Windows-via-Linux-VM stay unproven; Windows is largely covered by
+virtualization detection on a Linux VM, and AMD waits for a real reason.
+Both profile as `EXPERIMENTAL`, which is what the tier is for.
+
+### Fixtures at two boundaries
+
+Fixtures are captured **not** because Kultrun must write every detector,
+but to permanently test the parts Kultrun does own: provider parsing,
+normalization, reconciliation, host scoping, unknown handling, and
+compatibility behaviour.
+
+```text
+real host → provider raw observation → normalization → HostCapabilities
+                    │                                        │
+              (A) provider fixture                  (B) normalized fixture
+```
+
+Capturing both matters. A provider fixture catches a parsing regression
+when a tool's output changes; a normalized fixture catches a change in what
+Kultrun *concluded* from identical input. One without the other leaves half
+the pipeline untested.
+
+Fixtures are sanitized: no secrets, no personally identifying machine
+information, no customer identifiers, no unstable irrelevant values.
+Hardware-relevant evidence is preserved, because that is the entire point.
+
+Every real machine ever encountered can improve regression coverage
+permanently by being run once.
+
+### Evidence required to close
+
+Discovery completes on all three shapes and each is captured at both
+boundaries. Unified memory is correctly reported on Apple Silicon and
+correctly absent on Linux. A CPU-only host yields no accelerators, with no
+unknown misread as zero. The NVIDIA branch reports per-device memory and
+driver version. **Discovery completes with the vendor tool removed from
+`PATH`**, with accelerator detail unresolved and the host still described.
+Two providers reporting the same device merge without duplication.
+A synthetic conflict surfaces as a conflict rather than a silent winner.
+The fingerprint is stable across restarts and across a change in available
+memory. Each shape classifies to the expected profile. `L1` regression
+across all captured fixtures.
+
+## ADMIN SURFACE
+
+`GET /v1/host` — capabilities, with unresolved fields shown as unknown
+rather than blank, and provenance available per field. `GET
+/v1/host/profile` — the deployment profile and the reason for it. `GET
+/v1/host/providers` — which providers were consulted, which answered, which
+failed and why. The third is what turns "the GPU is missing" into "the
+vendor library did not load", which is the difference between a support
+ticket and a fix.
+
+## DEBT ENTRIES
+
+Expected:
+
+| Item | Label | Retire when |
+|---|---|---|
+| AMD, Intel and Windows shapes unproven; no provider exists | `PROVISIONAL` | A deployment needs one; each profiles `EXPERIMENTAL` until then |
+| Support matrix is a shipped table, hand-maintained | `WORKING` | It disagrees with observed evidence — Milestone 11 |
+| Storage facts are reported only; nothing is credible yet | `WORKING` | Stage 1.2 adds the safe layer; Milestone 2 makes it evidence-backed |
+| Provider provisioning unresolved: installed by Kultrun, expected preinstalled, or optional | `PROVISIONAL` | Milestone 10 packages the installer — but the answer affects what Stage 1.1 may assume, so it is a decision, not a deferral |
+| Merge precedence is a documented rule set, not a table | `WORKING` | A third provider overlaps a second on the same field |
+
+## DEFERRED ITEMS
+
+- **Capacity interpretation.** Reported facts only; Stage 1.2 owns the
+  three-layer model.
+- **Storage pools.** `StoragePool` exists as a contract; deriving pools
+  from mounts is Stage 2.1.
+- **Container execution and device attachment.** The `ContainerEngine`
+  seam is Stage 1.3; an OCI executor and device attachment are later and
+  optional. Neither is a source of host facts.
+- **Kubernetes and a node-feature provider.** Optional, later, and never
+  required: standalone Linux, macOS and native installations must all work
+  without it.
+- **AMD and Intel providers.**
+- **Multi-host.** Contracts are host-scoped and plural already; a fleet
+  view is Milestone 14.
+- **Live accelerator utilization** — observed capacity, Milestone 11.
+
+---
+
+## OUTPUT PACKAGE
+
+*To be completed when the stage closes, on real hardware.*

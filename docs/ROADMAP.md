@@ -433,6 +433,13 @@ happens otherwise:
 `AuditEvent` is not `UsageEvent`. Usage events describe AI consumption;
 audit events describe administrative change. Collapsing them loses both.
 
+The host provenance and conflict structures the provider architecture
+requires are deliberately **not** here. Nothing observes a host until Stage
+1.1, and they arrive there as optional fields — a compatible addition under
+§10's own versioning rules. A provider's schema must never dictate a core
+contract, and a field added because a tool happens to expose it is exactly
+the failure this stage exists to prevent.
+
 Every host-scoped contract here carries a host identifier, and every
 collection of host-scoped things is plural, from v1. `docs/ARCHITECTURE.md`
 Part II §6 records why: Milestone 14 is an extension of these contracts
@@ -510,12 +517,33 @@ a fraction of that and de-risks everything after it.
 §111's full flow is achieved at the **Milestone 3 gate**, where the
 platform selects, acquires and serves automatically on a fresh host.
 
-### Stage 1.1 — Host capability detection
+### Stage 1.1 — Host discovery
 
-`HostDetector` producing normalized `HostCapabilities`: OS, version,
-architecture, CPU, RAM, accelerator vendor and count and VRAM, unified
-memory where relevant, storage mount identity, execution capabilities,
-ports, driver hints.
+`HostDiscoveryService` producing normalized `HostCapabilities`: OS,
+version, architecture, CPU, RAM, accelerator vendor and count and VRAM,
+unified memory where relevant, storage mount identity, execution
+capabilities, ports, driver hints.
+
+**Kultrun does not implement this enumeration itself.** Discovery is a
+provider architecture — mature tooling observes, Kultrun normalizes,
+reconciles and decides. See `docs/ARCHITECTURE.md` Part IX. Providers are
+adapters behind `HostDiscoveryProvider`; they may be partial, absent or
+wrong; unknown stays unknown; and a failed provider means that source was
+unavailable, not that the host is unsupported.
+
+**This stage opens with a bounded provider validation spike.** Not a
+research project — a short empirical exercise on the machines actually
+available, answering: what does a general topology tool report on each
+shape, what does it miss, is it practical to provision, which vendor or
+native supplements are genuinely required, and do the outputs normalize
+cleanly into `HostCapabilities`. **No custom fallback is written until a
+real gap has been demonstrated on a real machine.** Documentation says what
+a tool can do somewhere; only a run says what it does here.
+
+Then implement the smallest provider stack that Stage 1.1 acceptance
+actually requires — expected to be a general provider plus a vendor
+supplement on the NVIDIA host, but the spike confirms rather than assumes
+it. No AMD or Intel provider is written for completeness.
 
 Reference implementation: Linux x86_64 + NVIDIA.
 
@@ -534,6 +562,12 @@ never available memory or free space. It is the key by which cached
 evidence is judged reusable from Milestone 2, and a fingerprint over
 volatile values would invalidate every expensive probe on every restart.
 
+Every value stays **explainable**: which provider supplied it, when, how it
+was obtained, and with what confidence. Provenance is recorded beside the
+values by dotted field path rather than by wrapping every leaf, which makes
+it a compatible addition to the Stage 0.2 contract rather than a revision
+of it.
+
 **`DeploymentProfile`** is created here, satisfying
 `docs/PRODUCT_VISION.md` §89. A tier — certified, supported, compatible,
 experimental, unsupported — is earned from the acceptance level reached on
@@ -544,7 +578,7 @@ and it means a tier cannot get ahead of its evidence. An unsupported
 profile never prevents the platform from starting; fail-closed governs
 mutations, not existence.
 
-**Output:** `HostCapabilities v1 + DeploymentProfile v1` · **Gate:** L2
+**Output:** `HostCapabilities v1 + DeploymentProfile v1 + HostDiscoveryProvider` · **Gate:** L2
 
 ### Stage 1.2 — Minimum safe capacity
 
@@ -579,6 +613,15 @@ options stay inside the runtime adapter.
 PID handling includes reuse protection from the start. The prior attempt
 deferred it and left the gap open.
 
+`Executor` also declares the **`ContainerEngine`** seam, unimplemented.
+Native process execution is the reference and stays first class; container
+execution is an alternative, not a graduation. The seam exists now so that
+an OCI executor is later an adapter rather than a redesign, and so that
+device attachment through the vendor-neutral container device standard has
+an obvious home — beneath the executor, after allocation, never as a source
+of host facts or of capacity. Docker is not required and Kubernetes is not
+the control plane.
+
 The **component seam** is created here, verification-only: does a
 required component exist, at what version, and is it compatible with this
 host. The runtime is assumed already installed at Milestone 1, so nothing
@@ -587,7 +630,7 @@ is resolved or downloaded yet. The seam exists now because Stage 3.4's
 constitution warns specifically against download logic scattering through
 the codebase. Milestone 10 fills the seam rather than introducing it.
 
-**Output:** `ExecutorSpec + ExecutorHandle + RuntimeProfile + RuntimeLaunchSpec + ComponentRequirement` · **Gate:** L2
+**Output:** `ExecutorSpec + ExecutorHandle + DeviceRequest + RuntimeProfile + RuntimeLaunchSpec + ComponentRequirement` · **Gate:** L2
 
 ### Stage 1.4 — Model presence without acquisition
 
@@ -1086,7 +1129,10 @@ the precision deferred from milestones 1 through 3 is finally earned.
 # PART IV — WHAT MUST NOT DELAY THE EXOSKELETON
 
 Do not let any of these block the first complete working product:
-exhaustive benchmarks; Kubernetes; multi-host orchestration; deep
+exhaustive benchmarks; Kubernetes and any Kubernetes-sourced discovery
+provider; container execution and device attachment; AMD, Intel or any
+provider written for completeness rather than for a host in front of us;
+multi-host orchestration; deep
 capacity calibration; DEEP storage characterization; learned routing;
 the portfolio optimizer; more than a curated model candidate set; more
 than a minimal connector set; knowledge graphs; fine-tuning or
@@ -1094,6 +1140,11 @@ distillation; autonomous Team Brain learning; organisational
 coordination; custom billing; a polished UI; an exhaustive audit UI.
 
 Create the seam. Defer the depth. Record the debt.
+
+The same rule governs discovery providers and execution backends. The
+seams — `HostDiscoveryProvider`, `Executor`, `ContainerEngine` — are cheap
+and belong early. What sits behind them arrives when a real host or a real
+deployment needs it, and each one is an adapter.
 
 The prior attempt's own closing instruction remains the right one:
 **stop refining once the next architectural dependency is unblocked.**
