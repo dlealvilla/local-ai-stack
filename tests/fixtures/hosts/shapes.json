@@ -1,0 +1,144 @@
+{
+  "schema_note": "Registry of hardware shapes Kultrun has evidence about. A repository-managed manifest, deliberately not a service. Presence of a fixture is NOT support: `evidence_level` and `deployment_profile` are the only claims, and they come from acceptance runs recorded in docs/stages/.",
+  "evidence_levels": {
+    "none": "no evidence of any kind",
+    "L1": "contract, unit or fixture-replay evidence only",
+    "L2": "real host: detection and capacity proven on actual hardware",
+    "L3": "live inference: a real model served a real request",
+    "L4": "integrated acceptance: admission, lifecycle, restart, teardown"
+  },
+  "fixture_meaning": "A fixture proves the current code still understands evidence captured from that machine. It does NOT prove the code works on that hardware today. See docs/TESTING_STRATEGY.md 'What a fixture does not prove'.",
+
+  "shapes": [
+    {
+      "shape_id": "linux-x86_64-nvidia-blackwell-rtxpro4500",
+      "os_family": "linux",
+      "distribution": "ubuntu 24.04.3",
+      "kernel": "6.8.0-106-generic",
+      "architecture": "x86_64",
+      "cpu": "AMD EPYC 7763 64-Core",
+      "accelerator_family": "nvidia",
+      "accelerator_model": "NVIDIA RTX PRO 4500 Blackwell",
+      "accelerator_generation": "blackwell",
+      "accelerator_count_assigned": 1,
+      "accelerator_count_visible_on_bus": 4,
+      "accelerator_memory_bytes": 34207694848,
+      "driver_version": "580.126.20",
+      "memory_total_bytes": 270055956480,
+      "environment": "container",
+      "storage_shape": "overlay root plus a 2.15 PB FUSE network mount",
+      "unified_memory": false,
+
+      "fixture_available": true,
+      "fixture_path": "tests/fixtures/hosts/linux-x86_64-nvidia/",
+      "fixture_boundaries": ["provider", "normalized"],
+      "fixture_files": [
+        "provider-hwloc.xml",
+        "provider-nvidia.csv",
+        "provider-native-linux.json",
+        "normalized-host-capabilities.json"
+      ],
+      "fixture_captured": "2026-09-05",
+      "sanitized": true,
+      "sanitization_note": "pod container id and storage provider endpoint replaced; distribution boilerplate URLs dropped; no fingerprint input altered",
+      "replayed_by": "tests/test_host_fixtures.py",
+      "replayed_in_ci": true,
+
+      "provider_versions": {
+        "hwloc": "2.10.0",
+        "nvidia-smi": "580.126.20",
+        "native-linux": "stdlib"
+      },
+      "host_fingerprint": "4d4efedb286baa4beccba3601cb11c70",
+
+      "evidence_level": "L2",
+      "evidence_date": "2026-09-05",
+      "evidence_stage": "1.1",
+      "evidence_commit": "de9219ef9135b37f9ef40d005371c94c05b7011a",
+      "evidence_record": "docs/stages/STAGE-1.1-host-discovery.md",
+      "deployment_profile": "compatible",
+      "profile_note": "detection and normalization proven; inference not. SUPPORTED requires Stage 1.6.",
+      "acceptance_method": "source tree on host (pre-dating the artifact workflow); later stages require an installed artifact",
+      "blocking": true,
+      "regressions_pinned": [
+        "PCI enumeration overcounts accelerators in a container",
+        "an ASPEED management VGA is not an accelerator",
+        "ephemeral container mounts must not enter the host fingerprint"
+      ]
+    },
+
+    {
+      "shape_id": "darwin-arm64-apple-silicon",
+      "os_family": "darwin",
+      "architecture": "arm64",
+      "accelerator_family": "apple",
+      "unified_memory": true,
+      "fixture_available": false,
+      "evidence_level": "none",
+      "deployment_profile": "experimental",
+      "blocking": false,
+      "deferred_capability": "DC-01",
+      "gap": "no Apple host has been captured; no native macOS provider exists",
+      "revisit_trigger": "an Apple Silicon host becomes available, or Apple support is planned commercially",
+      "note": "The non-blocking macOS CI job proves packaging and hardware-independent logic on ARM64. It says nothing about Apple Silicon support and does not move this profile."
+    },
+
+    {
+      "shape_id": "linux-x86_64-cpu-only",
+      "os_family": "linux",
+      "architecture": "x86_64",
+      "accelerator_family": "none",
+      "unified_memory": false,
+      "fixture_available": false,
+      "partial_coverage": "tests/test_host_discovery.py TestHwlocDoesNotInventAccelerators, built from the reference host's real ASPEED management VGA",
+      "evidence_level": "L1",
+      "deployment_profile": "experimental",
+      "blocking": false,
+      "deferred_capability": "DC-02",
+      "gap": "no CPU-only host captured. Stage 1.1 finding 2 showed this is precisely where a phantom accelerator would hide.",
+      "revisit_trigger": "any non-accelerator Linux host becomes available; capture is cheap and closes DC-02"
+    },
+
+    {
+      "shape_id": "linux-x86_64-amd-rocm",
+      "os_family": "linux",
+      "architecture": "x86_64",
+      "accelerator_family": "amd",
+      "fixture_available": false,
+      "evidence_level": "none",
+      "deployment_profile": "experimental",
+      "blocking": false,
+      "deferred_capability": "DC-03",
+      "gap": "no AMD provider adapter, no host captured",
+      "revisit_trigger": "AMD support is planned, or an AMD host becomes available"
+    },
+
+    {
+      "shape_id": "linux-x86_64-intel-accelerator",
+      "os_family": "linux",
+      "architecture": "x86_64",
+      "accelerator_family": "intel",
+      "fixture_available": false,
+      "evidence_level": "none",
+      "deployment_profile": "experimental",
+      "blocking": false,
+      "deferred_capability": "DC-04",
+      "gap": "no Level Zero provider adapter, no host captured",
+      "revisit_trigger": "Intel accelerator support is planned"
+    },
+
+    {
+      "shape_id": "linux-x86_64-nvidia-multi-gpu",
+      "os_family": "linux",
+      "architecture": "x86_64",
+      "accelerator_family": "nvidia",
+      "accelerator_count_assigned": null,
+      "fixture_available": false,
+      "evidence_level": "none",
+      "deployment_profile": "experimental",
+      "blocking": false,
+      "gap": "the plural accelerator model exists and is unit-tested, but no host with more than one ASSIGNED accelerator has been observed. The reference host had four visible and one assigned, which exercises reconciliation but not multi-device capacity or placement.",
+      "revisit_trigger": "Milestone 1 Hardware Breadth Review, or when placement across devices is implemented"
+    }
+  ]
+}

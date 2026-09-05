@@ -1,0 +1,118 @@
+name: CI
+
+# Layers A, B and C of the test pyramid in docs/TESTING_STRATEGY.md. None of
+# this needs an accelerator, which is the point: portability is designed
+# structurally, tested cheaply and broadly here, and proven selectively on
+# real hardware.
+#
+# Layer C is the job that protects the development workflow. A CI run that
+# only executes pytest from the source checkout will pass while the wheel is
+# unusable — which is exactly what happened when the first prototype shipped
+# without its build manifest.
+
+on:
+  push:
+    branches: [kultrun]
+  pull_request:
+    branches: [kultrun]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Layers A + B — architecture, units, fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install development dependencies
+        run: python -m pip install --upgrade pip -e ".[dev]"
+
+      - name: Architecture dependency laws
+        run: python -m pytest tests/test_architecture.py -q
+
+      # Named separately from the full suite so a real-hardware regression is
+      # legible in the CI log rather than buried in a count. These replay
+      # provider output captured from the Stage 1.1 reference host.
+      - name: Layer B — real-hardware fixture replay
+        run: python -m pytest tests/test_host_fixtures.py -q
+
+      - name: Full unit suite
+        run: python -m pytest -q
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Types
+        run: python -m mypy
+
+  artifact:
+    name: Layer C — wheel builds and installs clean
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The build records the source commit, so it needs real history
+          # rather than a detached grafted one.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip build hatchling
+
+      - name: Build prototype artifact
+        run: python tools/build_prototype.py
+
+      # Installs the wheel into a throwaway environment from a directory
+      # where nothing can resolve out of the checkout, then proves the entry
+      # point, the shipped build identity and the contract catalogue.
+      - name: Install into a clean isolated environment and smoke
+        run: python tools/verify_artifact.py
+
+      - name: Upload artifact and manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: prototype-wheel
+          path: |
+            dist/*.whl
+            dist/prototype-manifest.json
+          retention-days: 14
+
+  # Non-blocking. macOS is a deferred capability (DC-01) and no Apple
+  # provider exists, so this proves packaging and hardware-independent logic
+  # on ARM64 — nothing about Apple Silicon support. A green run here does
+  # not move any DeploymentProfile.
+  macos-compatibility:
+    name: macOS ARM64 compatibility (experimental, non-blocking)
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install development dependencies
+        run: python -m pip install --upgrade pip -e ".[dev]"
+
+      - name: Unit suite
+        run: python -m pytest -q
+
+      - name: Lint and types
+        run: |
+          python -m ruff check .
+          python -m mypy

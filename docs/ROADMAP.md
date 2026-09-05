@@ -202,6 +202,87 @@ product.
 Stage 1.1 closed at `de9219e` under the earlier style and **remains accepted
 historical evidence.** It is not reopened; it is what motivated the change.
 
+## 5b. Hardware variability and testing intensity
+
+**Hardware variability must be absorbed near the bottom of the
+architecture.** The hardware-sensitive path is:
+
+```
+host → capacity → runtime / execution → inference
+```
+
+Once a machine is represented through `HostCapabilities`,
+`CapacityEnvelope`, `ModelRequirement`, `ResourceReservation`,
+`RuntimeLaunchSpec` and `InferenceInstance`, every domain above should be
+testable without knowing which server produced them.
+
+**If a higher-level domain repeatedly requires validation on specific
+accelerator or server models, treat that as a potential architecture leak
+and review the dependency boundary** rather than adding a platform
+conditional. `docs/TESTING_STRATEGY.md` lists the questions to ask.
+
+### Test modes
+
+`docs/TESTING_STRATEGY.md` defines them; stage entries reference them.
+
+| | |
+|---|---|
+| **T0** | pure and structural: no server |
+| **T1** | replay of evidence captured from real machines: no server |
+| **T2** | clean artifact install: no server |
+| **T3** | one representative real host |
+| **T4** | several representative shapes |
+| **T5** | live inference on real hardware |
+
+**A mode is not an evidence level.** T0–T2 produce `L1`; T3–T4 can produce
+`L2`; T5 normally produces `L3`; integrated acceptance earns `L4`. A test
+mode never redefines a `DeploymentProfile`: a wheel installing on macOS CI
+proves packaging, not Apple support.
+
+### Testing intensity by area
+
+| Area | Real server | Cross-server intensity |
+|---|---|---|
+| Milestone 0 — contracts and kernel | No | None |
+| Stage 1.1 — host discovery | Yes | **Very high** |
+| Stage 1.2 — capacity | Yes | **Very high** |
+| Stage 1.3 — runtime and executor | Yes | High |
+| Stage 1.4 — model presence | Selective | Low |
+| Stage 1.5 — admission | Selective | Low |
+| Stage 1.6 — real inference | Yes | **Very high** |
+| Stage 1.7 — gateway | Integrated only | Low |
+| Milestone 2 — storage empirical evidence | Yes | High |
+| Milestone 3 — feasibility and selection | Selective | Low |
+| Analytics | Integrated only | None |
+| Identity, policy, entitlement, audit | No | None |
+| Knowledge and RAG | Integrated only | Low |
+| Training execution (future) | Yes | High |
+| Multi-host placement (future) | Yes | High |
+
+"Very high" means the layer interprets the machine itself, so breadth
+accumulates over time — not that every shape blocks the first vertical.
+
+**Do not rent hardware because a stage number is high.** Use a real host
+only where it proves something a fixture cannot.
+
+### Capture once, replay often
+
+A newly tested real shape should usually become a sanitized fixture, so one
+physical test creates permanent regression coverage and the machine is only
+needed again when something material changes.
+
+**Fixture replay is regression evidence, not current physical
+compatibility evidence.** Real hardware must return when a driver
+generation, runtime major version, provider implementation or host contract
+changes materially, or when support is being claimed.
+
+### Cadence
+
+Every change runs T0, T1 and T2 — architecture, full suite, fixture replay,
+lint, types, wheel build and clean-install smoke. A stage gate runs the
+real-hardware proof it requires. Milestones run breadth. Releases run every
+shape claimed Supported or Certified.
+
 ## 6. Evidence and authorization rules
 
 These are the prior attempt's most valuable output and carry forward
@@ -695,6 +776,19 @@ never double-subtracted from observed live availability.
 
 **Output:** `CapacityEnvelope v1` (policy-based) · **Gate:** L2
 
+**Testing:** T1 + T0 primarily, T3 for closure · real host **selective** ·
+cross-server intensity **very high over time** · artifact-based remote
+acceptance **required** · fixture replay **required**.
+
+Most of this stage is developed against the committed Stage 1.1 fixture with
+no host at all. The reference host's 2.15 PB `/workspace` mount is the
+central regression case: reported storage of that size must never become
+safe capacity of that size. A real host is needed only for the physical
+claims — cgroup and system memory behaviour, assigned accelerator capacity,
+and empirical storage characterization.
+
+Brief: `docs/stages/STAGE-1.2-capacity.md`.
+
 ### Stage 1.3 — Executor and runtime abstractions
 
 `Executor` with `NativeProcessExecutor` as the first and reference
@@ -787,10 +881,11 @@ port reachable) from health (does the API function).
 
 **Output:** `InferenceInstance v1` + healthy `InferenceEndpoint` · **Gate:** L3
 
-### Post-inference breadth review — after Stage 1.6, before broadening
+### Milestone 1 Hardware Breadth Review — after Stage 1.6, before broadening
 
-A required checkpoint, not a stage. Once a real request has reached a real
-model on real hardware, review — and decide, rather than drift into:
+A required review and evidence checkpoint, not a stage, and **not an
+instruction to implement any platform.** Once a real request has reached a
+real model on real hardware, review — and decide, rather than drift into:
 
 - Apple Silicon capture and provider;
 - CPU-only capture and runtime;
@@ -803,7 +898,33 @@ model on real hardware, review — and decide, rather than drift into:
 Each has an entry in the deferred capability register with its own revisit
 trigger. This checkpoint exists so that breadth is chosen deliberately at
 the first moment it is affordable, rather than either forgotten or smuggled
-into Milestone 1. **It is not an instruction to implement any of them.**
+into Milestone 1.
+
+**Classify each shape rather than scheduling it.** For every candidate
+decide which of these it needs:
+
+| | |
+|---|---|
+| **A** | the architecture already handles it |
+| **B** | a fixture capture only |
+| **C** | a provider adapter |
+| **D** | a runtime or executor adapter |
+| **E** | genuine architecture review |
+
+A, B, C or D is the expected answer. **An E is a signal that hardware
+variability leaked above the boundary in Part II §5b**, and it is more
+important than the platform that revealed it.
+
+Also decide at this checkpoint:
+
+- **Automated ephemeral hardware acceptance** — whether CI should allocate a
+  real host, install the artifact, run acceptance and destroy it. No vendor
+  is chosen now; criteria are in `docs/TESTING_STRATEGY.md`. Development
+  infrastructure, never product architecture.
+- **A rotating compatibility matrix** — which shapes run at which cadence
+  once more than one is validated. Cadence deliberately undefined until
+  there is a second shape.
+- The first **clean-install acceptance** since the workflow was adopted.
 
 ### Stage 1.7 — Gateway, subject and usage event
 

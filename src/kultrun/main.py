@@ -11,8 +11,9 @@ way to prove the seams were real before there was a program to run.
 
 from __future__ import annotations
 
+import os
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -147,10 +148,48 @@ class Platform:
     startup_report: StartupReport
     hosts: HostInventory
     preparation: Preparation
+    #: Absolute, resolved once at startup. Absolute because a relative root
+    #: would follow the working directory, and durable state that moves when
+    #: an operator changes directory is state that will eventually be lost.
+    state_root: Path
+    #: Whether the root was chosen rather than defaulted. An installed
+    #: artifact that defaulted is warned about; it must not be silent.
+    state_root_configured: bool
 
     def call(self, request: ApiRequest) -> ApiResponse:
         """Invoke the Platform API without a transport."""
         return self.router.handle(request)
+
+
+#: Where a deployed instance is told to keep its records.
+#:
+#: One variable, not a configuration framework. `docs/DEBT.md` K-20 records
+#: why: the installed artifact resolved `state_root` against the working
+#: directory, so two invocations from different directories built two
+#: unrelated state stores, and an environment variable set on the command
+#: line silently did nothing. A general `KULTRUN_<SECTION>__<KEY>` overlay
+#: would have to settle type coercion, nested tables and unknown-key
+#: behaviour, which is a design decision rather than a fix — recorded as
+#: K-22 and deliberately deferred.
+STATE_ROOT_VARIABLE = "KULTRUN_STATE_ROOT"
+
+
+def resolve_configuration(
+    environment: Mapping[str, str] | None = None,
+) -> Configuration:
+    """Build configuration from the deployment environment.
+
+    Precedence is: an explicit `configuration` passed to :func:`build` wins,
+    then this environment override, then the declared defaults. Resolution
+    happens **here, in the composition root**, and the resolved value is
+    handed down. No domain reads the environment for itself: a subsystem
+    that consults `os.environ` cannot be tested or reasoned about, and its
+    behaviour would depend on how the process happened to be launched.
+    """
+    source = os.environ if environment is None else environment
+    configured = source.get(STATE_ROOT_VARIABLE, "").strip()
+    overrides = {"state_root": configured} if configured else {}
+    return config_schema().load({"platform": overrides} if overrides else {})
 
 
 def config_schema() -> ConfigSchema:
@@ -185,10 +224,11 @@ def build(
     validate_registry(module_prefix="kultrun.")
 
     resolved_clock = clock or SystemClock()
-    resolved_config = configuration or config_schema().load({})
+    resolved_config = configuration or resolve_configuration()
     settings = resolved_config.section(PlatformSettings)
 
-    store = store_registry().create(store_adapter, Path(settings.state_root))
+    state_root = Path(settings.state_root).expanduser().resolve()
+    store = store_registry().create(store_adapter, state_root)
 
     state = PlatformStateStore(store, resolved_clock, PLATFORM_VERSION)
     approvals = ApprovalLog(store, resolved_clock)
@@ -243,6 +283,10 @@ def build(
         startup_report=report,
         hosts=hosts,
         preparation=preparation,
+        state_root=state_root,
+        state_root_configured=(
+            settings.state_root != PlatformSettings().state_root
+        ),
     )
 
 
@@ -251,6 +295,7 @@ def serve() -> int:  # pragma: no cover - exercised by hand, not by L1 tests
     from kultrun.adapters.http.server import serving
 
     platform = build()
+    _warn_if_state_root_defaulted(platform)
     with serving(
         platform.router,
         address=platform.settings.api_address,
@@ -290,6 +335,24 @@ def show_version() -> int:
     return 0
 
 
+def _warn_if_state_root_defaulted(platform: Platform) -> None:
+    """An installed artifact must not keep durable state silently under cwd.
+
+    `docs/DEVELOPMENT_WORKFLOW.md` requires acceptance evidence to state
+    which state root was used. Running from a source checkout is ordinary
+    development and stays quiet; an installed artifact that fell back to a
+    working-directory-relative default is told so, by name, with the fix.
+    """
+    if platform.state_root_configured or not build_identity().is_artifact:
+        return
+    print(
+        f"warning: no state root configured; using {platform.state_root}\n"
+        f"         set {STATE_ROOT_VARIABLE} to keep durable state in a "
+        f"fixed location",
+        file=sys.stderr,
+    )
+
+
 def show_host() -> int:
     """Describe this host through the accepted Stage 1.1 discovery path.
 
@@ -299,11 +362,14 @@ def show_host() -> int:
     command the product ships, not a harness copied alongside it.
     """
     platform = build()
+    _warn_if_state_root_defaulted(platform)
     identity = build_identity()
     host = platform.hosts.current
     preparation = platform.preparation.last_outcome
 
     print(identity.describe())
+    chosen = "configured" if platform.state_root_configured else "default"
+    print(f"  state root    {platform.state_root} ({chosen})")
     print(f"\nhost {host.host_id.value}  fingerprint {host.fingerprint}")
     print(f"  profile      {host.profile.value}")
     environment = host.operating_environment

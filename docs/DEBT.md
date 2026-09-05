@@ -359,7 +359,7 @@ matters for large-model placement.
 **Retires when** placement or a runtime needs locality. The provider already
 sees it; only the contract needs widening.
 
-### K-20 — a deployed instance cannot be configured
+### K-20 — a deployed instance cannot be configured  ·  RETIRED
 
 **Stage** workflow adoption · **Kind** provisional · **Risk** medium
 
@@ -379,12 +379,12 @@ Harmless while acceptance runs are single commands from a known directory.
 Not harmless once the platform holds reservations or models, and definitely
 not once it runs as a service.
 
-**Retires when** a stage needs an installed instance to keep state across
-invocations from different working directories, or `serve` is run as a
-managed service. Deferred rather than fixed because config precedence
-between file, environment and defaults is a design decision, not a
-detail — and getting it wrong quietly is how the previous attempt lost
-track of what it had configured.
+**Retired** as a Stage 1.2 prerequisite. The composition root now resolves
+`KULTRUN_STATE_ROOT`, makes the root absolute once at startup, hands the
+resolved path down, and warns when an installed artifact has fallen back to
+a working-directory default. No domain reads the environment for itself.
+Proven by `tests/test_deployed_state.py` and on the reference host through
+an installed artifact. The general precedence question became K-22.
 
 ### K-21 — a CPU model name carries the provider's padding
 
@@ -407,6 +407,29 @@ reopen.
 **Retires when** Stage 1.2 or later touches host normalization, at which
 point normalize whitespace in reported strings and re-capture the fixture in
 the same change.
+
+### K-22 — one environment override, not a configuration system
+
+**Stage** Stage 1.2 prerequisite · **Kind** provisional · **Risk** low
+
+`KULTRUN_STATE_ROOT` is the only environment override. Every other setting
+— API address, port, whether provisioning is permitted — can be set
+programmatically or in a TOML file but not from the environment of a
+deployed instance.
+
+Deliberate. A general `KULTRUN_<SECTION>__<KEY>` overlay has to settle type
+coercion, nested tables, precedence and unknown-key behaviour, and
+`kernel/config.py` fails closed on unrecognised keys by design. That is a
+configuration design decision, and inventing it to fix a state-root bug
+would have been the larger mistake.
+
+Also open: nothing yet looks for a configuration file at a conventional
+path, so a deployed instance is configured only through the environment or
+by a caller.
+
+**Retires when** a second setting genuinely needs to differ per deployment
+— most likely the API address once the platform is reachable off-loopback,
+or a capacity headroom policy an operator must tune.
 
 ## Deferred capability register
 
@@ -434,10 +457,17 @@ acceptance evidence. **Nothing here may be described as "supported"**
 because the architecture permits it — that claim belongs to
 `DeploymentProfile`, and it is earned.
 
+`Fixture` is tracked separately again, because a captured fixture proves
+only that current code still understands evidence from that machine — never
+that the code works on it today. `docs/TESTING_STRATEGY.md` explains the
+distinction; `tests/fixtures/hosts/shapes.json` is the machine-readable
+index, kept honest by `tests/test_shape_registry.py`.
+
 ### DC-01 — Apple Silicon / macOS
 
 **Revisited at Stage 1.1** — not captured. No Apple host was available and
 the brief made the shape non-blocking. Trigger unchanged.
+Fixture:         none. Capture is the cheapest useful step and needs no Apple provider
 Architecture:    ARCHITECTURE-READY
 Implementation:  ADAPTER-NOT-IMPLEMENTED
 Evidence:        none; may be captured opportunistically, **not Stage 1.1 blocking**
@@ -454,6 +484,7 @@ Revisit:         after the first live inference vertical, or when Apple runtime
 covered by a regression test built from the reference host's ASPEED
 management VGA, which is the device that would have produced a phantom
 accelerator on a CPU-only machine. Real-hardware confirmation still owed.
+Fixture:         none. Partial: the ASPEED regression built from the reference host
 Architecture:    ARCHITECTURE-READY
 Implementation:  ADAPTER-NOT-IMPLEMENTED
 Evidence:        none; may be captured opportunistically, **not Stage 1.1 blocking**
@@ -464,6 +495,7 @@ Revisit:         after the first live inference vertical, or when CPU-only servi
                  becomes a product priority
 
 ### DC-03 — AMD / ROCm
+Fixture:         none
 Architecture:    ARCHITECTURE-READY
 Implementation:  ADAPTER-NOT-IMPLEMENTED
 Evidence:        none
@@ -473,6 +505,7 @@ Downstream redesign expected: NO
 Revisit:         when AMD enters the validated platform roadmap
 
 ### DC-04 — Intel accelerators
+Fixture:         none
 Architecture:    ARCHITECTURE-READY
 Implementation:  ADAPTER-NOT-IMPLEMENTED
 Evidence:        none
@@ -483,6 +516,7 @@ Downstream redesign expected: NO
 Revisit:         when Intel accelerators enter the validated roadmap
 
 ### DC-05 — Kubernetes / Node Feature Discovery
+Fixture:         none
 Architecture:    ARCHITECTURE-READY
 Implementation:  ADAPTER-NOT-IMPLEMENTED
 Evidence:        none
@@ -509,6 +543,7 @@ Revisit:         when the reference mechanism cannot satisfy a required
                  component, or when a second supported environment appears
 
 ### DC-06 — Container execution and device attachment (CDI)
+Fixture:         none
 Architecture:    ARCHITECTURE-READY — `ContainerEngine` seam declared at Stage 1.3
 Implementation:  ADAPTER-NOT-IMPLEMENTED
 Evidence:        none
@@ -520,6 +555,98 @@ Revisit:         after the first live inference vertical, when deciding whether 
                  executor should ever be recommended over native
 
 ---
+
+### DC-08 — a host with more than one assigned accelerator
+
+Architecture:    ARCHITECTURE-READY — `accelerators` has been plural since v1
+Implementation:  no work needed; capacity and placement have not consumed it
+Fixture:         none
+Evidence:        none. The reference host had four accelerators **visible** and one
+                 **assigned**, which exercised reconciliation thoroughly but proves
+                 nothing about multi-device capacity, aggregation or placement
+Seam:            none new; `HostCapabilities.accelerators` and `CapacityEnvelope`
+Unproven:        per-device capacity arithmetic across several devices; whether an
+                 interconnect ever permits aggregation; placement across devices
+Downstream redesign expected: NO
+Revisit:         Milestone 1 Hardware Breadth Review, or when a multi-accelerator
+                 host is available — Stage 1.2 must not aggregate before then
+
+### DC-09 — training and adaptation hardware
+
+Architecture:    training is already a distinct workload class, not an inference variant
+Implementation:  ADAPTER-NOT-IMPLEMENTED
+Fixture:         none
+Evidence:        none
+Seam:            executor and runtime; a training job is not an `InferenceInstance`
+Unproven:        everything. Training creates a **new** hardware-sensitive boundary
+                 with different memory, duration and failure characteristics
+Downstream redesign expected: NO, provided training resource execution is kept
+                 apart from inference testing rather than folded into it
+Revisit:         when training becomes an active milestone. Training orchestration
+                 and lineage remain hardware-independent (T0/T1); only resource
+                 execution needs real hosts (T3/T4)
+
+### DC-10 — placement across multiple hosts
+
+Architecture:    `HostCapabilities` is host-scoped and plural-ready
+Implementation:  NOT IMPLEMENTED — single host only
+Fixture:         none. Would need several host records captured together
+Evidence:        none
+Seam:            `resource` and `planning`
+Unproven:        heterogeneous capability comparison; placement decisions; stale
+                 host evidence; a host disappearing mid-reservation; reservations
+                 spanning hosts
+Downstream redesign expected: unknown — this is the one deferred shape that
+                 might genuinely reach classification E at a breadth review
+Revisit:         only if multi-host placement enters the roadmap. Explicitly not
+                 brought forward
+
+### DC-11 — automated ephemeral hardware acceptance
+
+Not a hardware shape: **development infrastructure.** Recorded here so it is
+revisited rather than forgotten.
+
+Today a real host is created by hand when a stage needs it. The concept is
+CI building the artifact, allocating a host, installing, running acceptance,
+capturing evidence and destroying the host.
+
+No vendor chosen. Criteria in `docs/TESTING_STRATEGY.md`: cost, hardware
+diversity, CI integration, provisioning latency, reliability, security,
+artifact transfer, evidence capture, commercial dependence.
+
+**Must never enter the product architecture.** No cloud-runner, test-farm or
+GPU-scheduler domain.
+
+Revisit:         Milestone 1 Hardware Breadth Review
+
+### DC-12 — rotating compatibility matrix
+
+Also development infrastructure. Once more than one shape is validated,
+different shapes should run at different cadences rather than all of them on
+every commit or none of them ever.
+
+Cadence deliberately undefined: with one validated shape there is nothing to
+rotate, and a schedule invented now would be fiction.
+
+Revisit:         after the first live inference, at the breadth review
+
+### DC-13 — customer and support diagnostic fixture capture
+
+A product-owned command — conceptually `kultrun diagnostics capture-host` —
+producing a sanitized evidence bundle that a customer on unusual hardware
+could send back, which Kultrun then converts into a permanent regression
+fixture.
+
+Would contain provider observations, normalized capabilities, OS and
+architecture, accelerator capabilities, tool and driver versions, storage
+shape and provenance. Never prompts, responses, customer files, secrets,
+named individuals or proprietary content.
+
+This is how the fixture library grows beyond hardware Kultrun can rent, and
+it is the natural extension of the capture-once/replay-often principle.
+
+Revisit:         when a support or customer case first meets unfamiliar
+                 hardware, or when the Admin surface needs to export evidence
 
 ## Retired entries
 

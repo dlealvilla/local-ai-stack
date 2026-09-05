@@ -125,6 +125,33 @@ Hash before transfer, hash after, compare, then install. Acceptance evidence
 should show the artifact built, transferred and installed as three verified
 facts rather than one assumed one.
 
+## Testing layers, and when a host is needed
+
+`docs/TESTING_STRATEGY.md` owns the test modes, the hardware-shape guidance
+and the fixture rules. `docs/ROADMAP.md` Part II §5b owns which mode each
+stage needs. What matters operationally:
+
+**Every change runs the cheap layers** — architecture, full suite, fixture
+replay of real captured hardware, lint, types, wheel build and clean-install
+smoke. `.github/workflows/ci.yml` runs all of it, and none of it needs an
+accelerator.
+
+**A GPU host is created only for bounded acceptance work that requires
+actual hardware, and released afterwards.**
+
+| | |
+|---|---|
+| **Rent one for** | a stage's real-host capacity or execution claims, live inference, milestone validation |
+| **Do not rent one for** | editing code, contract changes, unit tests, fixture replay, documentation, packaging tests, most planning and resource logic |
+
+A rented host running while capacity arithmetic is being written is money
+spent on nothing. Most of Stage 1.2 is developed against the committed
+Stage 1.1 fixture with no host at all.
+
+**A real shape tested once should become a fixture.** That is what makes the
+next iteration free: `tests/fixtures/hosts/shapes.json` records what exists,
+and `tests/test_host_fixtures.py` replays it on every commit forever.
+
 ## Two acceptance modes
 
 **Upgrade loop** — most iterations. Preserve legitimate state: provisioned
