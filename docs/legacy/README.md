@@ -4,14 +4,19 @@ These documents describe the **previous implementation**, which the
 clean-slate rebuild replaces. They are retained as evidence, not as
 instructions.
 
-`docs/PRODUCT_VISION.md` and `docs/ROADMAP.md` are authoritative. Nothing
-in this directory overrides them. In particular:
+`docs/PRODUCT_VISION.md`, `docs/ROADMAP.md` and `docs/ARCHITECTURE.md`
+are authoritative. Nothing in this directory overrides them. In
+particular:
 
 - the phase numbering used here (Phases 1–22+) is retired and replaced by
   Milestones 0–15 with numbered stages;
 - "Phase 9 / Resource Manager" as a current position is historical;
-- the architecture in `ARCHITECTURE.md` is superseded by the
-  architectural constitution in `docs/PRODUCT_VISION.md`.
+- `docs/legacy/ARCHITECTURE.md` is **not** an earlier draft of
+  `docs/ARCHITECTURE.md`. They are different documents with the same
+  filename: the legacy one describes the previous implementation's
+  architecture and is superseded by the constitution in
+  `docs/PRODUCT_VISION.md`, while the live one is the rebuild's module
+  map. Always cite the full path.
 
 ## Why these are kept
 

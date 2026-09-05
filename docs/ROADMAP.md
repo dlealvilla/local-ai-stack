@@ -4,6 +4,7 @@
 **Purpose:** Define the build sequence for Kultrun, the Company Brain platform.  
 **Authority:** Authoritative for milestone structure, stage scope, ordering and gates.  
 **Derived from:** `docs/PRODUCT_VISION.md` (the architectural constitution) is authoritative for *what* Kultrun is and what its contracts mean. This document is authoritative for *in what order it gets built and how each step is proven*.  
+**Companion:** `docs/ARCHITECTURE.md` is authoritative for *where each concept lives* — module boundaries, ownership, inputs and outputs, and tier dependency direction. This document orders the work; that one structures it, and its Part V verifies this sequence against the module graph.  
 **Design basis:** The measured outcome of the previous implementation attempt, recorded in `docs/legacy/` and in the `phase9` and `backup/*` branch history.
 
 ---
@@ -360,11 +361,35 @@ Contracts get real when a caller exists.
 ### Stage 0.1 — Identity and result semantics
 
 Stable IDs, `schema_version` on every persisted and API structure, typed
-errors, result envelopes, domain event envelope, configuration
-ownership, adapter registry, replaceable persistence boundary.
+errors, result envelopes, domain event envelope, the unresolved-value
+semantic, UTC platform time, configuration ownership, adapter registry,
+replaceable persistence boundary.
 
 Field meaning must never change silently. No existing config field may
 be reinterpreted.
+
+**Unknown is a value, not a null.** §8 rule 6 requires a consumer to
+tell "needs nothing" from "we do not know", and Milestone 3 requires
+gaps to be represented rather than filled. One unresolved semantic
+belongs here, because the alternative is every contract in Stage 0.2
+inventing its own convention for absence — Pattern 4 in a new costume.
+An unresolved value has no truth value: treating it as falsy is a
+failure, not a default.
+
+Sizes are bytes at every contract boundary. The prior attempt carried
+`minimum_reserve_bytes` in one place and `minimum_reserve_gb` in
+another; unit drift in a value that authorizes a mutation is not a
+cosmetic problem.
+
+The event envelope carries a **correlation identifier from the first
+event**, so a request stays traceable across gateway, inference, usage
+and analytics. Threading one through a finished serving path later is
+expensive.
+
+This stage also builds the **architecture test harness** that enforces
+`docs/ARCHITECTURE.md` Part II. The enforcement mechanism precedes the
+structure it protects: eleven `storage_*` modules for one concept would
+have failed the concept census on the day the second one appeared.
 
 ### Stage 0.2 — Contracts that must exist before their subsystems
 
@@ -373,13 +398,14 @@ expensive:
 
 ```text
 HostCapabilities      Workload              Subject / AccessContext
-ModelMetadata         ResourceReservation   UsageEvent
-ModelArtifact         InferenceInstance     Entitlement
-ModelRequirement      CapacityEvidence      KnowledgeSource / KnowledgeItem
-ModelInventoryRecord  WorkloadProfile       DatasetSnapshot / DerivedModel
+StoragePool           ResourceReservation   UsageEvent
+ModelMetadata         InferenceInstance     AuditEvent
+ModelArtifact         CapacityEvidence      Entitlement
+ModelRequirement      WorkloadProfile       KnowledgeSource / KnowledgeItem
+ModelInventoryRecord                        DatasetSnapshot / DerivedModel
 ```
 
-Two of these are non-negotiable at this stage even though their
+Four of these are non-negotiable at this stage even though their
 subsystems arrive much later, because the prior attempt shows what
 happens otherwise:
 
@@ -389,12 +415,47 @@ happens otherwise:
 - **`UsageEvent`** — analytics received zero attention, and its identity
   fields (`logical_name`, `model_id`, `provider`, `service_id`,
   `route_reason`) must not be collapsed later.
+- **`StoragePool`** — Stage 1.2 computes a safe storage layer, which
+  needs pool identity. Without the contract here, pool identity would be
+  read from `HostCapabilities` at Milestone 1 and move into `storage` at
+  Stage 2.1, giving one concept two owners across a milestone boundary.
+  Plural from v1: the prior attempt designed multi-pool storage and never
+  exercised it, and a single-pool assumption baked in here is the same
+  trap Milestone 14 hits with hosts.
+- **`AuditEvent`** — actor, action, target, decision, approval reference
+  and outcome. The constitution requires a deployment to answer who
+  changed a setting, installed a model, modified a permission or approved
+  an agent action, and asks that the schema leave room for audit events
+  even when the UI comes later. Retrofitting it means revisiting every
+  mutating workflow already written. It is emitted from Stage 1.5 onward;
+  only the audit *UI* is deferred.
+
+`AuditEvent` is not `UsageEvent`. Usage events describe AI consumption;
+audit events describe administrative change. Collapsing them loses both.
+
+Every host-scoped contract here carries a host identifier, and every
+collection of host-scoped things is plural, from v1. `docs/ARCHITECTURE.md`
+Part II §6 records why: Milestone 14 is an extension of these contracts
+only if that holds, and a rewrite of the whole control plane otherwise.
 
 ### Stage 0.3 — Control plane shell
 
 Platform API skeleton, platform state, local administrator identity.
 A thin Admin surface exists from here on and grows with every stage; it
 is not a late project.
+
+Two seams are created here rather than at Milestone 6, because both are
+destinations that need a source in every stage that precedes them:
+
+- **`Approval`** — Stage 6.2 requires meaningful mutations to obtain
+  explicit administrator approval, and the constitution requires
+  overrides to be validated, explained, recorded and reversible. The
+  recording mechanism must exist before the first mutation does.
+- **`HealthSource`** — Stage 6.1 displays platform health and Stage 1.6
+  distinguishes status from health, but without a port from here, each
+  domain would invent its own reporting and Milestone 6 would become a
+  survey of every subsystem instead of an assembly. Each domain
+  implements it as it is built.
 
 **Output:** `PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`
 
@@ -499,7 +560,15 @@ options stay inside the runtime adapter.
 PID handling includes reuse protection from the start. The prior attempt
 deferred it and left the gap open.
 
-**Output:** `ExecutorSpec + ExecutorHandle + RuntimeProfile + RuntimeLaunchSpec` · **Gate:** L2
+The **component seam** is created here, verification-only: does a
+required component exist, at what version, and is it compatible with this
+host. The runtime is assumed already installed at Milestone 1, so nothing
+is resolved or downloaded yet. The seam exists now because Stage 3.4's
+`DeploymentPlan` consumes *resolved components*, and because the
+constitution warns specifically against download logic scattering through
+the codebase. Milestone 10 fills the seam rather than introducing it.
+
+**Output:** `ExecutorSpec + ExecutorHandle + RuntimeProfile + RuntimeLaunchSpec + ComponentRequirement` · **Gate:** L2
 
 ### Stage 1.4 — Model presence without acquisition
 
@@ -530,6 +599,9 @@ Ordering is the contract: **reserve before mutation; roll back the
 reservation if start fails; stop the runtime before releasing the
 reservation; hold conservative state on persistence error.** Denial is
 explainable. A denied admission mutates nothing.
+
+This is the first mutating workflow, so it is the first to emit an
+`AuditEvent`. Every mutating workflow from here on emits one.
 
 **Output:** `AdmissionDecision + ResourceReservation` · **Gate:** L2
 

@@ -44,6 +44,10 @@ mutation and failure boundary, cancellation and cleanup, the acceptance
 level and why it suffices, the Admin surface, and new debt entries with
 their retirement conditions.
 
+The brief names the modules it touches using `docs/ARCHITECTURE.md`
+Part IV, and any change to a module boundary is an edit to that document
+in the same commit as the code.
+
 If a proposed change is not necessary to produce the current stage's
 output, it is deferred and recorded rather than built.
 

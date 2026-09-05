@@ -29,6 +29,13 @@ This document should function as the product's **architectural constitution**.
 
 Technical plans, implementation phases, APIs, repositories, services, schemas, and deployment components should be derived from it.
 
+Two documents derive from this one and are authoritative within their own
+scope: `docs/ROADMAP.md` for build sequence and gates, and
+`docs/ARCHITECTURE.md` for the module map — where each concept below
+lives, what it consumes and produces, and what may depend on what. Where
+either disagrees with this document about what a concept *means*, this
+document wins.
+
 ---
 
 # 1. ONE-SENTENCE PRODUCT VISION

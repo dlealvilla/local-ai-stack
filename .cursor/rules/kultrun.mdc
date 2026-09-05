@@ -22,6 +22,11 @@ and do not treat its status claims or phase numbers as current.
  numbered stages, stage outputs, acceptance levels and gates. Part I
  records why the sequence is ordered as it is; read it before proposing
  a reordering
+- @docs/ARCHITECTURE.md — the module map. Authoritative for module
+ boundaries, concept ownership, inputs and outputs, tier dependency
+ direction and the composition root. Consult it before creating any
+ module or import; a change to a module boundary is an edit to this
+ document in the same commit as the code
 - @docs/DEBT.md — the debt ledger. Every approximation is recorded here
  with the condition that retires it
 - @docs/DEVELOPMENT_WORKFLOW.md — branch/GPU workflow **and the
@@ -91,8 +96,12 @@ advisory with a mandatory internal fallback.
   `checkpoints/STAGE-XX-<name>.json`.
 - If a change is not needed to produce the current stage output, defer
   and record it in `docs/DEBT.md`.
-- One concept, one owning module. Never create a near-synonymous module
-  to hold a concept that already has an owner.
+- One concept, one owning module, as assigned in `docs/ARCHITECTURE.md`
+  Part IV. Never create a near-synonymous module to hold a concept that
+  already has an owner.
+- Respect the tier dependency law and the declared non-edges in
+  `docs/ARCHITECTURE.md` Part II. Ports belong to the domain that needs
+  them; implementations belong in `adapters/`.
 - Renumbering or rescoping a stage requires editing `docs/ROADMAP.md` in
   the same commit as the code.
 - Stop refining once the next architectural dependency is unblocked.
