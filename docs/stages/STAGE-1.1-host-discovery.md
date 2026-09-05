@@ -93,6 +93,14 @@ a command that captures the current host to fixtures.
 on the machines actually available, whose output is a decision and a set of
 captured observations.
 
+The preferred general provider is **optional-preferred**, which sets the
+spike's ground rules precisely: it may **not** be assumed already present;
+it **may** be installed on development acceptance hosts in order to be
+evaluated; how it was obtained and at what version **must** be recorded
+with the captured evidence, because a fixture from an unknown version is
+not reproducible; and final bundling and installer mechanics are **not**
+solved here — that is Milestone 10.
+
 It answers, per available shape:
 
 - what does a general topology tool report here, and what does it miss;
@@ -137,9 +145,18 @@ unknowns and surfaces conflicts. Merge rules for this stage: a later
 observation never blindly overwrites an earlier one; a vendor observation
 may enrich a general one, because richer detail about the same device is
 not a conflict; two credible observations that genuinely disagree leave the
-value unresolved and record a conflict; a provider that is absent or fails
-means *that source was unavailable*, not that the host is unsupported; what
-no provider reported stays unknown.
+value unresolved with both observations and their provenance preserved; a
+provider that is absent or fails means *that source was unavailable*, not
+that the host is unsupported; what no provider reported stays unknown.
+
+**No global precedence order is implemented, and none is to be added.** Not
+"vendor beats general", not any other ordering. Such a rule resolves every
+future conflict including the ones where the general tool was right, and
+does it silently. A conflict stays a conflict until a *specific field*
+earns a documented reconciliation rule from empirical evidence — per field,
+carrying the evidence that motivated it, never generalized to the providers
+on either side. If this stage finds a field that needs one, the rule and
+its evidence go in the output package.
 
 Note the naming: **merging observations is not restart reconciliation.**
 They are different operations and live in different modules, because a word
@@ -165,11 +182,21 @@ else that changes minute to minute. A fingerprint over volatile values
 invalidates every cached probe on every restart, turning Milestone 2's most
 expensive work into something never reused.
 
-It must also exclude **provider-assigned handles**. AMD's own documentation
-warns that a device handle "may change after restarting the application, so
-it should not be considered a persistent identifier across processes." A
-fingerprint built on one would be unstable for a reason nothing in Kultrun
-could diagnose.
+It must also exclude **provider-assigned handles**, under the general
+invariant in `docs/ARCHITECTURE.md` Part II §6: a provider-local handle is
+an adapter implementation detail with an adapter lifetime and never becomes
+a Kultrun identity. AMD's own documentation warns that a device handle "may
+change after restarting the application, so it should not be considered a
+persistent identifier across processes", and the same caution applies to
+NVML, Level Zero and comparable APIs.
+
+Where this stage needs identity that survives a restart, it derives one
+from stable host-scoped attributes — bus address, serial, model and ordinal,
+whatever the platform actually keeps still. Where it cannot, it says so
+rather than promoting a handle. A fingerprint built on a handle would be
+unstable for a reason nothing in Kultrun could diagnose, and the complete
+device-identity algorithm is not designed at this stage — only the
+invariant is binding.
 
 ### Explainability without an envelope per field
 
@@ -212,6 +239,14 @@ A tier states **what evidence exists for this host shape**:
 
 A profile applies to a defined hardware, software and environment shape.
 One validated NVIDIA system does not certify every NVIDIA system.
+
+An organisation may separately record its **own** support statement, and
+that is a different fact stored separately. It may be displayed alongside
+the profile and **may never promote it**: no external declaration turns
+`EXPERIMENTAL` into `SUPPORTED`, because the profile means "this is the
+acceptance level actually reached". The schema for the external statement
+is not designed here — it has no consumer until there is a console to show
+it.
 
 The classifier matches detected capabilities against a shipped support
 matrix. That matrix is data, not logic, and it is the one place a claim
@@ -371,8 +406,8 @@ Expected:
 | AMD, Intel and Windows shapes unproven; no provider exists | `PROVISIONAL` | A deployment needs one; each profiles `EXPERIMENTAL` until then |
 | Support matrix is a shipped table, hand-maintained | `WORKING` | It disagrees with observed evidence — Milestone 11 |
 | Storage facts are reported only; nothing is credible yet | `WORKING` | Stage 1.2 adds the safe layer; Milestone 2 makes it evidence-backed |
-| Provider provisioning unresolved: installed by Kultrun, expected preinstalled, or optional | `PROVISIONAL` | Milestone 10 packages the installer — but the answer affects what Stage 1.1 may assume, so it is a decision, not a deferral |
-| Merge precedence is a documented rule set, not a table | `WORKING` | A third provider overlaps a second on the same field |
+| Preferred provider is optional-preferred; how a customer host obtains it is unsolved | `PROVISIONAL` | Milestone 10 packages product-managed preparation. Until then the spike provisions it on development hosts and records how and at what version |
+| Conflicts stay unresolved; no field yet has a reconciliation rule | `WORKING` | Retired per field, never globally: a field earns a rule when empirical evidence justifies one |
 
 ## DEFERRED ITEMS
 
@@ -382,7 +417,11 @@ Expected:
   from mounts is Stage 2.1.
 - **Container execution and device attachment.** The `ContainerEngine`
   seam is Stage 1.3; an OCI executor and device attachment are later and
-  optional. Neither is a source of host facts.
+  optional. Neither is a source of host facts, and neither consults
+  capacity: execution receives an already-authorized allocation
+  (`capacity` → `resource` reservation → `inference` derives a
+  `DeviceRequest` → `execution` materializes it) and has no vocabulary for
+  asking whether it should.
 - **Kubernetes and a node-feature provider.** Optional, later, and never
   required: standalone Linux, macOS and native installations must all work
   without it.

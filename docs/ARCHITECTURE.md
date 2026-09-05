@@ -162,6 +162,27 @@ eroding under delivery pressure.
 because it needs to know whether a container engine exists — that fact is
 on `HostCapabilities` — and must not acquire the ability to go and look.
 
+**Execution consumes an allocation that has already been authorized.** The
+handoff runs one way and never doubles back:
+
+```text
+capacity        safe layer, which is the only layer that may authorize
+   ↓
+resource        admission → ResourceReservation, naming the device
+   ↓
+inference       composes the reservation into a DeviceRequest
+   ↓
+execution       materializes it: process, or container plus device
+   ↓
+adapter         translates to a runtime-specific device name
+```
+
+`inference` performs the translation rather than `execution`, which keeps
+the executor ignorant of reservations entirely — it receives a request to
+attach a device and has no vocabulary for asking whether it should. An
+executor that could read the capacity envelope would eventually be asked to
+decide something, and admission would quietly acquire a second author.
+
 Four further non-edges matter enough to name explicitly:
 
 - **`storage` and `capacity` may not import `model`.** Storage probing
@@ -220,6 +241,26 @@ v1 assumes a single implicit host, Milestone 14 is a rewrite of every
 capacity and lifecycle contract rather than an extension. The cost of
 honouring this now is one field and a plural; the cost of retrofitting it
 is the entire control plane.
+
+**A provider-local handle is never a Kultrun identity.** Discovery
+libraries hand out handles for the devices they enumerate, and those
+handles are adapter implementation details with adapter lifetimes. AMD's
+own documentation states that a device handle "may change after restarting
+the application, so it should not be considered a persistent identifier
+across processes"; the same caution applies to NVML, Level Zero and any
+comparable API.
+
+So where Kultrun needs identity that survives an observation, a restart or
+a provider swap, normalization derives it from **stable host-scoped
+attributes** — a bus address, a serial, a model and ordinal, whatever the
+platform genuinely keeps still. And where durable identity cannot be
+established, the honest representation is that it could not be, not an
+ephemeral handle wearing a stable name. A handle promoted to an identity is
+a bug that surfaces only after a restart, in a value other records already
+point at.
+
+The complete device-identity algorithm is not designed here. The invariant
+is, because it constrains every provider written afterwards.
 
 **Unknown is a distinct value, not a null.** `docs/DEBT.md` rule 6
 requires that consumers can tell "needs nothing" from "we do not know",
@@ -462,17 +503,35 @@ question capacity needs, and neither vendor library works on a machine
 without that vendor's hardware. A single detector would have to be all of
 them; a service that merges partial observations does not.
 
-Merge rules, stated now and detailed when there is a caller:
+Merge rules:
 
 1. a later observation never blindly overwrites an earlier one;
 2. a vendor observation may enrich a general one — richer detail about the
    same device is not a conflict;
-3. two credible observations that genuinely disagree surface as a conflict
-   and the value stays unresolved, unless a documented normalization rule
-   resolves them;
+3. two credible observations that genuinely disagree leave the value
+   **unresolved**, with both observations and their provenance preserved
+   and a conflict recorded;
 4. a provider that is absent or fails means *that source of evidence was
    unavailable*, not that the host is unsupported;
 5. what no provider reported stays unknown.
+
+**There is no global provider precedence order, and there will not be
+one.** No rule of the form "vendor beats general" exists at any level. Such
+an ordering looks like common sense and is a way of deciding a question
+nobody investigated: it would resolve every future conflict, including the
+ones where the general tool happened to be right, and it would do so
+silently.
+
+Individual **fields** may acquire a documented reconciliation rule when
+empirical evidence justifies one — for instance, a vendor interface may
+turn out to be authoritative for a measurement that vendor owns. Such a
+rule is per field, carries the evidence that motivated it, and never
+generalizes to the providers that happen to be on either side of it.
+
+Until a field has such a rule, a conflict stays a conflict. An unresolved
+value that says two sources disagreed is more useful than a confident value
+that is wrong, and the platform already refuses to authorize against
+unknowns.
 
 **Provider identity is not host identity.** AMD SMI's own documentation
 warns that a device handle "may change after restarting the application, so
@@ -505,8 +564,23 @@ change in free memory.
 `DeploymentProfile` lives here because it is a statement about a host
 shape. Its tier is earned from the acceptance level reached on that shape
 rather than declared, which is what makes broad hardware support a claim
-the evidence can back. It is also the only place such a claim is made, so
-support statements cannot scatter.
+the evidence can back. It is also the only place Kultrun makes such a
+claim, so support statements cannot scatter.
+
+**Two support facts, kept separate.** An administrator may attach their own
+support statement — "this configuration is vendor-supported by our
+organisation", "our infrastructure team backs this host" — and that is
+genuinely useful information for an operator reading a console.
+
+It is a *different fact* from Kultrun's evidence profile, and it may never
+alter it. An external declaration cannot promote `EXPERIMENTAL` to
+`SUPPORTED`, because the profile means "this is the acceptance level
+actually reached", and a statement that changed it would make the ladder
+describe opinion instead of evidence. The two are stored separately, may be
+displayed together, and only one of them is Kultrun's own claim.
+
+The schema for the external statement is deliberately not designed here. It
+has no consumer until an Admin console exists to show it.
 
 ### `components`
 
@@ -637,11 +711,25 @@ conservative state on a persistence error.
                                             CDI
 ```
 
-**Native process execution is first class and stays the reference.**
-Container execution is an alternative, not a graduation. Docker is not
-required, Docker Desktop is not a dependency, and Kubernetes is not the
-control plane — a platform that cannot start a process without a container
-engine has made an optional component mandatory.
+**Native process execution is the first validated path and the reference
+implementation. Container execution is a first-class optional executor.**
+Neither is architecturally privileged in perpetuity: reference
+implementation is not architectural dependency, and "first validated" is a
+statement about evidence rather than a permanent ranking.
+
+What must not happen is a container engine becoming mandatory by default.
+Docker is not required, a commercial container product is not a dependency,
+and Kubernetes is not the control plane — a platform that cannot start a
+process without a container engine has made an optional component
+mandatory, and it has done so without anyone deciding to.
+
+Later, Kultrun may **recommend or select** an executor per deployment,
+using host capabilities, runtime support, the deployment profile,
+administrator policy and operational evidence. That is a decision the
+platform earns the right to make once it has evidence on both paths; it is
+not a default to be assumed now. `Runtime != Executor` holds throughout:
+vLLM native, vLLM containerized, llama.cpp native and a future runtime
+containerized are all combinations the core supports without redesign.
 
 **Where CDI sits.** The Container Device Interface is a vendor-neutral way
 for a container runtime to attach a third-party device, and its own
@@ -1126,6 +1214,39 @@ The concept census is the direct control for Pattern 4. Eleven
 `storage_*` modules for one concept would have failed it on the day the
 second one was created.
 
+## Counting the macrostructure
+
+Three different numbers describe this architecture and they are routinely
+confused, including in review conversations about this document. They
+measure different things and none is a proxy for another.
+
+| Measure | What it counts | Today |
+|---|---|---|
+| **Tiers** | Bands in the dependency law, tier 0 to tier 11 | **12** |
+| **Architecture positions** | Named entries in the tier map: 27 domains, plus `adapters` and the composition root | **29** |
+| **Implemented packages** | Directories that exist under `src/kultrun` | **18** |
+| **Implemented modules** | `.py` files under `src/kultrun`, excluding `__init__.py` | **36** |
+
+Positions are the *design*: every one exists in the map from the first
+commit, including the ones that are still empty, because absence should be
+visible. Implemented packages and modules are the *state*: what has been
+built so far. The gap between 29 and 18 is not debt — it is the eleven
+domains whose stages have not run.
+
+The census in Part VII compares implemented **modules** against declared
+**concepts** within each package. It does not compare positions to
+packages, which would only measure how far through the roadmap we are.
+
+Two corrections for the record. A figure of "24 modules" circulated in
+review discussion; it was wrong and never entered this document — the tier
+map has always held 29 positions. And the Stage 0.3 output package records
+"35 modules", which counted only modules inside packages and omitted the
+composition root at `src/kultrun/main.py`; the comparable figure under the
+method defined here is 36. That stage package and its checkpoint are left
+unedited, because a closed record is evidence of what was true and believed
+at the time, and correcting it in place would destroy the thing it exists
+to hold.
+
 ---
 
 # PART VIII — HOW TO READ THIS WITH THE OTHER DOCUMENTS
@@ -1192,7 +1313,7 @@ being absent, broken or replaced.
 
 | Technology | Role | Status | Sits behind |
 |---|---|---|---|
-| **hwloc** | General topology and device discovery: CPU, cores, NUMA, caches, memory, PCI and I/O objects | First general-provider *candidate*, unproven for Kultrun's purposes | `HostDiscoveryProvider` |
+| **hwloc** | General topology and device discovery: CPU, cores, NUMA, caches, memory, PCI and I/O objects | **Optional-preferred provider.** Preferred initial candidate; not a core dependency; never assumed preinstalled | `HostDiscoveryProvider` |
 | **NVML** | NVIDIA device memory, driver version, per-device detail | Likely supplement on NVIDIA hosts | `HostDiscoveryProvider` |
 | **Native OS sources** | Whatever a platform exposes that a general tool does not | Supplement, only where a gap is demonstrated | `HostDiscoveryProvider` |
 | **AMD SMI** | AMD device identity, memory, topology | Future, unscheduled | `HostDiscoveryProvider` |
@@ -1212,8 +1333,28 @@ headers for CUDA, NVML, AMD ROCm SMI and Level Zero. Its own documentation
 also states plainly that "platforms and/or operating system versions will
 only report a subset of this information."
 
-That last sentence is why the architecture is a provider *service* rather
-than a provider *choice*. Partial observation is hwloc's documented normal
+#### What "optional-preferred" means
+
+hwloc holds a specific and deliberately narrow status:
+
+- it is the **preferred initial** general-purpose provider candidate;
+- it is **not a Kultrun core dependency**, and the architecture must
+  survive its absence;
+- it is **never assumed preinstalled**;
+- the product may eventually **detect, reuse, provision or repair** it
+  through product-managed preparation, because plug-and-play means the
+  platform takes responsibility for what it needs rather than handing the
+  customer a prerequisites list;
+- other and future providers remain possible, and its absence remains
+  representable in `HostCapabilities` rather than fatal.
+
+Preferring something and depending on it are different commitments. The
+first survives the tool turning out to be wrong for us; the second does
+not. Where the preparation mechanics eventually live is a Milestone 10
+installer question and is not settled here.
+
+That "subset" sentence is why the architecture is a provider *service*
+rather than a provider *choice*. Partial observation is hwloc's documented normal
 behaviour, not an edge case, and any design that assumed one tool answers
 everything would be designed against a claim its own maintainers do not
 make.

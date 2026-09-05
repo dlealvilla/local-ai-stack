@@ -533,12 +533,18 @@ unavailable, not that the host is unsupported.
 
 **This stage opens with a bounded provider validation spike.** Not a
 research project — a short empirical exercise on the machines actually
-available, answering: what does a general topology tool report on each
-shape, what does it miss, is it practical to provision, which vendor or
-native supplements are genuinely required, and do the outputs normalize
+available, answering: what does the preferred general provider report on
+each shape, what does it miss, is it practical to provision, which vendor
+or native supplements are genuinely required, and do the outputs normalize
 cleanly into `HostCapabilities`. **No custom fallback is written until a
 real gap has been demonstrated on a real machine.** Documentation says what
 a tool can do somewhere; only a run says what it does here.
+
+The preferred provider is **optional-preferred**: the spike may not assume
+it is already present, may install it on development acceptance hosts in
+order to evaluate it, and must record how it was obtained and at what
+version. Final bundling and installer mechanics are a Milestone 10
+question and are not solved here.
 
 Then implement the smallest provider stack that Stage 1.1 acceptance
 actually requires — expected to be a general provider plus a vendor
@@ -614,8 +620,11 @@ PID handling includes reuse protection from the start. The prior attempt
 deferred it and left the gap open.
 
 `Executor` also declares the **`ContainerEngine`** seam, unimplemented.
-Native process execution is the reference and stays first class; container
-execution is an alternative, not a graduation. The seam exists now so that
+Native process execution is the first validated path and the reference
+implementation; container execution is a first-class optional executor, and
+neither is privileged in perpetuity. Selecting between them from host
+capabilities, runtime support, profile, policy and operational evidence is
+a later capability, not a default assumed now. The seam exists now so that
 an OCI executor is later an adapter rather than a redesign, and so that
 device attachment through the vendor-neutral container device standard has
 an obvious home — beneath the executor, after allocation, never as a source
