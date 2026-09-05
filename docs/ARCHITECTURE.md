@@ -373,7 +373,7 @@ recorded as a finding in Part VI.
 
 | | |
 |---|---|
-| **Owns** | `HostCapabilities` and `HostFingerprint`: operating environment, CPU, memory, accelerators with per-device VRAM, unified-memory characteristics, mount facts, execution capabilities, networking and ports, driver hints. |
+| **Owns** | `HostCapabilities`: operating environment, CPU, memory, accelerators with per-device VRAM, unified-memory characteristics, mount facts, execution capabilities, networking and ports, driver hints. The host fingerprint, over stable facts only. `DeploymentProfile` and the support matrix. |
 | **Consumes** | `kernel` · `evidence` |
 | **Produces** | `HostCapabilities v1`, durable, versioned and fingerprinted |
 | **Ports** | `HostDetector` |
@@ -381,7 +381,15 @@ recorded as a finding in Part VI.
 | **Created** | 1.1 |
 
 The fingerprint is not decoration. It is the key by which cached evidence
-is later judged reusable, so it must exist before any evidence does.
+is later judged reusable, so it must exist before any evidence does — and
+it must cover only stable facts, or every cached probe is invalidated by a
+change in free memory.
+
+`DeploymentProfile` lives here because it is a statement about a host
+shape. Its tier is earned from the acceptance level reached on that shape
+rather than declared, which is what makes broad hardware support a claim
+the evidence can back. It is also the only place such a claim is made, so
+support statements cannot scatter.
 
 ### `components`
 
@@ -684,7 +692,7 @@ adapters/embedding/       local_model · external
 adapters/telemetry/       posthog
 adapters/entitlement/     offline_licence · vendor_service
 adapters/adaptation/      peft · merge
-adapters/host/            linux_nvidia · linux_cpu · darwin_arm · synthetic_fixtures
+adapters/host/            linux · darwin · captured_fixtures
 ```
 
 Every adapter is advisory-capable: if an external provider is absent,

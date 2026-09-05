@@ -517,15 +517,34 @@ architecture, CPU, RAM, accelerator vendor and count and VRAM, unified
 memory where relevant, storage mount identity, execution capabilities,
 ports, driver hints.
 
-Reference implementation: Linux x86_64 + NVIDIA. Synthetic fixtures for
-CPU-only, Apple Silicon, AMD and Windows-via-Linux-VM shapes, so
-capability-based branching is exercised before those hosts are
-supported.
+Reference implementation: Linux x86_64 + NVIDIA.
 
-Durable, versioned, fingerprinted — the fingerprint is what later makes
-cached evidence reusable.
+**Proven against three real shapes, and captured from each.** Each
+exercises a distinct failure mode: Apple Silicon for unified memory and
+ARM64, CPU-only Linux for the zero-accelerator path, Linux with NVIDIA for
+the reference. Every real run is committed as a fixture, so later stages
+test capability branching against real machines rather than against
+hand-written guesses about them — and any new hardware ever encountered
+becomes a permanent regression test by running detection once. AMD and
+Windows-via-Linux-VM remain fixture-only.
 
-**Output:** `HostCapabilities v1` · **Gate:** L2
+Durable, versioned, fingerprinted. **The fingerprint covers stable facts
+only** — architecture, CPU and accelerator models, mount identity — and
+never available memory or free space. It is the key by which cached
+evidence is judged reusable from Milestone 2, and a fingerprint over
+volatile values would invalidate every expensive probe on every restart.
+
+**`DeploymentProfile`** is created here, satisfying
+`docs/PRODUCT_VISION.md` §89. A tier — certified, supported, compatible,
+experimental, unsupported — is earned from the acceptance level reached on
+that host shape, not declared: `L4` certifies, `L3` supports, `L2`
+qualifies as compatible, a captured fixture alone is experimental. This is
+the mechanism that makes broad hardware support honest rather than a claim,
+and it means a tier cannot get ahead of its evidence. An unsupported
+profile never prevents the platform from starting; fail-closed governs
+mutations, not existence.
+
+**Output:** `HostCapabilities v1 + DeploymentProfile v1` · **Gate:** L2
 
 ### Stage 1.2 — Minimum safe capacity
 
