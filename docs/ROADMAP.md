@@ -986,8 +986,11 @@ extracted from the previous implementation. Read it before implementing:
 it records the allocation primitive that actually works
 (`posix_fallocate`, never a sparse `truncate`), why network filesystems
 report zero allocated blocks after a successful reservation, the
-bounds-not-a-number result semantics, and the 48-minute search that
-produced decision-bounded characterization. **Not Stage 1.2.**
+bounds-not-a-number result semantics, the ~110 MB/s probe cost that makes
+budgets a money question, the 42,990 MiB orphan left when a probe ran on a
+daemon thread and its cleanup never executed, and the 48-minute search that
+was really a transaction question answered by a pool-ceiling climb.
+**Not Stage 1.2.**
 
 `StorageEvidence` and immutable `EmpiricalProbeEvidence`, keyed by pool
 and host fingerprint, probe implementation version and policy version.

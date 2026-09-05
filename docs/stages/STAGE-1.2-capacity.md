@@ -99,6 +99,12 @@ extracted from the previous implementation — is
 `docs/design/EMPIRICAL-STORAGE-CHARACTERIZATION.md`. Read it before
 implementing 2.2; do not implement it here.
 
+There is a second, independent reason beyond sequencing: a probe on the
+reference host's network volume runs at roughly **110 MB/s**, so a 64 GiB
+probe costs about ten minutes. Nothing on the Milestone 1 path can afford to
+sit behind that, and the previous attempt's 48-minute incident was a
+transaction question answered with a pool-ceiling search.
+
 > **Open scope question for review.** The task that produced this brief asked
 > for empirical storage characterization inside Stage 1.2. That contradicts
 > the approved roadmap and `docs/ARCHITECTURE.md`, which place probing in
