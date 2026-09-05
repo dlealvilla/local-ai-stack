@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "stage": "0.1",
+  "name": "platform-kernel",
+  "milestone": 0,
+  "output": "PlatformKernel v1",
+  "status": "CLOSED",
+  "produced_at": "2026-09-05T07:14:25.228713Z",
+  "contract_surface_token": "f4f256efb2541451",
+  "acceptance": {
+    "level": "L1",
+    "why_sufficient": "Milestone 0 gates at L1 by design: the kernel touches no hardware, no runtime and no capacity domain, and measures and authorizes nothing. The store writes to a temporary directory under test only.",
+    "tests_passed": 152,
+    "tests_failed": 0,
+    "lint": "clean",
+    "types": "strict, clean"
+  },
+  "modules": {
+    "kernel": [
+      "clock",
+      "config",
+      "errors",
+      "events",
+      "ids",
+      "persistence",
+      "registry",
+      "results",
+      "schema",
+      "unresolved"
+    ],
+    "adapters": [
+      "persistence.file_store"
+    ]
+  },
+  "contracts": [
+    {
+      "kind": "error_detail",
+      "schema_version": 1,
+      "owner": "kultrun.kernel.results"
+    },
+    {
+      "kind": "event",
+      "schema_version": 1,
+      "owner": "kultrun.kernel.events"
+    },
+    {
+      "kind": "result",
+      "schema_version": 1,
+      "owner": "kultrun.kernel.results"
+    },
+    {
+      "kind": "store_defect",
+      "schema_version": 1,
+      "owner": "kultrun.kernel.persistence"
+    },
+    {
+      "kind": "store_reconciliation",
+      "schema_version": 1,
+      "owner": "kultrun.kernel.persistence"
+    }
+  ],
+  "ports": [
+    {
+      "port": "kultrun.kernel.persistence.Store",
+      "implementations": [
+        "kultrun.adapters.persistence.file_store.FileStore"
+      ]
+    },
+    {
+      "port": "kultrun.kernel.clock.Clock",
+      "implementations": [
+        "kultrun.kernel.clock.SystemClock",
+        "kultrun.kernel.clock.FixedClock"
+      ]
+    }
+  ],
+  "persists_state": false,
+  "reconciliation": "The store sweeps interrupted writes and reports unreadable records as facts; policy decides their meaning from Stage 0.3.",
+  "orphans_possible": [
+    "one temporary file per interrupted write, swept on reconcile"
+  ],
+  "debt": {
+    "open": [
+      "K-01",
+      "K-02",
+      "K-03",
+      "K-04",
+      "K-05",
+      "K-06",
+      "K-07"
+    ],
+    "authorizing": [],
+    "retire_before_milestone_close": [],
+    "hard_deadline": {
+      "K-03": "before the first schema_version bump ships"
+    }
+  },
+  "deferred": [
+    "migration engine",
+    "store concurrency and locking",
+    "structured logging and tracing",
+    "event bus",
+    "time-sortable identifiers",
+    "configuration provenance",
+    "monotonic time and durations",
+    "secret handling in configuration",
+    "async store interfaces",
+    "host-scoping and contract-reference architecture checks (need Stage 0.2 contracts)"
+  ],
+  "roadmap_amendments": [
+    "Stage 0.1 gained the unresolved-value semantic, the bytes unit rule, correlation on the event envelope, and the architecture test harness"
+  ],
+  "package": "docs/stages/STAGE-0.1-platform-kernel.md",
+  "next_stage": {
+    "stage": "0.2",
+    "consumes": [
+      "the Contract base and the @contract decorator",
+      "the unresolved-value semantic",
+      "EntityId and Name",
+      "the Store port",
+      "the architecture test harness, which gains the host-scoping and contract-reference checks"
+    ]
+  }
+}

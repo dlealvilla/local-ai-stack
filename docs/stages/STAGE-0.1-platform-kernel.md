@@ -7,7 +7,7 @@ written before implementation. The **output package** required by
 Part II §4.9 is appended to this same file when the stage closes, so one
 stage has one document.
 
-Status: **BRIEF — not yet implemented.**
+Status: **CLOSED.** Brief below, output package at the end.
 
 ---
 
@@ -352,6 +352,161 @@ stage's output, so each is deferred and recorded rather than built.
 
 ## OUTPUT PACKAGE
 
-*To be completed when the stage closes. Required contents are listed in
-`docs/stages/README.md`; the full definition of done is
-`docs/ROADMAP.md` Part II §4.*
+**Output:** `PlatformKernel v1` · **Acceptance:** `L1`, 152 tests passing ·
+**Checkpoint:** `checkpoints/STAGE-0.1-platform-kernel.json`
+
+### Contracts
+
+Five, all at version 1, recorded in `tests/golden/schema_fingerprint.json`:
+
+| Kind | Owner | Purpose |
+|---|---|---|
+| `event@1` | `kernel/events.py` | The domain event envelope, with correlation |
+| `result@1` | `kernel/results.py` | The control-plane response envelope |
+| `error_detail@1` | `kernel/results.py` | The wire form of a failure |
+| `store_reconciliation@1` | `kernel/persistence.py` | What the store found when it opened |
+| `store_defect@1` | `kernel/persistence.py` | One record that would not load |
+
+A contract is a frozen dataclass registered by the `@contract` decorator,
+which is applied **above** `@dataclass`. That ordering is load-bearing:
+`dataclass(slots=True)` constructs a new class object rather than mutating
+the one in the class statement, so registering from `__init_subclass__`
+would record the discarded pre-slots class and every `isinstance` check
+against the registry would fail. This was found by a test, not by
+reasoning, and `test_registration_records_the_class_that_callers_actually_use`
+now pins it.
+
+### Ports
+
+| Port | Declared in | Implementation in this stage |
+|---|---|---|
+| `Store` | `kernel/persistence.py` | `adapters/persistence/file_store.py` |
+| `Clock` | `kernel/clock.py` | `SystemClock`, and `FixedClock` for determinism |
+
+`AdapterRegistry` is generic over its port and holds no global state.
+Registries are built by whoever composes the system — the test suite at
+this stage, `platform` from Stage 0.3 — because a module-level registry
+makes composition implicit and test order significant.
+
+### Persistence and reconciliation
+
+```text
+<root>/<kind>/<key>.json      one record per file
+```
+
+Each document carries `kind`, `schema_version` and `record_key`, so a
+record recovered by hand is self-describing. Writes go to a uniquely named
+temporary file in the record's own directory, are flushed with `fsync`, and
+are moved onto the final path with `Path.replace`, which is atomic within a
+filesystem.
+
+`reconcile()` sweeps interrupted writes and **reports** every record that
+will not load rather than skipping it, returning a count of swept
+temporaries, a count of verified records, and a defect per unreadable file.
+The store never refuses to open on account of its own contents: it returns
+facts and `platform` decides from Stage 0.3 what a defect means. There are
+no migrations, because every contract is at version 1 — see `K-03`.
+
+### Failure semantics
+
+Nine conditions fail closed, each with a test:
+
+| Condition | Behaviour |
+|---|---|
+| Unregistered `(kind, schema_version)` | Refused; never a best-effort parse |
+| Unexpected or missing field | Refused; never dropped or defaulted |
+| Enumeration value outside its members | Refused; never mapped to a default |
+| Naive datetime | Refused; never assumed local or assumed UTC |
+| Boolean supplied where an integer is declared | Refused |
+| Value that is not JSON-safe | Refused |
+| Record key with a separator or parent reference | Refused, **not sanitized** |
+| Unregistered adapter name | Refused; there is no default adapter |
+| Unknown, extra or misspelled configuration key | Refused; never ignored |
+
+An unresolved value additionally has **no truth value**: evaluating one in
+a boolean context raises. That is the only place in the kernel that makes a
+convenient mistake impossible rather than discouraged, and it exists because
+"unknown is not a pass" is unenforceable if `if value:` reads as false.
+
+### Cancellation and cleanup
+
+The only possible orphan is one temporary file, if the process dies between
+write and replace. It is uniquely named, confined to the record's own
+directory, swept on the next `reconcile()`, and — because a final path is
+only ever produced by an atomic replace — never mistakable for a record.
+`test_an_interrupted_write_leaves_the_previous_record_intact` and
+`test_an_orphan_is_never_mistaken_for_a_record` cover both halves.
+
+### Acceptance evidence
+
+`L1`, which is Milestone 0's gate. 152 tests, ruff clean, mypy strict clean
+on 28 files.
+
+| Area | Covers |
+|---|---|
+| `test_schema.py` | Round-trip of every supported field shape; nine fail-closed cases; registration; registry validation; `unresolved_fields` |
+| `test_unresolved.py` | Unknown has no truth value, is not zero, not null, not false, not empty |
+| `test_ids.py` | Minted identity is typed, prefixed, opaque, non-colliding; names accept the values the platform actually uses and refuse drift |
+| `test_kernel_surface.py` | Clock, result envelope, event envelope, configuration, adapter registry |
+| `test_persistence.py` | Round-trip, key safety including traversal, atomic writes, crash simulation, orphan sweep, defects reported not skipped |
+| `test_fingerprint.py` | The committed fingerprint matches the code, and the compatible-versus-breaking classifier |
+| `test_architecture.py` | The dependency law over the real tree, and the checker verified against synthetic violations |
+
+The kernel-purity test asserts that no `kernel` module imports anything
+outside the standard library, which is the Milestone 0 gate — contracts
+serialize without importing a runtime or provider library — checked rather
+than asserted in prose.
+
+### Architecture decisions
+
+**The unresolved semantic is in the kernel, not in each contract.**
+`docs/DEBT.md` rule 6 requires distinguishing "needs nothing" from "we do
+not know", and `None` cannot carry both. Deferring this to Stage 0.2 would
+have meant fifteen contracts each inventing a convention for absence, which
+is Pattern 4 in a new costume. `docs/ROADMAP.md` Stage 0.1 was amended in
+the same commit.
+
+**Identity is two concepts.** A minted `EntityId` is opaque, typed and
+prefixed. A `Name` is externally meaningful, validated and normalizable.
+The previous attempt kept `logical_name`, `model_id`, `provider` and
+`service_id` distinct and recorded the instruction not to collapse them;
+they need different types, not one.
+
+**The enforcement harness precedes the structure.** `tests/architecture.py`
+mirrors `docs/ARCHITECTURE.md` Part II and asserts that every package has a
+tier, so a module added without a place in the law fails rather than
+escaping it. It was verified by injecting a real violation — a
+`capacity → model` import — and confirming the failure names the rule.
+Eleven `storage_*` modules for one concept would have failed the concept
+census the day the second appeared.
+
+**Sizes are bytes at every contract boundary.** Non-canonical size suffixes
+are refused at registration. The previous attempt carried
+`minimum_reserve_bytes` in a contract and `minimum_reserve_gb` among its
+validated defaults; unit drift in a value that authorizes a mutation is not
+cosmetic.
+
+**The test suite is the composition root.** Nothing in the kernel imports
+an adapter, so the `Store` and its implementation are assembled from
+outside. If the kernel could not be assembled from outside, the seam would
+not be real.
+
+### Debt
+
+Seven entries, `K-01` to `K-07` in `docs/DEBT.md`. None authorizes a
+mutation. `K-03` — no migration engine — is the only one with a hard
+deadline: it must retire before the first `schema_version` bump ships.
+
+### Deferred
+
+Migration engine, store concurrency, structured logging and tracing, event
+bus, time-sortable identifiers, configuration provenance, monotonic time,
+secret handling, async store interfaces. The host-scoping and
+contract-reference architecture checks need contracts to inspect and so
+land with Stage 0.2.
+
+### What this stage does not prove
+
+`L1` only. No hardware, no runtime, no real host. The store has written
+files in a temporary directory under test and nowhere else. The first real
+evidence that any of this holds arrives at the Stage 1.1 gate.

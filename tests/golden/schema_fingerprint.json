@@ -1,0 +1,160 @@
+{
+  "error_detail@1": {
+    "fields": {
+      "code": {
+        "may_be_unresolved": false,
+        "meaning": "stable error code; never renamed once shipped",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "context": {
+        "may_be_unresolved": false,
+        "meaning": "structured detail naming what failed and where",
+        "nullable": false,
+        "optional": true,
+        "type": "dict[str, JsonValue]"
+      },
+      "message": {
+        "may_be_unresolved": false,
+        "meaning": "human-readable description of the failure",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "retryable": {
+        "may_be_unresolved": false,
+        "meaning": "whether an identical retry could succeed",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      }
+    },
+    "python": "ErrorDetail"
+  },
+  "event@1": {
+    "fields": {
+      "correlation_id": {
+        "may_be_unresolved": false,
+        "meaning": "identifier tying this event to the request or operation that caused it",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "event_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this event",
+        "nullable": false,
+        "optional": false,
+        "type": "EventId"
+      },
+      "event_type": {
+        "may_be_unresolved": false,
+        "meaning": "what happened, as a stable dotted name such as 'workload.admitted'",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "occurred_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it happened, timezone-aware UTC; never the time it was recorded",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "payload": {
+        "may_be_unresolved": false,
+        "meaning": "the domain-specific body, itself a versioned contract",
+        "nullable": true,
+        "optional": true,
+        "type": "Contract | None"
+      },
+      "source": {
+        "may_be_unresolved": false,
+        "meaning": "the module that emitted it",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      }
+    },
+    "python": "Event"
+  },
+  "result@1": {
+    "fields": {
+      "correlation_id": {
+        "may_be_unresolved": false,
+        "meaning": "identifier tying this outcome to the request that caused it",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "error": {
+        "may_be_unresolved": false,
+        "meaning": "the failure, absent on success",
+        "nullable": true,
+        "optional": true,
+        "type": "ErrorDetail | None"
+      },
+      "payload": {
+        "may_be_unresolved": false,
+        "meaning": "the operation's rendered output, absent on failure",
+        "nullable": true,
+        "optional": true,
+        "type": "JsonValue"
+      }
+    },
+    "python": "Result"
+  },
+  "store_defect@1": {
+    "fields": {
+      "location": {
+        "may_be_unresolved": false,
+        "meaning": "where the record is, relative to the store root",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "problem": {
+        "may_be_unresolved": false,
+        "meaning": "why it could not be loaded",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "record_kind": {
+        "may_be_unresolved": false,
+        "meaning": "the kind it claimed to be, when that much was readable",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      }
+    },
+    "python": "StoreDefect"
+  },
+  "store_reconciliation@1": {
+    "fields": {
+      "defects": {
+        "may_be_unresolved": false,
+        "meaning": "records that could not be loaded, reported rather than skipped",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[StoreDefect, ...]"
+      },
+      "records_verified": {
+        "may_be_unresolved": false,
+        "meaning": "records that loaded and validated",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "swept_temporaries": {
+        "may_be_unresolved": false,
+        "meaning": "interrupted writes cleaned up; each was an orphan, never a record",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      }
+    },
+    "python": "ReconciliationReport"
+  }
+}

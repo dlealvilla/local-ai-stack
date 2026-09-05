@@ -57,10 +57,134 @@ Status:       OPEN | RETIRED (<stage>, <date>)
 
 ## Open entries
 
-None. Implementation has not started.
+Seven, all from Stage 0.1. None authorizes a mutation, so none is caught
+by rule 2. Only `K-03` has a hard deadline.
 
-The first entries are expected from Milestone 1, and two are anticipated
-by the roadmap itself:
+### K-01 — Identifiers are not time-sortable
+Label:        PROVISIONAL
+Owner stage:  0.1
+Subsystem:    kernel / ids
+Authorizes:   NO
+What:         An identifier is 64 bits of randomness behind a type prefix,
+              so identifiers carry no ordering.
+Why now:      Nothing orders by identifier. Events carry `occurred_at`,
+              and ordering by a timestamp is correct rather than a
+              workaround.
+To make real: A time-ordered scheme — UUIDv7 or a ULID equivalent —
+              implemented in the standard library, since identity is a
+              Kultrun concept and may not be owned by a package.
+Retire when:  `UsageEvent` requires a time-ordered scan and a secondary
+              index on `occurred_at` is not sufficient. Milestone 9 at
+              the latest.
+Status:       OPEN
+
+### K-02 — The record store is one JSON file per record
+Label:        WORKING
+Owner stage:  0.1
+Subsystem:    adapters / persistence
+Authorizes:   NO
+What:         Single writer, no index, no query beyond key and kind. A
+              full listing reads every file.
+Why now:      Stage 0.3 holds a handful of singleton records. A query
+              interface written before a caller exists is the specific
+              mistake Milestone 0 warns about.
+To make real: A SQLite store behind the same `Store` port.
+Retire when:  A second writer process exists, or a lookup by anything
+              other than key is required. Expected at Stage 2.5
+              (inventory) or Milestone 4.
+Status:       OPEN
+
+### K-03 — No migration engine, only version rejection
+Label:        PROVISIONAL
+Owner stage:  0.1
+Subsystem:    kernel / schema
+Authorizes:   NO
+What:         An unregistered `(kind, schema_version)` is refused. There
+              is no path that reads version *n* and produces version
+              *n+1*.
+Why now:      Every contract is at version 1, so no migration exists to
+              write. Building one now would design against an imagined
+              shape.
+To make real: A registered per-kind upgrade path, plus a store that
+              rewrites on read and records that it did.
+Retire when:  **Before the first `schema_version` bump ships.** Expected
+              Milestone 2. Retire before milestone close.
+Status:       OPEN
+
+### K-04 — Configuration records no provenance
+Label:        DEFERRED
+Owner stage:  0.1
+Subsystem:    kernel / config
+Authorizes:   NO
+What:         The effective value of a setting is reportable; which
+              source supplied it — default, file, environment or
+              administrator override — is not.
+Why now:      Nothing consumes provenance before Stage 6.1, and the
+              retrofit is contained to one module because it is loader
+              metadata rather than a change to any field's type.
+To make real: Record the source per key at load time and expose it
+              beside the value.
+Retire when:  Stage 6.1 displays automatic settings apart from manual
+              overrides, or a recommender writes configuration at
+              Milestone 3.
+Status:       OPEN
+
+### K-05 — A change of meaning that keeps name and type needs a human
+Label:        WORKING
+Owner stage:  0.1
+Subsystem:    kernel / schema
+Authorizes:   NO
+What:         The fingerprint catches a renamed field, a retyped field, a
+              removed field and a restated meaning. A field whose text
+              stays identical while the intent behind it shifts is not
+              mechanically detectable.
+Why now:      This is the strongest available mechanism, not a shortcut.
+              The meaning text is in the fingerprint precisely so the
+              diff is reviewable.
+To make real: Not achievable by a test. Review of the fingerprint diff
+              is the control.
+Retire when:  Never mechanically. Reviewed at every milestone
+              consolidation checkpoint.
+Status:       OPEN
+
+### K-06 — The codec is hand-rolled
+Label:        WORKING
+Owner stage:  0.1
+Subsystem:    kernel / schema
+Authorizes:   NO
+What:         Encoding, decoding and type checking are implemented on
+              `dataclasses` and `get_type_hints` rather than on a
+              serialization library.
+Why now:      Versioned contract identity, fail-closed decoding, the
+              unresolved semantic and the fingerprint are Kultrun
+              concepts, and Part II §9 forbids a package from owning one.
+              Standard-library-only also makes the Milestone 0 gate
+              trivially true.
+To make real: If it outgrows the kernel, the codec becomes an adapter
+              behind the existing `Contract` boundary — a library would
+              then implement serialization without owning the concept.
+Retire when:  The codec exceeds roughly a thousand lines, or a second
+              wire format is required. No second implementation exists
+              today, so the seam is deliberately not built.
+Status:       OPEN
+
+### K-07 — No monotonic clock, so no durations
+Label:        DEFERRED
+Owner stage:  0.1
+Subsystem:    kernel / clock
+Authorizes:   NO
+What:         `Clock` supplies wall-clock instants only.
+Why now:      No caller measures elapsed time yet.
+To make real: A monotonic source alongside the wall clock, with
+              durations typed distinctly from instants.
+Retire when:  Any stage measures a duration. Wall-clock arithmetic must
+              never be used for one.
+Status:       OPEN
+
+---
+
+Two further entries are anticipated by the roadmap and are **not yet
+open**, because their stages have not run:
 
 - **Policy-only safe capacity** (Stage 1.2) — headroom policy with no
   empirical evidence. This value *authorizes admission*, so under rule 2
