@@ -1,0 +1,115 @@
+{
+  "record": "workflow-adoption",
+  "name": "artifact-based build-deploy-observe",
+  "status": "adopted",
+  "binding_from": "e32894fb5074270b0b13c4888329fbccea029ca1",
+  "summary": "Remote servers become deployment and acceptance targets. Source changes originate in the development workspace; an installed wheel carrying its own build identity is what reaches a host. L2 and above now require an installed artifact traceable to a committed source state.",
+  "START_LINK": {
+    "predecessor_accepted_commit": "de9219ef9135b37f9ef40d005371c94c05b7011a",
+    "predecessor_checkpoint": "checkpoints/STAGE-1.1-host-discovery.json",
+    "predecessor_stage": "1.1",
+    "starting_source_commit": "de9219ef9135b37f9ef40d005371c94c05b7011a"
+  },
+  "iterations": [
+    {
+      "attempt": 1,
+      "source": "de9219e + uncommitted workflow tooling",
+      "build_id": "0.1.0+de9219ef9135.wip",
+      "observation": "wheel built without kultrun/BUILD.json: it is gitignored so a stale build identity can never be committed, and hatchling honours VCS ignore files. Every deployed instance would have reported itself as a source checkout.",
+      "classification": "missing package data",
+      "correction": "explicit hatchling artifacts force-include, pinned by test_the_build_identity_is_force_included_in_the_wheel",
+      "outcome": "manifest ships in the wheel; source tree still left clean"
+    },
+    {
+      "attempt": 2,
+      "source": "3365d2dc86eb14a8a61f8c4097497760b0960436",
+      "build_id": "0.1.0+3365d2dc86eb",
+      "sha256": "55554a901a7e61279ec202d8cfe162b83161e0e7bccecc8f382788abdf198e71",
+      "observation": "clean install and host discovery both correct; fingerprint identical to accepted Stage 1.1. Three cosmetic/observability defects and one real product gap found: empty artifact field, 2.15 PB printed as '2002393.6 GiB', /v1/version untested, and no way to configure a deployed instance.",
+      "classification": "observability and path assumption",
+      "correction": "dropped the unknowable field, scaled byte output, added the version route test; recorded K-20 and K-21 rather than fixing product configuration in a workflow task",
+      "outcome": "corrected in commit e32894f"
+    },
+    {
+      "attempt": 3,
+      "source": "e32894fb5074270b0b13c4888329fbccea029ca1",
+      "build_id": "0.1.0+e32894fb5074",
+      "sha256": "4d48468ac41ea7dc1a53b4fa8803241db4ad5614764450c6ff1e7aa10f399dcc",
+      "observation": "upgrade over the existing deployment; hwloc and prior state preserved, same host_id and fingerprint, mount now reads 1.9 PiB",
+      "correction": null,
+      "outcome": "acceptance PASS"
+    }
+  ],
+  "DEPLOYMENT_TOKEN": {
+    "source_commit": "e32894fb5074270b0b13c4888329fbccea029ca1",
+    "build_id": "0.1.0+e32894fb5074",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "4d48468ac41ea7dc1a53b4fa8803241db4ad5614764450c6ff1e7aa10f399dcc",
+    "clean_source": true,
+    "target_host_fingerprint": "4d4efedb286baa4beccba3601cb11c70",
+    "target_host_id": "host_8c710abc0886b3b6",
+    "target_shape": "linux/x86_64/nvidia",
+    "attempt": 3,
+    "mode": "upgrade",
+    "install_path": "/opt/kultrun",
+    "hash_verified_after_transfer": true,
+    "editable_install": false,
+    "source_tree_on_target": false
+  },
+  "END_LINK": {
+    "final_source_commit": "e32894fb5074270b0b13c4888329fbccea029ca1",
+    "final_build_id": "0.1.0+e32894fb5074",
+    "final_artifact_sha256": "4d48468ac41ea7dc1a53b4fa8803241db4ad5614764450c6ff1e7aa10f399dcc",
+    "accepted_deployment_attempt": 3,
+    "real_host_evidence": {
+      "command": "kultrun host",
+      "build_identity_reported": true,
+      "component_outcome": "hwloc already_present 2.10.0 (reused, not reinstalled)",
+      "host_fingerprint": "4d4efedb286baa4beccba3601cb11c70",
+      "matches_accepted_stage_1_1_fingerprint": true,
+      "deployment_profile": "compatible",
+      "accelerators": 1,
+      "accelerator_conflict_resolved": true,
+      "providers": [
+        "hwloc",
+        "nvidia",
+        "native-linux"
+      ],
+      "remote_source_modified": false
+    },
+    "checkpoint": "checkpoints/WORKFLOW-artifact-deployment.json",
+    "next": "Stage 1.2 \u2014 capacity, using build -> deploy -> observe -> fix"
+  },
+  "tooling": {
+    "build": "tools/build_prototype.py",
+    "verify": "tools/verify_artifact.py",
+    "runtime_identity": [
+      "kultrun version",
+      "GET /v1/version",
+      "kultrun.kernel.build.identity()"
+    ],
+    "artifact_format": "python wheel",
+    "runtime_dependencies": 0
+  },
+  "modes": {
+    "upgrade": "most iterations; preserves provisioned components, models, caches, configuration and evidence",
+    "clean_install": "periodic and at milestone gates; next required at the Milestone 1 L4 gate, or earlier if installation or provisioning behaviour materially changes"
+  },
+  "stage_1_1": {
+    "remains_accepted": true,
+    "commit": "de9219ef9135b37f9ef40d005371c94c05b7011a",
+    "reopened": false,
+    "evidence_changed": false,
+    "note": "last stage accepted from a source tree; retrospective note added to its stage package, acceptance untouched"
+  },
+  "debt_added": [
+    "K-20",
+    "K-21"
+  ],
+  "tests": {
+    "total": 325,
+    "ruff": "clean",
+    "mypy": "strict clean, 95 files",
+    "local_artifact_verification": "10/10"
+  }
+}
