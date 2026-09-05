@@ -27,6 +27,7 @@ from tests.architecture import (
     reference_violations,
     scan,
     unassigned_packages,
+    unmapped_adapter_families,
     violations,
 )
 
@@ -47,10 +48,30 @@ def edge(source: str, target: str, *, submodule: str | None = None) -> ImportEdg
     )
 
 
+def adapter_edge(
+    family: str, target: str, *, submodule: str | None = None
+) -> ImportEdge:
+    """A synthetic edge from an adapter in `family` to a core package."""
+    target_module = f"kultrun.{target}" + (f".{submodule}" if submodule else "")
+    return ImportEdge(
+        source_module=f"kultrun.adapters.{family}.thing",
+        source_package="adapters",
+        target_module=target_module,
+        target_package=target,
+        target_submodule=submodule,
+        line=1,
+        source_adapter_family=family,
+    )
+
+
 class TestTheRealTree:
     def test_every_package_has_a_tier(self) -> None:
         """A module added without a place in the law must fail, not escape it."""
         assert unassigned_packages(SOURCE_ROOT) == []
+
+    def test_every_adapter_family_declares_a_port_domain(self) -> None:
+        """Law 5 cannot evaluate an adapter whose port is unknown."""
+        assert unmapped_adapter_families(SOURCE_ROOT) == []
 
     def test_the_tree_obeys_the_dependency_law(self) -> None:
         assert violations(scan(SOURCE_ROOT)) == []
@@ -99,13 +120,21 @@ class TestTheCheckerFinds:
             ("resource", "planning"),
             ("execution", "runtime"),
             ("runtime", "execution"),
+            ("execution", "capacity"),
             ("storage", "model"),
             ("capacity", "model"),
+            ("knowledge", "gateway"),
+            ("knowledge", "inference"),
+            ("vendor", "knowledge"),
+            ("intelligence", "resource"),
+            ("training", "inference"),
             ("agents", "platform"),
         ],
     )
     def test_each_declared_non_edge(self, source: str, target: str) -> None:
-        assert violations([edge(source, target)])
+        problems = violations([edge(source, target)])
+        assert problems != []
+        assert "non-edge" in problems[0]
 
     def test_an_import_of_the_intelligence_tier(self) -> None:
         assert violations([edge("gateway", "intelligence")])
@@ -116,9 +145,36 @@ class TestTheCheckerFinds:
     def test_an_adapter_imported_by_the_composition_root_is_allowed(self) -> None:
         assert violations([edge("main", "adapters")]) == []
 
-    def test_a_narrow_edge_reaching_past_its_permitted_submodule(self) -> None:
-        """`capacity` may read storage evidence, not storage's probing logic."""
-        assert violations([edge("capacity", "storage", submodule="probe")])
+    @pytest.mark.parametrize(
+        ("source", "target"),
+        [("capacity", "storage"), ("capacity", "host"), ("execution", "host")],
+    )
+    def test_a_narrow_edge_reaching_past_its_permitted_submodule(
+        self, source: str, target: str
+    ) -> None:
+        """A narrowed edge may read contracts, never the domain's logic."""
+        problems = violations([edge(source, target, submodule="probe")])
+        assert problems != []
+        assert "may import only" in problems[0]
+
+    @pytest.mark.parametrize(
+        ("source", "target"),
+        [("capacity", "storage"), ("capacity", "host"), ("execution", "host")],
+    )
+    def test_a_narrow_edge_into_contracts_is_allowed(
+        self, source: str, target: str
+    ) -> None:
+        assert violations([edge(source, target, submodule="contracts")]) == []
+
+    def test_agents_reaching_an_infrastructure_domain_directly(self) -> None:
+        """The Team Agent may use the serving path; nothing may bypass the API."""
+        problems = violations([edge("agents", "resource")])
+        assert problems != []
+        assert "may import only" in problems[0]
+
+    def test_agents_using_its_permitted_path_is_allowed(self) -> None:
+        for target in ("api", "gateway", "knowledge", "brains", "identity"):
+            assert violations([edge("agents", target)]) == [], target
 
     def test_a_contracts_module_reaching_into_domain_logic(self) -> None:
         offender = ImportEdge(
@@ -263,3 +319,75 @@ def _production_contracts() -> dict[tuple[str, int], type[Contract]]:
         for key, cls in registered_contracts().items()
         if cls.__module__.startswith("kultrun.")
     }
+
+
+class TestLawFive:
+    """An adapter may not do what the domain declaring its port may not.
+
+    Law 3 lets an adapter import core tiers, which on its own would make
+    `adapters/` a back channel: a host-discovery provider could reach the
+    Resource Manager, and a dependency no core module is permitted would be
+    acquired anyway. These tests are the proof that the loophole is shut.
+    """
+
+    def test_an_adapter_may_import_the_domain_whose_port_it_implements(self) -> None:
+        assert violations([adapter_edge("host", "host")]) == []
+        assert violations([adapter_edge("persistence", "kernel")]) == []
+
+    def test_an_adapter_may_import_what_its_domain_may_import(self) -> None:
+        """A host provider legitimately needs the tier-1 semantics."""
+        assert violations([adapter_edge("host", "evidence")]) == []
+        assert violations([adapter_edge("host", "kernel")]) == []
+
+    @pytest.mark.parametrize(
+        "target", ["model", "planning", "resource", "runtime", "inference"]
+    )
+    def test_a_host_provider_cannot_reach_upward(self, target: str) -> None:
+        """The rule that matters: a provider cannot decide anything."""
+        problems = violations([adapter_edge("host", target)])
+        assert problems != []
+        assert "Law 5" in problems[0]
+
+    def test_an_adapter_inherits_its_domains_forbidden_edges(self) -> None:
+        """A container engine adapter is still forbidden to read capacity."""
+        problems = violations([adapter_edge("container", "capacity")])
+        assert problems != []
+        assert "non-edge" in problems[0]
+        assert "Law 5" in problems[0]
+
+    def test_an_adapter_inherits_its_domains_narrow_edges(self) -> None:
+        problems = violations([adapter_edge("capacity", "storage", submodule="probe")])
+        assert problems != []
+        assert "may import only" in problems[0]
+
+    def test_an_adapter_cannot_import_the_unimportable_tier(self) -> None:
+        problems = violations([adapter_edge("usage", "intelligence")])
+        assert problems != []
+        assert "nothing may import" in problems[0]
+
+    def test_an_adapter_family_with_no_declared_port_domain_is_a_violation(
+        self,
+    ) -> None:
+        """A new adapter must say whose port it implements before importing."""
+        problems = violations([adapter_edge("invented", "kernel")])
+        assert problems != []
+        assert "declares no port domain" in problems[0]
+
+    def test_an_adapter_may_use_its_own_tier(self) -> None:
+        edge_within = ImportEdge(
+            source_module="kultrun.adapters.host.hwloc",
+            source_package="adapters",
+            target_module="kultrun.adapters.host.shared",
+            target_package="adapters",
+            target_submodule="host",
+            line=1,
+            source_adapter_family="host",
+        )
+        assert violations([edge_within]) == []
+
+    def test_the_failure_names_the_rule_and_the_inheritance(self) -> None:
+        """A failure has to be diagnosable by someone who did not write it."""
+        (problem,) = violations([adapter_edge("host", "resource")])
+        assert "kultrun.adapters.host.thing" in problem
+        assert "kultrun.resource" in problem
+        assert "'host' adapter inherits 'host's import budget" in problem

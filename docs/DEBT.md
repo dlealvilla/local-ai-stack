@@ -57,8 +57,8 @@ Status:       OPEN | RETIRED (<stage>, <date>)
 
 ## Open entries
 
-Twelve: seven from Stage 0.1, four from Stage 0.3, and one architectural
-prerequisite. None authorizes a mutation, so none is caught by rule 2.
+Eleven: seven from Stage 0.1 and four from Stage 0.3. None authorizes a
+mutation, so none is caught by rule 2.
 
 Two carry hard conditions. `K-03` — no migration engine — must retire before
 the first `schema_version` bump ships. `K-08` — no authentication — must
@@ -184,26 +184,6 @@ To make real: A monotonic source alongside the wall clock, with
               durations typed distinctly from instants.
 Retire when:  Any stage measures a duration. Wall-clock arithmetic must
               never be used for one.
-Status:       OPEN
-
-### K-12 — Approved dependency constraints are enforced only in prose
-Label:        PROVISIONAL
-Owner stage:  architectural, pre-1.1
-Subsystem:    tests / architecture harness
-Authorizes:   NO
-What:         Constraints approved and documented in `docs/ARCHITECTURE.md`
-              are absent from `tests/architecture.py`: `execution ⟂ capacity`;
-              `capacity → host.contracts` only; `execution → host.contracts`
-              only; Law 5 adapter import-budget inheritance; and the newly
-              approved `knowledge ⟂ gateway`, `knowledge ⟂ inference`,
-              `vendor ⟂ knowledge`, `intelligence ⟂ resource`.
-Why now:      The design passes that approved them were correctly forbidden
-              from modifying tests. No code yet violates any of them.
-To make real: Extend the harness edge lists and add the Law 5 check.
-Retire when:  **Before Stage 1.1 writes its first provider adapter.** Law 5
-              is what keeps a provider out of the Resource Manager, and an
-              unenforced Law 5 is the one that matters most the moment
-              adapters start being written.
 Status:       OPEN
 
 ### K-08 — No authentication; the API is safe only because it is loopback
@@ -393,9 +373,39 @@ Revisit:         after the first live inference vertical, when deciding whether 
 
 ## Retired entries
 
-None yet. Retired entries stay in this file with their retiring stage
-and date, because the record of what was approximated and when it was
-fixed is itself evidence.
+Retired entries stay in this file with their retiring stage and date,
+because the record of what was approximated and when it was fixed is itself
+evidence.
+
+### K-12 — Approved dependency constraints were enforced only in prose
+Label:        PROVISIONAL
+Owner stage:  architectural prerequisite, pre-1.1
+Subsystem:    tests / architecture harness
+Authorizes:   NO
+What:         Constraints approved and documented in `docs/ARCHITECTURE.md`
+              were absent from `tests/architecture.py`.
+Resolution:   All eight approved rules are now enforced, plus two further
+              rules found by sweeping every *Must not* line in the module
+              inventory: `training ⟂ inference` (Part IV `training`;
+              `PRODUCT_VISION` §74) and the `agents` import allow-list,
+              whose documentation was self-contradictory and was corrected
+              in 4dfc8c2.
+
+              Law 5 is enforced by evaluating an adapter as the domain whose
+              port it implements, resolved from its family. An adapter
+              family absent from that mapping is itself a violation, so a
+              new adapter must declare whose port it implements before it
+              may import anything.
+
+              Each rule has a conforming case and a violating case, and the
+              harness was verified against a real injected violation — a
+              `kultrun.adapters.host` module importing `kultrun.resource` —
+              which failed with the rule and the inheritance both named.
+Not enforced: `runtime ⟂ capacity` is *recommended* but not implemented.
+              The `runtime` entry says it must not "own capacity policy",
+              which is weaker than a documented import ban, and enforcing it
+              would have been inventing a rule rather than closing a gap.
+Status:       RETIRED (2026-09-05, architecture harness enforcement task)
 
 ---
 

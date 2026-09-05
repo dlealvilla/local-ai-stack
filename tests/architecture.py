@@ -78,15 +78,80 @@ FORBIDDEN_EDGES: frozenset[tuple[str, str]] = frozenset(
         # Executor logic must not leak into runtime domain logic.
         ("execution", "runtime"),
         ("runtime", "execution"),
+        # How a workload is launched is a different question from what may
+        # safely be launched. Execution consumes an authorized allocation.
+        ("execution", "capacity"),
+        ("capacity", "execution"),
         # Storage probing must not know model identities; managed usage
         # arrives through a port that speaks only bytes per pool.
         ("storage", "model"),
         ("capacity", "model"),
+        # Retrieval assembles authorized context; `brains` decides what to
+        # do with it. Knowledge must not be able to call a model.
+        ("knowledge", "gateway"),
+        ("knowledge", "inference"),
+        # The outbound boundary has no import path to customer content.
+        ("vendor", "knowledge"),
+        # Intelligence produces evidence and recommendations; making it
+        # unable to reach the authorizer makes "never authorizes" structural.
+        ("intelligence", "resource"),
+        # Training infrastructure stays separate from inference
+        # infrastructure (Part IV `training`; PRODUCT_VISION §74).
+        ("training", "inference"),
         # The Admin Agent has no private back channel because it has no
         # import path to one.
         ("agents", "platform"),
     }
 )
+
+#: Part IV `agents`. It reaches control-plane and infrastructure domains
+#: through `api` or not at all. Listed as an allow-list because the Team
+#: Agent legitimately uses the serving and knowledge path, so a blanket ban
+#: would be wrong and a list of banned pairs would be long and lossy.
+DOMAIN_IMPORT_ALLOWLISTS: Mapping[str, frozenset[str]] = {
+    "agents": frozenset(
+        {
+            "kernel",
+            "evidence",
+            "policy",
+            "identity",
+            "entitlement",
+            "audit",
+            "api",
+            "gateway",
+            "knowledge",
+            "brains",
+        }
+    ),
+}
+
+#: Part II Law 5. Which domain's port each adapter family implements. An
+#: adapter is evaluated against that domain's import budget, so the adapter
+#: tier cannot become a loophole around the dependency law.
+#:
+#: A family present in the tree but absent here is itself a violation: a new
+#: adapter must declare which port it implements before it may import
+#: anything.
+ADAPTER_PORT_DOMAIN: Mapping[str, str] = {
+    "persistence": "kernel",
+    "http": "api",
+    "host": "host",
+    "components": "components",
+    "execution": "execution",
+    "container": "execution",
+    "runtime": "runtime",
+    "model_source": "model",
+    "capacity": "capacity",
+    "usage": "analytics",
+    "inference": "gateway",
+    "identity": "identity",
+    "knowledge": "knowledge",
+    "embedding": "knowledge",
+    "telemetry": "vendor",
+    "entitlement": "entitlement",
+    "adaptation": "training",
+    "install": "install",
+}
 
 #: Part II §4. Nothing may import this package; it is strictly additive.
 UNIMPORTABLE: frozenset[str] = frozenset({"intelligence"})
@@ -94,6 +159,12 @@ UNIMPORTABLE: frozenset[str] = frozenset({"intelligence"})
 #: Part II §3. Edges permitted only into a named submodule.
 NARROW_EDGES: Mapping[tuple[str, str], str] = {
     ("capacity", "storage"): "contracts",
+    # Capacity consumes HostCapabilities without learning which tool
+    # observed it: no reach into the discovery service or any provider.
+    ("capacity", "host"): "contracts",
+    # Execution needs to know whether a container engine exists — that fact
+    # is on HostCapabilities — without acquiring the ability to go and look.
+    ("execution", "host"): "contracts",
 }
 
 #: Part II §5. `contracts` may import only the kernel and lower contracts.
@@ -150,6 +221,9 @@ class ImportEdge:
     target_package: str
     target_submodule: str | None
     line: int
+    #: For a module under `adapters/<family>/`, which family. Law 5 uses it
+    #: to decide whose import budget the adapter inherits.
+    source_adapter_family: str | None = None
 
     def describe(self) -> str:
         return f"{self.source_module}:{self.line} imports {self.target_module}"
@@ -164,30 +238,47 @@ def scan(source_root: Path) -> list[ImportEdge]:
         source_package = _package_of(source_module)
         if source_package is None:
             continue  # kultrun/__init__.py itself
+        family = _adapter_family(source_module)
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             edges.extend(
                 _edges_from(
-                node, source_module=source_module, source_package=source_package
-            )
+                    node,
+                    source_module=source_module,
+                    source_package=source_package,
+                    family=family,
+                )
             )
     return edges
 
 
+def _adapter_family(module: str) -> str | None:
+    """The adapter family of a module, if it is one."""
+    parts = module.split(".")
+    if len(parts) >= 3 and parts[1] == "adapters":
+        return parts[2]
+    return None
+
+
 def _edges_from(
-    node: ast.AST, *, source_module: str, source_package: str
+    node: ast.AST, *, source_module: str, source_package: str, family: str | None
 ) -> Iterable[ImportEdge]:
     if isinstance(node, ast.Import):
         for alias in node.names:
             edge = _make_edge(
-                alias.name, source_module, source_package, node.lineno, None
+                alias.name, source_module, source_package, node.lineno, None, family
             )
             if edge is not None:
                 yield edge
     elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
         for alias in node.names:
             edge = _make_edge(
-                node.module, source_module, source_package, node.lineno, alias.name
+                node.module,
+                source_module,
+                source_package,
+                node.lineno,
+                alias.name,
+                family,
             )
             if edge is not None:
                 yield edge
@@ -199,6 +290,7 @@ def _make_edge(
     source_package: str,
     line: int,
     imported_name: str | None,
+    family: str | None = None,
 ) -> ImportEdge | None:
     if not dotted.startswith("kultrun"):
         return None
@@ -217,6 +309,7 @@ def _make_edge(
         target_package=target_package,
         target_submodule=target_submodule,
         line=line,
+        source_adapter_family=family,
     )
 
 
@@ -265,22 +358,55 @@ def _check(edge: ImportEdge) -> list[str]:
     if target not in TIERS:
         return [f"{edge.describe()}, which is in no tier; add it to TIERS"]
 
+    # Law 5. An adapter is evaluated as the domain whose port it implements,
+    # so the adapter tier cannot be used to reach something the domain itself
+    # may not reach.
+    law5 = ""
+    if source == "adapters":
+        if target == "adapters":
+            return problems  # an adapter may use its own tier
+        family = edge.source_adapter_family
+        domain = ADAPTER_PORT_DOMAIN.get(family) if family is not None else None
+        if domain is None:
+            return [
+                f"{edge.describe()}: adapter family {family!r} declares no port "
+                f"domain; add it to ADAPTER_PORT_DOMAIN before it imports "
+                f"anything (Law 5)"
+            ]
+        source = domain
+        law5 = (
+            f" [Law 5: '{family}' adapter inherits '{domain}'s import budget]"
+        )
+
     source_tier, target_tier = TIERS[source], TIERS[target]
 
     if target in UNIMPORTABLE and source != target:
         problems.append(
-            f"{edge.describe()}: nothing may import '{target}' (Part II §4)"
+            f"{edge.describe()}: nothing may import '{target}' (Part II §4){law5}"
         )
 
     if target == "adapters" and source_tier < ADAPTER_TIER and source != "main":
         problems.append(
-            f"{edge.describe()}: only the composition root may import adapters (Law 3)"
+            f"{edge.describe()}: only the composition root may import "
+            f"adapters (Law 3){law5}"
         )
 
     if (source, target) in FORBIDDEN_EDGES:
         problems.append(
             f"{edge.describe()}: '{source}' and '{target}' are a declared "
-            f"non-edge (Part II §4)"
+            f"non-edge (Part II §4){law5}"
+        )
+
+    allowed = DOMAIN_IMPORT_ALLOWLISTS.get(source)
+    if (
+        allowed is not None
+        and target != source
+        and target not in allowed
+        and (source, target) not in FORBIDDEN_EDGES
+    ):
+        problems.append(
+            f"{edge.describe()}: '{source}' may import only "
+            f"{sorted(allowed)} (Part IV `{source}`){law5}"
         )
 
     if source == target:
@@ -289,19 +415,19 @@ def _check(edge: ImportEdge) -> list[str]:
     if target_tier > source_tier:
         problems.append(
             f"{edge.describe()}: tier {source_tier} may not import tier "
-            f"{target_tier} (Part II §1)"
+            f"{target_tier} (Part II §1){law5}"
         )
     elif target_tier == source_tier and (source, target) not in INTRA_TIER_EDGES:
         problems.append(
             f"{edge.describe()}: intra-tier import is not in the declared "
-            f"edge list (Part II §3)"
+            f"edge list (Part II §3){law5}"
         )
 
     narrow = NARROW_EDGES.get((source, target))
     if narrow is not None and edge.target_submodule != narrow:
         problems.append(
             f"{edge.describe()}: '{source}' may import only "
-            f"'{target}.{narrow}' (Part II §3)"
+            f"'{target}.{narrow}' (Part II §3){law5}"
         )
 
     if (
@@ -315,6 +441,24 @@ def _check(edge: ImportEdge) -> list[str]:
         )
 
     return problems
+
+
+def unmapped_adapter_families(source_root: Path) -> list[str]:
+    """Adapter families in the tree that declare no port domain.
+
+    Law 5 cannot evaluate an adapter whose port is unknown, so an unmapped
+    family is a violation rather than an omission — a new adapter must say
+    whose port it implements before it may import anything.
+    """
+    adapter_root = source_root / "kultrun" / "adapters"
+    if not adapter_root.is_dir():
+        return []
+    found = {
+        child.name
+        for child in adapter_root.iterdir()
+        if child.is_dir() and not child.name.startswith(("_", "."))
+    }
+    return sorted(found - set(ADAPTER_PORT_DOMAIN))
 
 
 # ---------------------------------------------------------------------------
