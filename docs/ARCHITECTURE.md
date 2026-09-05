@@ -967,8 +967,8 @@ provable at `L1` without a live port.
 | | |
 |---|---|
 | **Owns** | Admin Agent tool definitions, risk classification — read-only, low-risk mutation, meaningful mutation — and the approval flow. Team Agent execution. |
-| **Consumes** | `api` only, for the Admin Agent. `gateway`, `knowledge` and `brains` through `AccessContext` for the Team Agent. |
-| **Must not** | Hold unrestricted shell access. Import a domain module directly. Perform a meaningful mutation without recorded administrator approval. |
+| **Consumes** | `api`, for the Admin Agent. `gateway`, `knowledge` and `brains` through `AccessContext` for the Team Agent, plus the tier-1 semantics. |
+| **Must not** | Hold unrestricted shell access. Reach any control-plane or infrastructure domain directly — `platform`, `host`, `components`, `storage`, `capacity`, `model`, `planning`, `resource`, `execution`, `runtime`, `inference`, `analytics`, `intelligence`, `vendor`, `install` are reached through `api` or not at all. Perform a meaningful mutation without recorded administrator approval. |
 | **Created** | 6.2 · 8.3 |
 
 ### `intelligence`
@@ -1016,6 +1016,15 @@ the startup sequence; `host` never calls `install` and never requests
 provisioning. Discovery reports that a provider was unavailable, and
 something above decides whether to act. Reversing that would put a tier-2
 domain in the business of modifying the machine it is inspecting.
+
+**The first mechanism is the host's own package manager.** For the Linux
+NVIDIA reference environment, a component that is not already present is
+obtained through the distribution's package manager. That is an
+implementation choice behind this boundary, not an architectural
+commitment: no distribution and no package-manager name appears in a core
+contract, and a future verified-release-artifact mechanism — for
+package-manager gaps, pinned versions, enterprise mirrors, offline bundles
+and other environments — is deferred rather than designed.
 
 **This is not a downloader.** Downloading is one provisioning mechanism
 among several: an existing host binary, a system package manager, a managed

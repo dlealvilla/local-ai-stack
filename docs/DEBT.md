@@ -363,6 +363,21 @@ Downstream redesign expected: NO
 Revisit:         when Kubernetes execution or orchestration becomes active scope.
                  Kubernetes must never become required for standalone hosts
 
+### DC-07 — Verified-release-artifact provisioning
+Architecture:    ARCHITECTURE-READY — sits behind `install`, alongside the
+                 package-manager mechanism, with no core contract change
+Implementation:  ADAPTER-NOT-IMPLEMENTED
+Evidence:        none
+Seam:            `install`, `components.ComponentSource`
+Unproven:        everything; the reference environment uses its distribution's
+                 package manager
+Would later cover: package-manager gaps, Kultrun-pinned versions, enterprise
+                 mirrors, offline bundles, environments without a suitable
+                 package manager
+Downstream redesign expected: NO
+Revisit:         when the reference mechanism cannot satisfy a required
+                 component, or when a second supported environment appears
+
 ### DC-06 — Container execution and device attachment (CDI)
 Architecture:    ARCHITECTURE-READY — `ContainerEngine` seam declared at Stage 1.3
 Implementation:  ADAPTER-NOT-IMPLEMENTED

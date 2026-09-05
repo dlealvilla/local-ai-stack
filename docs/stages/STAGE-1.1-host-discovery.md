@@ -353,9 +353,15 @@ install a driver. Discovery looks; `install` acts.
 
 **The minimal preparation path**, and only the minimal one: `components`
 expresses the requirement, `install` detects an existing compatible
-component, reuses it if valid, otherwise invokes one approved mechanism for
-this one environment, verifies it runs, records version and source, and
-proceeds. Not multiple package managers, not OCI images, not mirrors, not
+component, reuses it if valid, otherwise provisions it **through the host
+distribution's package manager**, verifies it runs, records version and
+source, and proceeds.
+
+The package manager is an implementation detail behind `install`. No
+distribution and no package-manager name may appear in a core contract, and
+a verified-release-artifact mechanism — which would later cover
+package-manager gaps, pinned versions, mirrors, offline bundles and other
+environments — is deferred, not built. Not multiple package managers, not OCI images, not mirrors, not
 offline bundles, not other distributions. The interface must permit those;
 this implementation must not attempt them.
 
