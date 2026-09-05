@@ -1,0 +1,140 @@
+{
+  "record": "workflow-adoption",
+  "name": "layered compatibility testing strategy",
+  "status": "adopted",
+  "binding_from": "c6b72b79701b59daa8fe3446516601d49a422b4d",
+  "summary": "Portability is designed structurally, tested cheaply and broadly, and proven selectively on real hardware. Six test modes; CI runs the cheap layers on every change with no accelerator; a GPU host is created only for bounded acceptance work that needs one.",
+  "START_LINK": {
+    "predecessor_accepted_commit": "e84c62106045581399deb9720931aaf6c5699be3",
+    "predecessor_checkpoint": "checkpoints/WORKFLOW-artifact-deployment.json",
+    "starting_source_commit": "e84c62106045581399deb9720931aaf6c5699be3"
+  },
+  "test_modes": {
+    "T0": "pure and structural; no server",
+    "T1": "replay of evidence captured from real machines; no server",
+    "T2": "clean artifact install; no server",
+    "T3": "one representative real host",
+    "T4": "several representative shapes",
+    "T5": "live inference on real hardware",
+    "note": "A mode is never an evidence level and never a support claim. T0-T2 produce L1; T3-T4 can produce L2; T5 normally L3; integrated acceptance earns L4."
+  },
+  "ci": {
+    "workflow": ".github/workflows/ci.yml",
+    "blocking": [
+      "ubuntu-latest / python 3.12"
+    ],
+    "experimental_non_blocking": [
+      "macos-latest / python 3.12 ARM64"
+    ],
+    "steps": [
+      "architecture laws",
+      "Stage 1.1 fixture replay (named step)",
+      "full unit suite",
+      "ruff",
+      "mypy strict",
+      "wheel build with build identity",
+      "clean isolated artifact install and smoke"
+    ],
+    "accelerator_required": false
+  },
+  "fixture_library": {
+    "registry": "tests/fixtures/hosts/shapes.json",
+    "registry_tests": "tests/test_shape_registry.py",
+    "real_shapes_with_fixtures": 1,
+    "shapes_registered": 6,
+    "blocking_shapes": 1,
+    "replayed_in_ci": [
+      "linux-x86_64-nvidia-blackwell-rtxpro4500"
+    ],
+    "enforced": [
+      "a claimed fixture exists on disk",
+      "real evidence cites a stage package",
+      "a gap states a revisit trigger",
+      "no shape claims a profile its evidence level does not support",
+      "exactly one blocking shape",
+      "every fixture directory is registered"
+    ]
+  },
+  "K-20": {
+    "status": "retired",
+    "problem": "state_root resolved against the working directory; an environment variable set on the command line silently did nothing; two invocations from different directories built two unrelated state stores",
+    "solution": "the composition root resolves KULTRUN_STATE_ROOT, makes the root absolute once at startup, hands the resolved path down, and warns when an installed artifact defaulted",
+    "no_domain_reads_environment": true,
+    "configuration_framework_added": false,
+    "deferred_question": "K-22",
+    "proven_on_real_host": true,
+    "DEPLOYMENT_TOKEN": {
+      "source_commit": "0529e7a3d0176b077355458f21d7a016df6d0593",
+      "build_id": "0.1.0+0529e7a3d017",
+      "artifact": "kultrun-0.1.0-py3-none-any.whl",
+      "sha256": "c1323355d12a108c6e2aba2ddd67aa4ed8e836334f5ca0e1a38d0cd5a1983b12",
+      "clean_source": true,
+      "target_host_fingerprint": "4d4efedb286baa4beccba3601cb11c70",
+      "hash_verified_after_transfer": true,
+      "install_path": "/opt/kultrun",
+      "state_root_used": "/var/lib/kultrun",
+      "proofs": [
+        "unconfigured artifact warns and names the path it fell back to",
+        "configured root honoured when run from /",
+        "same configuration from /tmp resolved to the same root; no stray .state",
+        "records reused rather than duplicated across working directories"
+      ]
+    }
+  },
+  "stage_1_2": {
+    "brief": "docs/stages/STAGE-1.2-capacity.md",
+    "scope": "policy headroom only; no probing, per the approved roadmap",
+    "primary_development_surface": "the committed Stage 1.1 fixture",
+    "real_host_needed_for": [
+      "cgroup and system memory behaviour",
+      "assigned accelerator capacity from the live driver",
+      "the 2.15 PB mount against a real filesystem",
+      "artifact-based L2 acceptance"
+    ],
+    "central_regression_case": "reported 2.15 PB must never become safe 2.15 PB",
+    "begun": false
+  },
+  "design_records": {
+    "empirical_storage_characterization": "docs/design/EMPIRICAL-STORAGE-CHARACTERIZATION.md \u2014 for Stage 2.2, extracted from backup/eod-2026-09-02-storage"
+  },
+  "END_LINK": {
+    "final_source_commit": "c6b72b79701b59daa8fe3446516601d49a422b4d",
+    "commits": [
+      "0529e7a",
+      "f4a2c91",
+      "c6b72b7"
+    ],
+    "checkpoint": "checkpoints/WORKFLOW-testing-strategy.json",
+    "next": "Stage 1.2 \u2014 Capacity, after Daniel review"
+  },
+  "debt": {
+    "retired": [
+      "K-20"
+    ],
+    "added": [
+      "K-22"
+    ],
+    "deferred_added": [
+      "DC-08",
+      "DC-09",
+      "DC-10",
+      "DC-11",
+      "DC-12",
+      "DC-13"
+    ]
+  },
+  "tests": {
+    "total": 344,
+    "ruff": "clean",
+    "mypy": "strict clean, 97 files",
+    "local_artifact_verification": "10/10"
+  },
+  "scope": {
+    "stage_1_2_begun": false,
+    "capacity_code_changed": false,
+    "storage_sonar_implemented": false,
+    "cloud_gpu_automation": false,
+    "test_farm": false,
+    "product_architecture_expanded_for_ci": false
+  }
+}
