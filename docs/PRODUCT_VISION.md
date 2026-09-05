@@ -423,6 +423,25 @@ rather than handing a customer a prerequisites list — but preferring
 something and depending on it are different commitments, and only the first
 survives that tool turning out to be wrong.
 
+**Plug-and-play requires Kultrun to be able to manage its own platform
+components.** An administrator should not have to install a discovery tool
+by hand because Kultrun chose that tool internally. The target experience
+is one command on a fresh supported server:
+
+```text
+inspect environment → determine required platform components
+  → reuse valid existing components → provision missing supported ones
+    → verify → continue
+```
+
+Four limits on that, none of which is solved now. Component
+implementations stay replaceable. Administrator policy may prohibit
+automatic installation. Offline and air-gapped deployments must eventually
+work. Vendor drivers may remain administrator-managed or vendor-managed.
+And Kultrun must not silently install high-impact system components without
+a product policy that says it may — taking responsibility is not the same
+as taking liberties.
+
 ---
 
 # 6. TOP-LEVEL SYSTEM ARCHITECTURE

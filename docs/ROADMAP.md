@@ -477,6 +477,37 @@ are minimal and boundaries are intentional.
 **This is the milestone the previous attempt never reached, and the
 reason this roadmap is reordered.**
 
+### Immediate sequence
+
+```text
+Milestone 0 complete
+  ↓
+architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
+  ↓
+1.1 host discovery      reference NVIDIA host is the only blocking shape
+  ↓
+1.2 capacity
+  ↓
+1.3 runtime / executor
+  ↓
+1.4 model presence
+  ↓
+1.5 admission
+  ↓
+1.6 REAL INFERENCE      ← the earliest honest proof
+  ↓
+post-inference breadth review, then 1.7 onward
+```
+
+Nothing is inserted into that path. Not Apple, AMD or Intel; not
+Kubernetes; not containerization; not a universal installer or a
+generalized downloader. Each has a home in the deferred capability register
+in `docs/DEBT.md`, with its own revisit trigger.
+
+The harness gap comes first because Law 5 — an adapter inherits its
+port-domain's import budget — is what keeps a discovery provider out of the
+Resource Manager, and Stage 1.1 is where adapters start being written.
+
 **Goal:** on the reference host, an authenticated request reaches a real
 model through Kultrun-owned paths, returns an answer, emits a usage
 event, and the platform restarts into a coherent state.
@@ -541,10 +572,19 @@ real gap has been demonstrated on a real machine.** Documentation says what
 a tool can do somewhere; only a run says what it does here.
 
 The preferred provider is **optional-preferred**: the spike may not assume
-it is already present, may install it on development acceptance hosts in
+it is already present, may obtain it on the reference development host in
 order to evaluate it, and must record how it was obtained and at what
 version. Final bundling and installer mechanics are a Milestone 10
 question and are not solved here.
+
+**The spike is outcome-bounded, not research-bounded.** It ends when the
+reference host can be observed with the smallest practical combination of
+mature providers; those observations normalize into valid
+`HostCapabilities`; what Stage 1.2 needs is available, explicitly
+unresolved, or documented as needing a small supplement; there is no
+demonstrated need for Kultrun to write commodity enumeration itself; and
+remaining gaps are recorded in the deferred capability register. Once those
+hold, provider exploration stops.
 
 Then implement the smallest provider stack that Stage 1.1 acceptance
 actually requires — expected to be a general provider plus a vendor
@@ -553,14 +593,23 @@ it. No AMD or Intel provider is written for completeness.
 
 Reference implementation: Linux x86_64 + NVIDIA.
 
-**Proven against three real shapes, and captured from each.** Each
-exercises a distinct failure mode: Apple Silicon for unified memory and
-ARM64, CPU-only Linux for the zero-accelerator path, Linux with NVIDIA for
-the reference. Every real run is committed as a fixture, so later stages
-test capability branching against real machines rather than against
-hand-written guesses about them — and any new hardware ever encountered
-becomes a permanent regression test by running detection once. AMD and
-Windows-via-Linux-VM remain fixture-only.
+**One blocking real shape: Linux x86_64 with NVIDIA.** Stage 1.1 closes
+when the reference host meets its acceptance contract, and nothing else
+gates it. Apple Silicon and CPU-only Linux are **non-blocking**
+opportunities: captured if available, recorded in the deferred capability
+register if not. AMD, Intel, Kubernetes and container execution are not in
+scope at all.
+
+This is a deliberate narrowing. Each of those shapes exercises a real and
+distinct failure mode, and none is required for a real server to serve a
+real model — which is the only thing Milestone 1 exists to prove. Breadth
+that delays that proof repeats the previous attempt's mistake in a new
+costume.
+
+Every real run that *is* performed is committed as a fixture, so later
+stages test capability branching against real machines rather than
+hand-written guesses about them, and any new hardware ever encountered
+becomes a permanent regression test by being observed once.
 
 Durable, versioned, fingerprinted. **The fingerprint covers stable facts
 only** — architecture, CPU and accelerator models, mount identity — and
@@ -574,6 +623,25 @@ values by dotted field path rather than by wrapping every leaf, which makes
 it a compatible addition to the Stage 0.2 contract rather than a revision
 of it.
 
+**A minimal preparation path is in scope, and only a minimal one.** The
+reference host must be able to obtain or reuse the provider it needs
+without a human installing it by hand, so `components` expresses the
+requirement and `install` acts on it. The smallest honest implementation:
+detect an existing compatible component, reuse it if valid, otherwise
+invoke one approved mechanism for this one supported environment, verify it
+runs, record version and source, proceed.
+
+Explicitly not here: multiple package managers, OCI images, enterprise
+mirrors, offline bundles, or any distribution beyond the reference. The
+*interface* must permit those; the implementation must not attempt them.
+Milestone 10 owns the installer, and moving it into Milestone 1 by accident
+is the specific risk this paragraph exists to prevent.
+
+**Discovery never installs anything.** A provider reports available,
+unavailable, failed, partially capable, or missing a prerequisite. It does
+not run a package manager, download a tool, change system configuration or
+install a driver. `install` acts; `host` looks.
+
 **`DeploymentProfile`** is created here, satisfying
 `docs/PRODUCT_VISION.md` §89. A tier — certified, supported, compatible,
 experimental, unsupported — is earned from the acceptance level reached on
@@ -583,6 +651,10 @@ the mechanism that makes broad hardware support honest rather than a claim,
 and it means a tier cannot get ahead of its evidence. An unsupported
 profile never prevents the platform from starting; fail-closed governs
 mutations, not existence.
+
+Stage 1.1 classifies **the reference host only**. Other shapes stay
+unclassified or experimental until evidence exists; building a portfolio of
+profiles is not this stage's job.
 
 **Output:** `HostCapabilities v1 + DeploymentProfile v1 + HostDiscoveryProvider` · **Gate:** L2
 
@@ -631,13 +703,13 @@ an obvious home — beneath the executor, after allocation, never as a source
 of host facts or of capacity. Docker is not required and Kubernetes is not
 the control plane.
 
-The **component seam** is created here, verification-only: does a
-required component exist, at what version, and is it compatible with this
-host. The runtime is assumed already installed at Milestone 1, so nothing
-is resolved or downloaded yet. The seam exists now because Stage 3.4's
-`DeploymentPlan` consumes *resolved components*, and because the
-constitution warns specifically against download logic scattering through
-the codebase. Milestone 10 fills the seam rather than introducing it.
+The **component seam** already exists — Stage 1.1 created
+`ComponentRequirement` and `ComponentResolution` to express its provider's
+needs. This stage extends it to the runtime: is vLLM present, at what
+version, compatible with this host. The runtime is assumed already
+installed at Milestone 1, so nothing is provisioned here. Stage 3.4's
+`DeploymentPlan` consumes *resolved components*, and Milestone 10 fills the
+seam rather than introducing it.
 
 **Output:** `ExecutorSpec + ExecutorHandle + DeviceRequest + RuntimeProfile + RuntimeLaunchSpec + ComponentRequirement` · **Gate:** L2
 
@@ -657,6 +729,15 @@ dismantling it. Design it out now.
 Inventory records carry explicit nulls, never inferred values. Capacity
 observation must tolerate a record with a null management section; that
 exact shape crashed the prior attempt during integration.
+
+**Artifact existence is not current-host suitability.** An artifact that is
+present says nothing about whether this host can serve it, and reuse runs
+the same path as a fresh choice: requirement plus the current envelope,
+through feasibility, to reuse or reject. Inventory answers "what exists";
+feasibility answers "can this host use it". The `host_id` on a record
+locates an artifact rather than qualifying it. This is what makes moving
+between rented servers day to day safe, and it fails silently if assumed —
+the artifact is right there, so it looks fine.
 
 **Output:** `ModelInventoryRecord v1` (local-only) · **Gate:** L2
 
@@ -688,6 +769,24 @@ on restart**, in this stage, not a later one. Distinguish status (is the
 port reachable) from health (does the API function).
 
 **Output:** `InferenceInstance v1` + healthy `InferenceEndpoint` · **Gate:** L3
+
+### Post-inference breadth review — after Stage 1.6, before broadening
+
+A required checkpoint, not a stage. Once a real request has reached a real
+model on real hardware, review — and decide, rather than drift into:
+
+- Apple Silicon capture and provider;
+- CPU-only capture and runtime;
+- additional NVIDIA host shapes;
+- container executor and device attachment;
+- AMD and Intel providers;
+- Kubernetes and a node-feature provider;
+- whether the minimal component provisioner should be generalized.
+
+Each has an entry in the deferred capability register with its own revisit
+trigger. This checkpoint exists so that breadth is chosen deliberately at
+the first moment it is affordable, rather than either forgotten or smuggled
+into Milestone 1. **It is not an instruction to implement any of them.**
 
 ### Stage 1.7 — Gateway, subject and usage event
 

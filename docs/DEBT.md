@@ -57,8 +57,8 @@ Status:       OPEN | RETIRED (<stage>, <date>)
 
 ## Open entries
 
-Eleven: seven from Stage 0.1 and four from Stage 0.3. None authorizes a
-mutation, so none is caught by rule 2.
+Twelve: seven from Stage 0.1, four from Stage 0.3, and one architectural
+prerequisite. None authorizes a mutation, so none is caught by rule 2.
 
 Two carry hard conditions. `K-03` — no migration engine — must retire before
 the first `schema_version` bump ships. `K-08` — no authentication — must
@@ -186,6 +186,26 @@ Retire when:  Any stage measures a duration. Wall-clock arithmetic must
               never be used for one.
 Status:       OPEN
 
+### K-12 — Approved dependency constraints are enforced only in prose
+Label:        PROVISIONAL
+Owner stage:  architectural, pre-1.1
+Subsystem:    tests / architecture harness
+Authorizes:   NO
+What:         Constraints approved and documented in `docs/ARCHITECTURE.md`
+              are absent from `tests/architecture.py`: `execution ⟂ capacity`;
+              `capacity → host.contracts` only; `execution → host.contracts`
+              only; Law 5 adapter import-budget inheritance; and the newly
+              approved `knowledge ⟂ gateway`, `knowledge ⟂ inference`,
+              `vendor ⟂ knowledge`, `intelligence ⟂ resource`.
+Why now:      The design passes that approved them were correctly forbidden
+              from modifying tests. No code yet violates any of them.
+To make real: Extend the harness edge lists and add the Law 5 check.
+Retire when:  **Before Stage 1.1 writes its first provider adapter.** Law 5
+              is what keeps a provider out of the Resource Manager, and an
+              unenforced Law 5 is the one that matters most the moment
+              adapters start being written.
+Status:       OPEN
+
 ### K-08 — No authentication; the API is safe only because it is loopback
 Label:        PROVISIONAL
 Owner stage:  0.3
@@ -263,6 +283,96 @@ open**, because their stages have not run:
   successor. Low confidence, planning evidence only. Retired by
   Milestone 3 Stage 3.2 when a conservative internal estimator exists,
   and further improved in Milestone 11.
+
+---
+
+## Deferred capability register
+
+Distinct from the debt entries above. A debt entry records an approximation
+in something that exists; these record **hardware and environment shapes
+the architecture accommodates but the implementation does not yet reach**.
+
+They are listed so that future opportunities are deliberately revisited
+rather than quietly forgotten, which is the failure mode for anything whose
+absence never breaks a test.
+
+**Three statuses, never conflated.** The whole point of the register is
+that these come apart:
+
+| Status | Means |
+|---|---|
+| `ARCHITECTURE-READY` | The current ports and contracts can accommodate it |
+| `ADAPTER-NOT-IMPLEMENTED` | The shape is anticipated; no provider exists |
+| `REAL-HOST-DETECTION-PROVEN` | `L2` evidence exists on that shape |
+| `LIVE-INFERENCE-PROVEN` | `L3` evidence exists |
+| `INTEGRATED` / `CERTIFIED` | `L4` evidence exists |
+
+Architecture support is not implementation support, and neither is
+acceptance evidence. **Nothing here may be described as "supported"**
+because the architecture permits it — that claim belongs to
+`DeploymentProfile`, and it is earned.
+
+### DC-01 — Apple Silicon / macOS
+Architecture:    ARCHITECTURE-READY
+Implementation:  ADAPTER-NOT-IMPLEMENTED
+Evidence:        none; may be captured opportunistically, **not Stage 1.1 blocking**
+Seam:            `HostDiscoveryProvider`, plus a runtime/executor adapter when inference is wanted
+Unproven:        whether a general provider reports enough on Darwin; unified-memory
+                 normalization against a real machine; any Apple runtime path
+Downstream redesign expected: NO
+Revisit:         after the first live inference vertical, or when Apple runtime
+                 support becomes a roadmap priority
+
+### DC-02 — CPU-only hosts
+Architecture:    ARCHITECTURE-READY
+Implementation:  ADAPTER-NOT-IMPLEMENTED
+Evidence:        none; may be captured opportunistically, **not Stage 1.1 blocking**
+Seam:            `HostDiscoveryProvider`, plus runtime and model selection
+Unproven:        the zero-accelerator path against a real machine; a CPU-capable runtime
+Downstream redesign expected: NO
+Revisit:         after the first live inference vertical, or when CPU-only serving
+                 becomes a product priority
+
+### DC-03 — AMD / ROCm
+Architecture:    ARCHITECTURE-READY
+Implementation:  ADAPTER-NOT-IMPLEMENTED
+Evidence:        none
+Seam:            `HostDiscoveryProvider` via AMD SMI or equivalent, plus a ROCm runtime adapter
+Unproven:        everything; no AMD hardware has been observed
+Downstream redesign expected: NO
+Revisit:         when AMD enters the validated platform roadmap
+
+### DC-04 — Intel accelerators
+Architecture:    ARCHITECTURE-READY
+Implementation:  ADAPTER-NOT-IMPLEMENTED
+Evidence:        none
+Seam:            `HostDiscoveryProvider` via Level Zero / Sysman or equivalent, plus a
+                 compatible runtime adapter
+Unproven:        everything
+Downstream redesign expected: NO
+Revisit:         when Intel accelerators enter the validated roadmap
+
+### DC-05 — Kubernetes / Node Feature Discovery
+Architecture:    ARCHITECTURE-READY
+Implementation:  ADAPTER-NOT-IMPLEMENTED
+Evidence:        none
+Seam:            `HostDiscoveryProvider`
+Unproven:        whether node labels normalize usefully; Kultrun has no reason to run
+                 under Kubernetes yet
+Downstream redesign expected: NO
+Revisit:         when Kubernetes execution or orchestration becomes active scope.
+                 Kubernetes must never become required for standalone hosts
+
+### DC-06 — Container execution and device attachment (CDI)
+Architecture:    ARCHITECTURE-READY — `ContainerEngine` seam declared at Stage 1.3
+Implementation:  ADAPTER-NOT-IMPLEMENTED
+Evidence:        none
+Seam:            `Executor` (OCI implementation) and `ContainerEngine`; CDI inside the
+                 OCI adapter only
+Unproven:        the whole path; native execution is the reference
+Downstream redesign expected: NO
+Revisit:         after the first live inference vertical, when deciding whether an
+                 executor should ever be recommended over native
 
 ---
 

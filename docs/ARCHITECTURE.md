@@ -262,6 +262,44 @@ point at.
 The complete device-identity algorithm is not designed here. The invariant
 is, because it constrains every provider written afterwards.
 
+**Adding a supported discovery provider must never require downstream
+redesign.** A new hardware family may bring a new adapter, new
+normalization, compatible optional contract extensions, a new runtime or
+executor adapter, and new feasibility rules. It must not require
+redefining what capacity is, what a reservation is, what an inference
+instance is, what an executor or runtime is, how gateway requests flow, or
+how analytics records usage.
+
+If future hardware genuinely invalidates one of those concepts, that is an
+**architecture review event**, not normal adapter work, and it is handled
+by amending this document rather than by bending a domain to fit a device.
+
+**Not-applicable is derived, not a third null on every field.** A unified
+memory host has no dedicated accelerator memory — that is a different fact
+from an unknown amount, and both must stay distinguishable from zero. The
+distinction is carried structurally: `unified_memory` being true is what
+makes dedicated memory inapplicable, so no field needs a third empty state
+and no contract needs a nullability change. Where inapplicability cannot be
+derived from a neighbouring capability, a **new** optional field is the
+compatible mechanism; widening an existing field's type is a breaking
+change and needs a version bump.
+
+**Artifact existence is not current-host suitability.** A model artifact
+that is present says nothing about whether *this* host can serve it. Reuse
+always runs the same path as a fresh choice:
+
+```text
+stored artifact → ModelRequirement + current CapacityEnvelope
+                → feasibility → reuse, or reject and reselect
+```
+
+`model` inventory answers "what artifacts exist"; `planning` feasibility
+answers "can this host use them". The `host_id` on an inventory record
+locates an artifact — it does not qualify it, and suitability is never
+inferred from presence. Without this rule, moving between rented servers
+day to day is unsafe in the least visible way possible: the artifact is
+right there, so it looks fine.
+
 **Unknown is a distinct value, not a null.** `docs/DEBT.md` rule 6
 requires that consumers can tell "needs nothing" from "we do not know",
 and the roadmap requires missing metadata to surface in
@@ -479,6 +517,14 @@ hwloc          NVML · AMD SMI ·        NFD / K8s        captured fixture
                Level Zero · native
 ```
 
+**A provider observes; it never installs.** It may report that it is
+available, unavailable, failed, partially capable, or missing a
+prerequisite. It may not install a package, invoke a package manager,
+download a tool, alter system configuration or install a driver. Discovery
+looks; preparation acts; they are different responsibilities with different
+owners and different risk profiles, and a component that both inspects a
+machine and modifies it cannot be safely run to find out what is there.
+
 **A provider observes; it never decides.** It reports what a machine
 appears to contain, records where the observation came from, and may be
 partial, stale, slow, absent or wrong. It may not compute safe capacity,
@@ -540,6 +586,30 @@ Kultrun mints its own stable identity and treats provider handles as
 observations about it, which is the same reason `HostCapabilities` is a
 Kultrun contract and not a vendor schema.
 
+#### The contract is not "Linux with an NVIDIA card"
+
+The reference implementation is Linux x86_64 with NVIDIA. `HostCapabilities`
+must not quietly come to mean that, and downstream domains must consume
+generic capability concepts rather than assumptions about the first host
+that was validated.
+
+Concretely, the contract must be able to represent zero, one, several
+identical or several different accelerators; a vendor it has never seen; an
+accelerator whose memory is unified with the system's; a CPU-only host; and
+a value that is unknown as distinct from one that is zero or inapplicable.
+It already can — accelerators are a plural collection, `AcceleratorVendor`
+carries `UNKNOWN`, `unified_memory` is per device, and every quantity is
+`Maybe[...]`.
+
+What it must **not** acquire is speculative fields anticipating platforms
+nobody has run. The requirement is extensibility, not prediction: a future
+platform should arrive as a new adapter plus, at most, compatible optional
+contract extensions.
+
+Advanced heterogeneous scheduling is explicitly not designed. Plurality is a
+structural requirement so that supporting it later is not a contract
+redesign.
+
 #### Explainability without an envelope per field
 
 Every value must remain explainable — which provider supplied it, when, how
@@ -586,11 +656,17 @@ has no consumer until an Admin console exists to show it.
 
 | | |
 |---|---|
-| **Owns** | `ComponentManifest` and `ComponentRequirement`: version, supported OS, architecture, accelerator compatibility, dependencies, source, checksum, signature, licence, artifact location. Resolution and verification. |
-| **Consumes** | `kernel` · `host` |
+| **Owns** | `ComponentRequirement` — what is needed, acceptable versions, platform compatibility, required or optional, and why. `ComponentResolution` — already present, provisioned, unavailable or failed, with resolved version, provenance and verification result. |
+| **Consumes** | `kernel` · `host.contracts` |
 | **Ports** | `ComponentSource` |
-| **Must not** | Let download logic scatter into other modules. The constitution names this failure explicitly. |
-| **Created** | **Recommended 1.3 as verify-only** · **Deepened** 10.2 installation, 10.3 updates · See Part VI |
+| **Must not** | Let download logic scatter into other modules. Become a generic downloader. Perform provisioning itself — it states what is needed and what was found; `install` acts. |
+| **Created** | **1.1**, expressing the discovery provider's requirement · **Deepened** 1.3 runtime components, 10.2 installation, 10.3 updates |
+
+Presence and compatibility are separate questions, and keeping them apart
+is what avoids a cycle at tier 2. Asking whether a component exists at an
+acceptable version needs no host facts; asking whether it is *compatible*
+with this machine does. `host` therefore consults only the first, and never
+asks `components` to prepare anything.
 
 This sits at tier 2, not inside `install`, because `DeploymentPlan` at
 Stage 3.4 consumes *resolved components*. The installer is a consumer of
@@ -919,10 +995,35 @@ provable at `L1` without a live port.
 
 | | |
 |---|---|
-| **Owns** | The bootstrapper flow, component installation and offline bundles, modular updates and rollback, and the dependency and licence inventory. |
+| **Owns** | **Bootstrap and preparation.** The bootstrapper flow, component provisioning and offline bundles, modular updates and rollback, and the dependency and licence inventory. |
 | **Consumes** | `host` · `components` · `planning` · `api` |
-| **Must not** | Duplicate component resolution, which `components` owns. |
-| **Created** | 10.1–10.4 |
+| **Must not** | Duplicate component resolution, which `components` owns. Become a generic downloader. Be required for the platform to start. |
+| **Created** | **1.1, minimally** — enough to obtain or reuse the reference host's discovery provider · **Deepened** 10.1–10.4 |
+
+Preparation is the step Trace A used to begin with and nobody owned. It
+belongs here:
+
+```text
+fresh host → install: determine required components
+                    → detect a reusable existing component
+                    → provision only if required
+                    → verify
+           → host discovery → HostCapabilities
+```
+
+**Direction matters.** `install` sits above `host` and runs before it in
+the startup sequence; `host` never calls `install` and never requests
+provisioning. Discovery reports that a provider was unavailable, and
+something above decides whether to act. Reversing that would put a tier-2
+domain in the business of modifying the machine it is inspecting.
+
+**This is not a downloader.** Downloading is one provisioning mechanism
+among several: an existing host binary, a system package manager, a managed
+environment, a verified release artifact, an OCI image, an enterprise
+mirror, an offline bundle. The stable concept is *component requirement →
+resolution*, not *URL → file*. A core abstraction whose only idea is
+`SoftwareDownloader` would encode the narrowest mechanism as the model and
+make every other one an exception.
 
 ## TIER 10 — `adapters`
 
@@ -1276,6 +1377,34 @@ reason.
 
 # PART IX — EXTERNAL TECHNOLOGY AND SCOPE
 
+## 0. The binding rule
+
+**No concrete hardware-discovery technology is part of Kultrun's core
+architecture.** hwloc, NVML, NVIDIA tooling, AMD SMI, Level Zero and
+Sysman, NFD, native macOS discovery and anything comparable that arrives
+later are implementations of Kultrun-owned ports.
+
+```text
+HostDiscoveryProvider          (port, owned by host)
+├── HwlocProvider              general topology, first candidate
+├── NvidiaProvider             vendor supplement
+├── AppleProvider              future
+├── AmdProvider                future
+├── IntelProvider              future
+├── NfdProvider                optional, Kubernetes environments
+└── further providers
+```
+
+**No core domain or module is named after one of these technologies.** The
+core must keep working when hwloc is replaced, when several providers are
+combined, when a provider is unavailable, when a vendor is added, and when
+a host uses no accelerator provider at all. Provider-local handles,
+identifiers and schemas stay inside the adapter.
+
+The test is worth applying literally: if a technology's name would have to
+appear in a core module name, a core contract field or a core signature,
+the boundary has been drawn in the wrong place.
+
 ## 1. What Kultrun does not build
 
 Kultrun's differentiation is not that it can enumerate a PCI bus. Every
@@ -1313,8 +1442,8 @@ being absent, broken or replaced.
 
 | Technology | Role | Status | Sits behind |
 |---|---|---|---|
-| **hwloc** | General topology and device discovery: CPU, cores, NUMA, caches, memory, PCI and I/O objects | **Optional-preferred provider.** Preferred initial candidate; not a core dependency; never assumed preinstalled | `HostDiscoveryProvider` |
-| **NVML** | NVIDIA device memory, driver version, per-device detail | Likely supplement on NVIDIA hosts | `HostDiscoveryProvider` |
+| **hwloc** | General topology and device discovery: CPU, cores, NUMA, caches, memory, PCI and I/O objects | **Optional-preferred initial general discovery provider.** First candidate to evaluate; not core; never assumed preinstalled; absence is a valid state; **does not define `HostCapabilities`** | `HostDiscoveryProvider` |
+| **NVML** | NVIDIA device memory, driver version, per-device detail | Likely supplement on NVIDIA hosts; the **smallest** supplement the evidence requires | `HostDiscoveryProvider` |
 | **Native OS sources** | Whatever a platform exposes that a general tool does not | Supplement, only where a gap is demonstrated | `HostDiscoveryProvider` |
 | **AMD SMI** | AMD device identity, memory, topology | Future, unscheduled | `HostDiscoveryProvider` |
 | **Level Zero / Sysman** | Intel accelerator discovery and telemetry | Future, unscheduled | `HostDiscoveryProvider` |
@@ -1345,8 +1474,11 @@ hwloc holds a specific and deliberately narrow status:
   through product-managed preparation, because plug-and-play means the
   platform takes responsibility for what it needs rather than handing the
   customer a prerequisites list;
-- other and future providers remain possible, and its absence remains
-  representable in `HostCapabilities` rather than fatal.
+- other and future providers may replace or supplement it, and its absence
+  remains representable in `HostCapabilities` rather than fatal;
+- **it does not define `HostCapabilities`.** The contract is Kultrun's, and
+  a field exists because a Kultrun decision needs it, never because hwloc
+  happens to report it.
 
 Preferring something and depending on it are different commitments. The
 first survives the tool turning out to be wrong for us; the second does
@@ -1392,6 +1524,14 @@ demonstration that provider identity is not platform identity, and that
 Kultrun must mint its own.
 
 **Intel** exposes discovery through Level Zero Sysman.
+
+**On the NVIDIA supplement specifically.** If the spike shows the general
+provider cannot answer something capacity needs on the reference host, the
+remedy is the smallest mature vendor supplement, not a Kultrun-written
+enumerator. Two constraints on it: NVIDIA-specific observations must never
+become *required* for all accelerator types — a host with an AMD device or
+no device must produce a valid `HostCapabilities` without them — and no
+NVML structure or vocabulary may reach a downstream domain.
 
 **Apple Silicon** is deliberately left open. hwloc supports Darwin, and
 whether it reports enough for a Kultrun host profile is an empirical

@@ -7,10 +7,20 @@ appended when the stage closes.
 
 Status: **BRIEF — not yet implemented. Requires real hosts to close.**
 
-> Revised after the host-discovery design review. Discovery is now a
-> **provider architecture** rather than a Kultrun-written detector: mature
-> tooling observes, Kultrun normalizes, reconciles and decides. See
-> `docs/ARCHITECTURE.md` Part IX for the external technology positions.
+> Revised twice. First, discovery became a **provider architecture** rather
+> than a Kultrun-written detector: mature tooling observes, Kultrun
+> normalizes, reconciles and decides (`docs/ARCHITECTURE.md` Part IX).
+> Second, the stage was **narrowed to one blocking hardware shape** to
+> protect the path to first real inference.
+>
+> **What "too large" meant.** Not binary size, package size or storage
+> footprint. Scope and proof obligations before any inference exists. The
+> stage had accumulated provider research, provisioning, three hardware
+> platforms, two fixture boundaries, normalization, reconciliation,
+> fingerprinting and profile classification — a milestone's work before a
+> single request reaches a model. The remedy is scope reduction, not
+> another subsystem: one blocking reference host, one minimal provider
+> path, future-compatible contracts, explicit deferred hooks.
 
 ---
 
@@ -74,6 +84,8 @@ need no change: provenance arrives here as optional fields, compatibly.
 | Module | Owns |
 |---|---|
 | `host/ports.py` | `HostDiscoveryProvider` |
+| `components/…` | `ComponentRequirement`, `ComponentResolution` — what the provider needs, and what was found |
+| `install/…` | The minimal preparation path: detect, reuse, else provision once, verify |
 | `host/discovery.py` | `HostDiscoveryService` — collect, normalize, reconcile |
 | `host/fingerprint.py` | What identifies a host across restarts |
 | `host/profile.py` | `DeploymentProfile` and the support matrix |
@@ -87,11 +99,56 @@ Contract additions, all optional and therefore compatible:
 Plus `GET /v1/host`, `GET /v1/host/profile`, `GET /v1/host/providers`, and
 a command that captures the current host to fixtures.
 
+### Scope: blocking versus non-blocking
+
+**BLOCKING — Stage 1.1 does not close without these:**
+
+- the `HostDiscoveryProvider` seam works;
+- the smallest practical provider stack is selected and justified;
+- a missing provider is resolved through the minimal preparation path;
+- the real Linux x86_64 + NVIDIA reference host is observed;
+- observations normalize into valid `HostCapabilities`;
+- host scoping is correct;
+- unknown handling is correct;
+- evidence and provenance are preserved;
+- reference-host fixtures are captured at both boundaries;
+- `L2` acceptance is complete.
+
+**NON-BLOCKING — none of these may hold the stage open:**
+
+Apple Silicon provider or capture · Apple inference · CPU-only capture or
+runtime · AMD provider · Intel provider · NFD · Kubernetes · CDI ·
+OCI/container execution · any provider beyond what the reference host needs
+· a generalized dependency downloader · enterprise mirrors · offline
+bundles · support-profile UI · a portfolio of `DeploymentProfile`s.
+
+Capture Apple Silicon and CPU-only **if they are available and cheap**.
+Record them in the deferred capability register if not. Both remain
+genuinely valuable — unified memory and the zero-accelerator path are real
+failure modes — and neither is required for a real server to serve a real
+model.
+
 ### Step 0 — the provider validation spike
 
 **Bounded, and first.** Not a research project: a short empirical exercise
-on the machines actually available, whose output is a decision and a set of
-captured observations.
+on the reference host, whose output is a decision and a set of captured
+observations.
+
+**Exit condition, so this cannot become open-ended.** The spike ends when
+all five hold:
+
+1. the reference host is observable with the smallest practical
+   combination of mature providers;
+2. those observations normalize into valid `HostCapabilities`;
+3. what Stage 1.2's safe-capacity work needs is available, explicitly
+   unresolved, or documented as needing a small supplement;
+4. there is no demonstrated need for Kultrun to implement commodity
+   hardware enumeration itself;
+5. remaining provider and hardware gaps are recorded as deferred
+   capabilities rather than explored further.
+
+Outcome-bounded, not research-bounded. Once these hold, provider
+exploration stops even if interesting questions remain.
 
 The preferred general provider is **optional-preferred**, which sets the
 spike's ground rules precisely: it may **not** be assumed already present;
@@ -257,6 +314,13 @@ real, inference is not yet. It becomes `SUPPORTED` at Stage 1.6 and
 `CERTIFIED` at the Milestone 1 gate. Written this way, a tier cannot get
 ahead of its evidence.
 
+**This stage classifies the reference host and nothing else.** Other shapes
+stay unclassified or `EXPERIMENTAL`. Producing a portfolio of profiles is
+not Stage 1.1's job, and the deferred capability register in
+`docs/DEBT.md` — which separates architecture-readiness from
+adapter-implementation from acceptance evidence — is where the others are
+tracked until they earn a tier.
+
 **An unsupported profile does not prevent the platform from starting.**
 Fail-closed governs mutations, not existence. A platform that refuses to
 boot on unusual hardware cannot tell its administrator why, and the
@@ -281,6 +345,26 @@ boundary.
   budget must be computed. A Metal-specific detail does not.
 - **A captured-fixture provider** — replays a committed observation. Not a
   mock: it replays a real machine's real answers.
+
+**No provider installs anything.** A provider reports available,
+unavailable, failed, partially capable, or missing a prerequisite. It does
+not run a package manager, download a tool, alter system configuration or
+install a driver. Discovery looks; `install` acts.
+
+**The minimal preparation path**, and only the minimal one: `components`
+expresses the requirement, `install` detects an existing compatible
+component, reuses it if valid, otherwise invokes one approved mechanism for
+this one environment, verifies it runs, records version and source, and
+proceeds. Not multiple package managers, not OCI images, not mirrors, not
+offline bundles, not other distributions. The interface must permit those;
+this implementation must not attempt them.
+
+**Vendor supplement constraints.** If the general provider cannot answer
+something capacity needs, use the smallest mature vendor supplement.
+NVIDIA-specific observations must never become required for all accelerator
+types — a host with no accelerator must still produce a valid
+`HostCapabilities` — and no vendor structure or vocabulary may reach a
+downstream domain.
 
 Every provider is advisory with a mandatory internal fallback: if it is
 absent, broken or slow, the affected values become unresolved and discovery
@@ -331,22 +415,21 @@ nothing it cannot reap synchronously.
 **`L2` — real host.** `L1` cannot close a stage that touches hardware, and
 this is the stage that defines what "touches hardware" means.
 
-**Three real shapes**, each exercising a distinct failure mode rather than
-inflating a count:
+**One blocking shape.**
 
-| Shape | Why it is worth a real run | Cost |
+| Shape | Status | Why |
 |---|---|---|
-| Apple Silicon, arm64 | Unified memory, where system and accelerator memory are one pool; ARM64; no CUDA and no container GPU passthrough | free — the development machine, an M1 |
-| Linux x86_64, CPU-only | The zero-accelerator path, most likely to be quietly broken by code written on a GPU box | cents |
-| Linux x86_64 + NVIDIA | The reference: vendor tooling, driver versions, per-device VRAM | already rented |
+| Linux x86_64 + NVIDIA | **BLOCKING** | The reference: vendor tooling, driver versions, per-device memory. Already rented. |
+| Apple Silicon, arm64 | non-blocking | Unified memory and ARM64 — a real failure mode, on a free machine. Capture if cheap; defer if not. |
+| Linux x86_64, CPU-only | non-blocking | The zero-accelerator path, most likely to be quietly broken by code written on a GPU box. Capture if cheap; defer if not. |
+| AMD, Intel, Kubernetes | out of scope | No hardware, no reason yet. Deferred capability register. |
 
-The third shape **is** specified: Linux x86_64 with an NVIDIA accelerator,
-on a rented pod. What is not yet fixed is the exact instance type, which is
-an execution detail rather than a design one.
+The blocking shape is fully specified: Linux x86_64 with an NVIDIA
+accelerator on a rented pod. The exact instance type is an execution detail.
 
-AMD and Windows-via-Linux-VM stay unproven; Windows is largely covered by
-virtualization detection on a Linux VM, and AMD waits for a real reason.
-Both profile as `EXPERIMENTAL`, which is what the tier is for.
+Deferring the other two is a real cost, honestly taken. Both exercise
+branches the reference host cannot, and neither is required for a real
+server to serve a real model.
 
 ### Fixtures at two boundaries
 
@@ -366,6 +449,15 @@ when a tool's output changes; a normalized fixture catches a change in what
 Kultrun *concluded* from identical input. One without the other leaves half
 the pipeline untested.
 
+Both boundaries are captured for the **blocking** host. The same approach
+applies to any non-blocking shape that is actually run, and to any new real
+machine encountered in future development — each becomes a permanent
+regression fixture by being observed once.
+
+Do not hand-write a synthetic representation when a real capture is
+available. Synthetic fixtures remain acceptable only for edge cases that
+cannot practically be produced from hardware.
+
 Fixtures are sanitized: no secrets, no personally identifying machine
 information, no customer identifiers, no unstable irrelevant values.
 Hardware-relevant evidence is preserved, because that is the entire point.
@@ -375,17 +467,23 @@ permanently by being run once.
 
 ### Evidence required to close
 
-Discovery completes on all three shapes and each is captured at both
-boundaries. Unified memory is correctly reported on Apple Silicon and
-correctly absent on Linux. A CPU-only host yields no accelerators, with no
-unknown misread as zero. The NVIDIA branch reports per-device memory and
-driver version. **Discovery completes with the vendor tool removed from
-`PATH`**, with accelerator detail unresolved and the host still described.
-Two providers reporting the same device merge without duplication.
-A synthetic conflict surfaces as a conflict rather than a silent winner.
-The fingerprint is stable across restarts and across a change in available
-memory. Each shape classifies to the expected profile. `L1` regression
-across all captured fixtures.
+On the **blocking** host: discovery completes and is captured at both
+boundaries; the accelerator branch reports per-device memory and driver
+version; the minimal preparation path obtains or reuses the provider and
+records version and source. **Discovery completes with the vendor tool
+removed from `PATH`**, with accelerator detail unresolved and the host still
+described — that one matters most, because it proves absence is a state
+rather than a crash. Two providers reporting the same device merge without
+duplication. A synthetic conflict surfaces as a conflict rather than a
+silent winner. The fingerprint is stable across restarts and across a
+change in available memory, and excludes provider handles. The reference
+host classifies as `COMPATIBLE`. `L1` regression across every captured
+fixture.
+
+Where a non-blocking shape was captured, the same checks apply to it —
+unified memory correctly reported on Apple Silicon, no accelerators and no
+unknown-read-as-zero on CPU-only. Where it was not, the deferred capability
+register records why.
 
 ## ADMIN SURFACE
 
@@ -422,6 +520,13 @@ Expected:
   (`capacity` → `resource` reservation → `inference` derives a
   `DeviceRequest` → `execution` materializes it) and has no vocabulary for
   asking whether it should.
+- **Generalized provisioning.** One mechanism for one environment here.
+  Package managers in the plural, OCI images, enterprise mirrors, offline
+  bundles and other distributions are Milestone 10.
+- **Every deferred hardware shape** — Apple, CPU-only, AMD, Intel,
+  Kubernetes — each with an entry and a revisit trigger in the deferred
+  capability register in `docs/DEBT.md`. Architecture-readiness is recorded
+  there and is explicitly not a support claim.
 - **Kubernetes and a node-feature provider.** Optional, later, and never
   required: standalone Linux, macOS and native installations must all work
   without it.

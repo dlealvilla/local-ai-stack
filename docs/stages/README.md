@@ -69,8 +69,14 @@ runtime. Milestones 1 through 4 each require `L2` or above.
 `PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`, all at
 `L1`, with 11 open debt entries and none authorizing a mutation.
 
-**Next is Stage 1.1**, host capability detection, and it is the first
-stage that requires the reference host: it closes at `L2`. From there to
-the Milestone 1 gate — a real request reaching a real model and returning
-an answer — every claim is checked against hardware. That gate is the
-proof the previous attempt never obtained after 58,706 lines.
+**Next is the architecture harness enforcement gap** (`docs/DEBT.md`
+K-12), which is a prerequisite rather than a stage: several approved
+dependency constraints exist only in prose, and Stage 1.1 is where adapters
+start being written.
+
+**Then Stage 1.1**, host discovery, the first stage requiring a real host:
+it closes at `L2` against **one blocking shape**, Linux x86_64 with NVIDIA.
+Apple Silicon and CPU-only are non-blocking captures. From there to the
+Milestone 1 gate — a real request reaching a real model and returning an
+answer — every claim is checked against hardware. That gate is the proof
+the previous attempt never obtained after 58,706 lines.
