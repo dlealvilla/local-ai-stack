@@ -347,10 +347,14 @@ class CapacityService:
                 )
                 effective = floor
                 requirement = EvidenceRequirement.EMPIRICAL_EVIDENCE_NEEDED
-        elif status is SanityStatus.POLICY_CAP_VERIFIED:
+        elif status is SanityStatus.POLICY_CAP_VERIFIED and evidence is not None:
+            # Names the method rather than asserting genuineness. Capacity
+            # does not know whether the reservation was real, and in fixture
+            # replay it was not — claiming "a genuine reservation" there
+            # would have the product overstating its own evidence.
             note = (
-                f"the policy bound of {effective} bytes is empirically "
-                f"verified by a genuine reservation"
+                f"the policy bound of {effective} bytes was verified by "
+                f"probe method '{evidence.probe_method}'"
             )
 
         if effective < reported:

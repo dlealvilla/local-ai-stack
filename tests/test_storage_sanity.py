@@ -224,7 +224,9 @@ class TestEvidenceMayConfirmOrContradictButNeverExpand:
         ).pools[0]
         assert pool.space.effective_bytes == 64 * GIB
         assert pool.note is not None
-        assert "empirically verified" in pool.note
+        # Names the method rather than asserting genuineness: capacity does
+        # not know whether the reservation was real.
+        assert "verified by probe method" in pool.note
 
     def test_a_genuine_failure_below_the_cap_lowers_capacity(self) -> None:
         """The corrective role. Policy was wrong and capacity comes down."""

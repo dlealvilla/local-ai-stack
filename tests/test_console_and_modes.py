@@ -13,6 +13,7 @@ not rot is the boundary between it and the platform.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -195,6 +196,31 @@ class TestSanityInReplayAllocatesNothing:
             for a in evidence.attempts
         )
 
+    def test_capacity_does_not_call_a_replayed_reservation_genuine(
+        self, replayed: Platform
+    ) -> None:
+        """Found by looking at the console, not by a test.
+
+        The note read "empirically verified by a genuine reservation" in
+        fixture replay, where nothing was reserved. Capacity does not know
+        whether a reservation was real, so it names the method and lets the
+        method speak for itself.
+        """
+        host = replayed.hosts.current
+        replayed.sanity.check(
+            "/workspace",
+            policy_target_bytes=64 * 1024**3,
+            host_fingerprint=host.fingerprint,
+            pool_fingerprint=_pool_fingerprint(replayed, "/workspace"),
+        )
+        envelope = _call(replayed, "/capacity")
+        workspace = next(
+            p for p in envelope["pools"] if p["mount_point"] == "/workspace"
+        )
+        note = workspace["note"] or ""
+        assert "replayed-no-allocation" in note
+        assert "genuine" not in note
+
     def test_capacity_then_reflects_the_replayed_conclusion(
         self, replayed: Platform
     ) -> None:
@@ -203,7 +229,7 @@ class TestSanityInReplayAllocatesNothing:
             "/workspace",
             policy_target_bytes=64 * 1024**3,
             host_fingerprint=host.fingerprint,
-            pool_fingerprint="fuse:519898999808",
+            pool_fingerprint=_pool_fingerprint(replayed, "/workspace"),
         )
         envelope = _call(replayed, "/capacity")
         workspace = next(
@@ -268,6 +294,34 @@ class TestTheConsoleIsServed:
                     assert r.status == 200
                     assert len(r.read()) > 0
 
+    def test_asset_urls_resolve_from_the_route_without_a_trailing_slash(
+        self, replayed: Platform
+    ) -> None:
+        """The bug local visual acceptance caught, and nothing else did.
+
+        A relative `src="app.js"` resolves against the *directory* of the
+        current URL, so at `/prototype` the browser asked for `/app.js`,
+        received a 404, and rendered a console with every panel blank. Every
+        asset-level test passed, because they each fetched the asset
+        directly. So this asserts what a browser would actually do.
+        """
+        import urllib.request
+
+        with serving(replayed.router, port=0) as server:
+            base = f"http://{server.address}:{server.port}"
+            with urllib.request.urlopen(f"{base}{CONSOLE_PREFIX}") as response:
+                markup = response.read().decode()
+
+            referenced = re.findall(r'(?:href|src)="([^"]+)"', markup)
+            assert referenced, "the page references no assets at all"
+            for reference in referenced:
+                assert reference.startswith("/"), (
+                    f"{reference!r} is relative, so it resolves differently at "
+                    f"/prototype and /prototype/"
+                )
+                with urllib.request.urlopen(f"{base}{reference}") as asset:
+                    assert asset.status == 200, reference
+
     def test_an_unknown_console_path_is_a_clean_404(self, replayed: Platform) -> None:
         import urllib.error
         import urllib.request
@@ -281,6 +335,13 @@ class TestTheConsoleIsServed:
     def test_it_binds_to_loopback_by_default(self, replayed: Platform) -> None:
         """There is no authentication yet, so it must not be reachable off-host."""
         assert replayed.settings.api_address == "127.0.0.1"
+
+
+def _pool_fingerprint(platform: Platform, mount_point: str) -> str:
+    """The fingerprint the platform itself would use for this pool."""
+    found = platform.plane.pool_fingerprint(mount_point)
+    assert found is not None
+    return found
 
 
 def _timeless(value: Any) -> Any:
