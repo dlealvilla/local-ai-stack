@@ -67,16 +67,34 @@ runtime. Milestones 1 through 4 each require `L2` or above.
 
 **Milestone 0 is closed.** Stages 0.1, 0.2 and 0.3 delivered
 `PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`, all at
-`L1`, with 11 open debt entries and none authorizing a mutation.
+`L1`. The architecture harness enforcement gap that followed them is closed:
+the approved dependency constraints are now executable, and they caught a
+real violation during Stage 1.1.
 
-**Next is the architecture harness enforcement gap** (`docs/DEBT.md`
-K-12), which is a prerequisite rather than a stage: several approved
-dependency constraints exist only in prose, and Stage 1.1 is where adapters
-start being written.
+**Stage 1.1 is closed** at `L2` on a real Linux x86_64 + NVIDIA host —
+14/14 acceptance checks. Host discovery is a provider architecture: hwloc
+for topology, a vendor supplement for accelerator detail and device
+assignment, and a native reader for OS release and mounts. Kultrun owns
+normalization; providers only observe.
 
-**Then Stage 1.1**, host discovery, the first stage requiring a real host:
-it closes at `L2` against **one blocking shape**, Linux x86_64 with NVIDIA.
-Apple Silicon and CPU-only are non-blocking captures. From there to the
-Milestone 1 gate — a real request reaching a real model and returning an
-answer — every claim is checked against hardware. That gate is the proof
-the previous attempt never obtained after 58,706 lines.
+Three findings that only real hardware could produce are recorded in
+`STAGE-1.1-host-discovery.md`. The one that mattered most: PCI enumeration
+reported four accelerators where one was assigned to the container, which
+would have claimed four times the accelerator memory that exists.
+
+**Real-host acceptance now uses installed artifacts.** From the
+workflow-adoption checkpoint after Stage 1.1, an `L2` or higher result must
+come from a prototype wheel installed on the target host and traceable to a
+committed source state; a fix that exists only on a test server is not a
+fix. `docs/DEVELOPMENT_WORKFLOW.md` holds the mechanics. Stage 1.1 was the
+last stage accepted from a source tree and remains accepted as historical
+evidence.
+
+**Next is Stage 1.2 — capacity:** the reported / effective / safe
+three-layer model. The reference host reports a 2.15 PB network mount, which
+is the previous attempt's "239 TB free" trap in a new costume and is
+committed as a fixture precisely so 1.2 can prove it refuses to believe it.
+
+From there to the Milestone 1 gate — a real request reaching a real model
+and returning an answer — every claim is checked against hardware. That gate
+is the proof the previous attempt never obtained after 58,706 lines.

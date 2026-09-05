@@ -18,6 +18,7 @@ from kultrun.api.router import Router
 from kultrun.host.contracts import DeploymentProfile, HostCapabilities
 from kultrun.host.inventory import HostInventory
 from kultrun.host.profile import shape_of
+from kultrun.kernel.build import identity as build_identity
 from kultrun.kernel.config import Configuration
 from kultrun.kernel.errors import NotFoundError, PreconditionFailedError
 from kultrun.kernel.schema import registered_contracts
@@ -135,6 +136,23 @@ def register(router: Router, plane: ControlPlane) -> Router:
             for report in plane.hosts.current.provider_reports
         ]
 
+    def version(_: ApiRequest) -> dict[str, object]:
+        """Which build is answering.
+
+        On the API too, not only the CLI: when a result arrives over HTTP,
+        the surface that produced it is the one that has to identify itself.
+        """
+        identity = build_identity()
+        return {
+            "version": identity.version,
+            "origin": identity.origin.value,
+            "source_commit": identity.source_commit,
+            "build_id": identity.build_id,
+            "built_at": identity.built_at,
+            "acceptable_as_evidence": identity.acceptable_as_evidence,
+        }
+
+    router.get("/version", version)
     router.get("/health", health)
     router.get("/host", host)
     router.get("/host/profile", host_profile)

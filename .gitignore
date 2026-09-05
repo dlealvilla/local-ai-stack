@@ -43,6 +43,10 @@ logs/
 build/
 dist/
 *.egg-info/
+# Written into the package by tools/build_prototype.py during a build and
+# removed afterwards. Ignored so an interrupted build cannot commit a stale
+# build identity, which would make an artifact claim a commit it is not from.
+src/kultrun/BUILD.json
 
 # Node/frontend generated dependencies
 node_modules/

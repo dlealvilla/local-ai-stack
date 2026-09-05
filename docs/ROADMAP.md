@@ -185,6 +185,23 @@ nondeterminism and the null-metadata crash were all L1-clean.
 Milestones 1 through 4 each require L2 or above to close. No milestone
 closes on L1 alone.
 
+### L2 and above require an installed artifact
+
+**Binding from the workflow-adoption checkpoint forward.** An `L2`, `L3` or
+`L4` result must come from a prototype artifact installed into an isolated
+environment on the target host, not from a source tree executed in place.
+The artifact must be traceable to a committed source state, and the
+checkpoint records the deployment token. `docs/DEVELOPMENT_WORKFLOW.md`
+holds the mechanics.
+
+The reason is narrow: a result produced by a source tree on a rented host
+cannot be reproduced once that host is gone, and a locally-patched
+installation proves something about the machine rather than about the
+product.
+
+Stage 1.1 closed at `de9219e` under the earlier style and **remains accepted
+historical evidence.** It is not reopened; it is what motivated the change.
+
 ## 6. Evidence and authorization rules
 
 These are the prior attempt's most valuable output and carry forward

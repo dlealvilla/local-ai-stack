@@ -9,11 +9,21 @@ description = "Kultrun — Company Brain Platform"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.scripts]
+kultrun = "kultrun.main:main"
+
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "build>=1.2", "hatchling>=1.25"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kultrun"]
+# The build identity is gitignored so an interrupted build cannot commit a
+# stale commit reference, but it must still ship inside the wheel — that is
+# the only way a deployed instance can say which source state produced it.
+# `artifacts` is hatchling's escape hatch for exactly this: include even
+# though VCS ignores it. Without it the wheel builds fine and every deployed
+# instance silently reports itself as a source checkout.
+artifacts = ["src/kultrun/BUILD.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -52,7 +62,7 @@ ban-relative-imports = "parents"
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src", "tests"]
+files = ["src", "tests", "tools"]
 mypy_path = "src"
 strict = true
 warn_unreachable = true

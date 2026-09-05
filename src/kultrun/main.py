@@ -11,7 +11,8 @@ way to prove the seams were real before there was a program to run.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import sys
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,6 +40,7 @@ from kultrun.host.inventory import HostInventory
 from kultrun.host.ports import HostDiscoveryProvider
 from kultrun.inference import contracts as _inference_contracts  # noqa: F401
 from kultrun.install.preparation import ComponentProvisioner, Preparation
+from kultrun.kernel.build import identity as build_identity
 from kultrun.kernel.clock import Clock, SystemClock
 from kultrun.kernel.config import ConfigSchema, Configuration
 from kultrun.kernel.ids import Name
@@ -244,7 +246,7 @@ def build(
     )
 
 
-def main() -> None:  # pragma: no cover - exercised by hand, not by L1 tests
+def serve() -> int:  # pragma: no cover - exercised by hand, not by L1 tests
     """Start the control plane and serve until interrupted."""
     from kultrun.adapters.http.server import serving
 
@@ -265,7 +267,127 @@ def main() -> None:  # pragma: no cover - exercised by hand, not by L1 tests
                 time.sleep(3600)
         except KeyboardInterrupt:
             pass
+    return 0
+
+
+def show_version() -> int:
+    """Report which build this is.
+
+    The first thing to run on a deployment target, and the reason the
+    workflow can trust a remote observation: it names the source commit the
+    running code came from, or says plainly that it came from a checkout and
+    therefore cannot carry acceptance evidence.
+    """
+    identity = build_identity()
+    print(identity.describe())
+    print(f"  origin        {identity.origin.value}")
+    print(f"  version       {identity.version}")
+    print(f"  source commit {identity.source_commit or '-'}")
+    print(f"  build id      {identity.build_id or '-'}")
+    print(f"  built at      {identity.built_at or '-'}")
+    print(f"  artifact      {identity.artifact or '-'}")
+    standing = "acceptable" if identity.acceptable_as_evidence else "development only"
+    print(f"  evidence      {standing}")
+    return 0
+
+
+def show_host() -> int:
+    """Describe this host through the accepted Stage 1.1 discovery path.
+
+    Product-owned inspection rather than a test script. Because source
+    cannot be patched on a deployment target, the product has to be
+    diagnosable from outside — so what an acceptance run needs to see is a
+    command the product ships, not a harness copied alongside it.
+    """
+    platform = build()
+    identity = build_identity()
+    host = platform.hosts.current
+    preparation = platform.preparation.last_outcome
+
+    print(identity.describe())
+    print(f"\nhost {host.host_id.value}  fingerprint {host.fingerprint}")
+    print(f"  profile      {host.profile.value}")
+    environment = host.operating_environment
+    print(
+        f"  system       {environment.os_name} {environment.os_version} "
+        f"({environment.distribution or '-'}) {environment.architecture.value}"
+    )
+    print(f"  cpu          {host.cpu.model_name}")
+    print(
+        f"               {host.cpu.physical_cores} cores / "
+        f"{host.cpu.logical_cores} threads"
+    )
+    print(f"  memory       {_gib(host.memory.total_bytes)} total")
+    for accelerator in host.accelerators:
+        print(
+            f"  accelerator  [{accelerator.index}] {accelerator.vendor.value} "
+            f"{accelerator.model_name} "
+            f"{_gib(accelerator.memory_total_bytes)} "
+            f"driver {accelerator.driver_version}"
+        )
+    if not host.accelerators:
+        print("  accelerator  none detected")
+    for mount in host.mounts:
+        print(
+            f"  mount        {mount.mount_point} {mount.filesystem_type} "
+            f"{_gib(mount.total_bytes)} total (reported; authorizes nothing)"
+        )
+
+    print("\ncomponents")
+    for resolution in preparation.resolutions if preparation else ():
+        print(
+            f"  {resolution.component.value:12} {resolution.outcome.value:16} "
+            f"version {resolution.resolved_version} from {resolution.source}"
+        )
+
+    print("\nproviders")
+    for report in host.provider_reports:
+        print(
+            f"  {report.provider.value:14} {report.status.value:12} "
+            f"{len(report.observations):3} observations"
+        )
+    for conflict in host.conflicts:
+        settled = "resolved" if conflict.resolution else "UNRESOLVED"
+        print(
+            f"\nconflict at {conflict.path}: {settled} "
+            f"({len(conflict.observations)} competing observations)"
+        )
+    return 0
+
+
+def _gib(value: object) -> str:
+    """Bytes as GiB, or the unresolved marker. Never invents a number."""
+    if isinstance(value, int):
+        return f"{value / 2**30:.1f} GiB"
+    return "unknown"
+
+
+COMMANDS: dict[str, Callable[[], int]] = {
+    "version": show_version,
+    "host": show_host,
+    "serve": serve,
+}
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """The `kultrun` command.
+
+    Deliberately three subcommands and no framework. Each exists because the
+    workflow needs it: `version` identifies a deployed build, `host` lets a
+    real-host run be observed without shipping a script beside the product,
+    and `serve` is what the platform does.
+    """
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if not arguments or arguments[0] in ("-h", "--help", "help"):
+        print("usage: kultrun {" + ",".join(COMMANDS) + "}")
+        return 0 if arguments else 2
+    command = COMMANDS.get(arguments[0])
+    if command is None:
+        print(f"kultrun: unknown command {arguments[0]!r}", file=sys.stderr)
+        print("usage: kultrun {" + ",".join(COMMANDS) + "}", file=sys.stderr)
+        return 2
+    return command()
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(main())

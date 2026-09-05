@@ -207,6 +207,10 @@ KERNEL_CONCEPTS: frozenset[str] = frozenset(
         "config",
         "registry",
         "persistence",
+        # Which artifact is executing. A mechanism with no product meaning,
+        # like `clock`; needed because a real-host observation must be
+        # traceable to the source state that produced it.
+        "build",
     }
 )
 

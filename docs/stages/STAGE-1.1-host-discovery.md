@@ -704,6 +704,31 @@ with their revisit triggers unchanged. Honest cost: the CPU-only path is
 tested only through the ASPEED regression above, not against real hardware,
 and finding 2 shows that is exactly where a false accelerator would hide.
 
+### Retrospective — the last stage accepted from a source tree
+
+Recorded after the fact. **Nothing above is changed and the acceptance
+stands.**
+
+Stage 1.1's acceptance ran by copying the source tree to the pod and
+executing it in place. That worked, but it left two things unprovable. The
+result could not be reproduced once the host was released, and nothing
+distinguished "the product does this" from "the product does this when a
+source checkout happens to be on the path".
+
+It also produced a near miss worth remembering: the first fixture capture
+was internally inconsistent because a harness ran beside the product rather
+than being part of it, and the fix was to make the product itself the thing
+that reports.
+
+Kultrun therefore adopted artifact-based deployment immediately afterwards:
+source changes originate in the development workspace, an installed wheel
+carries its own build identity, and a fix that exists only on a test server
+is not a fix. From that checkpoint forward, real-host acceptance at `L2` and
+above requires an installed artifact traceable to a committed source state.
+
+Stage 1.1 is the boundary: the last stage accepted under the old style, and
+the reason for the new one.
+
 ### What this stage does not do
 
 No capacity interpretation — reported facts only, and the 2.15 PB mount is
