@@ -707,6 +707,28 @@ no storage mutation, because Milestone 1 performs none — the model is
 placed by hand. That is why a policy-only envelope is honest at Milestone
 1 and would not be at Milestone 2.
 
+**Who does what, restated because it is easy to blur.** `host` observes and
+normalizes; it applies no capacity policy. `storage` performs empirical
+storage probing and owns `EmpiricalProbeEvidence` — the filesystem is
+touched there and nowhere else. `capacity` *consumes* evidence and owns the
+reported → effective → safe interpretation; it must not probe a filesystem
+itself. `execution` and `runtime` own no capacity policy: they consume an
+allocation that was already authorized.
+
+So the path is:
+
+```
+HostCapabilities  +  StoragePool evidence  +  EmpiricalProbeEvidence
+                              ↓
+                     capacity policy
+                              ↓
+                      CapacityEnvelope
+```
+
+A probe living inside a capacity service would put filesystem mutation
+behind a read that planning calls freely, which is how the previous attempt
+ended up with a 48-minute capacity query.
+
 ## TIER 3 — What can be served
 
 ### `model`
