@@ -52,7 +52,7 @@
       "host_fingerprint": "2abe07033e90a057368c2e7a6575251b",
       "evidence_level": "L2",
       "evidence_date": "2026-09-05",
-      "evidence_stage": "1.1",
+      "evidence_stage": "1.1, extended at 1.2",
       "evidence_commit": "de9219ef9135b37f9ef40d005371c94c05b7011a",
       "evidence_record": "docs/stages/STAGE-1.1-host-discovery.md",
       "deployment_profile": "compatible",
@@ -63,7 +63,8 @@
         "PCI enumeration overcounts accelerators in a container",
         "an ASPEED management VGA is not an accelerator",
         "ephemeral container mounts must not enter the host fingerprint",
-        "a reported string's padding must not reach the host fingerprint"
+        "a reported string's padding must not reach the host fingerprint",
+        "a container memory limit must beat the machine's reported memory"
       ],
       "host_fingerprint_history": [
         {
@@ -72,8 +73,20 @@
           "changed_because": "K-21: the topology tool reports the CPU model padded to a fixed width, and cpu.model_name is a fingerprint input. Normalization now strips reported strings, so the same machine hashes differently. The provider evidence is unchanged; only the conclusion drawn from it moved."
         }
       ],
-      "fixture_recaptured": "2026-09-05, normalized boundary only, by replaying the committed provider evidence",
-      "known_fixture_gap": "captured before host discovery observed the container memory limit, so memory.limit_bytes replays as unresolved. The live host is limited to 61999996928 bytes against a reported 270055956480. Re-capture the native provider fixture at the next real-host run."
+      "fixture_recaptured": "2026-09-05. Normalized boundary re-derived from committed provider evidence for K-21; native provider boundary re-captured on the real host at Stage 1.2 to include the container memory limit",
+      "memory_limit_bytes": 61999996928,
+      "memory_limit_note": "the container may use 57.7 GiB of the machine's 251.5 GiB. Observed at Stage 1.2 and captured; Stage 1.1 did not observe it, and capacity computed from MemTotal would have authorized 4.4x what exists",
+      "capacity_evidence": {
+        "stage": "1.2",
+        "level": "L2",
+        "date": "2026-09-05",
+        "commit": "10705dc81bef493b6a5248e20d9862e11abb5980",
+        "record": "docs/stages/STAGE-1.2-capacity.md",
+        "memory": "reported 251.5 GiB -> effective 57.7 GiB -> safe 43.3 GiB",
+        "accelerator": "reported 31.9 GiB -> safe 23.9 GiB, one assigned of four visible",
+        "workspace_pool": "reported 507.8 TiB -> effective 64.0 GiB -> safe 57.6 GiB",
+        "method": "installed artifact, policy only, no probing"
+      }
     },
     {
       "shape_id": "darwin-arm64-apple-silicon",

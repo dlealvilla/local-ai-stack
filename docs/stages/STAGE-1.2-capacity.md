@@ -1,6 +1,6 @@
 # Stage 1.2 — Minimum safe capacity
 
-Status: **BRIEF — not yet implemented.**
+Status: **CLOSED.** `L2` acceptance passed on the reference host, 14/14.
 
 Stage 1.1 answered *what does the host report?* This stage answers *what can
 Kultrun safely use?* Those are different questions, and the previous attempt
@@ -105,14 +105,11 @@ probe costs about ten minutes. Nothing on the Milestone 1 path can afford to
 sit behind that, and the previous attempt's 48-minute incident was a
 transaction question answered with a pool-ceiling search.
 
-> **Open scope question for review.** The task that produced this brief asked
-> for empirical storage characterization inside Stage 1.2. That contradicts
-> the approved roadmap and `docs/ARCHITECTURE.md`, which place probing in
-> Stage 2.2 and give Stage 1.2 a reported-only view of storage. This brief
-> keeps the approved sequencing, because the 2.15 PB mount can be handled
-> safely by policy alone and pulling storage machinery into Milestone 1 is
-> the exact failure the sequence was designed to prevent. Reversible if
-> Daniel decides otherwise.
+> **Scope question, resolved.** Stage 1.2 stays policy-only and empirical
+> storage characterization stays at Stage 2.2. Confirmed by decision, and
+> the implementation vindicated it: `/workspace` went from 507.8 TiB
+> reported to 57.6 GiB safe on the real host with no probe at all. Safety
+> did not need the probe; precision will.
 
 ### RAM and VRAM are observed, never exhausted
 
@@ -292,3 +289,140 @@ acquire or place a model, and it does not admit or reserve anything: that is
 Stage 1.5, which consumes this envelope.
 
 Stop when a safe number exists and is explainable.
+
+
+## OUTPUT PACKAGE
+
+**Output:** `CapacityEnvelope v1`, policy-based · **Acceptance:** `L2`,
+14/14 on the reference host · 393 tests · **Checkpoint:**
+`checkpoints/STAGE-1.2-capacity.json`
+
+### What the real host produced
+
+Through an installed artifact, `0.1.0+10705dc81bef`, state root
+`/var/lib/kultrun`:
+
+| Resource | Reported | Effective | Safe |
+|---|---|---|---|
+| System memory | 251.5 GiB | **57.7 GiB** | 43.3 GiB |
+| Accelerator 0 | 31.9 GiB | 31.9 GiB | 23.9 GiB |
+| `/` (overlay) | 29.9 GiB | 29.9 GiB | 24.9 GiB |
+| `/workspace` (FUSE) | **507.8 TiB** | **64.0 GiB** | 57.6 GiB |
+
+Two of those rows are the stage.
+
+### The petabyte mount, handled without a probe
+
+`/workspace` advertises half a petabyte free. Effective is bounded at 64 GiB
+because nothing has verified anything, and safe lands at 57.6 GiB — **four
+orders of magnitude below the reported figure, from policy alone.** Reported
+survives intact for display, and the reason is attached as a defect an
+administrator can read rather than being left to infer from two numbers.
+
+This is the proof that Stage 1.2's safety does not depend on Stage 2.2. The
+previous attempt met the same shape as "239 TB free" and then could not
+complete a 6.70 GiB install; the refusal was right and the number was
+worthless.
+
+The bound is 64 GiB deliberately: comfortably more than the first model
+needs, obviously less than any large volume, and the same figure the
+previous implementation settled on as a per-probe ceiling — so Stage 2.2's
+first probe validates exactly this boundary rather than an unrelated one.
+
+### A finding this stage was not looking for
+
+**The container is limited to 57.7 GiB while the machine reports 251.5 GiB.**
+A 4.4× overstatement, and Stage 1.1 observed no memory limit at all.
+Capacity computed from `MemTotal` would have authorized more than four times
+the memory available and the workloads would have been OOM-killed.
+
+It is the RAM version of Stage 1.1's finding that four accelerators were
+visible where one was assigned — the same error, a different resource, and
+the same cause: a number that describes the machine rather than what this
+deployment holds. `MemoryFacts.limit_bytes` and a generic cgroup reading
+(v2 then v1) were added, effective memory takes the smaller, and the
+provider fixture was re-captured on the host so a replay covers it forever.
+
+Worth noting how it was found: by asking what "effective" should mean for
+RAM and then checking the real machine, rather than by a test failing.
+
+### A bug a test caught before hardware did
+
+The first version of filesystem credibility was a deny-list: disbelieve
+families known to be networked, believe the rest. A test written for a
+made-up filesystem type failed, and it was right to. **Unrecognised is not
+the same as fine** — a deny-list fails open on precisely the surprising
+mount that matters. Credibility is now an allow-list of local block
+filesystems, with everything else bounded.
+
+### Unified memory fails closed
+
+Where neither the device nor the host resolves whether the pools are shared,
+**no accelerator budget is asserted** rather than assuming independence.
+Assuming it on Apple Silicon would double-count a model's memory and admit
+something that cannot fit.
+
+No unified-memory host exists to exercise that branch, which is exactly why
+it is written and tested now. `DC-01`.
+
+### Layer discipline
+
+Reserves are a fraction **and** a floor: a fraction alone protects nothing on
+a small resource, a floor alone nothing on a large one. Fractions come from
+the only figure with operational history behind it — the previous attempt's
+0.75 weight budget for memory and accelerators.
+
+A reserve that would consume the resource yields **unresolved, never zero.**
+Zero reads as "measured: no capacity" and could be compared against a
+request; this is "too small to use safely", which is a different fact. A
+test asserts no safe layer ever resolves to zero across seven hosts
+including hostile ones.
+
+### K-21, and an honest fingerprint change
+
+Normalization now strips reported strings, so a topology tool's padded CPU
+model no longer reaches a fingerprint input. The fingerprint for this exact
+machine moved:
+
+```
+4d4efedb286baa4beccba3601cb11c70   as accepted at de9219e
+2abe07033e90a057368c2e7a6575251b   after K-21
+```
+
+The provider evidence is untouched; only the conclusion changed. The
+normalized fixture was re-derived by replaying committed provider output
+with **no host involved** — which is what the fixture library is for. Both
+values are recorded in the Stage 1.1 package; the old one is not erased,
+because a fingerprint that changes silently is the failure this guards
+against.
+
+Adding the memory limit did **not** move the fingerprint, correctly: a
+container limit is not a stable hardware fact and a resizable container
+should not become a different machine.
+
+### Where the work happened
+
+Steps 1 through 12 ran locally with no host: contracts, arithmetic, policy,
+41 focused tests, the fixture replay, the wheel and a clean isolated
+install. The host was used only for the physical claims — the live cgroup
+limit, the assigned accelerator read from the driver, the petabyte mount
+against a real filesystem, and artifact-based acceptance.
+
+That is the testing strategy working as intended, and it is the first stage
+developed under it.
+
+### Stage 2.2 has not begun
+
+No probe, no `posix_fallocate`, no temporary files, no coordinator, no
+bound search. An acceptance check greps the shipped artifact for those
+primitives and finds none. The design record
+`docs/design/EMPIRICAL-STORAGE-CHARACTERIZATION.md` carries the corrected
+legacy lessons for when it does begin.
+
+### What this stage does not do
+
+It authorizes nothing: `resource` admits at Stage 1.5 against the safe
+layer. It has no accelerator aggregation, because the reference host has one
+device and code written now would be untested by construction (`DC-08`). No
+live utilization fusion (Stage 11.1), no empirical storage evidence (Stage
+2.2), no runtime memory observation (Stage 1.3 seam, Stage 1.6 evidence).

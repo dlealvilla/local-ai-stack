@@ -75,14 +75,9 @@
   "host_id": "host_ac9976fa916e68b8",
   "kind": "host.capabilities",
   "memory": {
-    "available_bytes": 184451727360,
+    "available_bytes": 184717119488,
     "kind": "host.memory",
-    "limit_bytes": {
-      "$unresolved": {
-        "detail": null,
-        "reason": "not_provided"
-      }
-    },
+    "limit_bytes": 61999996928,
     "schema_version": 1,
     "total_bytes": 270055956480,
     "unified_with_accelerator": {
@@ -96,7 +91,7 @@
     {
       "device": "overlay",
       "filesystem_type": "overlay",
-      "free_bytes": 32133029888,
+      "free_bytes": 32118607872,
       "kind": "host.mount",
       "mount_point": "/",
       "schema_version": 1,
@@ -105,7 +100,7 @@
     {
       "device": "mfs\\043network-store.example:9421",
       "filesystem_type": "fuse",
-      "free_bytes": 561548113805312,
+      "free_bytes": 558237158801408,
       "kind": "host.mount",
       "mount_point": "/workspace",
       "schema_version": 1,
@@ -285,6 +280,17 @@
       "derivation": "measured",
       "kind": "host.field_provenance",
       "path": "memory.available_bytes",
+      "providers": [
+        "native-linux"
+      ],
+      "schema_version": 1
+    },
+    {
+      "accepted_from": "native-linux",
+      "confidence": "high",
+      "derivation": "measured",
+      "kind": "host.field_provenance",
+      "path": "memory.limit_bytes",
       "providers": [
         "native-linux"
       ],
@@ -756,7 +762,15 @@
           "kind": "host.observation",
           "path": "memory.available_bytes",
           "schema_version": 1,
-          "value": 184451727360
+          "value": 184717119488
+        },
+        {
+          "confidence": "high",
+          "derivation": "measured",
+          "kind": "host.observation",
+          "path": "memory.limit_bytes",
+          "schema_version": 1,
+          "value": 61999996928
         },
         {
           "confidence": "high",
@@ -796,7 +810,7 @@
           "kind": "host.observation",
           "path": "mount./.free_bytes",
           "schema_version": 1,
-          "value": 32133029888
+          "value": 32118607872
         },
         {
           "confidence": "high",
@@ -836,7 +850,7 @@
           "kind": "host.observation",
           "path": "mount./workspace.free_bytes",
           "schema_version": 1,
-          "value": 561548113805312
+          "value": 558237158801408
         },
         {
           "confidence": "high",

@@ -386,7 +386,7 @@ a working-directory default. No domain reads the environment for itself.
 Proven by `tests/test_deployed_state.py` and on the reference host through
 an installed artifact. The general precedence question became K-22.
 
-### K-21 — a CPU model name carries the provider's padding
+### K-21 — a CPU model name carries the provider's padding  ·  RETIRED
 
 **Stage** 1.1, found at workflow adoption · **Kind** approximation · **Risk** low
 
@@ -404,9 +404,12 @@ Not fixed here because stripping it changes the accepted Stage 1.1
 fingerprint and its committed fixture, which this workflow task must not
 reopen.
 
-**Retires when** Stage 1.2 or later touches host normalization, at which
-point normalize whitespace in reported strings and re-capture the fixture in
-the same change.
+**Retired at Stage 1.2.** Normalization strips reported strings, so padding
+cannot reach a fingerprint input, and two providers reporting the same value
+with different padding are now recognised as agreeing. The reference host's
+fingerprint honestly moved from `4d4efedb…` to `2abe0703…`; the normalized
+fixture was re-derived by replaying committed provider evidence with no host
+involved, and both values are recorded in the Stage 1.1 package.
 
 ### K-22 — one environment override, not a configuration system
 
@@ -430,6 +433,69 @@ by a caller.
 **Retires when** a second setting genuinely needs to differ per deployment
 — most likely the API address once the platform is reachable off-loopback,
 or a capacity headroom policy an operator must tune.
+
+### K-23 — headroom values are chosen, not measured
+
+**Stage** 1.2 · **Kind** approximation · **Risk** medium
+
+Every figure in `capacity/policy.py` is conservative judgement. The 25%
+memory and accelerator fractions come from the only number with operational
+history — the previous attempt's 0.75 weight budget — and the floors and the
+storage fraction are reasoned rather than observed.
+
+Deliberately biased toward reserving too much. A conservative policy can be
+tightened once real workloads provide evidence, with old decisions still
+explicable through `policy_version`. One tuned to look generous cannot be
+loosened safely, because what it already admitted is running.
+
+**Retires when** Milestone 3 has real runtime memory evidence, or a real
+workload is refused by a reserve that measurement shows to be too large.
+
+### K-24 — the unverified pool ceiling is a policy number, not a bound
+
+**Stage** 1.2 · **Kind** provisional · **Risk** medium
+
+A pool whose reported size is not credible has effective capacity bounded at
+64 GiB. That is not a claim about the pool — it is a limit on how much may
+be believed having verified nothing.
+
+The consequence is real: a genuinely large network volume is usable only up
+to 64 GiB until Stage 2.2 can verify a reservation. Correct for Milestone 1,
+where one model is placed by hand, and wrong for a customer with a 10 TB
+volume and forty models.
+
+**Retires when** Stage 2.2 produces empirical bounds. The ceiling then
+becomes the *starting* point for verification rather than the answer, which
+is why it matches the previous implementation's per-probe ceiling.
+
+### K-25 — accelerator memory is never aggregated, and nothing tests otherwise
+
+**Stage** 1.2 · **Kind** deferred · **Risk** low
+
+Each accelerator is layered separately and never summed. Correct — and
+untested against reality, because the reference host has one assigned
+device. Whether an interconnect ever permits treating two devices as one
+budget is unanswered, and any aggregation written now would be untested by
+construction.
+
+**Retires when** a host with more than one assigned accelerator is
+available (`DC-08`), or model placement across devices is implemented.
+
+### K-26 — capacity has no live utilization
+
+**Stage** 1.2 · **Kind** deferred · **Risk** low
+
+The envelope describes capacity, not occupancy. It does not subtract what is
+currently in use, by Kultrun or anything else, so on a busy host the safe
+figure describes what the resource *is* rather than what is free right now.
+
+Intentional: capacity and utilization are different questions, and conflating
+them is how a momentary dip becomes a structural refusal. But admission at
+Stage 1.5 will need both, and unmanaged external usage is exactly the case
+the roadmap warns about.
+
+**Retires when** Stage 1.5 needs to admit against live availability, or
+Stage 11.1 fuses observed evidence.
 
 ## Deferred capability register
 

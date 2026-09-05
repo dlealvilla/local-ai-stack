@@ -274,18 +274,25 @@ class TestCapacityAgainstTheRealHost:
         assert isinstance(entry.memory.safe_bytes, int)
         assert entry.memory.safe_bytes < 34_207_694_848
 
-    def test_memory_is_layered_from_the_captured_facts(self, replayed: Host) -> None:
-        """The fixture predates the container memory limit, so it is unknown.
+    def test_the_container_memory_limit_restricts_effective_ram(
+        self, replayed: Host
+    ) -> None:
+        """A 4.4x overstatement, now pinned by a fixture forever.
 
-        Recorded rather than hidden: the live host is limited to 57.7 GiB
-        against a reported 251.5 GiB, and until the provider fixture is
-        re-captured this replay cannot see that. The T0 suite covers the
-        restriction; the real host proves it.
+        The machine reports 251.5 GiB; this container may use 57.7 GiB.
+        Stage 1.1 observed no limit at all, so capacity would have
+        authorized four times what exists and workloads would have been
+        OOM-killed — the RAM version of the four visible accelerators where
+        one was assigned.
         """
         envelope = self.envelope(replayed)
+        assert replayed.memory.total_bytes == 270_055_956_480
+        assert replayed.memory.limit_bytes == 61_999_996_928
         assert envelope.memory.reported_bytes == 270_055_956_480
-        assert not is_resolved(replayed.memory.limit_bytes)
-        assert envelope.memory.effective_bytes == 270_055_956_480
+        assert envelope.memory.effective_bytes == 61_999_996_928
+        assert envelope.memory_requirement is EvidenceRequirement.RESTRICTED
+        assert isinstance(envelope.memory.safe_bytes, int)
+        assert envelope.memory.safe_bytes < 61_999_996_928
 
     def test_the_envelope_is_deterministic_for_this_host(self, replayed: Host) -> None:
         from kultrun.kernel.schema import to_dict

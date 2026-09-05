@@ -98,12 +98,20 @@ clean isolated install on every change, none of it needing an accelerator. A
 GPU host is created only for bounded acceptance work that requires real
 hardware, and released afterwards.
 
-**Next is Stage 1.2 — capacity:** the reported / effective / safe
-three-layer model, brief at `STAGE-1.2-capacity.md`. The reference host
-reports a 2.15 PB network mount, which is the previous attempt's "239 TB
-free" trap in a new costume and is committed as a fixture precisely so 1.2
-can prove it refuses to believe it. Most of the stage is developed against
-that fixture with no host at all.
+**Stage 1.2 is closed** at `L2`, 14/14, through an installed artifact. The
+reference host's `/workspace` goes from **507.8 TiB reported to 57.6 GiB
+safe** with no probing at all — four orders of magnitude, from policy alone,
+which is the proof that Stage 1.2's safety does not depend on Stage 2.2.
+
+It also found the RAM version of Stage 1.1's accelerator finding: the
+container may use **57.7 GiB** of the machine's **251.5 GiB**, and Stage 1.1
+observed no limit at all. Capacity from `MemTotal` would have authorized
+four times what exists.
+
+Steps 1–12 ran locally with no host. That is the testing strategy working,
+and 1.2 is the first stage developed under it.
+
+**Next is Stage 1.3 — executor and runtime abstractions.**
 
 From there to the Milestone 1 gate — a real request reaching a real model
 and returning an answer — every claim is checked against hardware. That gate
