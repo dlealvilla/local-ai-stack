@@ -201,6 +201,17 @@ class TestRestart:
 class TestTheApiAnswersFromPlatformState:
     """The Milestone 0 gate, endpoint by endpoint."""
 
+    def test_version_identifies_the_running_build(self, platform: Platform) -> None:
+        """A result arriving over HTTP must be traceable to a source state.
+
+        These tests run from the repository, so the honest answer here is
+        `source` and `acceptable_as_evidence` must be false. A checkout that
+        claimed otherwise would let a development run pass as acceptance.
+        """
+        payload = call(platform, "/version")
+        assert payload["origin"] == "source"
+        assert payload["acceptable_as_evidence"] is False
+
     def test_health(self, platform: Platform) -> None:
         body = call(platform, "/health")
         assert body["status"] == "healthy"

@@ -96,7 +96,6 @@ def build(*, keep_dist: bool = False) -> PrototypeBuild:
         "build_id": build_id,
         "built_at": built_at,
         "clean_source": clean,
-        "artifact": "",  # filled in below; the name is not known until built
     }
 
     try:

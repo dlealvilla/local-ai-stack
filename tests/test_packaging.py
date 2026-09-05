@@ -45,7 +45,6 @@ def manifest(path: Path, **overrides: object) -> Path:
         "build_id": "0.1.0+aaaaaaaaaaaa",
         "built_at": "2026-09-05T12:00:00+00:00",
         "clean_source": True,
-        "artifact": "kultrun-0.1.0-py3-none-any.whl",
     }
     content.update(overrides)
     (path / MANIFEST_NAME).write_text(json.dumps(content), encoding="utf-8")

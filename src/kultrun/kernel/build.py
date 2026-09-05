@@ -15,6 +15,12 @@ real-host acceptance from the workflow-adoption checkpoint forward, so a run
 that quietly executed a checkout would invalidate its own evidence. Better
 for the product to say so.
 
+The artifact *filename* is deliberately not here. It is not known at the
+moment the manifest is written into the package, and a field that is
+structurally always empty in the one command whose job is to be trusted is
+worse than no field. It lives in the build-side record instead, where it is
+genuinely known.
+
 `source_commit` is `None` rather than `Unresolved` when running from a
 checkout. It is not an unmeasured value; it is structurally not applicable,
 derived from `origin`, which is the invariant in `docs/ARCHITECTURE.md`
@@ -59,7 +65,6 @@ class BuildIdentity:
     source_commit: str | None = None
     build_id: str | None = None
     built_at: str | None = None
-    artifact: str | None = None
     #: Whether the source tree was clean when the artifact was built. A
     #: `False` here marks the artifact experimental: its behaviour cannot be
     #: reproduced from any commit, so it may not carry a final acceptance.
@@ -104,7 +109,6 @@ def identity(package_root: Path | None = None) -> BuildIdentity:
         source_commit=_text(manifest, "source_commit"),
         build_id=_text(manifest, "build_id"),
         built_at=_text(manifest, "built_at"),
-        artifact=_text(manifest, "artifact"),
         clean_source=clean if isinstance(clean, bool) else None,
     )
 

@@ -285,7 +285,6 @@ def show_version() -> int:
     print(f"  source commit {identity.source_commit or '-'}")
     print(f"  build id      {identity.build_id or '-'}")
     print(f"  built at      {identity.built_at or '-'}")
-    print(f"  artifact      {identity.artifact or '-'}")
     standing = "acceptable" if identity.acceptable_as_evidence else "development only"
     print(f"  evidence      {standing}")
     return 0
@@ -317,12 +316,12 @@ def show_host() -> int:
         f"               {host.cpu.physical_cores} cores / "
         f"{host.cpu.logical_cores} threads"
     )
-    print(f"  memory       {_gib(host.memory.total_bytes)} total")
+    print(f"  memory       {_bytes(host.memory.total_bytes)} total")
     for accelerator in host.accelerators:
         print(
             f"  accelerator  [{accelerator.index}] {accelerator.vendor.value} "
             f"{accelerator.model_name} "
-            f"{_gib(accelerator.memory_total_bytes)} "
+            f"{_bytes(accelerator.memory_total_bytes)} "
             f"driver {accelerator.driver_version}"
         )
     if not host.accelerators:
@@ -330,7 +329,7 @@ def show_host() -> int:
     for mount in host.mounts:
         print(
             f"  mount        {mount.mount_point} {mount.filesystem_type} "
-            f"{_gib(mount.total_bytes)} total (reported; authorizes nothing)"
+            f"{_bytes(mount.total_bytes)} total (reported; authorizes nothing)"
         )
 
     print("\ncomponents")
@@ -355,11 +354,25 @@ def show_host() -> int:
     return 0
 
 
-def _gib(value: object) -> str:
-    """Bytes as GiB, or the unresolved marker. Never invents a number."""
-    if isinstance(value, int):
-        return f"{value / 2**30:.1f} GiB"
-    return "unknown"
+def _bytes(value: object) -> str:
+    """Bytes at a readable scale, or the unresolved marker.
+
+    Scaled because the reference host reports a 2.15 PB network mount, and
+    printing that as "2002393.6 GiB" invites a misreading in the one place
+    an operator goes to understand what the platform thinks it has. Never
+    invents a number: unresolved stays unknown.
+    """
+    if not isinstance(value, int):
+        return "unknown"
+    for unit, size in (
+        ("PiB", 2**50),
+        ("TiB", 2**40),
+        ("GiB", 2**30),
+        ("MiB", 2**20),
+    ):
+        if value >= size:
+            return f"{value / size:.1f} {unit}"
+    return f"{value} B"
 
 
 COMMANDS: dict[str, Callable[[], int]] = {

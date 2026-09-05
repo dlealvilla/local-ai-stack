@@ -359,6 +359,55 @@ matters for large-model placement.
 **Retires when** placement or a runtime needs locality. The provider already
 sees it; only the contract needs widening.
 
+### K-20 — a deployed instance cannot be configured
+
+**Stage** workflow adoption · **Kind** provisional · **Risk** medium
+
+`kultrun host` and `kultrun serve` call `build()` with no configuration, and
+`PlatformSettings.state_root` defaults to `./.state`. So the state location
+of an installed instance depends on the directory it happens to be run
+from, and two invocations from different directories build two unrelated
+state stores.
+
+`kernel/config.py` loads from a mapping or a file and has no environment
+overlay, so there is currently no way to point a deployment target at, say,
+`/var/lib/kultrun`. Found on the first artifact deployment: an env var was
+set on the command line and silently did nothing, which is worse than
+failing.
+
+Harmless while acceptance runs are single commands from a known directory.
+Not harmless once the platform holds reservations or models, and definitely
+not once it runs as a service.
+
+**Retires when** a stage needs an installed instance to keep state across
+invocations from different working directories, or `serve` is run as a
+managed service. Deferred rather than fixed because config precedence
+between file, environment and defaults is a design decision, not a
+detail — and getting it wrong quietly is how the previous attempt lost
+track of what it had configured.
+
+### K-21 — a CPU model name carries the provider's padding
+
+**Stage** 1.1, found at workflow adoption · **Kind** approximation · **Risk** low
+
+hwloc reports `CPUModel` as `"AMD EPYC 7763 64-Core Processor                "`
+with trailing padding, and normalization passes it through unstripped. It is
+cosmetic in the `kultrun host` output but `cpu.model_name` is a **host
+fingerprint input**, so if the padding ever changes between hwloc versions
+the host identity changes with it and cached evidence is discarded for no
+real reason.
+
+The same class of latent instability as the `/run/nvidia-ctk-hook<uuid>`
+mount found during Stage 1.1, and less likely to trigger.
+
+Not fixed here because stripping it changes the accepted Stage 1.1
+fingerprint and its committed fixture, which this workflow task must not
+reopen.
+
+**Retires when** Stage 1.2 or later touches host normalization, at which
+point normalize whitespace in reported strings and re-capture the fixture in
+the same change.
+
 ## Deferred capability register
 
 Distinct from the debt entries above. A debt entry records an approximation
