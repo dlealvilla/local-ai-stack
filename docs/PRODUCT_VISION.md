@@ -830,6 +830,37 @@ It should conceptually include:
 
 This is different from the stored model artifact.
 
+A stored `ModelArtifact` is data on disk. An `InferenceInstance` is a
+deployed serving workload. They must never be collapsed into one object
+or one boolean such as `model.running = true`.
+
+The architecture is plural from the first schema:
+
+- `models[]` — zero, one, or many stored artifacts;
+- `inference_instances[]` — zero, one, or many running or planned
+  workloads.
+
+The first working vertical may store several models and run one
+instance. That is an acceptance bound, not an architectural limit.
+
+The same stored artifact may have several inference instances (replicas,
+different context or concurrency, departmental isolation, different
+device placement, different access policy, or different runtime
+configuration). Different models may also run at the same time when
+hardware permits — including a general model, a coding model, an
+embedding model, and other compatible services.
+
+A `ResourceReservation` belongs to an inference or workload instance,
+not globally to a model artifact. Stopping or unloading an instance
+releases runtime RAM, VRAM, process, endpoint and the reservation; the
+stored artifact remains until a separate delete operation.
+
+There is no long-term global `selected = true`. Selection produces a
+`SelectionRecommendation`: a primary recommendation, alternatives,
+rejected candidates, and rationale. A model may be recommended but not
+stored; stored but not currently recommended; stored with zero, one, or
+many instances.
+
 ---
 
 # 13. TWO DIFFERENT CONCURRENCY DIMENSIONS
@@ -960,33 +991,53 @@ Model cards should display:
 
 The Model Inventory should track all platform-managed AI artifacts.
 
-Possible states:
+Kultrun may store many models on disk. Inventory is not synonymous with
+the currently running model. Represent it as `models[]` from the
+beginning, never as a single `current_model`.
 
-- discovered;
+**Model artifact state** (storage, not runtime):
+
 - remote;
 - acquiring;
 - stored;
-- validating;
-- loaded;
-- running;
-- stopped;
+- invalid;
 - updating;
-- deprecated;
-- incompatible;
-- derived.
+- deleted.
 
-It should expose:
+A stored artifact consumes disk. It does not necessarily consume VRAM,
+runtime RAM, execution slots, or ports.
 
-- location;
-- size;
-- source;
+**Inference instance lifecycle** is a different dimension, owned by
+`InferenceInstance`:
+
+- planned;
+- starting;
+- running;
+- stopping;
+- stopped;
+- failed.
+
+Do not represent both through one model status field. `loaded` and
+`running` are instance states, not inventory states.
+
+Inventory should eventually expose:
+
+- model/artifact ID;
 - revision;
-- checksum;
+- source;
+- disk footprint;
+- verification state;
+- installed/stored state;
 - runtime compatibility;
-- current inference instances;
-- last use;
-- resource association;
-- lineage.
+- last used;
+- derivation/lineage (base model, LoRA/PEFT adapter, fine-tune,
+  distillation — hooks now, implementations later);
+- approval state;
+- relevant permissions;
+- whether any inference instances currently reference the artifact.
+
+Initial implementation can be much smaller. The schema must not make
+derived or adapter models a redesign.
 
 ---
 
@@ -1007,6 +1058,10 @@ The acquisition subsystem should support:
 - reconciliation after interrupted operations.
 
 Models should not be downloaded before storage safety is established.
+
+Selection is a recommendation. Acquisition is a separate mutation.
+`SELECTED` is not `DOWNLOADED` / `STORED`. Kultrun should reuse an
+existing local artifact rather than downloading it again.
 
 ---
 
@@ -1079,6 +1134,37 @@ The Capacity Planner must reliably answer:
 8. How confident are these answers?
 
 This is a core product capability.
+
+Capacity-based **model selection** is a named step, not a side effect of
+inventory or of the Capacity Planner's estimates. Conceptually:
+
+```text
+candidate models
+  → hard feasibility filters
+  → feasible candidates
+  → deterministic ranking
+  → SelectionRecommendation
+       (primary + alternatives + rejected candidates + rationale)
+```
+
+Feasibility classifies a candidate against the current deployment as
+`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, or
+`UNRESOLVED`, with explainable reasons. It consumes host capabilities,
+the capacity envelope, model requirements, runtime capabilities and
+policy. It does not reserve resources.
+
+The selector should prefer a model that fits safely, is
+runtime-compatible, makes meaningful use of the available hardware,
+preserves appropriate headroom, offers stronger capability than an
+unnecessarily small alternative, and is not a candidate that fits
+weights but fails once runtime overhead is considered.
+
+The first implementation is deterministic and explainable. Learned or
+empirical recommendation intelligence is later and must not be required
+by the first selector.
+
+Planning recommends. The Resource Manager authorizes. Planning must
+never create a resource reservation.
 
 ---
 
@@ -2150,13 +2236,17 @@ This becomes a core learning asset.
 
 Above simple feasibility, build a future Model Inventory Optimizer.
 
-Capacity Planner:
+Near-term Capacity Planner / feasibility:
 
-> Can this model fit?
+> Can this model fit, and is it a sensible model to deploy on this host?
 
-Optimizer:
+Future Model Inventory Optimizer:
 
-> What combination of models should this organisation store and run?
+> What portfolio of models should this organisation keep stored and/or
+> running given workloads, hardware, outcomes, cost and policy?
+
+Do not pull the optimizer into the first vertical. The first selector
+must not depend on it.
 
 ---
 
@@ -2473,6 +2563,19 @@ The system should expose:
 - connector health;
 - telemetry state;
 - licensing state.
+
+Keep three lifecycle dimensions distinct:
+
+- **desired** — what Kultrun wants (for example RUNNING);
+- **observed** — what actually exists (RUNNING, EXITED, absent);
+- **health** — whether it is functioning correctly (HEALTHY, UNHEALTHY).
+
+A reachable port is status, not health. An instance may be desired
+RUNNING, observed EXITED, and UNHEALTHY.
+
+Capacity, reservation and utilization remain three different facts:
+what can safely exist, what Kultrun has authorized, and what processes
+are consuming now.
 
 The Admin Agent should use this same structured information.
 
@@ -3035,6 +3138,11 @@ A new installation should be able to:
 
 This vertical slice is more important than advanced optimization.
 
+The near-term roadmap names each of these steps. It does not compress
+catalog, metadata, feasibility, selection, acquisition, inventory,
+admission and inference instance into a single “models” or “admission”
+label. Depth stays later; the seams are visible in Milestone 1.
+
 ---
 
 # 112. KNOWLEDGE EXOSKELETON
@@ -3074,7 +3182,7 @@ This is enough to validate the architecture.
 
 Initial Capacity Planner should provide:
 
-- Compatible / Conditional / Unsupported;
+- Compatible / Conditionally compatible / Unsupported / Unresolved;
 - estimated storage;
 - estimated RAM/VRAM;
 - runtime recommendation;

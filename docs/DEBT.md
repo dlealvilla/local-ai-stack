@@ -491,10 +491,10 @@ figure describes what the resource *is* rather than what is free right now.
 
 Intentional: capacity and utilization are different questions, and conflating
 them is how a momentary dip becomes a structural refusal. But admission at
-Stage 1.5 will need both, and unmanaged external usage is exactly the case
+Stage 1.5A will need both, and unmanaged external usage is exactly the case
 the roadmap warns about.
 
-**Retires when** Stage 1.5 needs to admit against live availability, or
+**Retires when** Stage 1.5A needs to admit against live availability, or
 Stage 11.1 fuses observed evidence.
 
 ### K-27 — storage sanity runs only when asked
@@ -541,7 +541,7 @@ no exposure that did not already exist.
 It also writes no `AuditEvent`, though it is a deliberate operator action
 against a real resource — exactly the shape audit exists for.
 
-**Retires when** authentication arrives, or when Stage 1.5 makes mutating
+**Retires when** authentication arrives, or when Stage 1.5A makes mutating
 endpoints pass through admission and audit. Whichever comes first.
 
 ### K-30 — the console has no automated visual regression

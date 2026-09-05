@@ -246,10 +246,14 @@ proves packaging, not Apple support.
 | Milestone 0 — contracts and kernel | No | None |
 | Stage 1.1 — host discovery | Yes | **Very high** |
 | Stage 1.2 — capacity | Yes | **Very high** |
+| Stage 1.2A — storage sanity + console | Selective | Low |
 | Stage 1.3 — runtime and executor | Yes | High |
-| Stage 1.4 — model presence | Selective | Low |
-| Stage 1.5 — admission | Selective | Low |
-| Stage 1.6 — real inference | Yes | **Very high** |
+| Stage 1.4A — catalog and metadata | No | None |
+| Stage 1.4B — feasibility and selection | Selective | Low |
+| Stage 1.4C — acquisition and inventory | Selective | Low |
+| Stage 1.5A — admission and reservation | Selective | Low |
+| Stage 1.5B — inference instance lifecycle | Selective | Low |
+| Stage 1.6 — real inference vertical | Yes | **Very high** |
 | Stage 1.7 — gateway | Integrated only | Low |
 | Milestone 2 — storage empirical evidence | Yes | High |
 | Milestone 3 — feasibility and selection | Selective | Low |
@@ -424,8 +428,8 @@ The plan document must describe the work actually being done.
 ```text
 MILESTONE 0   Architectural kernel                         contracts only
 MILESTONE 1   Walking skeleton — live inference proven      ← the gate the prior attempt never reached
-MILESTONE 2   Storage truth and safe acquisition
-MILESTONE 3   Capacity, feasibility and selection
+MILESTONE 2   Storage truth and acquisition deepening
+MILESTONE 3   Capacity evidence, feasibility and selection (deepening)
 MILESTONE 4   Multi-workload resource management
 MILESTONE 5   Governed access spine
 MILESTONE 6   Operability — Admin console and agent
@@ -525,7 +529,7 @@ happens otherwise:
   changed a setting, installed a model, modified a permission or approved
   an agent action, and asks that the schema leave room for audit events
   even when the UI comes later. Retrofitting it means revisiting every
-  mutating workflow already written. It is emitted from Stage 1.5 onward;
+  mutating workflow already written. It is emitted from Stage 1.5A onward;
   only the audit *UI* is deferred.
 
 `AuditEvent` is not `UsageEvent`. Usage events describe AI consumption;
@@ -584,23 +588,38 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.1 host discovery      reference NVIDIA host is the only blocking shape
   ↓
-1.2 capacity
+1.2 capacity            policy-only envelope
   ↓
-1.3 runtime / executor
+1.2A storage sanity + prototype console   ← closed; not 1.3
   ↓
-1.4 model presence
+1.3 runtime / executor exoskeleton        ← no LLM required
   ↓
-1.5 admission
+1.4A model sources / catalog + metadata
   ↓
-1.6 REAL INFERENCE      ← the earliest honest proof
+1.4B feasibility + capacity-based selection + DeploymentPlan v0
+  ↓
+1.4C model acquisition + plural inventory
+  ↓
+1.5A resource admission + reservation
+  ↓
+1.5B inference instance lifecycle         ← plural schema; one running instance acceptable
+  ↓
+1.6 REAL INFERENCE VERTICAL               ← the earliest honest proof
   ↓
 post-inference breadth review, then 1.7 onward
 ```
 
-Nothing is inserted into that path. Not Apple, AMD or Intel; not
-Kubernetes; not containerization; not a universal installer or a
-generalized downloader. Each has a home in the deferred capability register
-in `docs/DEBT.md`, with its own revisit trigger.
+Nothing sophisticated is inserted into that path. Not Apple, AMD or Intel;
+not Kubernetes; not containerization; not a universal installer; not a
+marketplace; not a learned recommender; not a portfolio optimizer; not
+multi-instance scheduling. Each has a home in the deferred capability
+register in `docs/DEBT.md`, with its own revisit trigger.
+
+The lifecycle **is** inserted as named thin stages. Catalog, metadata,
+feasibility, selection, acquisition, inventory, admission, reservation
+and inference instance are distinct concepts. Compressing them into
+“model presence / admission / inference” is how ownership disappears
+during implementation.
 
 The harness gap comes first because Law 5 — an adapter inherits its
 port-domain's import budget — is what keeps a discovery provider out of the
@@ -614,37 +633,46 @@ Everything here is deliberately crude — and everything here is real. No
 mocks in the path. No subsystem is deepened until this passes on real
 hardware.
 
-Explicitly **not** in this milestone: model acquisition, model catalog,
-empirical storage probing, capacity evidence providers, model selection,
-multiple concurrent instances, external providers, knowledge, teams.
-Those are milestones 2 through 7 and each is unblocked by this one.
+Explicitly **not** in this milestone: empirical storage characterization
+(Stage 2.2), capacity evidence providers (Stage 3.2), a marketplace, a
+learned selector, a model-inventory optimizer, multiple concurrent live
+instances as an acceptance gate (Milestone 4), external knowledge
+providers, or teams. Those remain later. What *is* in this milestone is
+the thin named lifecycle: one replaceable `ModelSource`, a small curated
+set, host-independent metadata and requirements, deterministic
+feasibility and selection, one acquisition path, plural inventory,
+admission, reservation, and a first-class plural `InferenceInstance`
+schema with one running instance acceptable.
 
 ### Relationship to the constitution's §111
 
 `docs/PRODUCT_VISION.md` §111 defines a 19-step "first working
 exoskeleton" flow and states, correctly, that "this vertical slice is
-more important than advanced optimization." This roadmap splits that
-slice across three milestones rather than attempting it in one, and the
-mapping is recorded here so the divergence is deliberate and visible
-rather than silent.
+more important than advanced optimization." This roadmap now names each
+of those steps in Milestone 1 as a thin stage, and still splits
+*depth* across later milestones.
 
 | §111 steps | Where |
 |---|---|
-| 1–6 inspect host, HostCapabilities, safe capacity, control plane, Admin UI, basic Admin Agent | Milestone 1 (Admin surface thin; console proper at Milestone 6) |
+| 1–6 inspect host, HostCapabilities, safe capacity, control plane, Admin UI, basic Admin Agent | Milestone 1 (Admin surface is the Prototype Console from 1.2A; console proper at Milestone 6) |
+| 7–9 search curated set, evaluate compatibility, recommend one model | **Stages 1.4A–1.4B** (thin). Milestone 3 deepens evidence and selection. |
+| 10 safely acquire or import | **Stage 1.4C** (thin). Milestone 2 deepens storage truth and mutation safety. |
 | 11–19 inventory, reservation, instance, gateway, request, UsageEvent, analytics, safe stop/restart, reconciliation | **Milestone 1** |
-| 10 safely acquire or import | Milestone 2 |
-| 7–9 search curated set, evaluate compatibility, recommend one model | Milestone 3 |
 
-Milestone 1 is therefore a **strict subset** of §111: the same spine,
-with the model supplied by hand instead of chosen and downloaded. The
-reason is that steps 7 through 10 require the model supply chain,
-empirical storage evidence and a capacity evidence provider — roughly
-the entire volume of work the prior attempt completed *without ever
-proving the spine*. Proving the spine against a hand-placed model costs
-a fraction of that and de-risks everything after it.
+The previous attempt built the entire model supply chain and empirical
+storage machinery *without ever proving the spine*. Milestone 1 still
+forbids that depth. It no longer forbids naming the spine. A hand-placed
+artifact remains a valid *test fixture*; it is not the product's only
+path to a first model.
 
-§111's full flow is achieved at the **Milestone 3 gate**, where the
-platform selects, acquires and serves automatically on a fresh host.
+§111's full *deepened* flow — evidence providers, honest empirical
+storage, automatic select-acquire-serve on a fresh host with explained
+rejections — is achieved at the **Milestone 3 gate**.
+
+The first vertical may prove **several models stored and one running**.
+A later bounded gate (Milestone 4) proves **two different inference
+instances running concurrently** when hardware permits. Two-running-model
+acceptance is not a blocker for first inference.
 
 ### Stage 1.1 — Host discovery
 
@@ -789,18 +817,39 @@ and empirical storage characterization.
 
 Brief: `docs/stages/STAGE-1.2-capacity.md`.
 
-### Stage 1.3 — Executor and runtime abstractions
+### Stage 1.2A — Storage sanity and prototype visibility (closed)
+
+Bounded Storage Sonar v0, local Fixture Replay Console, Live Host Console
+architecture. Explicit probe execution only. No Stage 1.3 logic.
+
+Accepted at `d38e1ed`. Checkpoint:
+`checkpoints/STAGE-1.2A-storage-sanity-console.json`.
+
+The Prototype Console grows with the lifecycle. After 1.2A it shows host,
+capacity and storage sanity. Planned panels, in order:
+
+HOST → CAPACITY → STORAGE SANITY → RUNTIME / EXECUTOR → MODEL CATALOG →
+MODEL SELECTION → MODEL INVENTORY (stored) → RESOURCE RESERVATIONS →
+INFERENCE INSTANCES (running) → INFERENCE TEST
+
+Stored models and running instances are visually distinct. The frontend
+never owns product logic.
+
+This stage is not reopened. Historical checkpoints are not rewritten.
+
+### Stage 1.3 — Runtime / executor exoskeleton
 
 `Executor` with `NativeProcessExecutor` as the first and reference
-implementation. `InferenceRuntime` with a vLLM adapter as the first
-validated implementation.
+implementation. `InferenceRuntime` port and `RuntimeProfile` /
+`RuntimeLaunchSpec` contracts. Process lifecycle: start, signal, health,
+stop, PID reuse protection.
+
+No LLM is required to close this stage. A vLLM adapter may exist as a
+seam; serving a model is Stage 1.6.
 
 The executor owns process execution, environment, filesystem mapping,
 signals, logs and process health — never model semantics. Runtime
 options stay inside the runtime adapter.
-
-PID handling includes reuse protection from the start. The prior attempt
-deferred it and left the gap open.
 
 `Executor` also declares the **`ContainerEngine`** seam, unimplemented.
 Native process execution is the first validated path and the reference
@@ -816,70 +865,151 @@ the control plane.
 
 The **component seam** already exists — Stage 1.1 created
 `ComponentRequirement` and `ComponentResolution` to express its provider's
-needs. This stage extends it to the runtime: is vLLM present, at what
+needs. This stage extends it to the runtime: is a runtime present, at what
 version, compatible with this host. The runtime is assumed already
-installed at Milestone 1, so nothing is provisioned here. Stage 3.4's
-`DeploymentPlan` consumes *resolved components*, and Milestone 10 fills the
-seam rather than introducing it.
+installed at Milestone 1, so nothing is provisioned here. Stage 1.4B's
+`DeploymentPlan` v0 consumes *resolved components* where they exist, and
+Milestone 10 fills the seam rather than introducing it.
 
 **Output:** `ExecutorSpec + ExecutorHandle + DeviceRequest + RuntimeProfile + RuntimeLaunchSpec + ComponentRequirement` · **Gate:** L2
 
-### Stage 1.4 — Model presence without acquisition
+### Stage 1.4A — Model sources / catalog + metadata
 
-Accept a model artifact that is **already present** on disk. Normalize
-it into `ModelInventoryRecord`. No catalog, no download, no source
-adapters.
+One replaceable `ModelSource` implementation and a small curated
+candidate set. Normalize into platform-owned `ModelMetadata` and
+`ModelRequirement` (host-independent). Identity, source, revision,
+family, architecture, parameter count, quantization, artifact size,
+context capability, runtime and accelerator compatibility, license /
+commercial-use metadata, estimated RAM / VRAM / unified memory, storage
+requirement, runtime-overhead evidence where available, and
+derivation/lineage hooks.
+
+This domain describes the model. It does not decide whether the current
+host can run it. No ranking. No marketplace. Hugging Face or local-file
+is enough; the port must not assume one vendor, one hub, or installer-
+bundled weights.
+
+**Output:** `ModelSource` + `ModelMetadata v1` + `ModelRequirement v0` · **Gate:** L1 (L2 only if a real source fetch is claimed)
+
+### Stage 1.4B — Feasibility + capacity-based selection
+
+Compatibility classification against the current deployment:
+`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`,
+with explainable reasons (insufficient safe accelerator memory,
+unsupported runtime/format, insufficient safe RAM or storage,
+architecture mismatch, conditional CPU/GPU offload, unresolved
+requirement evidence).
+
+Feasibility consumes `HostCapabilities`, `CapacityEnvelope`, model
+requirements, runtime capabilities and relevant policy. It never
+reserves.
+
+Then deterministic ranking of feasible candidates into a
+`SelectionRecommendation` (primary, alternatives, rejected candidates,
+rationale) and a `DeploymentPlan` v0: selected artifact/variant,
+runtime, executor, proposed placement and resource requirement,
+context/concurrency, alternatives, evidence, confidence/policy version.
+
+No download. No reservation. No learned recommender.
+
+**Output:** `FeasibilityResult v0` + `SelectionRecommendation v0` + `DeploymentPlan v0` · **Gate:** L1, with fixture replay of the reference host envelope
+
+### Stage 1.4C — Model acquisition + inventory
+
+Selection is not storage. Acquisition is a distinct mutation:
+
+```text
+SelectionRecommendation
+  → acquisition decision
+  → storage safety check
+  → download / staging
+  → verification
+  → atomic commit
+  → Model Inventory
+```
+
+Reuse existing artifacts. Plural inventory (`models[]`) from the first
+schema. Artifact states: remote, acquiring, stored, invalid, updating,
+deleted. Minimal delete hook if it is cheap: refuse deletion while an
+instance references the artifact.
+
+No running model is required. Several stored models may be proven here
+(the first vertical's "3+ stored, 1 running" stored-side). Empirical
+pool characterization remains Stage 2.2.
+
+**Output:** `AcquisitionReceipt v0` + `ModelInventoryRecord v1` (plural) · **Gate:** L2
 
 The platform must operate coherently with **no model installed**: an
 absent model is a valid unsatisfied deployment state, the control plane
-starts anyway, and the Platform API remains available. The prior attempt
-hit a bootstrap deadlock here — the platform needed a model to start,
-but choosing a model needed the platform — and spent four commits
-dismantling it. Design it out now.
-
-Inventory records carry explicit nulls, never inferred values. Capacity
-observation must tolerate a record with a null management section; that
-exact shape crashed the prior attempt during integration.
+starts anyway, and the Platform API remains available.
 
 **Artifact existence is not current-host suitability.** An artifact that is
-present says nothing about whether this host can serve it, and reuse runs
-the same path as a fresh choice: requirement plus the current envelope,
-through feasibility, to reuse or reject. Inventory answers "what exists";
-feasibility answers "can this host use it". The `host_id` on a record
-locates an artifact rather than qualifying it. This is what makes moving
-between rented servers day to day safe, and it fails silently if assumed —
-the artifact is right there, so it looks fine.
+present says nothing about whether this host can serve it. Inventory
+answers "what exists"; feasibility answers "can this host use it".
 
-**Output:** `ModelInventoryRecord v1` (local-only) · **Gate:** L2
-
-### Stage 1.5 — Admission and reservation
+### Stage 1.5A — Resource admission + reservation
 
 `Workload`, `ResourceRequirement`, `AdmissionDecision`,
-`ResourceReservation`. Single workload. Real reservation against the safe
-layer from 1.2.
+`ResourceReservation`. Resource Manager is the sole owner of admission,
+reservations, oversubscription prevention, release and reconciliation.
+
+It consumes a proposed deployment/workload. It does not rank candidate
+models.
+
+```text
+Planning:  "What should we run?"
+Resource:  "May it run now?"
+```
+
+A reservation belongs to an inference/workload instance and may cover
+CPU, RAM, VRAM/unified memory, storage where relevant, GPU/device
+assignment, ports, and other runtime-specific constrained resources.
+
+Capacity, reservation and utilization stay separate. Real reservation
+against the safe layer from 1.2.
 
 Ordering is the contract: **reserve before mutation; roll back the
 reservation if start fails; stop the runtime before releasing the
 reservation; hold conservative state on persistence error.** Denial is
 explainable. A denied admission mutates nothing.
 
-This is the first mutating workflow, so it is the first to emit an
+This is the first mutating *workload* workflow, so it emits an
 `AuditEvent`. Every mutating workflow from here on emits one.
 
 **Output:** `AdmissionDecision + ResourceReservation` · **Gate:** L2
 
-### Stage 1.6 — InferenceInstance and lifecycle
+### Stage 1.5B — Inference instance lifecycle
 
-First-class `InferenceInstance`: instance id, host, model and revision,
-runtime, executor, endpoint, reservation, context, runtime concurrency,
-platform request limit, access-policy reference, lifecycle state,
-configuration version.
+First-class `InferenceInstance`, plural from v1 (`inference_instances[]`,
+never `current_inference_instance`): instance id, ModelArtifact
+reference, runtime, executor, RuntimeLaunchSpec, ResourceReservation,
+assigned device(s), endpoint, runtime concurrency, platform request
+limit, access-policy reference, lifecycle state, health, timestamps,
+observed resource evidence.
 
-Lifecycle: start, health, stop, restart, unload — plus **reconciliation
-on restart**, in this stage, not a later one. Distinguish status (is the
+Lifecycle: start, load, run, health, stop, unload, restart — plus
+**reconciliation on restart**, in this stage, not a later one.
+Distinguish desired, observed and health. Distinguish status (is the
 port reachable) from health (does the API function).
 
-**Output:** `InferenceInstance v1` + healthy `InferenceEndpoint` · **Gate:** L3
+One initial real or reference instance is acceptable. The schema must
+already allow: the same model with several instances; several different
+models running when hardware permits. Do not implement replica
+orchestration. Do not make it architecturally impossible.
+
+Stop/unload releases runtime resources and the reservation; it does not
+delete the stored artifact. Model deletion is a separate inventory
+operation.
+
+**Output:** `InferenceInstance v1` (plural) · **Gate:** L2
+
+### Stage 1.6 — Real inference vertical
+
+Selected stored model, admitted reservation, runtime, executor,
+InferenceInstance, endpoint, a real prompt, a real response. Prototype
+Console inference-test view.
+
+**Output:** healthy `InferenceEndpoint` serving a real request · **Gate:** L3
 
 ### Milestone 1 Hardware Breadth Review — after Stage 1.6, before broadening
 
@@ -949,15 +1079,19 @@ host, at L4:
 
 1. Detect host, produce `HostCapabilities`.
 2. Start the control plane **with no model installed**.
-3. Register a locally present model.
-4. Compute a requirement and obtain admission against safe capacity.
-5. Reserve, start an `InferenceInstance`.
-6. Authenticate a subject and serve a real `/v1/chat/completions`.
-7. Emit a `UsageEvent` with correct token accounting.
-8. Report status, health and usage through the Platform API.
-9. Stop cleanly — no orphan process, port, file or reservation.
-10. Restart and reconcile into a coherent state.
-11. Prove denial: request a workload exceeding safe capacity and confirm
+3. From a small curated set, evaluate feasibility and produce a
+   `SelectionRecommendation` (a hand-placed artifact remains a valid
+   fixture if a source is unavailable).
+4. Acquire or reuse into inventory; prove plural stored records.
+5. Compute a requirement and obtain admission against safe capacity.
+6. Reserve, start an `InferenceInstance`.
+7. Authenticate a subject and serve a real `/v1/chat/completions`.
+8. Emit a `UsageEvent` with correct token accounting.
+9. Report status, health and usage through the Platform API.
+10. Stop cleanly — no orphan process, port, file or reservation; the
+    stored artifact remains.
+11. Restart and reconcile into a coherent state.
+12. Prove denial: request a workload exceeding safe capacity and confirm
     refusal with an explanation and no mutation.
 
 Until this passes, no work begins on milestone 2 or later. If it cannot
@@ -966,10 +1100,11 @@ roadmap can discover — at 5,000 lines instead of 58,000.
 
 ---
 
-## MILESTONE 2 — Storage truth and safe acquisition
+## MILESTONE 2 — Storage truth and acquisition deepening
 
 Now that inference works end to end, the platform has earned the right
-to make storage honest. This is where the prior attempt's deepest and
+to make storage honest and to deepen the thin acquisition path from
+Stage 1.4C. This is where the prior attempt's deepest and
 most valuable engineering belongs — second, not first.
 
 ### Stage 2.1 — Storage pools and identity
@@ -1036,18 +1171,23 @@ process exit, and guarantees no orphan artifact. The prior attempt's
 Successful mutation invalidates affected evidence and advances the
 storage generation.
 
-### Stage 2.5 — Model source and inventory
+### Stage 2.5 — Model source and inventory (deepening)
 
-`ModelSource` with Hugging Face and local-file adapters, normalizing to
-Kultrun-owned `ModelMetadata` and `ModelArtifact`. A curated candidate
-set, not a marketplace.
+Stage 1.4A created the `ModelSource` port and 1.4C created plural
+inventory. This stage fills the remaining adapters and lineage depth:
+Hugging Face and local-file as first-class sources, richer
+`ModelMetadata`, durable lineage hooks. A curated candidate set, not a
+marketplace.
 
 Durable inventory with explicit states and lineage hooks: parent model
 and revision, derivation type, owner, dataset reference, promotion
 state. Missing metadata stays null and is reported as unresolved.
 External source failure never marks the local platform unhealthy.
 
-### Stage 2.6 — Safe acquisition
+### Stage 2.6 — Safe acquisition (deepening)
+
+Stage 1.4C proved a thin acquire-and-commit path. This stage is the
+mutation-safety spine the prior attempt actually paid for:
 
 ```text
 resolve immutable revision → calculate requirement (incl. peak additional)
@@ -1068,9 +1208,15 @@ never authorized any step. Consolidation checkpoint and debt burn-down.
 
 ---
 
-## MILESTONE 3 — Capacity, feasibility and selection
+## MILESTONE 3 — Capacity evidence, feasibility and selection (deepening)
 
 **Goal:** the platform chooses well, and explains itself.
+
+Stage 1.4B already produced `FeasibilityResult` v0, a deterministic
+`SelectionRecommendation` and `DeploymentPlan` v0 against policy-based
+capacity. This milestone adds real `ModelRequirement` depth, advisory
+`CapacityEvidenceProvider`s with a mandatory internal fallback, and
+richer planning — not the first existence of those concepts.
 
 ### Stage 3.1 — ModelRequirement
 
@@ -1093,23 +1239,24 @@ benchmarks — are advisory adapters with a mandatory fallback, per §9.
 Theoretical and observed evidence stay distinguishable, each carrying
 basis and confidence.
 
-### Stage 3.3 — Feasibility
+### Stage 3.3 — Feasibility (deepening)
 
-Three verdicts. Per-resource `{ required, safe_available, fits, margin,
+Four verdicts: `COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`,
+`UNRESOLVED`. Per-resource `{ required, safe_available, fits, margin,
 limiting }`, a limiting factor, a maximum viable configuration, reasons
 and evidence references.
 
 Must evaluate **candidates before acquisition**, not only inventory. The
 prior attempt could only assess models it already had.
 
-### Stage 3.4 — Deployment planner
+### Stage 3.4 — Deployment planner (deepening)
 
 Combine host capabilities, resolved components, artifact, requirement,
-feasibility and policy into a `DeploymentPlan`: runtime, executor,
+feasibility and policy into a full `DeploymentPlan`: runtime, executor,
 components, revision, resource requirement, context, configured
 concurrency, ports, expected use, confidence, alternatives, approvals.
 
-### Stage 3.5 — Selection
+### Stage 3.5 — Selection (deepening)
 
 Deterministic given the same inputs and policy version. Never selects on
 unverified capacity. Prefers `compatible` over `conditional` at equal
@@ -1154,10 +1301,15 @@ unmapped to `max_num_seqs`.
 
 ### Stage 4.4 — Multiple live instances
 
+The schema has been plural since Stage 1.5B. This stage is the
+**hardware proof**, not the introduction of the concept.
+
 **Milestone gate (L4):** two genuinely simultaneous inference instances
 with safe per-instance allocations on real hardware; a third correctly
 denied; either stopped independently without disturbing the other;
-restart reconciles both.
+restart reconciles both. Several models stored and two different
+instances running is the intended demonstration. Advanced scheduling,
+replica autoscaling and multi-host placement remain later.
 
 ---
 
@@ -1441,7 +1593,7 @@ output, defer and record it.
         ↓
 2.  Storage that tells the truth, and acquisition that cannot corrupt it
         ↓
-3.  Choosing well, and explaining the choice
+3.  Choosing well, and explaining the choice — evidence, not first existence
         ↓
 4.  Several workloads coexisting safely
         ↓

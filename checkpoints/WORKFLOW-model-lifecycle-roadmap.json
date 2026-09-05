@@ -1,0 +1,77 @@
+{
+  "record": "workflow-adoption",
+  "name": "model-lifecycle-roadmap",
+  "status": "adopted",
+  "summary": "Near-term Milestone 1 stages name the full model lifecycle as thin slices instead of compressing catalog, metadata, feasibility, selection, acquisition, inventory, admission and inference instance into Model Presence / Admission / Inference. Depth stays in Milestones 2–4. No product code. Stage 1.3 not begun.",
+  "START_LINK": {
+    "predecessor_accepted_commit": "d38e1ed6c40ec542e88c59df5752fc656a89b151",
+    "predecessor_checkpoint": "checkpoints/STAGE-1.2A-storage-sanity-console.json",
+    "predecessor_stage": "1.2A",
+    "starting_source_commit": "d38e1ed6c40ec542e88c59df5752fc656a89b151"
+  },
+  "accepted_historical_checkpoints_untouched": [
+    "checkpoints/STAGE-1.1-host-discovery.json",
+    "checkpoints/STAGE-1.2-capacity.json",
+    "checkpoints/STAGE-1.2A-storage-sanity-console.json"
+  ],
+  "refined_forward_sequence": {
+    "1.2A": "closed — Storage Sanity + Prototype Console; not reopened",
+    "1.3": "Runtime / Executor exoskeleton — no LLM required — NEXT",
+    "1.4A": "Model sources / catalog + metadata",
+    "1.4B": "Feasibility + capacity-based selection + DeploymentPlan v0",
+    "1.4C": "Model acquisition + plural inventory",
+    "1.5A": "Resource admission + ResourceReservation",
+    "1.5B": "InferenceInstance lifecycle — plural schema; one running instance acceptable",
+    "1.6": "Real inference vertical",
+    "1.7": "Gateway, subject, usage event — unchanged",
+    "1.8": "Milestone 1 L4 gate — unchanged in purpose, steps name the thin lifecycle"
+  },
+  "multi_model": {
+    "first_vertical": "several models stored, one inference instance running",
+    "later_gate": "Stage 4.4 — two concurrent inference instances on real hardware",
+    "two_running_not_a_blocker_for_first_inference": true,
+    "advanced_scheduler_deferred": true
+  },
+  "invariants": [
+    "planning does not reserve",
+    "ModelArtifact is not InferenceInstance",
+    "storage state is not runtime state",
+    "plural inventory from v1",
+    "plural inference instances from v1",
+    "same artifact may have many instances",
+    "many models may run when hardware permits",
+    "request concurrency is not instance concurrency",
+    "no global selected=true",
+    "frontend does not own product logic",
+    "Unknown is never silently zero",
+    "capacity, reservation and utilization stay separate",
+    "desired, observed and health stay separate"
+  ],
+  "not_pulled_forward": [
+    "empirical storage characterization (2.2)",
+    "capacity evidence providers (3.2)",
+    "marketplace",
+    "learned selector",
+    "model inventory optimizer",
+    "multi-host placement",
+    "replica autoscaling",
+    "Team Brain training",
+    "runtime / execution packages"
+  ],
+  "k28_dc14": {
+    "preserved": true,
+    "macos_sonar": "UNSUPPORTED",
+    "does_not_lower_capacity": true,
+    "sparse_truncate_forbidden": true,
+    "not_solved_in_this_record": true
+  },
+  "scope": {
+    "product_code_changed": false,
+    "stage_1_2_reopened": false,
+    "stage_1_2A_reopened": false,
+    "stage_1_3_begun": false,
+    "runtime_package_created": false,
+    "execution_package_created": false
+  },
+  "next": "Stage 1.3 — Runtime / Executor exoskeleton, after verifying HEAD and this sequence. Local T0/T1/T2 first; real hardware only for the required T3 gate."
+}

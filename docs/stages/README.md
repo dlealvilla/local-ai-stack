@@ -111,8 +111,17 @@ four times what exists.
 Steps 1–12 ran locally with no host. That is the testing strategy working,
 and 1.2 is the first stage developed under it.
 
-**Next is Stage 1.3 — executor and runtime abstractions.**
+**Stage 1.2A is closed** — Storage Sanity Sonar v0 and the Prototype
+Console, including local Fixture Replay Mode. Checkpoint:
+`checkpoints/STAGE-1.2A-storage-sanity-console.json`. Stage 1.3 was not
+begun.
 
-From there to the Milestone 1 gate — a real request reaching a real model
-and returning an answer — every claim is checked against hardware. That gate
-is the proof the previous attempt never obtained after 58,706 lines.
+The near-term Milestone 1 sequence after 1.2A is explicit rather than
+compressed: 1.3 runtime/executor; 1.4A catalog/metadata; 1.4B
+feasibility and selection; 1.4C acquisition and plural inventory; 1.5A
+admission; 1.5B inference-instance lifecycle; 1.6 real inference;
+then 1.7–1.8.
+
+**Next is Stage 1.3 — runtime / executor exoskeleton.** No LLM required.
+Do not start it until the predecessor HEAD and this roadmap sequence
+are verified.

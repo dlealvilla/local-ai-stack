@@ -233,8 +233,11 @@ Part II §4.4.
 
 **Every host-scoped contract carries a host identifier from v1, and
 every collection is plural from v1.** `HostCapabilities`, `StoragePool`,
-`CapacityEnvelope`, `ResourceReservation`, `InferenceInstance` and
-`InferenceEndpoint` are all host-scoped. Milestone 14 extends them into
+`CapacityEnvelope`, `ModelInventoryRecord`, `ResourceReservation`,
+`InferenceInstance` and `InferenceEndpoint` are all host-scoped.
+`models[]` and `inference_instances[]` are collections from the first
+schema — never `current_model` or `current_inference_instance`.
+Milestone 14 extends them into
 `FleetState`, and the roadmap states that the multi-pool and
 per-accelerator contracts exist "precisely so this is an extension." If
 v1 assumes a single implicit host, Milestone 14 is a rewrite of every
@@ -299,6 +302,17 @@ locates an artifact — it does not qualify it, and suitability is never
 inferred from presence. Without this rule, moving between rented servers
 day to day is unsafe in the least visible way possible: the artifact is
 right there, so it looks fine.
+
+**A `ModelArtifact` is not an `InferenceInstance`.** Storage state is
+not runtime state. A stored artifact consumes disk; a running instance
+consumes runtime resources and holds a `ResourceReservation`. Stopping
+an instance does not delete the artifact. There is no
+`model.running = true`. The same artifact may have many instances;
+several different models may run at once when hardware permits. Request
+concurrency (many requests, one instance) is not instance concurrency
+(several instances). Planning recommends and never reserves; resource
+admits. Frontend clients display platform APIs; they do not own product
+logic.
 
 **Unknown is a distinct value, not a null.** `docs/DEBT.md` rule 6
 requires that consumers can tell "needs nothing" from "we do not know",
@@ -735,13 +749,13 @@ ended up with a 48-minute capacity query.
 
 | | |
 |---|---|
-| **Owns** | `ModelMetadata` and `ModelArtifact` normalized from any source. `ModelInventoryRecord` with explicit states and lineage — parent model and revision, derivation type, owner, dataset reference, promotion state. `ModelRequirement`, host-independent. The acquisition workflow and `AcquisitionReceipt`. |
+| **Owns** | `ModelMetadata` and `ModelArtifact` normalized from any source. `ModelInventoryRecord` with explicit artifact states (remote, acquiring, stored, invalid, updating, deleted) and lineage — parent model and revision, derivation type, owner, dataset reference, promotion state. Running is not an inventory state. `ModelRequirement`, host-independent. The acquisition workflow and `AcquisitionReceipt`. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `storage` ports and contracts |
 | **Produces** | `ModelInventoryRecord v1` · `ModelRequirement v1` · `AcquisitionReceipt` |
 | **Ports** | `ModelSource` · `ModelMetadataEnricher` |
 | **Implements** | `storage.ports.ManagedUsageSource` |
-| **Must not** | Let a model requirement depend on the host — feasibility is where host and requirement meet. Fill a missing metadata field with a guess; absent values stay unresolved and are reported. Let an external source failure mark the local platform unhealthy. |
-| **Created** | 1.4 local inventory · **Deepened** 2.5 source, 2.6 acquisition, 3.1 requirement |
+| **Must not** | Let a model requirement depend on the host — feasibility is where host and requirement meet. Fill a missing metadata field with a guess; absent values stay unresolved and are reported. Let an external source failure mark the local platform unhealthy. Collapse inventory into a single `current_model`. Treat a stored artifact as a running workload. |
+| **Created** | 1.4A catalog/metadata · 1.4C acquisition and plural inventory · **Deepened** 2.5 source, 2.6 acquisition, 3.1 requirement |
 
 Model sits above capacity and storage because of an explicit roadmap
 rule: capacity precedes catalogue, and model requirements must never
@@ -755,12 +769,12 @@ cannot see it.
 
 | | |
 |---|---|
-| **Owns** | `FeasibilityResult` — three verdicts, per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, maximum viable configuration, reasons and evidence references. `DeploymentPlan`. Selection, with recorded rejection reasons. |
+| **Owns** | `FeasibilityResult` — four verdicts (`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`), per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, maximum viable configuration, reasons and evidence references. `DeploymentPlan`. `SelectionRecommendation` (primary, alternatives, rejected candidates, rationale). Selection, with recorded rejection reasons. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` · `components` · `capacity` · `model` |
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
-| **Must not** | Import `resource`. Reserve anything. Select on unverified capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. |
-| **Created** | 3.3 feasibility, 3.4 plan, 3.5 selection |
+| **Must not** | Import `resource`. Reserve anything. Select on unverified capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. |
+| **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection |
 
 Feasibility must be computable for candidates that are not yet acquired.
 The previous attempt could only assess models it already had, which is
@@ -774,7 +788,7 @@ what made selection impossible.
 | **Consumes** | `kernel` · `evidence` · `policy` · `capacity` safe layer · `model` requirement |
 | **Produces** | `AdmissionDecision` · `ResourceReservation`, persisted and reconciled |
 | **Must not** | Import `planning`, `runtime` or `inference`. Know selection ranking. Admit against a reported or effective value. Conflate requested requirement, admitted reservation, observed consumption and peak observed consumption. |
-| **Created** | 1.5 · **Deepened** 4.1 workload types, 4.2 oversubscription, 4.3 concurrency |
+| **Created** | 1.5A · **Deepened** 4.1 workload types, 4.2 oversubscription, 4.3 concurrency |
 
 The ordering this module enforces is the mutation contract for the whole
 platform: reserve before mutation, roll the reservation back if start
@@ -875,11 +889,11 @@ nowhere else.
 
 | | |
 |---|---|
-| **Owns** | `InferenceInstance` — instance identity, host, model and revision, runtime, executor, endpoint, reservation, context, runtime concurrency, platform request limit, access-policy reference, lifecycle state, configuration version. The lifecycle: start, health, stop, restart, unload. `InferenceEndpoint`. The distinction between status and health. |
+| **Owns** | `InferenceInstance` — instance identity, host, model artifact and revision, runtime, executor, endpoint, reservation, context, runtime concurrency, platform request limit, access-policy reference, lifecycle state, desired vs observed vs health, configuration version. The lifecycle: start, health, stop, restart, unload. `InferenceEndpoint`. The distinction between status and health. Collections are `inference_instances[]`. The same artifact may have many instances; many models may run at once. |
 | **Consumes** | `kernel` · `resource` · `execution` · `runtime` · `model` |
 | **Produces** | A running instance, a healthy endpoint, and reconciliation on restart |
-| **Must not** | Route requests, authenticate, or emit usage events. Confuse a reachable port with a functioning API. |
-| **Created** | 1.6 · **Deepened** 4.4 multiple instances |
+| **Must not** | Route requests, authenticate, or emit usage events. Confuse a reachable port with a functioning API. Collapse to `current_inference_instance` or `model.running`. Delete a stored artifact on stop/unload. |
+| **Created** | 1.5B plural schema · 1.6 first live instance · **Deepened** 4.4 concurrent live instances |
 
 ### `analytics`
 
@@ -1140,7 +1154,7 @@ client → api → gateway
   → adapters/usage partition
 ```
 
-**Trace C — an instance starts** (1.5, 1.6)
+**Trace C — an instance starts** (1.5A, 1.5B, 1.6)
 
 ```text
 model inventory record → ModelRequirement
@@ -1152,10 +1166,10 @@ model inventory record → ModelRequirement
   → inference InferenceInstance       → health → endpoint published
 
 failure: release the reservation, no orphan process, no orphan port
-stop:    stop the runtime, then release the reservation
+stop:    stop the runtime, then release the reservation; artifact remains
 ```
 
-**Trace D — a model is acquired** (2.6)
+**Trace D — a model is acquired** (1.4C thin; 2.6 deepened)
 
 ```text
 model source → immutable revision → ModelArtifact
@@ -1173,7 +1187,7 @@ cancel: cooperative, lock released without relying on process exit,
         no orphan artifact, outcome inconclusive rather than failed
 ```
 
-**Trace E — a model is chosen** (3.3–3.5)
+**Trace E — a model is chosen** (1.4B v0; 3.3–3.5 deepened)
 
 ```text
 curated candidates → ModelMetadata (unresolved fields explicit)
@@ -1181,7 +1195,7 @@ curated candidates → ModelMetadata (unresolved fields explicit)
   → capacity CapacityEnvelope
   → planning FeasibilityResult per candidate, with limiting factor
   → planning Selector, deterministic under a recorded policy version
-  → DeploymentPlan with alternatives and confidence
+  → SelectionRecommendation + DeploymentPlan with alternatives and confidence
   → approval → Trace D → Trace C
 
 every rejected candidate records why it lost
@@ -1210,18 +1224,22 @@ lower tier, or by a declared provisional stand-in. The result:
 | 0.3 | `platform`, `api`, local administrator | `kernel`, `identity` | ✅ |
 | 1.1 | `host` | `evidence` | ✅ |
 | 1.2 | `capacity` policy-only | `host`, `evidence`, `policy`, `StoragePool` | ✅ via finding 1 |
+| 1.2A | Storage Sonar v0, Prototype Console | `capacity`, `storage`, `api` | ✅ closed |
 | 1.3 | `execution`, `runtime`, component seam | `host` | ✅ via finding 2 |
-| 1.4 | `model` inventory | `storage` pool, `model` contracts | ✅ via finding 1 |
-| 1.5 | `resource` | `capacity`, `ModelRequirement` | ✅ crude requirement, already in the ledger |
-| 1.6 | `inference` | `resource`, `execution`, `runtime`, `model` | ✅ |
+| 1.4A | `ModelSource`, `ModelMetadata`, `ModelRequirement` v0 | `model` contracts | ✅ |
+| 1.4B | `planning` v0: feasibility, selection, `DeploymentPlan` | `capacity`, `model`, `host` | ✅ |
+| 1.4C | acquisition v0, plural inventory | `storage` pool, `model` | ✅ via finding 1 |
+| 1.5A | `resource` admission and reservation | `capacity`, `ModelRequirement` | ✅ crude requirement, already in the ledger |
+| 1.5B | `inference` instance schema (plural) | `resource`, `execution`, `runtime`, `model` | ✅ |
+| 1.6 | first live `InferenceInstance` | 1.5B | ✅ |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |
-| 2.1–2.4 | `storage` deepened | `host`, `evidence`, `ManagedUsageSource` | ✅ implemented by `model` at 1.4 |
-| 2.5–2.6 | `ModelSource`, acquisition | storage mutation safety at 2.4 | ✅ correctly ordered |
-| 3.1 | `ModelRequirement` real | `ModelMetadata` at 2.5 | ✅ |
+| 2.1–2.4 | `storage` deepened | `host`, `evidence`, `ManagedUsageSource` | ✅ implemented by `model` at 1.4C |
+| 2.5–2.6 | `ModelSource` and acquisition deepened | storage mutation safety at 2.4 | ✅ correctly ordered as deepening |
+| 3.1 | `ModelRequirement` real | `ModelMetadata` at 1.4A / 2.5 | ✅ |
 | 3.2 | `CapacityEvidenceProvider` | `capacity` at 1.2, requirement at 3.1 | ✅ |
-| 3.3–3.5 | `planning` | 3.1, 3.2, `capacity`, `components` | ✅ via finding 2 |
-| 4.1–4.4 | `resource`, `runtime` deepened | 1.5, 1.3 | ✅ |
+| 3.3–3.5 | `planning` deepened | 1.4B, 3.1, 3.2, `capacity`, `components` | ✅ via finding 2 |
+| 4.1–4.4 | `resource`, `runtime` deepened | 1.5A, 1.3 | ✅ |
 | 5.1–5.4 | `identity`, `gateway`, `analytics` deepened | 0.2 contracts | ✅ deepens, never retrofits |
 | 6.1–6.3 | console, agent, startup | `api` grown since 0.3 | ✅ |
 | 7.x–8.x | `knowledge`, `brains` | `identity`, `gateway` | ✅ |
@@ -1246,7 +1264,7 @@ rewrite. Each one is accounted for:
 | 11.4 ModelOutcome | `analytics.contracts` and its store port | 1.7 |
 | 12.1 effectiveness dataset | reads the analytics store | 1.7 |
 | 12.2 intelligent routing | `gateway.ports.Router` | 1.7 |
-| 12.3 portfolio optimizer | `planning.ports.Selector` | 3.5 |
+| 12.3 portfolio optimizer | `planning.ports.Selector` | 1.4B / 3.5 |
 | 13.1 dataset governance | `training.contracts.DatasetSnapshot` | 0.2 |
 | 13.2 model adaptation | `training.ports.ModelAdaptationProvider`, workloads via `resource` | 4.1 |
 | 13.4 team-specific serving | `gateway.ports.Router` and runtime adapter capability | 1.7, 1.3 |
@@ -1299,7 +1317,7 @@ mentions audit as a consumer of the identity model, and Part IV defers the
 audit *UI*. No stage creates the audit *contract*. Retrofitting it means
 revisiting every mutating workflow.
 *Applied:* `AuditEvent` added to Stage 0.2, emitted from every mutating
-workflow starting at Stage 1.5.
+workflow starting at Stage 1.5A.
 
 **Finding 4 — `Approval` has no owning stage.** Stage 6.2 requires that
 meaningful mutations obtain explicit administrator approval, and the
@@ -1309,7 +1327,7 @@ reversible. The recording mechanism is unassigned.
 administrator identity.
 
 **Finding 5 — health has no seam, only a destination.** Stage 6.1
-displays platform health and Stage 1.6 distinguishes status from health,
+displays platform health and Stage 1.5B distinguishes status from health,
 but nothing defines how a domain contributes to an aggregate view. Without
 a `HealthSource` port from Stage 0.3, Milestone 6 becomes a survey of
 every subsystem instead of an assembly.

@@ -295,10 +295,12 @@ trigger, and **no shape may claim a profile its evidence does not support.**
 actual hardware, and released afterwards.**
 
 Rent one for: Stage 1.2's capacity claims, Stage 1.3 device execution where
-required, Stage 1.6 live inference, milestone validation.
+required, Stage 1.4C if a real acquisition is claimed, Stage 1.6 live
+inference, milestone validation.
 
 Do not rent one for: editing code, contract changes, unit tests, fixture
-replay, documentation, packaging tests, or most planning and resource logic.
+replay, documentation, packaging tests, catalog/metadata/feasibility
+contracts, or most planning and resource logic.
 
 Most of Stage 1.2 can be developed against the committed Stage 1.1 fixture
 with no host at all.
