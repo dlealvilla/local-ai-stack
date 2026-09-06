@@ -115,15 +115,16 @@ and 1.2 is the first stage developed under it.
 Console, including local Fixture Replay Mode. Checkpoint:
 `checkpoints/STAGE-1.2A-storage-sanity-console.json`.
 
-**Stage 1.3 is in progress.** Local T0/T1/T2 prove the runtime/executor
-exoskeleton. The authoritative gate is `L2` on a generic Linux host (no
-GPU). That T3 run has not happened yet. Do not start Stage 1.4A until
-1.3 is closed.
+**Stage 1.3 is closed** at `L2` on a fresh Linux x86_64 CPU-only host
+through an installed artifact. Native process execution, bounded output
+capture, graceful and forced stop, and the Prototype Console runtime
+panel were proven on that host. Checkpoint:
+`checkpoints/STAGE-1.3-runtime-executor.json`.
 
 The near-term Milestone 1 sequence after 1.3 is explicit: 1.4A
 catalog/metadata; 1.4B feasibility and selection; 1.4C acquisition and
 plural inventory; 1.5A admission; 1.5B inference-instance lifecycle;
 1.6 real inference; then 1.7–1.8.
 
-**Next after Stage 1.3 closes:** Stage 1.4A — Model Sources / Catalog +
-Metadata. Its own bounded brief is required.
+**Next:** Stage 1.4A — Model Sources / Catalog + Metadata. Its own
+bounded brief is required. Do not begin it from this closeout.

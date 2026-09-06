@@ -2,7 +2,7 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **LOCAL ACCEPTANCE COMPLETE; L2 T3 PENDING.**
+Status: **CLOSED.** `L2` on a fresh Linux x86_64 CPU-only host, 2026-09-06.
 
 The stage establishes two domains and does not run an LLM.
 
@@ -68,14 +68,36 @@ threads are non-daemon and joined after exit.
 
 | Layer | Result |
 |---|---|
-| T0 focused | `tests/test_runtime_execution.py` |
-| T1 regressions | Host, Capacity, Sonar, Console, architecture |
-| T2 | Clean installed wheel, `kultrun runtime start --once`, console `/v1/runtime` |
-| T3 | **Pending.** Gate is L2 on a generic Linux host. No GPU required. Previous RunPod must not be reused. |
+| T0 focused | 32 tests in `tests/test_runtime_execution.py` |
+| T1 regressions | architecture + full suite 493, ruff clean, mypy strict 98 files |
+| T2 | Clean installed wheel locally; superseded for the gate by T3 |
+| T3 | **Passed.** `L2` on a fresh Linux x86_64 CPU-only host. Previous RunPod identities were not reused. |
+
+Accepted artifact: `kultrun-0.1.0-py3-none-any.whl`  
+SHA-256: `d8f2d5b559280162e3d758b7601de8e18e4e71ca1e2a16963e419cf33f60d8a8`  
+Build: `0.1.0+01a43238c790` from `01a43238c79086ef8b809c52985b134e3c04d9ae`  
+Install: `/opt/kultrun`, `KULTRUN_STATE_ROOT=/var/lib/kultrun`, no source checkout.
+
+T3 host: Docker container `698a886ede90`, Ubuntu 20.04.6, AMD EPYC 9655P
+96/192, fingerprint `2c154fdc76affcc87a8a15880a361a95`. No GPU. SSH
+`root@213.173.105.101:38631`.
+
+Attempt 1 used the T2 wheel. Linux showed empty stdout on a still-running
+hold workload because buffered `read(4096)` waited for a full chunk or
+EOF. Fixed in `01a43238c790`; attempt 2 proved live stdout, PID, states,
+stderr, non-zero exit, graceful stop, forced SIGKILL, no orphans, and
+the Prototype Console on this host (`/prototype` 200, mode LIVE HOST,
+process evidence `live_local_process`).
+
+Checkpoint: `checkpoints/STAGE-1.3-runtime-executor.json`.
 
 ## Debt
 
 K-31, K-32, K-33, K-34.
+
+Adjacent, not blocking: Prototype Console renders unresolved `pid` /
+`exit_code` as `[object Object]` (`$unresolved` vs `kind`). Live running
+PIDs render correctly.
 
 ## Not begun
 
