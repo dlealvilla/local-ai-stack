@@ -349,8 +349,12 @@ def register(router: Router, plane: ControlPlane) -> Router:
         )
         planned = plan_from(recommendation)
         return {
+            "estimator_mode": recommendation.estimator_mode,
             "estimator_provider": recommendation.estimator_provider,
             "estimator_version": recommendation.estimator_version,
+            "requested_primary": recommendation.requested_primary,
+            "fallback_used": recommendation.fallback_used,
+            "fallback_reason": recommendation.fallback_reason,
             "policy_version": recommendation.policy_version,
             "outcome": recommendation.outcome.value,
             "recommendation": recommendation,

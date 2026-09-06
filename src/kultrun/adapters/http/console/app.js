@@ -615,6 +615,15 @@ function catalogCard(entry) {
   return card;
 }
 
+function fallbackLabel(state, rec) {
+  const used = state.fallback_used === true || rec.fallback_used === true;
+  if (!used) return 'no';
+  const reason = state.fallback_reason || rec.fallback_reason;
+  if (reason === 'provider_unavailable') return 'llmfit unavailable';
+  if (reason && !isUnresolved(reason)) return String(reason).replace(/_/g, ' ');
+  return 'yes';
+}
+
 function percent(value) {
   if (isUnresolved(value) || value == null) return fmt(value);
   return `${(Number(value) * 100).toFixed(1)}%`;
@@ -638,8 +647,10 @@ async function renderSelection() {
     const primary = rec.primary || null;
     const plan = state.plan || null;
     rows(summary, [
+      ['estimator mode', state.estimator_mode || rec.estimator_mode],
       ['active estimator', state.estimator_provider || rec.estimator_provider],
       ['estimator version', state.estimator_version || rec.estimator_version],
+      ['fallback', fallbackLabel(state, rec)],
       ['policy', state.policy_version || rec.policy_version],
       ['outcome', state.outcome || rec.outcome],
     ]);

@@ -180,7 +180,12 @@ class TestSelectionSurface:
         self, tmp_path: Path
     ) -> None:
         configuration = config_schema().load(
-            {"platform": {"state_root": str(tmp_path / "state")}}
+            {
+                "platform": {
+                    "state_root": str(tmp_path / "state"),
+                    "model_requirement_estimator": "kultrun",
+                }
+            }
         )
         platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
         payload = _call(platform, "/models/selection")
@@ -195,6 +200,49 @@ class TestSelectionSurface:
         encoded = str(payload)
         assert "RequirementEvidenceReconciler" not in encoded
 
+    def test_auto_mode_api_uses_llmfit_when_the_plan_succeeds(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from kultrun.adapters.estimators.llmfit import fixture_plan
+
+        fixture_root = (
+            Path(__file__).resolve().parent / "fixtures" / "estimators" / "llmfit"
+        )
+        monkeypatch.delenv("KULTRUN_MODEL_REQUIREMENT_ESTIMATOR", raising=False)
+        monkeypatch.setattr(
+            "kultrun.adapters.estimators.llmfit._subprocess_plan",
+            fixture_plan(fixture_root),
+        )
+        configuration = config_schema().load(
+            {"platform": {"state_root": str(tmp_path / "state")}}
+        )
+        platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
+        payload = _call(platform, "/models/selection")
+        assert payload["estimator_mode"] == "auto"
+        assert payload["estimator_provider"] == "llmfit"
+        assert payload["requested_primary"] == "llmfit"
+        assert payload["fallback_used"] is False
+        assert "kultrun_estimate" not in payload
+        assert "llmfit_estimate" not in payload
+        assert "comparison" not in payload
+
+    def test_auto_mode_api_falls_back_when_llmfit_is_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("KULTRUN_MODEL_REQUIREMENT_ESTIMATOR", raising=False)
+        monkeypatch.setenv("PATH", "/nonexistent")
+        configuration = config_schema().load(
+            {"platform": {"state_root": str(tmp_path / "state")}}
+        )
+        platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
+        payload = _call(platform, "/models/selection")
+        assert payload["estimator_mode"] == "auto"
+        assert payload["estimator_provider"] == "kultrun"
+        assert payload["fallback_used"] is True
+        assert payload["fallback_reason"] == "provider_unavailable"
+        assert "kultrun_estimate" not in payload
+        assert "llmfit_estimate" not in payload
+
     def test_the_cli_recommend_subcommand_uses_the_configured_estimator(
         self,
         tmp_path: Path,
@@ -205,11 +253,32 @@ class TestSelectionSurface:
 
         monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
         monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
+        monkeypatch.setenv("KULTRUN_MODEL_REQUIREMENT_ESTIMATOR", "kultrun")
         assert main(["models", "recommend"]) == 0
         printed = capsys.readouterr().out
-        assert "estimator kultrun" in printed
+        assert "mode kultrun" in printed
+        assert "effective kultrun" in printed
+        assert "fallback no" in printed
         assert "outcome" in printed
         assert "llmfit" not in printed
+
+    def test_the_cli_auto_default_reports_fallback_when_llmfit_is_absent(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from kultrun.main import main
+
+        monkeypatch.delenv("KULTRUN_MODEL_REQUIREMENT_ESTIMATOR", raising=False)
+        monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
+        monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
+        monkeypatch.setenv("PATH", "/nonexistent")
+        assert main(["models", "recommend"]) == 0
+        printed = capsys.readouterr().out
+        assert "mode auto" in printed
+        assert "effective kultrun" in printed
+        assert "fallback provider_unavailable" in printed
 
 
 class TestArchitecture:
@@ -255,3 +324,5 @@ class TestConsoleHonesty:
         assert "kultrun vs llmfit" not in script.lower()
         assert "dual estimate" not in script.lower()
         assert "RequirementEvidenceReconciler" not in script
+        assert "llmfit unavailable" in script
+        assert "fallbackLabel" in script
