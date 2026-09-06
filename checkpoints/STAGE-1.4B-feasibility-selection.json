@@ -1,0 +1,157 @@
+{
+  "stage": "1.4B",
+  "name": "feasibility-selection",
+  "milestone": 1,
+  "output": "ModelRequirementEstimator + FeasibilityResult v0 + SelectionRecommendation v0 + DeploymentPlan v0",
+  "status": "closed",
+  "gate": "L1",
+  "t3_required": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "7e40c70c047fe967b7bb8dc916316d26dd1fbc7e",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.4A-model-catalog.json",
+      "checkpoints/WORKFLOW-model-lifecycle-roadmap.json"
+    ],
+    "architecture_docs_commit": "1db2437",
+    "starting_source_commit": "7e40c70c047fe967b7bb8dc916316d26dd1fbc7e"
+  },
+  "architecture": {
+    "one_active_estimator": true,
+    "default_provider": "kultrun",
+    "product_reconciliation": false,
+    "dual_estimates_exposed": false,
+    "planning_imports_adapters": false,
+    "safe_capacity_authoritative": true,
+    "storage_in_utilization": false,
+    "unknown_never_zero": true,
+    "download_in_this_stage": false,
+    "reservation_in_this_stage": false,
+    "inference_in_this_stage": false
+  },
+  "estimators": {
+    "port": "kultrun.model.ports.ModelRequirementEstimator",
+    "configuration": "KULTRUN_MODEL_REQUIREMENT_ESTIMATOR / PlatformSettings.model_requirement_estimator",
+    "kultrun": {
+      "adapter": "kultrun.adapters.estimators.kultrun.KultrunRequirementEstimator",
+      "version": "1.4B.0",
+      "methods": ["curated", "formula_v0"]
+    },
+    "llmfit": {
+      "adapter": "kultrun.adapters.estimators.llmfit.LlmfitRequirementEstimator",
+      "tested_version": "1.1.14",
+      "license": "MIT",
+      "optional_extra": "estimators",
+      "mechanism": "subprocess llmfit --no-dashboard plan <ref> --context N --quant Q --json",
+      "host_detection_authoritative": false
+    }
+  },
+  "candidates": {
+    "total": 19,
+    "original_fixtures": 6,
+    "overlap": 19,
+    "moe": ["mixtral-8x7b-instruct-q4"],
+    "families": [
+      "tinyllama",
+      "qwen2.5",
+      "llama-3.1",
+      "llama-3.2",
+      "phi",
+      "mistral",
+      "gemma-2",
+      "mixtral"
+    ]
+  },
+  "development_comparison": {
+    "product_feature": false,
+    "tool": "tools/compare_model_estimators.py",
+    "thresholds": "GOOD <= 15%; WARNING <= 35%; else LARGE_DIFFERENCE; relative=(max-min)/max",
+    "live_report_sha256": "9e96397cc9e7bb9c51c8ca3b1fa8294486662e899b898866273a18bad509cb11",
+    "overall": {"GOOD": 8, "WARNING": 9, "LARGE_DIFFERENCE": 2},
+    "assumption_mismatches": 0,
+    "feasibility_boundary_crossings": [
+      "qwen2.5-7b-instruct-awq",
+      "phi-3.5-mini-instruct-q4",
+      "qwen2.5-32b-instruct-q4"
+    ],
+    "unexplained_major_disagreements": false,
+    "host_sensitive": false
+  },
+  "contracts": [
+    "model.estimation_request@1",
+    "model.requirement@1",
+    "planning.deployment_capacity@1",
+    "planning.capacity_utilization@1",
+    "planning.selection_policy@1",
+    "planning.model_evaluation@1",
+    "planning.selection_recommendation@1",
+    "planning.deployment_plan@1"
+  ],
+  "api": {
+    "GET /v1/models": "read-only catalog; ranking/selection/download false",
+    "GET /v1/models/selection": "active estimator only",
+    "cli_catalog": "kultrun models",
+    "cli_recommend": "kultrun models recommend"
+  },
+  "console": {
+    "catalog_panel": true,
+    "selection_panel": true,
+    "dual_estimates": false,
+    "note": "does not compare estimators"
+  },
+  "debt": ["K-36", "K-37", "K-38"],
+  "local_acceptance": {
+    "source_commit": "d63f986c0db83f499c22f49fbcf3caa8efd6014b",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "4fd948d152a75f6225614ca9cd183c11eed520bcac8a0a024b2397d0aed169c8",
+    "build_id": "0.1.0+d63f986c0db8",
+    "clean_source": true,
+    "t2_verify": "10/10",
+    "llmfit_version": "1.1.14",
+    "real_llmfit_execution": true,
+    "real_kultrun_execution": true,
+    "overlap_candidates": 6,
+    "fixture": "default",
+    "kultrun_active_primary": "qwen2.5-14b-instruct-q4",
+    "llmfit_active_primary": "qwen2.5-32b-instruct-q4",
+    "console": {
+      "kultrun_estimator": "active estimator kultrun; primary qwen2.5-14b-instruct-q4 preferred 58.6%",
+      "llmfit_estimator": "active estimator llmfit; primary qwen2.5-32b-instruct-q4 preferred 90.0%",
+      "dual_estimates": false,
+      "installed_artifact": true
+    }
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-06",
+    "method": "focused tests + architecture + full suite + clean wheel + real llmfit plan + local console",
+    "local_tests": 560,
+    "focused_tests": 39,
+    "architecture": 61,
+    "ruff": "clean",
+    "mypy": "strict clean, 143 files"
+  },
+  "test_modes": {
+    "T0": "39 focused estimator/planning/comparison tests plus architecture 61",
+    "T1": "architecture plus full suite 560",
+    "T2": "clean installed wheel 10/10; real llmfit 1.1.14; both product selectors",
+    "T3": "not required",
+    "T4": "not required"
+  },
+  "not_begun": [
+    "Stage 1.4C acquisition and inventory",
+    "resource admission",
+    "inference",
+    "production estimator reconciliation",
+    "live Hub fetch",
+    "learned ranking"
+  ],
+  "END_LINK": {
+    "final_source_commit": "d63f986c0db83f499c22f49fbcf3caa8efd6014b",
+    "final_build_id": "0.1.0+d63f986c0db8",
+    "final_artifact_sha256": "4fd948d152a75f6225614ca9cd183c11eed520bcac8a0a024b2397d0aed169c8",
+    "checkpoint": "checkpoints/STAGE-1.4B-feasibility-selection.json",
+    "next": "1.4C — Model acquisition + plural Model Inventory"
+  }
+}

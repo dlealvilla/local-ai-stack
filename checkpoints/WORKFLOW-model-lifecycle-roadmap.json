@@ -18,7 +18,7 @@
     "1.2A": "closed — Storage Sanity + Prototype Console; not reopened",
     "1.3": "closed at L2 — Runtime / Executor exoskeleton",
     "1.4A": "closed at L1 — curated catalog, ModelMetadata, ModelRequirement v0",
-    "1.4B": "Feasibility + capacity-based selection + DeploymentPlan v0",
+    "1.4B": "closed at L1 — interchangeable estimators, SAFE-capacity selection, DeploymentPlan v0",
     "1.4C": "Model acquisition + plural inventory",
     "1.5A": "Resource admission + ResourceReservation",
     "1.5B": "InferenceInstance lifecycle — plural schema; one running instance acceptable",
@@ -73,5 +73,5 @@
     "runtime_package_created": false,
     "execution_package_created": false
   },
-  "next": "Stage 1.4B — Feasibility + capacity-based selection + DeploymentPlan v0, using the Part V brief. Do not begin Stage 1.4C from 1.4B."
+  "next": "Stage 1.4C — Model acquisition + plural Model Inventory, using the Part V brief. Do not begin Stage 1.5A from 1.4C."
 }

@@ -132,6 +132,13 @@ read-only catalog API, and the Prototype Console Model Catalog panel.
 No ranking, download, or live Hub fetch. Checkpoint:
 `checkpoints/STAGE-1.4A-model-catalog.json`.
 
-**Next:** Stage 1.4B — Feasibility + capacity-based selection +
-`DeploymentPlan` v0. The bounded brief is in `docs/ROADMAP.md` Part V.
-Do not begin acquisition, admission, or inference from 1.4B.
+**Stage 1.4B is closed** at `L1`. One active `ModelRequirementEstimator`
+(Kultrun default, llmfit optional), SAFE-capacity 20–100% selection,
+`SelectionRecommendation` and `DeploymentPlan` v0. Cross-provider
+comparison is development-only. Real `llmfit plan` 1.1.14 proven from a
+clean installed wheel. Checkpoint:
+`checkpoints/STAGE-1.4B-feasibility-selection.json`.
+
+**Next:** Stage 1.4C — Model acquisition + plural Model Inventory. The
+bounded brief is in `docs/ROADMAP.md` Part V. Do not begin admission or
+inference from 1.4C.
