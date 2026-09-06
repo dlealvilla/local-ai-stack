@@ -126,6 +126,12 @@ catalog/metadata; 1.4B feasibility and selection; 1.4C acquisition and
 plural inventory; 1.5A admission; 1.5B inference-instance lifecycle;
 1.6 real inference; then 1.7–1.8.
 
-**Next:** Stage 1.4A — Model Sources / Catalog + Metadata. The bounded
-brief is in `docs/ROADMAP.md` Part V. Stage 1.4B is specified there as
-the capacity-based selector and is **not** begun from 1.4A.
+**Stage 1.4A is closed** at `L1`. Six curated Hugging Face–identity
+candidates, normalized metadata and host-independent requirements, a
+read-only catalog API, and the Prototype Console Model Catalog panel.
+No ranking, download, or live Hub fetch. Checkpoint:
+`checkpoints/STAGE-1.4A-model-catalog.json`.
+
+**Next:** Stage 1.4B — Feasibility + capacity-based selection +
+`DeploymentPlan` v0. The bounded brief is in `docs/ROADMAP.md` Part V.
+Do not begin acquisition, admission, or inference from 1.4B.
