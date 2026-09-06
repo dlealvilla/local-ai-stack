@@ -192,6 +192,24 @@ committed). Live comparison report sha256
 
 Checkpoint: `checkpoints/STAGE-1.4B-feasibility-selection.json`.
 
+## Post-close T2 (AUTO policy amendment)
+
+Source: `b7d59a3afd325f6b7aa52505409e4296a3124073` (clean).  
+Artifact: `kultrun-0.1.0-py3-none-any.whl`  
+SHA-256: `45d71a047deb867425e4096c51d18f6722b005610f68468cd517bfaf05495034`  
+Build: `0.1.0+b7d59a3afd32`. Local verify 10/10. Real llmfit 1.1.14.
+
+| Proof | Result |
+|---|---|
+| AUTO healthy | effective llmfit; fallback false; primary `qwen2.5-32b-instruct-q4` 90.0% |
+| AUTO fallback (llmfit absent) | effective kultrun; `provider_unavailable`; primary `qwen2.5-14b-instruct-q4` 58.6% |
+| both fail | unresolved; unknown not zero |
+| strict llmfit | llmfit; no Kultrun fallback |
+| strict Kultrun | kultrun; llmfit not required |
+| live comparison | 19 overlap; GOOD 8 / WARNING 9 / LARGE_DIFFERENCE 2; same three 24 GiB band crossings; not a product feature |
+
+T0 router tests: 21. T1: architecture 61, full suite 584, ruff clean, mypy strict 145 files. T3 not required.
+
 ## Debt
 
 K-36 (curated / formula_v0 estimates; documented band crossings),

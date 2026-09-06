@@ -117,7 +117,8 @@
       "qwen2.5-32b-instruct-q4"
     ],
     "unexplained_major_disagreements": false,
-    "host_sensitive": false
+    "host_sensitive": false,
+    "amendment_live_report_sha256": "a1805d2cc5b462ae774c711e380fb15942a07cbe57b225d6b86f5bd9781defcb"
   },
   "contracts": [
     "model.estimation_request@1",
@@ -175,10 +176,49 @@
     "ruff": "clean",
     "mypy": "strict clean, 143 files"
   },
+  "amendment_acceptance": {
+    "source_commit": "b7d59a3afd325f6b7aa52505409e4296a3124073",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "45d71a047deb867425e4096c51d18f6722b005610f68468cd517bfaf05495034",
+    "build_id": "0.1.0+b7d59a3afd32",
+    "clean_source": true,
+    "t2_verify": "10/10",
+    "prove": "16/16",
+    "llmfit_version": "1.1.14",
+    "real_llmfit_execution": true,
+    "real_kultrun_execution": true,
+    "fixture": "default",
+    "auto_healthy": {
+      "effective_provider": "llmfit",
+      "fallback_used": false,
+      "primary": "qwen2.5-32b-instruct-q4",
+      "utilization": "90.0%"
+    },
+    "auto_fallback": {
+      "induced": "PATH without llmfit",
+      "typed_reason": "provider_unavailable",
+      "effective_provider": "kultrun",
+      "fallback_used": true,
+      "primary": "qwen2.5-14b-instruct-q4",
+      "utilization": "58.6%"
+    },
+    "both_fail": "unresolved; unknown not zero",
+    "strict_llmfit_primary": "qwen2.5-32b-instruct-q4",
+    "strict_kultrun_primary": "qwen2.5-14b-instruct-q4",
+    "live_comparison_sha256": "a1805d2cc5b462ae774c711e380fb15942a07cbe57b225d6b86f5bd9781defcb",
+    "live_overlap": 19,
+    "live_overall": {"GOOD": 8, "WARNING": 9, "LARGE_DIFFERENCE": 2},
+    "boundary_crossings_unchanged": true,
+    "local_tests": 584,
+    "focused_router_tests": 21,
+    "architecture": 61,
+    "ruff": "clean",
+    "mypy": "strict clean, 145 files"
+  },
   "test_modes": {
     "T0": "39 focused estimator/planning/comparison tests plus architecture 61",
     "T1": "architecture plus full suite 560",
-    "T2": "clean installed wheel 10/10; real llmfit 1.1.14; both product selectors",
+    "T2": "original: clean wheel 10/10 both selectors; amendment: 10/10 plus AUTO/fallback/strict from b7d59a3",
     "T3": "not required",
     "T4": "not required"
   },
