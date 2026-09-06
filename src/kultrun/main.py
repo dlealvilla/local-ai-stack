@@ -21,6 +21,7 @@ from pathlib import Path
 from kultrun.adapters.execution.native_process import NativeProcessExecutor
 from kultrun.adapters.host import fixtures, hwloc, native_linux, nvidia
 from kultrun.adapters.install import apt
+from kultrun.adapters.model_source.huggingface import HuggingFaceSource
 from kultrun.adapters.persistence import file_store
 from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.storage import posix_reservation, replayed
@@ -61,6 +62,7 @@ from kultrun.kernel.schema import validate_registry
 from kultrun.kernel.unresolved import is_resolved
 from kultrun.knowledge import contracts as _knowledge_contracts  # noqa: F401
 from kultrun.model import contracts as _model_contracts  # noqa: F401
+from kultrun.model.catalogue import ModelCatalogue
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import (
     ComponentHealth,
@@ -216,6 +218,7 @@ class Platform:
     sanity: StorageSanityService
     executions: ExecutionService
     runtimes: RuntimeCatalogue
+    models: ModelCatalogue
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -393,6 +396,7 @@ def build(
     executor = NativeProcessExecutor(resolved_clock)
     executions = ExecutionService(executor, store)
     runtimes = RuntimeCatalogue((ReferenceProcessRuntime(hold=True),))
+    models = ModelCatalogue(HuggingFaceSource())
     execution_phase = _ExecutionPhase(executions)
 
     startup = Startup(resolved_clock)
@@ -422,6 +426,7 @@ def build(
         sanity=sanity,
         executions=executions,
         runtimes=runtimes,
+        models=models,
         executor_identity=executor.identity.value,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
@@ -441,6 +446,7 @@ def build(
         sanity=sanity,
         executions=executions,
         runtimes=runtimes,
+        models=models,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -884,9 +890,59 @@ def _print_execution(handle: ExecutorHandle) -> None:
         print(handle.stderr, end="" if handle.stderr.endswith("\n") else "\n")
 
 
+def show_models() -> int:
+    """List the curated catalog. Does not rank, download or recommend."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    print(f"source {platform.models.source_identity.value}  live-fetch no")
+    print("selection no  ranking no  download no")
+    for entry in platform.models.entries():
+        meta = entry.metadata
+        req = entry.requirement
+        display = (
+            meta.display_name
+            if is_resolved(meta.display_name)
+            else meta.logical_name
+        )
+        quant = meta.quantization if is_resolved(meta.quantization) else "unknown"
+        params = (
+            f"{meta.parameter_count / 1_000_000_000:.1f}B"
+            if is_resolved(meta.parameter_count)
+            else "unknown"
+        )
+        context = (
+            str(meta.context_length_tokens)
+            if is_resolved(meta.context_length_tokens)
+            else "unknown"
+        )
+        print(f"\n{display}")
+        print(f"  {meta.logical_name}  {meta.source_ref}")
+        print(
+            f"  params {params}  quant {quant}  context {context}  "
+            f"confidence {req.confidence.value}"
+        )
+        print(
+            f"  artifact {_bytes(req.storage_bytes)}  "
+            f"peak {_bytes(req.peak_additional_bytes)}  "
+            f"RAM {_bytes(req.ram_bytes)}  "
+            f"VRAM {_bytes(req.estimated_vram_bytes)}"
+        )
+        method = (
+            req.estimation_method
+            if is_resolved(req.estimation_method)
+            else "unknown"
+        )
+        print(
+            f"  runtimes {', '.join(meta.supported_runtimes) or 'unstated'}  "
+            f"method {method}"
+        )
+    return 0
+
+
 COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "version": lambda _: show_version(),
     "host": lambda _: show_host(),
+    "models": lambda _: show_models(),
     "storage": _storage,
     "runtime": _runtime,
     "serve": lambda _: serve(),
@@ -899,8 +955,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     Deliberately a small command set and no framework. Each exists because
     the workflow needs it: `version` identifies a deployed build, `host`
     lets a real-host run be observed without shipping a script beside the
-    product, `storage` and `runtime` are explicit mutations, and `serve`
-    is what the platform does.
+    product, `models` lists the curated catalog, `storage` and `runtime` are
+    explicit mutations, and `serve` is what the platform does.
     """
     arguments = list(sys.argv[1:] if argv is None else argv)
     if not arguments or arguments[0] in ("-h", "--help", "help"):

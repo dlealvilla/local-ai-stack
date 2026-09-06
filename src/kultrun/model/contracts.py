@@ -7,7 +7,7 @@ what this host currently has and what state it is in.
 
 **A requirement is host-independent.** What a model needs is a property of
 the model; where a need meets a machine is feasibility, which belongs to
-`planning` at Milestone 3. A host reference here would invert the
+`planning` at Stage 1.4B. A host reference here would invert the
 dependency the tier order exists to protect.
 
 **Missing metadata stays missing.** The previous attempt's catalogue
@@ -107,6 +107,18 @@ class ModelMetadata(Contract):
     commercial_use_restricted: Maybe[bool] = meaning(
         "whether the licence restricts commercial use; unknown is not permission"
     )
+    architecture: Maybe[str] = meaning(
+        "model architecture family as stated by the source",
+        default=NOT_PROVIDED,
+    )
+    display_name: Maybe[str] = meaning(
+        "human-readable label for consoles; not an identifier",
+        default=NOT_PROVIDED,
+    )
+    supported_runtimes: tuple[str, ...] = meaning(
+        "runtime names this variant is known to support; empty means unstated",
+        default=(),
+    )
 
 
 @contract(kind="model.artifact", version=1)
@@ -163,6 +175,33 @@ class ModelRequirement(Contract):
         "compute capabilities the model needs, such as a quantization kernel",
         default=(),
     )
+    unified_memory_bytes: Maybe[int] = meaning(
+        "shared CPU/GPU memory where that is the deployment memory model; "
+        "not a VRAM alias. Unstated on discrete-GPU candidates",
+        default=NOT_PROVIDED,
+    )
+    activation_bytes: Maybe[int] = meaning(
+        "accelerator memory held by activations under the assumed context",
+        default=NOT_PROVIDED,
+    )
+    estimated_vram_bytes: Maybe[int] = meaning(
+        "deployed accelerator-memory estimate under the assumed runtime, "
+        "quantization and context; not parameter count and not artifact size",
+        default=NOT_PROVIDED,
+    )
+    assumed_context_tokens: Maybe[int] = meaning(
+        "context length the memory estimates assume; distinct from the "
+        "model's maximum advertised context",
+        default=NOT_PROVIDED,
+    )
+    supported_runtimes: tuple[str, ...] = meaning(
+        "runtimes these estimates assume; empty means unstated",
+        default=(),
+    )
+    estimation_method: Maybe[str] = meaning(
+        "how these figures were produced, so a reader can judge them",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="model.inventory_record", version=1)
@@ -200,4 +239,19 @@ class ModelInventoryRecord(Contract):
     last_used_at: dt.datetime | None = meaning(
         "when it last served a request, for portfolio decisions later",
         default=None,
+    )
+
+
+@contract(kind="model.catalog_entry", version=1)
+@dataclass(frozen=True, slots=True)
+class ModelCatalogEntry(Contract):
+    """One curated candidate: metadata plus host-independent requirement.
+
+    This is not a recommendation and not an inventory record. Stage 1.4A
+    lists candidates. Stage 1.4B decides fit. Stage 1.4C stores bytes.
+    """
+
+    metadata: ModelMetadata = meaning("normalized description of this variant")
+    requirement: ModelRequirement = meaning(
+        "what serving this variant would cost, independent of any host"
     )

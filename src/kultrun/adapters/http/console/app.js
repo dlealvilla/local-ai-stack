@@ -27,7 +27,8 @@ const SUBSYSTEMS = [
   { name: 'Capacity', probe: '/capacity' },
   { name: 'Storage sanity', probe: '/storage/sanity' },
   { name: 'Runtime / executor', probe: '/runtime' },
-  { name: 'Model presence', probe: null, stage: '1.4' },
+  { name: 'Model catalog', probe: '/models' },
+  { name: 'Model selection', probe: null, stage: '1.4B' },
   { name: 'Resource admission', probe: null, stage: '1.5' },
   { name: 'Inference', probe: null, stage: '1.6' },
 ];
@@ -65,11 +66,18 @@ async function post(path, payload) {
  * distinguish "unknown" from "none", and flattening it here would throw
  * that away at the last step. */
 function isUnresolved(value) {
-  return value === null || (typeof value === 'object' && value !== null && 'kind' in value);
+  if (value === null) return true;
+  if (typeof value !== 'object') return false;
+  if ('$unresolved' in value) return true;
+  return 'kind' in value && String(value.kind).startsWith('unresolved');
 }
 
 function unresolvedLabel(value) {
   if (value === null) return 'unknown';
+  if (value && typeof value === 'object' && value.$unresolved) {
+    const reason = String(value.$unresolved.reason || '').replace(/_/g, ' ');
+    return reason || 'unknown';
+  }
   const kind = String(value.kind || '').replace('unresolved.', '').replace(/_/g, ' ');
   return kind || 'unknown';
 }
@@ -535,6 +543,78 @@ function runtimeControls(executions, controls) {
   return wrap;
 }
 
+async function renderCatalog() {
+  const panel = document.getElementById('catalog-panel');
+  const summary = document.getElementById('catalog-summary');
+  const target = document.getElementById('catalog');
+  try {
+    const state = await get('/models');
+    panel.classList.remove('hidden');
+    const source = state.source || {};
+    rows(summary, [
+      ['source', source.identity || 'not reported'],
+      ['live hub fetch', source.live_fetch ? 'yes' : 'no'],
+      ['ranking', state.ranking ? 'yes' : 'no'],
+      ['selection', state.selection ? 'yes' : 'no'],
+      ['download', state.download ? 'yes' : 'no'],
+      ['candidates', String((state.candidates || []).length)],
+    ]);
+    target.replaceChildren();
+    if (!state.candidates || state.candidates.length === 0) {
+      target.append(span('muted', 'No candidates in the catalog.'));
+    }
+    for (const entry of state.candidates || []) {
+      target.append(catalogCard(entry));
+    }
+    json(document.getElementById('catalog-json'), state);
+  } catch (error) {
+    if (error.message.startsWith('404')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
+function catalogCard(entry) {
+  const meta = entry.metadata || {};
+  const req = entry.requirement || {};
+  const card = document.createElement('div');
+  card.className = 'pool';
+  const head = document.createElement('div');
+  head.className = 'pool-head';
+  const title = document.createElement('span');
+  title.className = 'pool-path';
+  title.textContent = fmt(meta.display_name) !== 'unknown'
+    ? fmt(meta.display_name)
+    : fmt(meta.logical_name);
+  head.append(title, pill(fmt(meta.quantization), 'unknown'));
+  card.append(head);
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  const params = isUnresolved(meta.parameter_count) || meta.parameter_count == null
+    ? fmt(meta.parameter_count)
+    : `${(Number(meta.parameter_count) / 1e9).toFixed(1)}B`;
+  rows(grid, [
+    ['source ref', meta.source_ref],
+    ['parameters', params],
+    ['quantization', meta.quantization],
+    ['artifact size', bytes(req.storage_bytes)],
+    ['peak acquisition', bytes(req.peak_additional_bytes)],
+    ['estimated RAM', bytes(req.ram_bytes)],
+    ['estimated VRAM', bytes(req.estimated_vram_bytes)],
+    ['unified memory', bytes(req.unified_memory_bytes)],
+    ['context', meta.context_length_tokens],
+    ['runtime', (meta.supported_runtimes || []).join(', ') || 'unstated'],
+    ['license', meta.license_id],
+    ['requirement confidence', req.confidence],
+    ['estimation method', req.estimation_method],
+  ]);
+  card.append(grid);
+  return card;
+}
+
 async function renderHost() {
   const target = document.getElementById('host');
   const conflicts = document.getElementById('host-conflicts');
@@ -638,6 +718,7 @@ async function refresh() {
     const envelope = await renderCapacity();
     await renderSanity(envelope);
     await renderRuntime();
+    await renderCatalog();
     await renderHost();
     await renderProviders();
     await renderProgress();

@@ -2032,6 +2032,25 @@
     },
     "python": "ModelArtifact"
   },
+  "model.catalog_entry@1": {
+    "fields": {
+      "metadata": {
+        "may_be_unresolved": false,
+        "meaning": "normalized description of this variant",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelMetadata"
+      },
+      "requirement": {
+        "may_be_unresolved": false,
+        "meaning": "what serving this variant would cost, independent of any host",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelRequirement"
+      }
+    },
+    "python": "ModelCatalogEntry"
+  },
   "model.inventory_record@1": {
     "fields": {
       "artifact_id": {
@@ -2102,6 +2121,13 @@
   },
   "model.metadata@1": {
     "fields": {
+      "architecture": {
+        "may_be_unresolved": true,
+        "meaning": "model architecture family as stated by the source",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "commercial_use_restricted": {
         "may_be_unresolved": true,
         "meaning": "whether the licence restricts commercial use; unknown is not permission",
@@ -2115,6 +2141,13 @@
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "display_name": {
+        "may_be_unresolved": true,
+        "meaning": "human-readable label for consoles; not an identifier",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "family": {
         "may_be_unresolved": true,
@@ -2178,18 +2211,53 @@
         "nullable": false,
         "optional": false,
         "type": "str | Unresolved"
+      },
+      "supported_runtimes": {
+        "may_be_unresolved": false,
+        "meaning": "runtime names this variant is known to support; empty means unstated",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
       }
     },
     "python": "ModelMetadata"
   },
   "model.requirement@1": {
     "fields": {
+      "activation_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator memory held by activations under the assumed context",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "assumed_context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "context length the memory estimates assume; distinct from the model's maximum advertised context",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "confidence": {
         "may_be_unresolved": false,
         "meaning": "how much weight this requirement carries",
         "nullable": false,
         "optional": false,
         "type": "Confidence"
+      },
+      "estimated_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "deployed accelerator-memory estimate under the assumed runtime, quantization and context; not parameter count and not artifact size",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "estimation_method": {
+        "may_be_unresolved": true,
+        "meaning": "how these figures were produced, so a reader can judge them",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "model_id": {
         "may_be_unresolved": false,
@@ -2224,6 +2292,20 @@
         "meaning": "steady-state size once installed",
         "nullable": false,
         "optional": false,
+        "type": "int | Unresolved"
+      },
+      "supported_runtimes": {
+        "may_be_unresolved": false,
+        "meaning": "runtimes these estimates assume; empty means unstated",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "unified_memory_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "shared CPU/GPU memory where that is the deployment memory model; not a VRAM alias. Unstated on discrete-GPU candidates",
+        "nullable": false,
+        "optional": true,
         "type": "int | Unresolved"
       },
       "vram_kv_bytes_per_token": {

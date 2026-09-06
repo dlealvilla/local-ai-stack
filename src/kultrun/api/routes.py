@@ -28,6 +28,7 @@ from kultrun.kernel.errors import (
 )
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import registered_contracts
+from kultrun.model.catalogue import ModelCatalogue
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
 from kultrun.platform.health import HealthAggregator
@@ -58,6 +59,7 @@ class ControlPlane:
     sanity: StorageSanityService
     executions: ExecutionService
     runtimes: RuntimeCatalogue
+    models: ModelCatalogue
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -320,6 +322,20 @@ def register(router: Router, plane: ControlPlane) -> Router:
             },
         }
 
+    def models(_: ApiRequest) -> dict[str, object]:
+        """The curated candidate catalog. Read-only. No ranking, no download."""
+        return {
+            "source": {
+                "identity": plane.models.source_identity.value,
+                "kind": "huggingface_hub_identity",
+                "live_fetch": False,
+            },
+            "candidates": list(plane.models.entries()),
+            "ranking": False,
+            "selection": False,
+            "download": False,
+        }
+
     def start_reference(request: ApiRequest) -> object:
         """Start the bounded reference workload. Empty body only."""
         _reject_arbitrary_command(request)
@@ -342,6 +358,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/runtime", runtime)
     router.post("/runtime/execution", start_reference)
     router.post("/runtime/execution/stop", stop_execution)
+    router.get("/models", models)
     router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)
