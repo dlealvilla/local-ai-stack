@@ -119,6 +119,10 @@ class ModelMetadata(Contract):
         "runtime names this variant is known to support; empty means unstated",
         default=(),
     )
+    is_moe: Maybe[bool] = meaning(
+        "whether this variant is mixture-of-experts; unknown is not dense",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="model.artifact", version=1)
@@ -202,6 +206,25 @@ class ModelRequirement(Contract):
         "how these figures were produced, so a reader can judge them",
         default=NOT_PROVIDED,
     )
+    estimator_provider: Maybe[str] = meaning(
+        "which ModelRequirementEstimator produced this; one provider per "
+        "product evaluation",
+        default=NOT_PROVIDED,
+    )
+    estimator_version: Maybe[str] = meaning(
+        "the provider's version, so an estimate can be reproduced",
+        default=NOT_PROVIDED,
+    )
+    assumptions: tuple[str, ...] = meaning(
+        "what the estimator assumed; substitution of quant, context, "
+        "model or offload is forbidden",
+        default=(),
+    )
+    measured: bool = meaning(
+        "true only when the figures were measured on this configuration, "
+        "never when they are an estimate",
+        default=False,
+    )
 
 
 @contract(kind="model.inventory_record", version=1)
@@ -254,4 +277,48 @@ class ModelCatalogEntry(Contract):
     metadata: ModelMetadata = meaning("normalized description of this variant")
     requirement: ModelRequirement = meaning(
         "what serving this variant would cost, independent of any host"
+    )
+
+
+class MemoryPlacement(StrEnum):
+    """Where the estimate assumes the model will run."""
+
+    DISCRETE_GPU = "discrete_gpu"
+    CPU_ONLY = "cpu_only"
+    UNIFIED_MEMORY = "unified_memory"
+
+
+@contract(kind="model.estimation_request", version=1)
+@dataclass(frozen=True, slots=True)
+class ModelEstimationRequest(Contract):
+    """The configuration an estimator must evaluate. No silent substitution.
+
+    If the estimator cannot honour quant, context, model, placement or
+    offload as stated, it returns unsupported or unresolved — it does not
+    change the request.
+    """
+
+    model_id: ModelId = meaning("platform identity of the candidate")
+    source_ref: str = meaning("upstream identity the provider must look up")
+    source_revision: Maybe[str] = meaning(
+        "immutable revision; absence means the estimate is not pinned"
+    )
+    artifact_format: Maybe[str] = meaning(
+        "weight format where it changes the estimate, e.g. safetensors"
+    )
+    quantization: Maybe[str] = meaning("quantization the estimate must assume")
+    context_tokens: Maybe[int] = meaning("context length the estimate must assume")
+    runtime: Maybe[str] = meaning("runtime the estimate must assume")
+    placement: MemoryPlacement = meaning("device memory model for this estimate")
+    offload_allowed: bool = meaning(
+        "whether CPU offload may be assumed; default forbids hidden offload",
+        default=False,
+    )
+    tensor_parallel: int = meaning(
+        "device-span assumption; v0 is 1 and anything else is unsupported",
+        default=1,
+    )
+    batch_size: int = meaning(
+        "concurrency assumption; v0 is 1",
+        default=1,
     )

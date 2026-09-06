@@ -28,7 +28,7 @@ const SUBSYSTEMS = [
   { name: 'Storage sanity', probe: '/storage/sanity' },
   { name: 'Runtime / executor', probe: '/runtime' },
   { name: 'Model catalog', probe: '/models' },
-  { name: 'Model selection', probe: null, stage: '1.4B' },
+  { name: 'Model selection', probe: '/models/selection' },
   { name: 'Resource admission', probe: null, stage: '1.5' },
   { name: 'Inference', probe: null, stage: '1.6' },
 ];
@@ -615,6 +615,82 @@ function catalogCard(entry) {
   return card;
 }
 
+function percent(value) {
+  if (isUnresolved(value) || value == null) return fmt(value);
+  return `${(Number(value) * 100).toFixed(1)}%`;
+}
+
+function fitTone(value) {
+  if (value === 'preferred') return 'ok';
+  if (value === 'underutilized') return 'warn';
+  if (value === 'exceeds_safe') return 'bad';
+  return 'unknown';
+}
+
+async function renderSelection() {
+  const panel = document.getElementById('selection-panel');
+  const summary = document.getElementById('selection-summary');
+  const target = document.getElementById('selection');
+  try {
+    const state = await get('/models/selection');
+    panel.classList.remove('hidden');
+    const rec = state.recommendation || {};
+    const primary = rec.primary || null;
+    const plan = state.plan || null;
+    rows(summary, [
+      ['active estimator', state.estimator_provider || rec.estimator_provider],
+      ['estimator version', state.estimator_version || rec.estimator_version],
+      ['policy', state.policy_version || rec.policy_version],
+      ['outcome', state.outcome || rec.outcome],
+    ]);
+    target.replaceChildren();
+    if (primary) {
+      const card = document.createElement('div');
+      card.className = 'pool';
+      const head = document.createElement('div');
+      head.className = 'pool-head';
+      const title = document.createElement('span');
+      title.className = 'pool-path';
+      title.textContent = fmt(primary.logical_name);
+      head.append(title, pill(fmt(primary.capacity_fit), fitTone(primary.capacity_fit)));
+      card.append(head);
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      const util = primary.utilization || {};
+      rows(grid, [
+        ['requirement RAM', bytes(primary.required_ram_bytes)],
+        ['requirement VRAM', bytes(primary.required_vram_bytes)],
+        ['SAFE RAM', bytes(primary.safe_ram_bytes)],
+        ['SAFE VRAM', bytes(primary.safe_vram_bytes)],
+        ['utilization', percent(util.ratio)],
+        ['limiting resource', util.limiting_resource],
+        ['fit class', primary.capacity_fit],
+        ['quantization', primary.quantization],
+      ]);
+      card.append(grid);
+      target.append(card);
+    } else {
+      target.append(span('muted', 'No preferred candidate for this host and policy.'));
+    }
+    if (plan) {
+      const note = document.createElement('p');
+      note.className = 'note';
+      note.textContent =
+        `Plan: ${fmt(plan.logical_name)} · placement ${fmt(plan.placement)} · ` +
+        `estimator ${fmt(plan.estimator_provider)}`;
+      target.append(note);
+    }
+    json(document.getElementById('selection-json'), state);
+  } catch (error) {
+    if (error.message.startsWith('404')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
 async function renderHost() {
   const target = document.getElementById('host');
   const conflicts = document.getElementById('host-conflicts');
@@ -719,6 +795,7 @@ async function refresh() {
     await renderSanity(envelope);
     await renderRuntime();
     await renderCatalog();
+    await renderSelection();
     await renderHost();
     await renderProviders();
     await renderProgress();

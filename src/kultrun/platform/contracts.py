@@ -204,3 +204,8 @@ class PlatformSettings(Contract):
         "component unavailable rather than acting",
         default=True,
     )
+    model_requirement_estimator: str = meaning(
+        "which ModelRequirementEstimator is active for product selection; "
+        "kultrun (default) or llmfit. Not a fallback chain",
+        default="kultrun",
+    )

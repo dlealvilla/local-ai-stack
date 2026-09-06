@@ -711,6 +711,13 @@
         "optional": true,
         "type": "bool"
       },
+      "model_requirement_estimator": {
+        "may_be_unresolved": false,
+        "meaning": "which ModelRequirementEstimator is active for product selection; kultrun (default) or llmfit. Not a fallback chain",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
       "state_root": {
         "may_be_unresolved": false,
         "meaning": "directory the platform owns for its records",
@@ -2051,6 +2058,88 @@
     },
     "python": "ModelCatalogEntry"
   },
+  "model.estimation_request@1": {
+    "fields": {
+      "artifact_format": {
+        "may_be_unresolved": true,
+        "meaning": "weight format where it changes the estimate, e.g. safetensors",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "batch_size": {
+        "may_be_unresolved": false,
+        "meaning": "concurrency assumption; v0 is 1",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "context length the estimate must assume",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform identity of the candidate",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "offload_allowed": {
+        "may_be_unresolved": false,
+        "meaning": "whether CPU offload may be assumed; default forbids hidden offload",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "placement": {
+        "may_be_unresolved": false,
+        "meaning": "device memory model for this estimate",
+        "nullable": false,
+        "optional": false,
+        "type": "MemoryPlacement"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "quantization the estimate must assume",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "runtime": {
+        "may_be_unresolved": true,
+        "meaning": "runtime the estimate must assume",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "source_ref": {
+        "may_be_unresolved": false,
+        "meaning": "upstream identity the provider must look up",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "source_revision": {
+        "may_be_unresolved": true,
+        "meaning": "immutable revision; absence means the estimate is not pinned",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "tensor_parallel": {
+        "may_be_unresolved": false,
+        "meaning": "device-span assumption; v0 is 1 and anything else is unsupported",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      }
+    },
+    "python": "ModelEstimationRequest"
+  },
   "model.inventory_record@1": {
     "fields": {
       "artifact_id": {
@@ -2156,6 +2245,13 @@
         "optional": false,
         "type": "str | Unresolved"
       },
+      "is_moe": {
+        "may_be_unresolved": true,
+        "meaning": "whether this variant is mixture-of-experts; unknown is not dense",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
       "license_id": {
         "may_be_unresolved": true,
         "meaning": "licence identifier as stated by the source",
@@ -2238,6 +2334,13 @@
         "optional": true,
         "type": "int | Unresolved"
       },
+      "assumptions": {
+        "may_be_unresolved": false,
+        "meaning": "what the estimator assumed; substitution of quant, context, model or offload is forbidden",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
       "confidence": {
         "may_be_unresolved": false,
         "meaning": "how much weight this requirement carries",
@@ -2258,6 +2361,27 @@
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
+      },
+      "estimator_provider": {
+        "may_be_unresolved": true,
+        "meaning": "which ModelRequirementEstimator produced this; one provider per product evaluation",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "estimator_version": {
+        "may_be_unresolved": true,
+        "meaning": "the provider's version, so an estimate can be reproduced",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "measured": {
+        "may_be_unresolved": false,
+        "meaning": "true only when the figures were measured on this configuration, never when they are an estimate",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
       },
       "model_id": {
         "may_be_unresolved": false,
@@ -2331,6 +2455,519 @@
       }
     },
     "python": "ModelRequirement"
+  },
+  "planning.capacity_utilization@1": {
+    "fields": {
+      "limiting_resource": {
+        "may_be_unresolved": true,
+        "meaning": "which memory resource produced the ratio, when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "ram_ratio": {
+        "may_be_unresolved": true,
+        "meaning": "required RAM / SAFE RAM, when both exist",
+        "nullable": false,
+        "optional": false,
+        "type": "float | Unresolved"
+      },
+      "ratio": {
+        "may_be_unresolved": true,
+        "meaning": "limiting-resource ratio; unresolved if a load-bearing input is",
+        "nullable": false,
+        "optional": false,
+        "type": "float | Unresolved"
+      },
+      "unified_ratio": {
+        "may_be_unresolved": true,
+        "meaning": "required unified / SAFE unified, when both exist",
+        "nullable": false,
+        "optional": true,
+        "type": "float | Unresolved"
+      },
+      "vram_ratio": {
+        "may_be_unresolved": true,
+        "meaning": "required VRAM / SAFE VRAM, when both exist",
+        "nullable": false,
+        "optional": true,
+        "type": "float | Unresolved"
+      }
+    },
+    "python": "CapacityUtilization"
+  },
+  "planning.deployment_capacity@1": {
+    "fields": {
+      "accelerator_index": {
+        "may_be_unresolved": false,
+        "meaning": "assigned accelerator for discrete GPU; none for CPU-only",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "envelope_policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "headroom policy of the source envelope",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "envelope shape this was taken from",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "which host this placement is for",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "placement": {
+        "may_be_unresolved": false,
+        "meaning": "which memory model this slice uses",
+        "nullable": false,
+        "optional": false,
+        "type": "MemoryPlacement"
+      },
+      "safe_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE system memory for this placement",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "safe_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE free space for the peak-acquisition check; not in utilization",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "safe_unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE unified memory when that is the placement; never a VRAM alias",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "safe_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE device memory of the proposed accelerator; unresolved on CPU",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "DeploymentCapacity"
+  },
+  "planning.deployment_plan@1": {
+    "fields": {
+      "estimator_provider": {
+        "may_be_unresolved": false,
+        "meaning": "active estimator",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "executor_kind": {
+        "may_be_unresolved": true,
+        "meaning": "proposed executor",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "expected_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "estimator RAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "expected_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "peak acquisition",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "expected_unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "estimator unified memory",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "expected_utilization": {
+        "may_be_unresolved": true,
+        "meaning": "limiting-resource ratio",
+        "nullable": false,
+        "optional": false,
+        "type": "float | Unresolved"
+      },
+      "expected_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "estimator VRAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "catalog name",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "selected candidate",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "placement": {
+        "may_be_unresolved": false,
+        "meaning": "proposed device strategy",
+        "nullable": false,
+        "optional": false,
+        "type": "MemoryPlacement"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "policy that selected this",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "selected variant",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "rationale": {
+        "may_be_unresolved": false,
+        "meaning": "why this candidate",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "runtime": {
+        "may_be_unresolved": true,
+        "meaning": "proposed runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "source_ref": {
+        "may_be_unresolved": false,
+        "meaning": "upstream identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "DeploymentPlan"
+  },
+  "planning.model_evaluation@1": {
+    "fields": {
+      "capacity_fit": {
+        "may_be_unresolved": false,
+        "meaning": "preferred-band class",
+        "nullable": false,
+        "optional": false,
+        "type": "CapacityFitClass"
+      },
+      "compatibility": {
+        "may_be_unresolved": false,
+        "meaning": "runtime/format/offload verdict",
+        "nullable": false,
+        "optional": false,
+        "type": "CompatibilityVerdict"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "requirement confidence",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "context_length_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "advertised context",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "estimator_provider": {
+        "may_be_unresolved": true,
+        "meaning": "active estimator identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "stable catalog name",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "which candidate",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "parameter_count": {
+        "may_be_unresolved": true,
+        "meaning": "capability proxy for v0 ranking",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "preferred": {
+        "may_be_unresolved": false,
+        "meaning": "inside the configured preferred band",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "variant identity for ranking",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "reasons": {
+        "may_be_unresolved": false,
+        "meaning": "why this class, including exclusions",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "required_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "estimator RAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "required_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "peak acquisition bytes",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "required_unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "estimator unified memory",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "required_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "estimator deployed accelerator memory",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "safe_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE RAM used for the comparison",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "safe_unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE unified used for the comparison",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "safe_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE VRAM used for the comparison",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "source_ref": {
+        "may_be_unresolved": false,
+        "meaning": "upstream identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "storage_feasible": {
+        "may_be_unresolved": true,
+        "meaning": "peak acquisition vs SAFE storage; unknown is not a pass",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      },
+      "supported_runtimes": {
+        "may_be_unresolved": false,
+        "meaning": "runtimes this variant names",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "unresolved": {
+        "may_be_unresolved": false,
+        "meaning": "load-bearing fields that stayed unknown",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "utilization": {
+        "may_be_unresolved": false,
+        "meaning": "limiting-resource ratio",
+        "nullable": false,
+        "optional": false,
+        "type": "CapacityUtilization"
+      }
+    },
+    "python": "ModelEvaluation"
+  },
+  "planning.selection_policy@1": {
+    "fields": {
+      "allow_offload": {
+        "may_be_unresolved": false,
+        "meaning": "whether CPU offload is an accepted fit; v0 is off",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "allow_underutilized_fallback": {
+        "may_be_unresolved": false,
+        "meaning": "whether underutilized candidates may be promoted; v0 is off",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "maximum_capacity_utilization": {
+        "may_be_unresolved": false,
+        "meaning": "above this, relative to SAFE capacity, the candidate is infeasible",
+        "nullable": false,
+        "optional": true,
+        "type": "float"
+      },
+      "minimum_capacity_utilization": {
+        "may_be_unresolved": false,
+        "meaning": "below this, a feasible candidate is underutilized, not preferred",
+        "nullable": false,
+        "optional": true,
+        "type": "float"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "which policy produced a recommendation",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      }
+    },
+    "python": "SelectionPolicy"
+  },
+  "planning.selection_recommendation@1": {
+    "fields": {
+      "alternatives": {
+        "may_be_unresolved": false,
+        "meaning": "other preferred candidates, ranked",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ModelEvaluation, ...]"
+      },
+      "estimator_provider": {
+        "may_be_unresolved": false,
+        "meaning": "the one estimator used",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "estimator_version": {
+        "may_be_unresolved": false,
+        "meaning": "that estimator's version",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "evaluations": {
+        "may_be_unresolved": false,
+        "meaning": "every candidate, in catalog order",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ModelEvaluation, ...]"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "capacity envelope identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "what the selector concluded",
+        "nullable": false,
+        "optional": false,
+        "type": "SelectionOutcome"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "SelectionPolicy that produced this",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "primary": {
+        "may_be_unresolved": false,
+        "meaning": "preferred winner, when the outcome is recommended",
+        "nullable": true,
+        "optional": true,
+        "type": "ModelEvaluation | None"
+      },
+      "rationale": {
+        "may_be_unresolved": false,
+        "meaning": "why the outcome is what it is",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "recommended_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this was computed, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "rejected": {
+        "may_be_unresolved": false,
+        "meaning": "infeasible, unsupported, or unresolved",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ModelEvaluation, ...]"
+      },
+      "underutilized": {
+        "may_be_unresolved": false,
+        "meaning": "feasible but below the minimum; not auto-promoted",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ModelEvaluation, ...]"
+      }
+    },
+    "python": "SelectionRecommendation"
   },
   "platform.approval@1": {
     "fields": {

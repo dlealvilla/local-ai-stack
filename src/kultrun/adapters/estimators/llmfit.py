@@ -1,0 +1,270 @@
+"""llmfit plan adapter. Requirement only — never capacity authority.
+
+Invokes `llmfit plan --json`. Host fit flags, recommend, and hardware
+detection are ignored. `*_gb` fields are treated as GiB (2**30); see
+captured fixtures. MIT-licensed optional extra, pinned at 1.1.14.
+"""
+
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from kultrun.adapters.estimators.common import unavailable_requirement
+from kultrun.evidence.contracts import Confidence
+from kultrun.kernel.ids import Name
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
+from kultrun.model.contracts import (
+    MemoryPlacement,
+    ModelEstimationRequest,
+    ModelRequirement,
+)
+
+IDENTITY = Name("llmfit")
+TESTED_VERSION = "1.1.14"
+GiB = 1024**3
+
+#: Kultrun quantization → llmfit --quant. Unmapped → unsupported.
+_QUANT = {
+    "q4_k": "Q4_K_M",
+    "q4_k_m": "Q4_K_M",
+    "q5_k": "Q5_K_M",
+    "q5_k_m": "Q5_K_M",
+    "q8": "Q8_0",
+    "q8_0": "Q8_0",
+    "awq": "AWQ-4bit",
+    "awq_4bit": "AWQ-4bit",
+    "fp16": "F16",
+    "f16": "F16",
+    "bf16": "BF16",
+    "gptq-int4": "GPTQ-Int4",
+}
+
+PlanFn = Callable[[str, int, str], dict[str, Any]]
+
+
+class LlmfitRequirementEstimator:
+    """Normalize llmfit plan JSON into ModelRequirement."""
+
+    def __init__(
+        self,
+        *,
+        plan: PlanFn | None = None,
+        version: str = TESTED_VERSION,
+    ) -> None:
+        self._plan = plan if plan is not None else _subprocess_plan
+        self._version = version
+
+    @property
+    def identity(self) -> Name:
+        return IDENTITY
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    def estimate(self, request: ModelEstimationRequest) -> ModelRequirement:
+        if request.tensor_parallel != 1 or request.batch_size != 1:
+            return self._fail(request, "unsupported", "v0 is single-device batch-1")
+        if request.offload_allowed:
+            return self._fail(
+                request, "unsupported", "cpu offload is not assumed"
+            )
+        if not is_resolved(request.quantization):
+            return self._fail(request, "unsupported", "quantization is required")
+        if not is_resolved(request.context_tokens):
+            return self._fail(request, "unsupported", "context is required")
+        quant = request.quantization
+        context = request.context_tokens
+        mapped = _QUANT.get(_norm(quant))
+        if mapped is None:
+            return self._fail(
+                request,
+                "unsupported",
+                f"quantization {quant!r} has no llmfit mapping",
+            )
+        try:
+            payload = self._plan(request.source_ref, context, mapped)
+        except FileNotFoundError:
+            return self._fail(
+                request, "provider-unavailable", "llmfit executable not found"
+            )
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError) as error:
+            return self._fail(request, "provider-unavailable", str(error)[:200])
+        returned_quant = str(payload.get("quantization") or "")
+        if returned_quant != mapped:
+            return self._fail(
+                request,
+                "unsupported",
+                f"llmfit substituted quantization {returned_quant!r}",
+            )
+        returned_context = payload.get("context")
+        if returned_context != context:
+            return self._fail(
+                request,
+                "unsupported",
+                "llmfit substituted context",
+            )
+        returned_name = str(payload.get("model_name") or "")
+        if returned_name and returned_name != request.source_ref:
+            return self._fail(
+                request,
+                "unsupported",
+                f"llmfit resolved a different model {returned_name!r}",
+            )
+        minimum = payload.get("minimum") or {}
+        if request.placement is MemoryPlacement.CPU_ONLY:
+            path = _run_path(payload, "cpu_only") or {}
+            ram_gb = (path.get("minimum") or {}).get("ram_gb")
+            vram_gb = None
+        else:
+            ram_gb = minimum.get("ram_gb")
+            vram_gb = minimum.get("vram_gb")
+        kv_gb = _kv_gb(payload)
+        vram_bytes = _bytes(vram_gb)
+        kv_bytes = _bytes(kv_gb)
+        per_token: Maybe[int] = NOT_PROVIDED
+        if isinstance(kv_bytes, int) and context:
+            per_token = kv_bytes // context
+        weights: Maybe[int] = NOT_PROVIDED
+        if isinstance(vram_bytes, int) and isinstance(kv_bytes, int):
+            weights = max(0, vram_bytes - kv_bytes)
+        return ModelRequirement(
+            model_id=request.model_id,
+            confidence=Confidence.MEDIUM,
+            storage_bytes=NOT_PROVIDED,
+            peak_additional_bytes=NOT_PROVIDED,
+            vram_weights_bytes=weights,
+            vram_kv_bytes_per_token=per_token,
+            vram_overhead_bytes=NOT_PROVIDED,
+            ram_bytes=_bytes(ram_gb),
+            unified_memory_bytes=NOT_PROVIDED,
+            activation_bytes=NOT_PROVIDED,
+            estimated_vram_bytes=vram_bytes,
+            assumed_context_tokens=context,
+            supported_runtimes=(),
+            estimation_method="llmfit-plan",
+            estimator_provider=IDENTITY.value,
+            estimator_version=self.version,
+            assumptions=(
+                "llmfit plan minimum; host fit flags ignored",
+                "gb fields treated as GiB",
+                "no cpu offload",
+            ),
+            measured=False,
+        )
+
+    def _fail(
+        self, request: ModelEstimationRequest, method: str, reason: str
+    ) -> ModelRequirement:
+        return unavailable_requirement(
+            request,
+            provider=IDENTITY.value,
+            version=self.version,
+            method=method,
+            reason=reason,
+        )
+
+
+def build(
+    *,
+    plan: PlanFn | None = None,
+    version: str = TESTED_VERSION,
+) -> LlmfitRequirementEstimator:
+    return LlmfitRequirementEstimator(plan=plan, version=version)
+
+
+def fixture_plan(root: Path) -> PlanFn:
+    """CI invoker: replay captured llmfit plan JSON. Not a product fallback."""
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    index: dict[tuple[str, int, str], Path] = {}
+    for entry in manifest["entries"]:
+        key = (entry["source_ref"], int(entry["context"]), entry["quantization"])
+        index[key] = root / entry["file"]
+
+    def plan(model: str, context: int, quant: str) -> dict[str, Any]:
+        path = index.get((model, context, quant))
+        if path is None or not path.is_file():
+            raise FileNotFoundError(f"no captured llmfit plan for {model}")
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
+            raise ValueError("captured llmfit plan is not an object")
+        return loaded
+
+    return plan
+
+
+def _subprocess_plan(model: str, context: int, quant: str) -> dict[str, Any]:
+    binary = shutil.which("llmfit")
+    if binary is None:
+        raise FileNotFoundError("llmfit executable not found")
+    completed = subprocess.run(
+        [
+            binary,
+            "--no-dashboard",
+            "plan",
+            model,
+            "--context",
+            str(context),
+            "--quant",
+            quant,
+            "--json",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "llmfit failed")[:200]
+        raise ValueError(detail)
+    loaded = json.loads(completed.stdout)
+    if not isinstance(loaded, dict):
+        raise ValueError("llmfit plan JSON is not an object")
+    return loaded
+
+
+def detect_version() -> str | None:
+    """Installed llmfit version, or None if the executable is absent."""
+    binary = shutil.which("llmfit")
+    if binary is None:
+        return None
+    completed = subprocess.run(
+        [binary, "--version"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if completed.returncode != 0:
+        return None
+    parts = completed.stdout.strip().split()
+    return parts[-1] if parts else None
+
+
+def _run_path(payload: dict[str, Any], name: str) -> dict[str, Any] | None:
+    for item in payload.get("run_paths") or []:
+        if isinstance(item, dict) and item.get("path") == name:
+            return item
+    return None
+
+
+def _kv_gb(payload: dict[str, Any]) -> object:
+    for item in payload.get("kv_alternatives") or []:
+        if isinstance(item, dict) and item.get("kv_quant") == "fp16":
+            return item.get("kv_cache_gb")
+    return None
+
+
+def _bytes(gb: object) -> Maybe[int]:
+    if not isinstance(gb, (int, float)) or isinstance(gb, bool):
+        return NOT_PROVIDED
+    return round(float(gb) * GiB)
+
+
+def _norm(value: str) -> str:
+    return value.lower().replace("-", "_")

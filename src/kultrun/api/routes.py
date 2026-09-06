@@ -29,6 +29,7 @@ from kultrun.kernel.errors import (
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import registered_contracts
 from kultrun.model.catalogue import ModelCatalogue
+from kultrun.planning.service import SelectionService, plan_from
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
 from kultrun.platform.health import HealthAggregator
@@ -60,6 +61,7 @@ class ControlPlane:
     executions: ExecutionService
     runtimes: RuntimeCatalogue
     models: ModelCatalogue
+    selection: SelectionService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -336,6 +338,25 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "download": False,
         }
 
+    def models_selection(_: ApiRequest) -> dict[str, object]:
+        """Active-estimator selection. No dual estimates. No download."""
+        host = plane.hosts.current
+        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        recommendation = plane.selection.recommend(
+            envelope=envelope,
+            candidates=plane.models.entries(),
+            available_runtimes=_inference_runtime_names(plane),
+        )
+        planned = plan_from(recommendation)
+        return {
+            "estimator_provider": recommendation.estimator_provider,
+            "estimator_version": recommendation.estimator_version,
+            "policy_version": recommendation.policy_version,
+            "outcome": recommendation.outcome.value,
+            "recommendation": recommendation,
+            "plan": planned,
+        }
+
     def start_reference(request: ApiRequest) -> object:
         """Start the bounded reference workload. Empty body only."""
         _reject_arbitrary_command(request)
@@ -359,6 +380,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/runtime/execution", start_reference)
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)
+    router.get("/models/selection", models_selection)
     router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)
@@ -397,3 +419,12 @@ def _reject_arbitrary_command(request: ApiRequest) -> None:
             "only the reference workload may be started",
             refused=refused,
         )
+
+
+def _inference_runtime_names(plane: ControlPlane) -> tuple[str, ...]:
+    """Runtime identities that can serve a model. The Stage 1.3 harness is not one."""
+    return tuple(
+        profile.runtime.value
+        for profile in plane.runtimes.profiles()
+        if profile.runtime.value != "reference-process"
+    )

@@ -10,7 +10,9 @@ from pathlib import Path
 
 import pytest
 
+from kultrun.adapters.host import fixtures
 from kultrun.adapters.http.console import asset_root
+from kultrun.adapters.model_source.candidates import ORIGINAL_FIXTURES
 from kultrun.adapters.model_source.huggingface import HuggingFaceSource
 from kultrun.api.contracts import ApiRequest, Method
 from kultrun.kernel.unresolved import is_resolved
@@ -41,8 +43,15 @@ class TestTheSourceIsBoundedAndHonest:
         source = HuggingFaceSource()
         assert source.identity.value == "huggingface"
         entries = source.candidates()
-        assert 4 <= len(entries) <= 8
+        assert 18 <= len(entries) <= 30
         assert all(isinstance(entry, ModelCatalogEntry) for entry in entries)
+
+    def test_the_original_six_remain_regression_fixtures(self) -> None:
+        names = {
+            entry.metadata.logical_name.value
+            for entry in HuggingFaceSource().candidates()
+        }
+        assert set(ORIGINAL_FIXTURES) <= names
 
     def test_quantized_variants_are_distinct_candidates(self) -> None:
         names = {
@@ -77,9 +86,16 @@ class TestTheSourceIsBoundedAndHonest:
                 assert req.estimated_vram_bytes != meta.parameter_count
 
     def test_every_candidate_carries_method_and_confidence(self) -> None:
-        for entry in HuggingFaceSource().candidates():
+        names = {
+            entry.metadata.logical_name.value: entry
+            for entry in HuggingFaceSource().candidates()
+        }
+        for logical in ORIGINAL_FIXTURES:
+            assert names[logical].requirement.estimation_method == "curated"
+        for logical, entry in names.items():
             assert is_resolved(entry.requirement.estimation_method)
-            assert entry.requirement.estimation_method == "curated-conservative-v0"
+            if logical not in ORIGINAL_FIXTURES:
+                assert entry.requirement.estimation_method == "formula_v0"
             assert entry.requirement.confidence.value in {
                 "low",
                 "medium",
@@ -88,6 +104,26 @@ class TestTheSourceIsBoundedAndHonest:
             }
             assert entry.metadata.source_ref
             assert entry.metadata.source.value == "huggingface"
+            assert entry.requirement.estimator_provider == "kultrun"
+
+    def test_the_set_covers_size_bands_families_quant_and_moe(self) -> None:
+        entries = HuggingFaceSource().candidates()
+        params = [
+            entry.metadata.parameter_count
+            for entry in entries
+            if is_resolved(entry.metadata.parameter_count)
+        ]
+        assert any(count < 2_000_000_000 for count in params)
+        assert any(2_000_000_000 <= count < 4_000_000_000 for count in params)
+        assert any(7_000_000_000 <= count < 10_000_000_000 for count in params)
+        assert any(12_000_000_000 <= count < 16_000_000_000 for count in params)
+        assert any(20_000_000_000 <= count < 35_000_000_000 for count in params)
+        assert any(60_000_000_000 <= count < 80_000_000_000 for count in params)
+        families = {entry.metadata.family for entry in entries}
+        assert {"tinyllama", "qwen2.5", "llama-3.1", "mixtral"} <= families
+        quants = {entry.metadata.quantization for entry in entries}
+        assert {"q4_k", "awq", "fp16"} <= quants
+        assert any(entry.metadata.is_moe is True for entry in entries)
 
 
 class TestTheApiIsReadOnly:
@@ -101,7 +137,7 @@ class TestTheApiIsReadOnly:
         assert source["live_fetch"] is False
         candidates = payload["candidates"]
         assert isinstance(candidates, list)
-        assert 4 <= len(candidates) <= 8
+        assert 18 <= len(candidates) <= 30
         first = candidates[0]
         assert isinstance(first, dict)
         assert "metadata" in first
@@ -139,6 +175,43 @@ class TestTheApiIsReadOnly:
         assert "RECOMMENDED" not in printed
 
 
+class TestSelectionSurface:
+    def test_the_selection_api_exposes_only_the_active_estimator(
+        self, tmp_path: Path
+    ) -> None:
+        configuration = config_schema().load(
+            {"platform": {"state_root": str(tmp_path / "state")}}
+        )
+        platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
+        payload = _call(platform, "/models/selection")
+        assert payload["estimator_provider"] == "kultrun"
+        assert "kultrun_estimate" not in payload
+        assert "llmfit_estimate" not in payload
+        assert "comparison" not in payload
+        recommendation = payload["recommendation"]
+        assert isinstance(recommendation, dict)
+        assert recommendation["estimator_provider"] == "kultrun"
+        assert "llmfit" not in recommendation.get("rationale", [""])[0].lower()
+        encoded = str(payload)
+        assert "RequirementEvidenceReconciler" not in encoded
+
+    def test_the_cli_recommend_subcommand_uses_the_configured_estimator(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from kultrun.main import main
+
+        monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
+        monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
+        assert main(["models", "recommend"]) == 0
+        printed = capsys.readouterr().out
+        assert "estimator kultrun" in printed
+        assert "outcome" in printed
+        assert "llmfit" not in printed
+
+
 class TestArchitecture:
     def test_the_model_adapter_does_not_import_planning_or_capacity(self) -> None:
         edges = [
@@ -167,8 +240,18 @@ class TestConsoleHonesty:
     def test_the_catalog_panel_does_not_recommend(self) -> None:
         html = (asset_root() / "index.html").read_text(encoding="utf-8")
         script = (asset_root() / "app.js").read_text(encoding="utf-8")
+        catalog = html.split('id="catalog-panel"')[1].split('id="')[1]
         assert "Model catalog" in html
         assert "not recommend" in html
         assert "rank or download" in html
-        assert "RECOMMENDED" not in script
-        assert "preferred band" not in script.lower()
+        assert "renderCatalog" in script
+        assert catalog  # panel is present; selection is a different panel
+
+    def test_the_selection_panel_shows_the_active_estimator_only(self) -> None:
+        html = (asset_root() / "index.html").read_text(encoding="utf-8")
+        script = (asset_root() / "app.js").read_text(encoding="utf-8")
+        assert "Model selection" in html
+        assert "/models/selection" in script
+        assert "kultrun vs llmfit" not in script.lower()
+        assert "dual estimate" not in script.lower()
+        assert "RequirementEvidenceReconciler" not in script

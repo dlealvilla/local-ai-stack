@@ -1,0 +1,197 @@
+{
+  "llmfit_version": "1.1.14",
+  "captured_at": "2026-09-06",
+  "note": "Captured llmfit plan --json for CI. GB fields are GiB (2**30). Host fit flags are ignored.",
+  "entries": [
+    {
+      "file": "gemma-2-27b-it-q4.json",
+      "sha256": "ac816f8aa5c16a25a603129b74b5b158cbf5bbf238e2734c3e918a63d17da1da",
+      "source_ref": "google/gemma-2-27b-it",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 19.166734425599998,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 2.875
+    },
+    {
+      "file": "gemma-2-9b-it-q4.json",
+      "sha256": "79c33aca80224c475078c3d37f2df2848efe13e24ae4b2dcd8be2fa3133ee81e",
+      "source_ref": "google/gemma-2-9b-it",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 8.485189470719998,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 2.625
+    },
+    {
+      "file": "llama-3.1-70b-instruct-q4.json",
+      "sha256": "43f320fc936ce0fa580f1cdb755b6bf487f2217001134f050c0143a28e19b733",
+      "source_ref": "meta-llama/Llama-3.1-70B-Instruct",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 43.92114976768,
+      "ram_gb": 8.784229953536,
+      "kv_cache_gb": 2.5
+    },
+    {
+      "file": "llama-3.1-8b-instruct-fp16.json",
+      "sha256": "8d5bf3e3d45d62522c7ef4ae0c205bf39a2731eefb370e879431aa44bd01a362",
+      "source_ref": "meta-llama/Llama-3.1-8B-Instruct",
+      "context": 8192,
+      "quantization": "F16",
+      "vram_gb": 17.560522496,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 1.0
+    },
+    {
+      "file": "llama-3.1-8b-instruct-q4.json",
+      "sha256": "fc7dc6f19ef14ec622730e0311d0f3ee1068e4fd4a4b5b66ba58994ce4d6c289",
+      "source_ref": "meta-llama/Llama-3.1-8B-Instruct",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 6.15755152384,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 1.0
+    },
+    {
+      "file": "llama-3.2-1b-instruct-q4.json",
+      "sha256": "71572f269bf29f60c737d3210586a1588fc53a32045316ee67852c8dde117c8e",
+      "source_ref": "meta-llama/Llama-3.2-1B-Instruct",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 1.466772352,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 0.25
+    },
+    {
+      "file": "llama-3.2-3b-instruct-q4.json",
+      "sha256": "6a636f34111396e18fe77739e6d9dbec4fa637c2235b4301fff5350efcf6846c",
+      "source_ref": "meta-llama/Llama-3.2-3B-Instruct",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 3.23839489792,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 0.875
+    },
+    {
+      "file": "mistral-7b-instruct-q4.json",
+      "sha256": "67623c3cbe62cc0b9aae80830585d820b89406cefbf550a6b8000a71d81b1e72",
+      "source_ref": "mistralai/Mistral-7B-Instruct-v0.3",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 5.70385366016,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 1.0
+    },
+    {
+      "file": "mixtral-8x7b-instruct-q4.json",
+      "sha256": "43edad5aed87350b43a10ec8ba4f266d1aee79d523eb73e2b02f7a22fcf99fd3",
+      "source_ref": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 28.587619768319996,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 1.0
+    },
+    {
+      "file": "phi-3.5-mini-instruct-q4.json",
+      "sha256": "7149b90a11d75ac29709309228f6db69cf142af7761b407617442aaabb08dfda",
+      "source_ref": "microsoft/Phi-3.5-mini-instruct",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 5.71622614016,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 3.0
+    },
+    {
+      "file": "qwen2.5-0.5b-instruct-awq.json",
+      "sha256": "6c26163f579c40f08e41f55d35033fd3f0583a75b2e8d0f2ea5328fb0823b208",
+      "source_ref": "Qwen/Qwen2.5-0.5B-Instruct-AWQ",
+      "context": 2048,
+      "quantization": "AWQ-4bit",
+      "vram_gb": 0.8385212120000001,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 0.0234375
+    },
+    {
+      "file": "qwen2.5-14b-instruct-awq.json",
+      "sha256": "5d549a38bb1650597a5d348f85703ade954f6fe8f8da93d5ba09b6940de33060",
+      "source_ref": "Qwen/Qwen2.5-14B-Instruct-AWQ",
+      "context": 8192,
+      "quantization": "AWQ-4bit",
+      "vram_gb": 9.385016832,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 1.5
+    },
+    {
+      "file": "qwen2.5-14b-instruct-q4.json",
+      "sha256": "28f312d7934638869426ca29bb9675eaa165e981d7ee7867c7d4fd2e7f839ef5",
+      "source_ref": "Qwen/Qwen2.5-14B-Instruct",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 10.566619525119998,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 1.5
+    },
+    {
+      "file": "qwen2.5-32b-instruct-q4.json",
+      "sha256": "70da0b35f2621468580d0e3883d6459187c93c4bff48417d6f2e2651dc97b2ac",
+      "source_ref": "Qwen/Qwen2.5-32B-Instruct",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 21.50304828416,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 2.0
+    },
+    {
+      "file": "qwen2.5-3b-instruct-q4.json",
+      "sha256": "f1446ecc98f458e6489e19daff3be9dc379ccf4a5a77ca0f4b80a0ea1deceb83",
+      "source_ref": "Qwen/Qwen2.5-3B-Instruct",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 2.57109443904,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 0.28125
+    },
+    {
+      "file": "qwen2.5-72b-instruct-awq.json",
+      "sha256": "6f384c148a545d363f21e26fa2e9f68d22f9afaeb803fb85013ba75385282a20",
+      "source_ref": "Qwen/Qwen2.5-72B-Instruct-AWQ",
+      "context": 4096,
+      "quantization": "AWQ-4bit",
+      "vram_gb": 38.228930944,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 1.25
+    },
+    {
+      "file": "qwen2.5-7b-instruct-awq.json",
+      "sha256": "4c868ef7f84fe7a0b31598e83902e4c1d62b44f9e843356bf4c60fa3119f20ba",
+      "source_ref": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+      "context": 8192,
+      "quantization": "AWQ-4bit",
+      "vram_gb": 4.7453082559999995,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 0.4375
+    },
+    {
+      "file": "qwen2.5-7b-instruct-q4.json",
+      "sha256": "a34d5905ecbfbdc21969aac36e17e31d366319b3d3a199da5be15faf5476ceb9",
+      "source_ref": "Qwen/Qwen2.5-7B-Instruct",
+      "context": 8192,
+      "quantization": "Q4_K_M",
+      "vram_gb": 5.35455757696,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 0.4375
+    },
+    {
+      "file": "tinyllama-1.1b-chat-q4.json",
+      "sha256": "a839efa449ed0a207c976ee5fccec36d5c435f826cf8f7a9a96df71f8616e887",
+      "source_ref": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "context": 2048,
+      "quantization": "Q4_K_M",
+      "vram_gb": 1.18099681272,
+      "ram_gb": 8.0,
+      "kv_cache_gb": 0.04296875
+    }
+  ]
+}

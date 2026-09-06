@@ -112,6 +112,16 @@ class TestThePackageCanBeBuilt:
         scripts = project["project"]["scripts"]  # type: ignore[index]
         assert scripts == {"kultrun": "kultrun.main:main"}
 
+    def test_llmfit_is_an_optional_replaceable_extra(
+        self, project: dict[str, object]
+    ) -> None:
+        extras = project["project"]["optional-dependencies"]  # type: ignore[index]
+        assert extras["estimators"] == ["llmfit==1.1.14"]
+        section = project["project"]
+        assert isinstance(section, dict)
+        required = section.get("dependencies", [])
+        assert "llmfit" not in str(required)
+
     def test_the_declared_entry_point_resolves(self) -> None:
         """A console script naming a callable that does not exist installs
         cleanly and fails only when a deployment target runs it."""

@@ -147,7 +147,10 @@ class TestReplayIsNeverPresentedAsLive:
         assert "EPYC" in fixture["description"]
         assert "proves nothing about any machine running now" in fixture["note"]
 
-    def test_a_live_instance_says_live(self, tmp_path: Path) -> None:
+    def test_a_live_instance_says_live(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("KULTRUN_FIXTURE", raising=False)
         configuration = config_schema().load(
             {"platform": {"state_root": str(tmp_path / "state")}}
         )

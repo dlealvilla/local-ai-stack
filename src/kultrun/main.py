@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from kultrun.adapters.estimators import kultrun as kultrun_estimator
+from kultrun.adapters.estimators import llmfit as llmfit_estimator
 from kultrun.adapters.execution.native_process import NativeProcessExecutor
 from kultrun.adapters.host import fixtures, hwloc, native_linux, nvidia
 from kultrun.adapters.install import apt
@@ -63,6 +65,9 @@ from kultrun.kernel.unresolved import is_resolved
 from kultrun.knowledge import contracts as _knowledge_contracts  # noqa: F401
 from kultrun.model import contracts as _model_contracts  # noqa: F401
 from kultrun.model.catalogue import ModelCatalogue
+from kultrun.model.ports import ModelRequirementEstimator
+from kultrun.planning import contracts as _planning_contracts  # noqa: F401
+from kultrun.planning.service import SelectionService
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import (
     ComponentHealth,
@@ -219,6 +224,7 @@ class Platform:
     executions: ExecutionService
     runtimes: RuntimeCatalogue
     models: ModelCatalogue
+    selection: SelectionService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -252,6 +258,7 @@ STATE_ROOT_VARIABLE = "KULTRUN_STATE_ROOT"
 #: policy and sanity controller all run, against evidence captured from a
 #: machine that once existed. `docs/DEVELOPMENT_WORKFLOW.md`.
 FIXTURE_VARIABLE = "KULTRUN_FIXTURE"
+ESTIMATOR_VARIABLE = "KULTRUN_MODEL_REQUIREMENT_ESTIMATOR"
 
 
 class EvidenceMode(StrEnum):
@@ -291,7 +298,12 @@ def resolve_configuration(
     """
     source = os.environ if environment is None else environment
     configured = source.get(STATE_ROOT_VARIABLE, "").strip()
-    overrides = {"state_root": configured} if configured else {}
+    estimator = source.get(ESTIMATOR_VARIABLE, "").strip()
+    overrides: dict[str, object] = {}
+    if configured:
+        overrides["state_root"] = configured
+    if estimator:
+        overrides["model_requirement_estimator"] = estimator
     return config_schema().load({"platform": overrides} if overrides else {})
 
 
@@ -300,6 +312,16 @@ def config_schema() -> ConfigSchema:
     schema = ConfigSchema()
     schema.register("platform", PlatformSettings)
     return schema
+
+
+def estimator_registry() -> AdapterRegistry[ModelRequirementEstimator]:
+    """Named requirement estimators. Composition picks exactly one."""
+    registry: AdapterRegistry[ModelRequirementEstimator] = AdapterRegistry(
+        "model.ModelRequirementEstimator"
+    )
+    registry.register("kultrun", kultrun_estimator.build)
+    registry.register("llmfit", llmfit_estimator.build)
+    return registry
 
 
 def store_registry() -> AdapterRegistry[Store]:
@@ -397,6 +419,18 @@ def build(
     executions = ExecutionService(executor, store)
     runtimes = RuntimeCatalogue((ReferenceProcessRuntime(hold=True),))
     models = ModelCatalogue(HuggingFaceSource())
+    estimator_name = settings.model_requirement_estimator
+    estimators = estimator_registry()
+    if estimator_name not in estimators:
+        raise ConfigError(
+            "unknown model requirement estimator",
+            requested=estimator_name,
+            registered=list(estimators.names()),
+        )
+    selection = SelectionService(
+        estimators.create(estimator_name),
+        resolved_clock,
+    )
     execution_phase = _ExecutionPhase(executions)
 
     startup = Startup(resolved_clock)
@@ -427,6 +461,7 @@ def build(
         executions=executions,
         runtimes=runtimes,
         models=models,
+        selection=selection,
         executor_identity=executor.identity.value,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
@@ -447,6 +482,7 @@ def build(
         executions=executions,
         runtimes=runtimes,
         models=models,
+        selection=selection,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -939,10 +975,62 @@ def show_models() -> int:
     return 0
 
 
+def _models(arguments: Sequence[str]) -> int:
+    if not arguments:
+        return show_models()
+    if arguments[0] == "recommend":
+        return show_recommendation()
+    print("usage: kultrun models [recommend]", file=sys.stderr)
+    return 2
+
+
+def show_recommendation() -> int:
+    """Select using the configured estimator. Does not download or reserve."""
+    from kultrun.planning.service import plan_from
+
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    recommendation = platform.selection.recommend(
+        envelope=envelope,
+        candidates=platform.models.entries(),
+        available_runtimes=tuple(
+            profile.runtime.value
+            for profile in platform.runtimes.profiles()
+            if profile.runtime.value != "reference-process"
+        ),
+    )
+    estimator = platform.selection.estimator
+    print(
+        f"estimator {estimator.identity.value}  "
+        f"version {estimator.version}  "
+        f"outcome {recommendation.outcome.value}"
+    )
+    print(f"policy {recommendation.policy_version}")
+    for line in recommendation.rationale:
+        print(f"  {line}")
+    if recommendation.primary is not None:
+        winner = recommendation.primary
+        ratio = winner.utilization.ratio
+        used = f"{float(ratio):.1%}" if is_resolved(ratio) else "unknown"
+        print(
+            f"primary {winner.logical_name.value}  "
+            f"{winner.capacity_fit.value}  {used}"
+        )
+    planned = plan_from(recommendation)
+    if planned is not None:
+        print(
+            f"plan {planned.logical_name.value}  "
+            f"placement {planned.placement.value}"
+        )
+    return 0
+
+
 COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "version": lambda _: show_version(),
     "host": lambda _: show_host(),
-    "models": lambda _: show_models(),
+    "models": _models,
     "storage": _storage,
     "runtime": _runtime,
     "serve": lambda _: serve(),
