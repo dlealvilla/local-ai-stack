@@ -676,12 +676,17 @@ Label:        DEFERRED (optional extra)
 Owner stage:  1.4B
 Subsystem:    adapters / estimators
 Authorizes:   NO
-What:         llmfit is not a Kultrun hard dependency. The default
-              estimator is Kultrun. When the configured provider is
-              `llmfit` and the executable is missing, estimation is
-              unavailable/unresolved — not a silent Kultrun fallback.
+What:         llmfit is not a Kultrun hard dependency. Default mode is
+              AUTO (llmfit primary, Kultrun fallback on typed failure).
+              Strict `llmfit` does not fall back when the executable is
+              missing — estimation is unavailable/unresolved. Strict
+              `kultrun` does not require llmfit. AUTO fallback is not
+              estimate shopping and is not a product reconciler.
 Why now:      T0/T1 must not require the binary; T2 proves it from a
-              clean install with the optional extra.
+              clean install with the optional extra. K-03 forbids a
+              `schema_version` bump, so `config.platform@1
+              .model_requirement_estimator` meaning was restated in
+              place (K-05 review) when the default became AUTO.
 To make real: The optional extra `estimators` now pins `llmfit==1.1.14`
               (MIT). Operator runbook still needed.
 Retire when:  a release actually ships the extra and an operator runbook

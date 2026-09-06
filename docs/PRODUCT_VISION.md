@@ -329,7 +329,7 @@ Optional integrations should improve the product but must not determine whether 
 
 Examples:
 
-- no llmfit → the Kultrun requirement estimator still functions; llmfit is an optional estimator, never capacity authority;
+- no llmfit → AUTO mode falls back to the Kultrun requirement estimator; strict `llmfit` mode does not. llmfit is never capacity authority;
 - no PostHog → local product telemetry still functions or is disabled;
 - no Docker → native executor may be used;
 - no external model source → local imports remain possible;
@@ -1219,13 +1219,17 @@ recommendation is recomputed from current inputs; it is not permanent
 truth.
 
 Kultrun supports replaceable requirement estimators behind a port.
-Initial providers: the Kultrun estimator (default) and llmfit. Composition
-selects one. Planning never contains provider-specific branches.
-Cross-provider comparison is a development/validation activity, not a
-product feature: the Platform API, Prototype Console,
-`SelectionRecommendation` and `DeploymentPlan` carry only the active
-estimator's evidence. There is no production reconciler, average, min/max
-or dual estimate.
+llmfit is the initial preferred production requirement estimator.
+The Kultrun estimator is the built-in first-party fallback. Normal
+default operation is AUTO: llmfit first, and Kultrun only when llmfit
+cannot produce a contract-valid `ModelRequirement` for the exact request.
+Explicit `llmfit` and `kultrun` modes remain strict (no automatic
+failover). Planning never contains provider-specific branches and never
+shops for a more favourable estimate. Cross-provider comparison is a
+development/validation activity, not a product feature: the Platform API,
+Prototype Console, `SelectionRecommendation` and `DeploymentPlan` carry
+only the effective estimator's evidence. There is no production
+reconciler, average, min/max or dual estimate.
 
 The first implementation is deterministic and explainable. Learned or
 empirical recommendation intelligence is later and must not be required

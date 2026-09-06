@@ -311,9 +311,13 @@ Required shape tests include a tiny host, a medium GPU, CPU-only,
 unknown memory requirement, insufficient storage, an underutilized
 candidate, bounds at 20% and 100%, a candidate over capacity, and
 several preferred candidates. Planning is run with the Kultrun estimator
-and with llmfit (fixtures in CI; real binary at T2). Real model
-inference is not required. Cross-provider comparison is a development
-tool, not a product test of ranking quality.
+and with llmfit (fixtures in CI; real binary at T2). The post-close
+provider-policy amendment adds T0/T1 coverage for AUTO (llmfit primary,
+Kultrun fallback on typed failure), strict provider modes, and
+no-estimate-shopping: a valid llmfit result that exceeds SAFE capacity
+or is underutilized must not invoke Kultrun. Real model inference is not
+required. Cross-provider comparison is a development tool, not a product
+test of ranking quality.
 
 Most of Stage 1.2 can be developed against the committed Stage 1.1 fixture
 with no host at all.

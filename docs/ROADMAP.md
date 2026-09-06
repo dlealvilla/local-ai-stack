@@ -909,11 +909,12 @@ lower/upper utilization filtering, deterministic ranking,
 `SelectionRecommendation` and `DeploymentPlan` v0.
 
 **One active estimator.** Requirements arrive through
-`ModelRequirementEstimator`. Default provider: Kultrun (packaged /
-formula_v0). Alternative: llmfit via `llmfit plan`, normalized into the
-same `ModelRequirement`. Composition selects one; planning does not
-branch on provider id. Cross-provider comparison is
-`tools/compare_model_estimators.py` plus tests — not API, Console, or
+`ModelRequirementEstimator`. Original close defaulted to Kultrun
+(packaged / formula_v0) with llmfit as an alternative. The post-close
+amendment below makes AUTO the default (llmfit primary, Kultrun
+fallback). Explicit `llmfit` / `kultrun` remain. Composition selects the
+mode; planning does not branch on provider id. Cross-provider comparison
+is `tools/compare_model_estimators.py` plus tests — not API, Console, or
 `DeploymentPlan`.
 
 The candidate catalog expands to roughly 18–30 representative
@@ -950,6 +951,15 @@ run with both estimators where both support the models. T2 proves real
 integration is genuinely host-sensitive.
 
 **Output:** `FeasibilityResult v0` + `SelectionRecommendation v0` + `DeploymentPlan v0` + `ModelRequirementEstimator` · **Gate:** L1 (T2 includes real llmfit execution; T3 not required unless host-sensitive)
+
+**Post-close amendment (provider policy).** Closed Stage 1.4B remains
+closed at L1. Default mode is now AUTO: llmfit is the primary requirement
+estimator; the Kultrun estimator is the built-in fallback when llmfit
+fails to produce valid evidence for the exact request. Explicit `llmfit`
+and `kultrun` stay strict. Fallback is typed estimator failure only —
+not over-capacity, underutilized, or ranking preference. No product
+reconciler. Development comparison is unchanged. Estimator contracts and
+the 19-candidate catalog are unchanged.
 
 ### Stage 1.4C — Model acquisition + inventory
 
@@ -1714,8 +1724,11 @@ PERSISTED STATE              Recommendations are recomputed, not stored as
 MUTATION / FAILURE BOUNDARY  No mutation. SAFE capacity only. No silent
                              relaxation of utilization bounds. Unknown
                              load-bearing requirement → UNRESOLVED.
-                             Configured estimator missing → unavailable,
-                             not a silent Kultrun fallback.
+                             AUTO: llmfit typed failure → Kultrun fallback.
+                             Strict llmfit: no Kultrun fallback.
+                             Strict kultrun: llmfit irrelevant.
+                             Valid over-capacity / underutilized llmfit
+                             evidence does not trigger fallback.
 CANCELLATION / CLEANUP       No mutation.
 ACCEPTANCE LEVEL             L1. T2 proves real llmfit plan from a clean
                              wheel. T3 only if host-sensitive. Boundary

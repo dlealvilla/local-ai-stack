@@ -49,6 +49,28 @@ resolves the provider id to an adapter. Planning consumes only the port.
 There is no production reconciler, no dual estimates, and no silent
 fallback between providers.
 
+### Post-close amendment — AUTO provider policy
+
+Stage 1.4B remains **CLOSED at L1**. The original close (`444e84c`) is
+preserved. This amendment does not reimplement selection.
+
+Default mode is now `auto`: llmfit primary, Kultrun fallback on typed
+estimator failure only. Explicit `llmfit` and `kultrun` stay strict.
+`EstimatorRouter` (in `model`, built by composition) owns the chain.
+Planning still consumes one `ModelRequirement`. Valid over-capacity or
+underutilized llmfit evidence does not fall back. Development comparison
+is unchanged and is not the product failover path.
+
+```text
+ModelRequirementEstimator port
+  → EstimatorRouter
+  → llmfit primary
+  → typed failure only → Kultrun fallback
+  → one ModelRequirement
+  → Kultrun SAFE DeploymentCapacity
+  → Planning
+```
+
 ### Contracts
 
 | Kind | Role |

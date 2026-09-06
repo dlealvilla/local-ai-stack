@@ -16,17 +16,53 @@
     "starting_source_commit": "7e40c70c047fe967b7bb8dc916316d26dd1fbc7e"
   },
   "architecture": {
-    "one_active_estimator": true,
-    "default_provider": "kultrun",
+    "one_effective_estimator": true,
+    "default_mode": "auto",
+    "original_close_default_provider": "kultrun",
+    "auto_primary": "llmfit",
+    "auto_fallback": "kultrun",
     "product_reconciliation": false,
+    "estimate_shopping": false,
     "dual_estimates_exposed": false,
     "planning_imports_adapters": false,
+    "planning_imports_router": false,
     "safe_capacity_authoritative": true,
     "storage_in_utilization": false,
     "unknown_never_zero": true,
     "download_in_this_stage": false,
     "reservation_in_this_stage": false,
     "inference_in_this_stage": false
+  },
+  "original_close": {
+    "commit": "444e84ccbc8e4f2053bda0d3a6ad9f887c2e7d27",
+    "docs_commit": "1db2437",
+    "implementation_commit": "d63f986c0db83f499c22f49fbcf3caa8efd6014b",
+    "default_provider": "kultrun",
+    "date": "2026-09-06",
+    "gate": "L1"
+  },
+  "amendment": {
+    "name": "llmfit-primary-kultrun-fallback",
+    "kind": "post-close-provider-policy",
+    "stage_still_closed": true,
+    "evidence_level": "L1",
+    "default_mode": "auto",
+    "primary": "llmfit",
+    "fallback": "kultrun",
+    "strict_modes": ["llmfit", "kultrun"],
+    "router": "kultrun.model.estimator_router.EstimatorRouter",
+    "typed_failure_model": "kultrun.model.contracts.EstimatorFailureReason",
+    "product_reconciliation": false,
+    "estimate_shopping": false,
+    "llmfit_host_fit_authoritative": false,
+    "timeout_seconds": 60,
+    "attempts": 1,
+    "retry_policy": "none",
+    "circuit_breaker": false,
+    "t3_required": false,
+    "catalog_unchanged": true,
+    "candidate_count": 19,
+    "overlap_count": 19
   },
   "estimators": {
     "port": "kultrun.model.ports.ModelRequirementEstimator",
@@ -42,7 +78,14 @@
       "license": "MIT",
       "optional_extra": "estimators",
       "mechanism": "subprocess llmfit --no-dashboard plan <ref> --context N --quant Q --json",
-      "host_detection_authoritative": false
+      "host_detection_authoritative": false,
+      "timeout_seconds": 60,
+      "shell": false
+    },
+    "router": {
+      "component": "kultrun.model.estimator_router.EstimatorRouter",
+      "composition": "kultrun.main.resolve_estimator",
+      "auto_order": ["llmfit", "kultrun"]
     }
   },
   "candidates": {
@@ -88,7 +131,7 @@
   ],
   "api": {
     "GET /v1/models": "read-only catalog; ranking/selection/download false",
-    "GET /v1/models/selection": "active estimator only",
+    "GET /v1/models/selection": "effective estimator plus failover provenance; no dual estimates",
     "cli_catalog": "kultrun models",
     "cli_recommend": "kultrun models recommend"
   },
@@ -144,6 +187,9 @@
     "resource admission",
     "inference",
     "production estimator reconciliation",
+    "estimate shopping",
+    "circuit breaker",
+    "llmfit retries",
     "live Hub fetch",
     "learned ranking"
   ],

@@ -754,7 +754,7 @@ ended up with a 48-minute capacity query.
 
 | | |
 |---|---|
-| **Owns** | `ModelMetadata` and `ModelArtifact` normalized from any source. `ModelInventoryRecord` with explicit artifact states (remote, acquiring, stored, invalid, updating, deleted) and lineage — parent model and revision, derivation type, owner, dataset reference, promotion state. Running is not an inventory state. `ModelRequirement`, host-independent: weight memory, artifact and peak-acquisition storage, estimated RAM / VRAM / unified memory, context, quantization (via the candidate's metadata), supported runtimes, architecture/device needs, runtime overhead, KV/cache, estimation method, confidence and evidence basis. The acquisition workflow and `AcquisitionReceipt`. |
+| **Owns** | `ModelMetadata` and `ModelArtifact` normalized from any source. `ModelInventoryRecord` with explicit artifact states (remote, acquiring, stored, invalid, updating, deleted) and lineage — parent model and revision, derivation type, owner, dataset reference, promotion state. Running is not an inventory state. `ModelRequirement`, host-independent: weight memory, artifact and peak-acquisition storage, estimated RAM / VRAM / unified memory, context, quantization (via the candidate's metadata), supported runtimes, architecture/device needs, runtime overhead, KV/cache, estimation method, confidence and evidence basis. `EstimatorRouter` and typed `EstimatorFailureReason` — ordered provider attempts and failover provenance, not ranking. The acquisition workflow and `AcquisitionReceipt`. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `storage` ports and contracts |
 | **Produces** | `ModelInventoryRecord v1` · `ModelRequirement v1` · `AcquisitionReceipt` |
 | **Ports** | `ModelSource` · `ModelRequirementEstimator` · `ModelMetadataEnricher` |
@@ -778,7 +778,7 @@ cannot see it.
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` · `components` · `capacity` · `model` |
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
-| **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. Import a concrete estimator adapter or branch on provider id. Average, min/max, or otherwise reconcile multiple estimators. Expose dual estimates. |
+| **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. Import a concrete estimator adapter, import `EstimatorRouter`, or branch on provider id. Average, min/max, or otherwise reconcile multiple estimators. Expose dual estimates. Fallback to another estimator because a valid estimate is over-capacity, underutilized, or low-ranked. |
 | **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection |
 
 Feasibility must be computable for candidates that are not yet acquired.
@@ -1104,15 +1104,17 @@ adapters/entitlement/     offline_licence · vendor_service
 adapters/adaptation/      peft · merge
 ```
 
-Every adapter is replaceable. The **Kultrun** requirement estimator is
-the default product provider and does not require llmfit. If the
-configured provider is llmfit and it is absent, the product returns an
-honest unavailable/unresolved result — it does not silently substitute
-Kultrun. Cross-provider comparison lives in `tools/` and tests, not in
-`planning`. The previous attempt used llmfit as capacity evidence and
-found `recommend` nondeterministic on a real host; this rebuild uses
-`llmfit plan` as a requirement estimate only, and Kultrun SAFE capacity
-remains the fit boundary.
+Every adapter is replaceable. Default product mode is **AUTO**: llmfit is
+the primary requirement estimator; the Kultrun estimator is the built-in
+fallback when llmfit cannot produce valid evidence for the exact request.
+Strict `llmfit` and `kultrun` remain available; explicit `llmfit` does
+not fall back, and explicit `kultrun` does not require llmfit.
+Composition (`main.resolve_estimator`) builds `EstimatorRouter`; planning
+consumes only the port. Cross-provider comparison lives in `tools/` and
+tests, not in `planning`. The previous attempt used llmfit as capacity
+evidence and found `recommend` nondeterministic on a real host; this
+rebuild uses `llmfit plan` as a requirement estimate only, and Kultrun
+SAFE capacity remains the fit boundary.
 
 Note how much of `adapters/host/` names a third-party tool. That is the
 point: every one of those is a commodity enumerator that someone else
@@ -1206,8 +1208,11 @@ cancel: cooperative, lock released without relying on process exit,
 curated candidates → ModelMetadata (unresolved fields explicit)
   → ModelEstimationRequest (identity, quant, context, runtime, placement;
     no silent substitution)
-  → one active ModelRequirementEstimator (kultrun | llmfit | future)
-  → ModelRequirement (bytes, method, confidence, provider id/version)
+  → ModelRequirementEstimator port
+  → EstimatorRouter (auto: llmfit primary → typed failure → Kultrun fallback;
+    or a strict provider)
+  → one ModelRequirement (bytes, method, confidence, effective provider,
+    failover provenance)
   → capacity CapacityEnvelope (SAFE layer only for the fit boundary)
   → planning DeploymentCapacity for the proposed placement
   → planning FeasibilityResult per candidate: compatibility, storage,
@@ -1215,7 +1220,7 @@ curated candidates → ModelMetadata (unresolved fields explicit)
   → planning Selector, deterministic under a recorded SelectionPolicy
   → SelectionRecommendation + DeploymentPlan
        (primary, preferred alternatives, underutilized alternatives,
-        rejected, rationale, policy version, active estimator only)
+        rejected, rationale, policy version, effective estimator only)
   → approval → Trace D → Trace C
 
 every rejected or excluded candidate records why
