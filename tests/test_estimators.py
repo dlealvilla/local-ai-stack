@@ -28,6 +28,7 @@ from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.main import ESTIMATOR_VARIABLE, build, config_schema, estimator_registry
 from kultrun.model.contracts import (
+    EstimatorFailureReason,
     MemoryPlacement,
     ModelCatalogEntry,
     ModelEstimationRequest,
@@ -77,7 +78,7 @@ class TestThePort:
         assert isinstance(KultrunRequirementEstimator(), ModelRequirementEstimator)
         assert isinstance(_fixture_llmfit(), ModelRequirementEstimator)
 
-    def test_composition_registers_both_and_defaults_to_kultrun(self) -> None:
+    def test_composition_registers_both_and_defaults_to_auto(self) -> None:
         registry = estimator_registry()
         assert "kultrun" in registry
         assert "llmfit" in registry
@@ -85,6 +86,8 @@ class TestThePort:
         built = registry.create("kultrun")
         assert built.identity.value == "kultrun"
         assert built.version == PROVIDER_VERSION
+        settings = config_schema().load({}).section(PlatformSettings)
+        assert settings.model_requirement_estimator == "auto"
 
     def test_an_unknown_provider_is_a_configuration_error(
         self, tmp_path: Path
@@ -231,6 +234,7 @@ class TestEstimatorCNeedsNoPlanningChange:
                     version="test",
                     method="constant",
                     reason="test-only provider C",
+                    failure=EstimatorFailureReason.UNRESOLVED_ESTIMATE,
                 )
 
         extra = EstimatorC()
@@ -243,13 +247,14 @@ class TestEstimatorCNeedsNoPlanningChange:
             assert "estimator-c" not in text
             assert "llmfit" not in text
             assert "KultrunRequirementEstimator" not in text
+            assert "estimator_router" not in text
             assert "RequirementEvidenceReconciler" not in text
         result = extra.estimate(_request())
         assert result.estimator_provider == "estimator-c"
 
 
 class TestLlmfitAbsenceDoesNotBreakKultrun:
-    def test_default_build_does_not_require_llmfit(
+    def test_default_auto_falls_back_when_llmfit_is_absent(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.delenv("KULTRUN_MODEL_REQUIREMENT_ESTIMATOR", raising=False)
@@ -258,8 +263,10 @@ class TestLlmfitAbsenceDoesNotBreakKultrun:
             {"platform": {"state_root": str(tmp_path / "state")}}
         )
         platform = build(configuration)
-        assert platform.selection.estimator.identity.value == "kultrun"
+        assert platform.selection.estimator.identity.value == "auto"
         tiny = packaged_candidates()[0]
         result = platform.selection.estimator.estimate(_request(tiny))
         assert result.estimator_provider == "kultrun"
+        assert result.fallback_used is True
+        assert result.fallback_reason == "provider_unavailable"
         assert is_resolved(result.estimated_vram_bytes)

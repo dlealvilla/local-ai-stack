@@ -65,6 +65,7 @@ from kultrun.kernel.unresolved import is_resolved
 from kultrun.knowledge import contracts as _knowledge_contracts  # noqa: F401
 from kultrun.model import contracts as _model_contracts  # noqa: F401
 from kultrun.model.catalogue import ModelCatalogue
+from kultrun.model.estimator_router import EstimatorRouter
 from kultrun.model.ports import ModelRequirementEstimator
 from kultrun.planning import contracts as _planning_contracts  # noqa: F401
 from kultrun.planning.service import SelectionService
@@ -259,6 +260,7 @@ STATE_ROOT_VARIABLE = "KULTRUN_STATE_ROOT"
 #: machine that once existed. `docs/DEVELOPMENT_WORKFLOW.md`.
 FIXTURE_VARIABLE = "KULTRUN_FIXTURE"
 ESTIMATOR_VARIABLE = "KULTRUN_MODEL_REQUIREMENT_ESTIMATOR"
+ESTIMATOR_MODES = ("auto", "llmfit", "kultrun")
 
 
 class EvidenceMode(StrEnum):
@@ -315,13 +317,35 @@ def config_schema() -> ConfigSchema:
 
 
 def estimator_registry() -> AdapterRegistry[ModelRequirementEstimator]:
-    """Named requirement estimators. Composition picks exactly one."""
+    """Named requirement estimators. Composition picks the chain."""
     registry: AdapterRegistry[ModelRequirementEstimator] = AdapterRegistry(
         "model.ModelRequirementEstimator"
     )
     registry.register("kultrun", kultrun_estimator.build)
     registry.register("llmfit", llmfit_estimator.build)
     return registry
+
+
+def resolve_estimator(mode: str) -> ModelRequirementEstimator:
+    """auto → llmfit then Kultrun; llmfit/kultrun stay strict."""
+    if mode not in ESTIMATOR_MODES:
+        raise ConfigError(
+            "unknown model requirement estimator",
+            requested=mode,
+            registered=list(ESTIMATOR_MODES),
+        )
+    estimators = estimator_registry()
+    if mode == "auto":
+        return EstimatorRouter(
+            mode="auto",
+            providers=(estimators.create("llmfit"), estimators.create("kultrun")),
+            allow_fallback=True,
+        )
+    return EstimatorRouter(
+        mode=mode,
+        providers=(estimators.create(mode),),
+        allow_fallback=False,
+    )
 
 
 def store_registry() -> AdapterRegistry[Store]:
@@ -419,16 +443,8 @@ def build(
     executions = ExecutionService(executor, store)
     runtimes = RuntimeCatalogue((ReferenceProcessRuntime(hold=True),))
     models = ModelCatalogue(HuggingFaceSource())
-    estimator_name = settings.model_requirement_estimator
-    estimators = estimator_registry()
-    if estimator_name not in estimators:
-        raise ConfigError(
-            "unknown model requirement estimator",
-            requested=estimator_name,
-            registered=list(estimators.names()),
-        )
     selection = SelectionService(
-        estimators.create(estimator_name),
+        resolve_estimator(settings.model_requirement_estimator),
         resolved_clock,
     )
     execution_phase = _ExecutionPhase(executions)
@@ -1001,11 +1017,19 @@ def show_recommendation() -> int:
             if profile.runtime.value != "reference-process"
         ),
     )
-    estimator = platform.selection.estimator
+    recommendation_mode = recommendation.estimator_mode
+    fallback = (
+        f"  fallback {recommendation.fallback_reason}"
+        if recommendation.fallback_used
+        and is_resolved(recommendation.fallback_reason)
+        else "  fallback no"
+    )
     print(
-        f"estimator {estimator.identity.value}  "
-        f"version {estimator.version}  "
+        f"mode {recommendation_mode}  "
+        f"effective {recommendation.estimator_provider}  "
+        f"version {recommendation.estimator_version}  "
         f"outcome {recommendation.outcome.value}"
+        f"{fallback}"
     )
     print(f"policy {recommendation.policy_version}")
     for line in recommendation.rationale:

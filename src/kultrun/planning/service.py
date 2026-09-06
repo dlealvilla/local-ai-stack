@@ -6,7 +6,7 @@ import datetime as dt
 
 from kultrun.capacity.contracts import CapacityEnvelope
 from kultrun.kernel.clock import Clock
-from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.contracts import (
     MemoryPlacement,
     ModelCatalogEntry,
@@ -124,6 +124,9 @@ def plan_from(recommendation: SelectionRecommendation) -> DeploymentPlan | None:
         estimator_provider=recommendation.estimator_provider,
         policy_version=recommendation.policy_version,
         rationale=recommendation.rationale,
+        estimator_mode=recommendation.estimator_mode,
+        fallback_used=recommendation.fallback_used,
+        fallback_reason=recommendation.fallback_reason,
     )
 
 
@@ -163,8 +166,10 @@ def _select(
         if item.model_id.value not in preferred_ids
         and item.model_id.value not in under_ids
     )
-    provider = estimator.identity.value
-    version = estimator.version
+    source = preferred[0] if preferred else (evaluations[0] if evaluations else None)
+    provider, version, mode, requested, fallback_used, fallback_reason = _provenance(
+        source, estimator
+    )
     if preferred:
         primary, rest = preferred[0], preferred[1:]
         return SelectionRecommendation(
@@ -180,6 +185,10 @@ def _select(
             rejected=rejected,
             rationale=_why(primary),
             evaluations=evaluations,
+            estimator_mode=mode,
+            requested_primary=requested,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
         )
     if under and not policy.allow_underutilized_fallback:
         return SelectionRecommendation(
@@ -196,6 +205,10 @@ def _select(
                 "safe deployment capacity.",
             ),
             evaluations=evaluations,
+            estimator_mode=mode,
+            requested_primary=requested,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
         )
     unresolved = all(
         item.capacity_fit is CapacityFitClass.UNRESOLVED
@@ -213,6 +226,10 @@ def _select(
             rejected=rejected or ranked,
             rationale=("Load-bearing requirement or estimator is unresolved.",),
             evaluations=evaluations,
+            estimator_mode=mode,
+            requested_primary=requested,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
         )
     return SelectionRecommendation(
         outcome=SelectionOutcome.NO_FEASIBLE_CANDIDATE,
@@ -225,7 +242,35 @@ def _select(
         rejected=rejected,
         rationale=("No candidate fits SAFE deployment capacity.",),
         evaluations=evaluations,
+        estimator_mode=mode,
+        requested_primary=requested,
+        fallback_used=fallback_used,
+        fallback_reason=fallback_reason,
     )
+
+
+def _provenance(
+    source: ModelEvaluation | None, estimator: ModelRequirementEstimator
+) -> tuple[str, str, str, str, bool, Maybe[str]]:
+    """Router provenance when present; otherwise the estimator's identity."""
+    provider = estimator.identity.value
+    version = estimator.version
+    mode = estimator.identity.value
+    requested = estimator.identity.value
+    fallback_used = False
+    fallback_reason: Maybe[str] = NOT_PROVIDED
+    if source is None or not is_resolved(source.estimator_mode):
+        return provider, version, mode, requested, fallback_used, fallback_reason
+    if is_resolved(source.estimator_provider):
+        provider = source.estimator_provider
+    if is_resolved(source.estimator_version):
+        version = source.estimator_version
+    mode = source.estimator_mode
+    if is_resolved(source.requested_primary):
+        requested = source.requested_primary
+    fallback_used = source.fallback_used
+    fallback_reason = source.fallback_reason
+    return provider, version, mode, requested, fallback_used, fallback_reason
 
 
 def _why(winner: ModelEvaluation) -> tuple[str, ...]:

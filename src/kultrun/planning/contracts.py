@@ -160,6 +160,21 @@ class ModelEvaluation(Contract):
     quantization: Maybe[str] = meaning("variant identity for ranking")
     context_length_tokens: Maybe[int] = meaning("advertised context")
     supported_runtimes: tuple[str, ...] = meaning("runtimes this variant names")
+    estimator_version: Maybe[str] = meaning(
+        "effective estimator version", default=NOT_PROVIDED
+    )
+    estimator_mode: Maybe[str] = meaning(
+        "configured mode: auto, or a strict provider id", default=NOT_PROVIDED
+    )
+    requested_primary: Maybe[str] = meaning(
+        "first provider asked", default=NOT_PROVIDED
+    )
+    fallback_used: bool = meaning(
+        "true when the primary provider failed to estimate", default=False
+    )
+    fallback_reason: Maybe[str] = meaning(
+        "typed primary failure that caused fallback", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="planning.selection_recommendation", version=1)
@@ -197,6 +212,18 @@ class SelectionRecommendation(Contract):
         "every candidate, in catalog order",
         default=(),
     )
+    estimator_mode: str = meaning(
+        "configured mode: auto, or a strict provider id", default="auto"
+    )
+    requested_primary: str = meaning(
+        "first provider asked", default=""
+    )
+    fallback_used: bool = meaning(
+        "true when the primary provider failed to estimate", default=False
+    )
+    fallback_reason: Maybe[str] = meaning(
+        "typed primary failure that caused fallback", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="planning.deployment_plan", version=1)
@@ -219,6 +246,13 @@ class DeploymentPlan(Contract):
     estimator_provider: str = meaning("active estimator")
     policy_version: str = meaning("policy that selected this")
     rationale: tuple[str, ...] = meaning("why this candidate")
+    estimator_mode: str = meaning("configured estimator mode", default="auto")
+    fallback_used: bool = meaning(
+        "true when the primary provider failed to estimate", default=False
+    )
+    fallback_reason: Maybe[str] = meaning(
+        "typed primary failure that caused fallback", default=NOT_PROVIDED
+    )
 
 
 def envelope_fingerprint(envelope: CapacityEnvelope) -> str:

@@ -713,7 +713,7 @@
       },
       "model_requirement_estimator": {
         "may_be_unresolved": false,
-        "meaning": "which ModelRequirementEstimator is active for product selection; kultrun (default) or llmfit. Not a fallback chain",
+        "meaning": "estimator mode: auto (llmfit then Kultrun fallback), or a strict provider id (llmfit, kultrun). Not a reconciler",
         "nullable": false,
         "optional": true,
         "type": "str"
@@ -2362,6 +2362,20 @@
         "optional": true,
         "type": "str | Unresolved"
       },
+      "estimator_failure": {
+        "may_be_unresolved": true,
+        "meaning": "typed provider failure when this result is not usable evidence",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "estimator_mode": {
+        "may_be_unresolved": true,
+        "meaning": "configured mode: auto, llmfit, or kultrun",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "estimator_provider": {
         "may_be_unresolved": true,
         "meaning": "which ModelRequirementEstimator produced this; one provider per product evaluation",
@@ -2375,6 +2389,20 @@
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
+      },
+      "fallback_reason": {
+        "may_be_unresolved": true,
+        "meaning": "typed reason the primary failed; never a stack trace",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "fallback_used": {
+        "may_be_unresolved": false,
+        "meaning": "true only when the primary provider failed to estimate",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
       },
       "measured": {
         "may_be_unresolved": false,
@@ -2403,6 +2431,13 @@
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "requested_primary": {
+        "may_be_unresolved": true,
+        "meaning": "first provider the router asked; llmfit in auto mode",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "required_compute_features": {
         "may_be_unresolved": false,
@@ -2566,6 +2601,13 @@
   },
   "planning.deployment_plan@1": {
     "fields": {
+      "estimator_mode": {
+        "may_be_unresolved": false,
+        "meaning": "configured estimator mode",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
       "estimator_provider": {
         "may_be_unresolved": false,
         "meaning": "active estimator",
@@ -2614,6 +2656,20 @@
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "fallback_reason": {
+        "may_be_unresolved": true,
+        "meaning": "typed primary failure that caused fallback",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "fallback_used": {
+        "may_be_unresolved": false,
+        "meaning": "true when the primary provider failed to estimate",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
       },
       "logical_name": {
         "may_be_unresolved": false,
@@ -2704,12 +2760,40 @@
         "optional": false,
         "type": "int | Unresolved"
       },
+      "estimator_mode": {
+        "may_be_unresolved": true,
+        "meaning": "configured mode: auto, or a strict provider id",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "estimator_provider": {
         "may_be_unresolved": true,
         "meaning": "active estimator identity",
         "nullable": false,
         "optional": false,
         "type": "str | Unresolved"
+      },
+      "estimator_version": {
+        "may_be_unresolved": true,
+        "meaning": "effective estimator version",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "fallback_reason": {
+        "may_be_unresolved": true,
+        "meaning": "typed primary failure that caused fallback",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "fallback_used": {
+        "may_be_unresolved": false,
+        "meaning": "true when the primary provider failed to estimate",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
       },
       "logical_name": {
         "may_be_unresolved": false,
@@ -2752,6 +2836,13 @@
         "nullable": false,
         "optional": false,
         "type": "tuple[str, ...]"
+      },
+      "requested_primary": {
+        "may_be_unresolved": true,
+        "meaning": "first provider asked",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "required_ram_bytes": {
         "may_be_unresolved": true,
@@ -2889,6 +2980,13 @@
         "optional": true,
         "type": "tuple[ModelEvaluation, ...]"
       },
+      "estimator_mode": {
+        "may_be_unresolved": false,
+        "meaning": "configured mode: auto, or a strict provider id",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
       "estimator_provider": {
         "may_be_unresolved": false,
         "meaning": "the one estimator used",
@@ -2909,6 +3007,20 @@
         "nullable": false,
         "optional": true,
         "type": "tuple[ModelEvaluation, ...]"
+      },
+      "fallback_reason": {
+        "may_be_unresolved": true,
+        "meaning": "typed primary failure that caused fallback",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "fallback_used": {
+        "may_be_unresolved": false,
+        "meaning": "true when the primary provider failed to estimate",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
       },
       "host_fingerprint": {
         "may_be_unresolved": false,
@@ -2958,6 +3070,13 @@
         "nullable": false,
         "optional": true,
         "type": "tuple[ModelEvaluation, ...]"
+      },
+      "requested_primary": {
+        "may_be_unresolved": false,
+        "meaning": "first provider asked",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
       },
       "underutilized": {
         "may_be_unresolved": false,

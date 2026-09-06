@@ -225,6 +225,26 @@ class ModelRequirement(Contract):
         "never when they are an estimate",
         default=False,
     )
+    estimator_mode: Maybe[str] = meaning(
+        "configured mode: auto, llmfit, or kultrun",
+        default=NOT_PROVIDED,
+    )
+    requested_primary: Maybe[str] = meaning(
+        "first provider the router asked; llmfit in auto mode",
+        default=NOT_PROVIDED,
+    )
+    fallback_used: bool = meaning(
+        "true only when the primary provider failed to estimate",
+        default=False,
+    )
+    fallback_reason: Maybe[str] = meaning(
+        "typed reason the primary failed; never a stack trace",
+        default=NOT_PROVIDED,
+    )
+    estimator_failure: Maybe[str] = meaning(
+        "typed provider failure when this result is not usable evidence",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="model.inventory_record", version=1)
@@ -286,6 +306,24 @@ class MemoryPlacement(StrEnum):
     DISCRETE_GPU = "discrete_gpu"
     CPU_ONLY = "cpu_only"
     UNIFIED_MEMORY = "unified_memory"
+
+
+class EstimatorFailureReason(StrEnum):
+    """Why an estimator did not produce usable evidence.
+
+    Fallback policy matches these values, never exception text.
+    """
+
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
+    PROVIDER_TIMEOUT = "provider_timeout"
+    PROVIDER_EXECUTION_ERROR = "provider_execution_error"
+    INCOMPATIBLE_PROVIDER_VERSION = "incompatible_provider_version"
+    INVALID_PROVIDER_OUTPUT = "invalid_provider_output"
+    UNSUPPORTED_MODEL = "unsupported_model"
+    UNSUPPORTED_CONFIGURATION = "unsupported_configuration"
+    ASSUMPTION_MISMATCH = "assumption_mismatch"
+    MISSING_LOAD_BEARING_REQUIREMENT = "missing_load_bearing_requirement"
+    UNRESOLVED_ESTIMATE = "unresolved_estimate"
 
 
 @contract(kind="model.estimation_request", version=1)

@@ -19,6 +19,7 @@ from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.contracts import (
+    EstimatorFailureReason,
     MemoryPlacement,
     ModelEstimationRequest,
     ModelRequirement,
@@ -27,6 +28,8 @@ from kultrun.model.contracts import (
 IDENTITY = Name("llmfit")
 TESTED_VERSION = "1.1.14"
 GiB = 1024**3
+PLAN_TIMEOUT_SECONDS = 60
+MAX_PLAN_OUTPUT_BYTES = 1_048_576
 
 #: Kultrun quantization → llmfit --quant. Unmapped → unsupported.
 _QUANT = {
@@ -69,15 +72,33 @@ class LlmfitRequirementEstimator:
 
     def estimate(self, request: ModelEstimationRequest) -> ModelRequirement:
         if request.tensor_parallel != 1 or request.batch_size != 1:
-            return self._fail(request, "unsupported", "v0 is single-device batch-1")
+            return self._fail(
+                request,
+                "unsupported",
+                "v0 is single-device batch-1",
+                EstimatorFailureReason.UNSUPPORTED_CONFIGURATION,
+            )
         if request.offload_allowed:
             return self._fail(
-                request, "unsupported", "cpu offload is not assumed"
+                request,
+                "unsupported",
+                "cpu offload is not assumed",
+                EstimatorFailureReason.UNSUPPORTED_CONFIGURATION,
             )
         if not is_resolved(request.quantization):
-            return self._fail(request, "unsupported", "quantization is required")
+            return self._fail(
+                request,
+                "unsupported",
+                "quantization is required",
+                EstimatorFailureReason.UNSUPPORTED_CONFIGURATION,
+            )
         if not is_resolved(request.context_tokens):
-            return self._fail(request, "unsupported", "context is required")
+            return self._fail(
+                request,
+                "unsupported",
+                "context is required",
+                EstimatorFailureReason.UNSUPPORTED_CONFIGURATION,
+            )
         quant = request.quantization
         context = request.context_tokens
         mapped = _QUANT.get(_norm(quant))
@@ -86,21 +107,52 @@ class LlmfitRequirementEstimator:
                 request,
                 "unsupported",
                 f"quantization {quant!r} has no llmfit mapping",
+                EstimatorFailureReason.UNSUPPORTED_CONFIGURATION,
             )
         try:
             payload = self._plan(request.source_ref, context, mapped)
         except FileNotFoundError:
             return self._fail(
-                request, "provider-unavailable", "llmfit executable not found"
+                request,
+                "provider-unavailable",
+                "llmfit executable not found",
+                EstimatorFailureReason.PROVIDER_UNAVAILABLE,
             )
-        except (OSError, subprocess.SubprocessError, ValueError, KeyError) as error:
-            return self._fail(request, "provider-unavailable", str(error)[:200])
+        except subprocess.TimeoutExpired:
+            return self._fail(
+                request,
+                "provider-unavailable",
+                "llmfit plan timed out",
+                EstimatorFailureReason.PROVIDER_TIMEOUT,
+            )
+        except json.JSONDecodeError:
+            return self._fail(
+                request,
+                "provider-unavailable",
+                "llmfit plan was not valid JSON",
+                EstimatorFailureReason.INVALID_PROVIDER_OUTPUT,
+            )
+        except _LlmfitPlanError as error:
+            return self._fail(
+                request,
+                "provider-unavailable",
+                error.detail,
+                error.reason,
+            )
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError):
+            return self._fail(
+                request,
+                "provider-unavailable",
+                "llmfit plan failed",
+                EstimatorFailureReason.PROVIDER_EXECUTION_ERROR,
+            )
         returned_quant = str(payload.get("quantization") or "")
         if returned_quant != mapped:
             return self._fail(
                 request,
                 "unsupported",
                 f"llmfit substituted quantization {returned_quant!r}",
+                EstimatorFailureReason.ASSUMPTION_MISMATCH,
             )
         returned_context = payload.get("context")
         if returned_context != context:
@@ -108,6 +160,7 @@ class LlmfitRequirementEstimator:
                 request,
                 "unsupported",
                 "llmfit substituted context",
+                EstimatorFailureReason.ASSUMPTION_MISMATCH,
             )
         returned_name = str(payload.get("model_name") or "")
         if returned_name and returned_name != request.source_ref:
@@ -115,6 +168,7 @@ class LlmfitRequirementEstimator:
                 request,
                 "unsupported",
                 f"llmfit resolved a different model {returned_name!r}",
+                EstimatorFailureReason.ASSUMPTION_MISMATCH,
             )
         minimum = payload.get("minimum") or {}
         if request.placement is MemoryPlacement.CPU_ONLY:
@@ -159,7 +213,11 @@ class LlmfitRequirementEstimator:
         )
 
     def _fail(
-        self, request: ModelEstimationRequest, method: str, reason: str
+        self,
+        request: ModelEstimationRequest,
+        method: str,
+        reason: str,
+        failure: EstimatorFailureReason,
     ) -> ModelRequirement:
         return unavailable_requirement(
             request,
@@ -167,6 +225,7 @@ class LlmfitRequirementEstimator:
             version=self.version,
             method=method,
             reason=reason,
+            failure=failure,
         )
 
 
@@ -198,33 +257,57 @@ def fixture_plan(root: Path) -> PlanFn:
     return plan
 
 
+class _LlmfitPlanError(Exception):
+    """Typed subprocess failure. Detail is a short product reason, not stderr."""
+
+    def __init__(self, reason: EstimatorFailureReason, detail: str) -> None:
+        super().__init__(detail)
+        self.reason = reason
+        self.detail = detail
+
+
 def _subprocess_plan(model: str, context: int, quant: str) -> dict[str, Any]:
     binary = shutil.which("llmfit")
     if binary is None:
         raise FileNotFoundError("llmfit executable not found")
-    completed = subprocess.run(
-        [
-            binary,
-            "--no-dashboard",
-            "plan",
-            model,
-            "--context",
-            str(context),
-            "--quant",
-            quant,
-            "--json",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
+    try:
+        completed = subprocess.run(
+            [
+                binary,
+                "--no-dashboard",
+                "plan",
+                model,
+                "--context",
+                str(context),
+                "--quant",
+                quant,
+                "--json",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=PLAN_TIMEOUT_SECONDS,
+            shell=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise
     if completed.returncode != 0:
-        detail = (completed.stderr or completed.stdout or "llmfit failed")[:200]
-        raise ValueError(detail)
-    loaded = json.loads(completed.stdout)
+        raise _LlmfitPlanError(
+            EstimatorFailureReason.PROVIDER_EXECUTION_ERROR,
+            "llmfit plan failed",
+        )
+    stdout = completed.stdout or ""
+    if len(stdout.encode("utf-8")) > MAX_PLAN_OUTPUT_BYTES:
+        raise _LlmfitPlanError(
+            EstimatorFailureReason.INVALID_PROVIDER_OUTPUT,
+            "llmfit plan output exceeded bound",
+        )
+    loaded = json.loads(stdout)
     if not isinstance(loaded, dict):
-        raise ValueError("llmfit plan JSON is not an object")
+        raise _LlmfitPlanError(
+            EstimatorFailureReason.INVALID_PROVIDER_OUTPUT,
+            "llmfit plan JSON is not an object",
+        )
     return loaded
 
 

@@ -10,6 +10,7 @@ from kultrun.adapters.model_source.candidates import (
 from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import is_resolved
 from kultrun.model.contracts import (
+    EstimatorFailureReason,
     ModelCatalogEntry,
     ModelEstimationRequest,
     ModelRequirement,
@@ -43,6 +44,7 @@ class KultrunRequirementEstimator:
                 version=self.version,
                 method="unsupported",
                 reason="v0 estimates are single-device batch-1 only",
+                failure=EstimatorFailureReason.UNSUPPORTED_CONFIGURATION,
             )
         if request.offload_allowed:
             return unavailable_requirement(
@@ -51,6 +53,7 @@ class KultrunRequirementEstimator:
                 version=self.version,
                 method="unsupported",
                 reason="cpu offload is not assumed by the Kultrun estimator",
+                failure=EstimatorFailureReason.UNSUPPORTED_CONFIGURATION,
             )
         entry = self._by_id.get(request.model_id.value)
         if entry is None:
@@ -60,6 +63,7 @@ class KultrunRequirementEstimator:
                 version=self.version,
                 method="unsupported",
                 reason="candidate is not in the Kultrun packaged set",
+                failure=EstimatorFailureReason.UNSUPPORTED_MODEL,
             )
         meta = entry.metadata
         if (
@@ -73,6 +77,7 @@ class KultrunRequirementEstimator:
                 version=self.version,
                 method="unsupported",
                 reason="quantization does not match the packaged variant",
+                failure=EstimatorFailureReason.ASSUMPTION_MISMATCH,
             )
         if (
             is_resolved(request.context_tokens)
@@ -85,6 +90,7 @@ class KultrunRequirementEstimator:
                 version=self.version,
                 method="unsupported",
                 reason="context does not match the packaged assumption",
+                failure=EstimatorFailureReason.ASSUMPTION_MISMATCH,
             )
         return entry.requirement
 

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.unresolved import NOT_PROVIDED
-from kultrun.model.contracts import ModelEstimationRequest, ModelRequirement
+from kultrun.model.contracts import (
+    EstimatorFailureReason,
+    ModelEstimationRequest,
+    ModelRequirement,
+)
 
 
 def unavailable_requirement(
@@ -14,6 +18,7 @@ def unavailable_requirement(
     version: str,
     method: str,
     reason: str,
+    failure: EstimatorFailureReason,
 ) -> ModelRequirement:
     """Every load-bearing field unresolved. Never zero."""
     return ModelRequirement(
@@ -35,4 +40,5 @@ def unavailable_requirement(
         estimator_version=version,
         assumptions=(reason,),
         measured=False,
+        estimator_failure=failure.value,
     )

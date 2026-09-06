@@ -205,7 +205,7 @@ class PlatformSettings(Contract):
         default=True,
     )
     model_requirement_estimator: str = meaning(
-        "which ModelRequirementEstimator is active for product selection; "
-        "kultrun (default) or llmfit. Not a fallback chain",
-        default="kultrun",
+        "estimator mode: auto (llmfit then Kultrun fallback), or a "
+        "strict provider id (llmfit, kultrun). Not a reconciler",
+        default="auto",
     )

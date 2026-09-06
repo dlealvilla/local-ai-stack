@@ -35,8 +35,9 @@ class ModelSource(Protocol):
 class ModelRequirementEstimator(Protocol):
     """One replaceable producer of host-independent ModelRequirement.
 
-    Product execution selects exactly one implementation. Planning consumes
-    this port and never a concrete provider.
+    Product execution may wrap implementations in a router (auto: llmfit
+    then Kultrun). Planning consumes this port and never a concrete
+    provider, and never compares two estimates.
     """
 
     @property
