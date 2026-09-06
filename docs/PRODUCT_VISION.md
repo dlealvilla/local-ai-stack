@@ -329,7 +329,7 @@ Optional integrations should improve the product but must not determine whether 
 
 Examples:
 
-- no llmfit → use other capacity evidence;
+- no llmfit → the Kultrun requirement estimator still functions; llmfit is an optional estimator, never capacity authority;
 - no PostHog → local product telemetry still functions or is disabled;
 - no Docker → native executor may be used;
 - no external model source → local imports remain possible;
@@ -1213,9 +1213,19 @@ context, quantization quality, and a deterministic tie-break. It is not
 a learned engine.
 
 Feasibility consumes host capabilities, the capacity envelope, model
-requirements, runtime capabilities and `SelectionPolicy`. It does not
-reserve resources. A recommendation is recomputed from current inputs; it
-is not permanent truth.
+requirements from **one** active `ModelRequirementEstimator`, runtime
+capabilities and `SelectionPolicy`. It does not reserve resources. A
+recommendation is recomputed from current inputs; it is not permanent
+truth.
+
+Kultrun supports replaceable requirement estimators behind a port.
+Initial providers: the Kultrun estimator (default) and llmfit. Composition
+selects one. Planning never contains provider-specific branches.
+Cross-provider comparison is a development/validation activity, not a
+product feature: the Platform API, Prototype Console,
+`SelectionRecommendation` and `DeploymentPlan` carry only the active
+estimator's evidence. There is no production reconciler, average, min/max
+or dual estimate.
 
 The first implementation is deterministic and explainable. Learned or
 empirical recommendation intelligence is later and must not be required
@@ -1234,10 +1244,12 @@ Introduce a formal:
 
 `CapacityEvidenceProvider`
 
-Possible providers:
+This is **host capacity evidence**, not model-requirement estimation.
+llmfit is a `ModelRequirementEstimator` at Stage 1.4B. It must not become
+the authoritative `CapacityEnvelope`. Possible capacity-evidence providers
+later:
 
 - internal conservative estimator;
-- llmfit;
 - Hugging Face Accelerate;
 - llm-d-planner;
 - runtime-native estimators;
@@ -2913,6 +2925,8 @@ Important concepts include:
 - ModelMetadata;
 - ModelArtifact;
 - ModelRequirement;
+- ModelEstimationRequest;
+- ModelRequirementEstimator;
 - ModelSource;
 - ModelInventoryRecord;
 - CompatibilityEvidence;

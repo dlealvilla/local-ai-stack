@@ -757,9 +757,9 @@ ended up with a 48-minute capacity query.
 | **Owns** | `ModelMetadata` and `ModelArtifact` normalized from any source. `ModelInventoryRecord` with explicit artifact states (remote, acquiring, stored, invalid, updating, deleted) and lineage — parent model and revision, derivation type, owner, dataset reference, promotion state. Running is not an inventory state. `ModelRequirement`, host-independent: weight memory, artifact and peak-acquisition storage, estimated RAM / VRAM / unified memory, context, quantization (via the candidate's metadata), supported runtimes, architecture/device needs, runtime overhead, KV/cache, estimation method, confidence and evidence basis. The acquisition workflow and `AcquisitionReceipt`. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `storage` ports and contracts |
 | **Produces** | `ModelInventoryRecord v1` · `ModelRequirement v1` · `AcquisitionReceipt` |
-| **Ports** | `ModelSource` · `ModelMetadataEnricher` |
+| **Ports** | `ModelSource` · `ModelRequirementEstimator` · `ModelMetadataEnricher` |
 | **Implements** | `storage.ports.ManagedUsageSource` |
-| **Must not** | Let a model requirement depend on the host — feasibility is where host and requirement meet. Fill a missing metadata field with a guess; absent values stay unresolved and are reported. Treat unknown requirement as zero or as a fit. Let an external source failure mark the local platform unhealthy. Collapse inventory into a single `current_model`. Treat a stored artifact as a running workload. Rank or recommend — that is `planning`. Download — that is acquisition at 1.4C. Expose raw Hugging Face objects as domain contracts. |
+| **Must not** | Let a model requirement depend on the host — feasibility is where host and requirement meet. Fill a missing metadata field with a guess; absent values stay unresolved and are reported. Treat unknown requirement as zero or as a fit. Let an external source failure mark the local platform unhealthy. Collapse inventory into a single `current_model`. Treat a stored artifact as a running workload. Rank or recommend — that is `planning`. Download — that is acquisition at 1.4C. Expose raw Hugging Face or llmfit objects as domain contracts. Reconcile multiple estimators in the product path. |
 | **Created** | 1.4A catalog/metadata · 1.4C acquisition and plural inventory · **Deepened** 2.5 source, 2.6 acquisition, 3.1 requirement |
 
 Model sits above capacity and storage because of an explicit roadmap
@@ -778,7 +778,7 @@ cannot see it.
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` · `components` · `capacity` · `model` |
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
-| **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. |
+| **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. Import a concrete estimator adapter or branch on provider id. Average, min/max, or otherwise reconcile multiple estimators. Expose dual estimates. |
 | **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection |
 
 Feasibility must be computable for candidates that are not yet acquired.
@@ -1092,7 +1092,8 @@ adapters/execution/       native_process · oci
 adapters/container/       docker · podman · containerd
 adapters/runtime/         reference_process · (vllm · llama_cpp · mlx later)
 adapters/model_source/    huggingface · local_file
-adapters/capacity/        llmfit · accelerate · benchmark
+adapters/estimators/      kultrun · llmfit
+adapters/capacity/        accelerate · benchmark  (llmfit is a requirement estimator, not capacity authority)
 adapters/usage/           partitioned_local · exporter
 adapters/inference/       local_endpoint · litellm
 adapters/identity/        local · oidc · scim
@@ -1103,11 +1104,15 @@ adapters/entitlement/     offline_licence · vendor_service
 adapters/adaptation/      peft · merge
 ```
 
-Every adapter is advisory-capable: if an external provider is absent,
-broken or nondeterministic, the domain must still function through a
-mandatory internal fallback. `llmfit` was integrated, found
-nondeterministic on the reference host, and demoted to advisory. That
-outcome is the default assumption.
+Every adapter is replaceable. The **Kultrun** requirement estimator is
+the default product provider and does not require llmfit. If the
+configured provider is llmfit and it is absent, the product returns an
+honest unavailable/unresolved result — it does not silently substitute
+Kultrun. Cross-provider comparison lives in `tools/` and tests, not in
+`planning`. The previous attempt used llmfit as capacity evidence and
+found `recommend` nondeterministic on a real host; this rebuild uses
+`llmfit plan` as a requirement estimate only, and Kultrun SAFE capacity
+remains the fit boundary.
 
 Note how much of `adapters/host/` names a third-party tool. That is the
 point: every one of those is a commodity enumerator that someone else
@@ -1199,8 +1204,10 @@ cancel: cooperative, lock released without relying on process exit,
 
 ```text
 curated candidates → ModelMetadata (unresolved fields explicit)
-  → ModelRequirement per candidate (weights, RAM, VRAM/unified, KV,
-    overhead, storage + peak acquisition, method, confidence)
+  → ModelEstimationRequest (identity, quant, context, runtime, placement;
+    no silent substitution)
+  → one active ModelRequirementEstimator (kultrun | llmfit | future)
+  → ModelRequirement (bytes, method, confidence, provider id/version)
   → capacity CapacityEnvelope (SAFE layer only for the fit boundary)
   → planning DeploymentCapacity for the proposed placement
   → planning FeasibilityResult per candidate: compatibility, storage,
@@ -1208,12 +1215,13 @@ curated candidates → ModelMetadata (unresolved fields explicit)
   → planning Selector, deterministic under a recorded SelectionPolicy
   → SelectionRecommendation + DeploymentPlan
        (primary, preferred alternatives, underutilized alternatives,
-        rejected, rationale, policy version, evidence)
+        rejected, rationale, policy version, active estimator only)
   → approval → Trace D → Trace C
 
 every rejected or excluded candidate records why
 a recommendation is recomputed; it is not stored as permanent truth
 planning never reserves
+planning never reconciles estimators
 ```
 
 **Trace F — knowledge answers a question** (7.2–7.3, 8.3)
@@ -1242,7 +1250,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.2A | Storage Sonar v0, Prototype Console | `capacity`, `storage`, `api` | ✅ closed |
 | 1.3 | `execution`, `runtime`, component seam | `host` | ✅ via finding 2 |
 | 1.4A | `ModelSource`, `ModelMetadata`, `ModelRequirement` v0 | `model` contracts | ✅ |
-| 1.4B | `planning` v0: feasibility, selection, `DeploymentPlan` | `capacity`, `model`, `host` | ✅ |
+| 1.4B | `planning` v0: feasibility, selection, `DeploymentPlan`; `ModelRequirementEstimator` | `capacity`, `model`, `host` | ✅ |
 | 1.4C | acquisition v0, plural inventory | `storage` pool, `model` | ✅ via finding 1 |
 | 1.5A | `resource` admission and reservation | `capacity`, `ModelRequirement` | ✅ crude requirement, already in the ledger |
 | 1.5B | `inference` instance schema (plural) | `resource`, `execution`, `runtime`, `model` | ✅ |

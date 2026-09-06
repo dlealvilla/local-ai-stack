@@ -57,7 +57,7 @@ Status:       OPEN | RETIRED (<stage>, <date>)
 
 ## Open entries
 
-Open entries continue from kernel through Stage 1.4A. Most do not authorize
+Open entries continue from kernel through Stage 1.4B. Most do not authorize
 a mutation. `K-29` and `K-34` start real work (storage reservation; the
 reference process) and are tolerable only because the API is loopback
 (`K-08`).
@@ -654,8 +654,13 @@ Owner stage:  1.4A
 Subsystem:    model
 Authorizes:   NO
 What:         Weight, RAM, VRAM, overhead and KV figures on the curated
-              set are coarse estimates with an explicit method and
-              confidence. They are not measured runtime evidence.
+              original six are coarse estimates with method `curated`.
+              Expanded 1.4B variants use `formula_v0`. They are not
+              measured runtime evidence. Compared with llmfit, Kultrun
+              VRAM is typically conservative; some 20% / 100% band
+              crossings (Qwen 7B AWQ, Phi-3.5 Mini, Qwen 32B Q4) are
+              expected calibration gaps, not unit bugs. Do not rewrite
+              production estimates to match llmfit.
 Why now:      Stage 1.4B needs *some* host-independent requirement to
               filter against SAFE capacity. Inventing a precise
               estimator now would be untested intelligence.
@@ -664,6 +669,40 @@ To make real: Runtime-specific estimation (seam now) plus Stage 1.6
               unresolved rather than filled.
 Retire when:  Stage 3.1 / 1.6 evidence replaces the curated v0 method
               for the fields that authorize a later admission.
+Status:       OPEN
+
+### K-37 — llmfit is an optional requirement estimator
+Label:        DEFERRED (optional extra)
+Owner stage:  1.4B
+Subsystem:    adapters / estimators
+Authorizes:   NO
+What:         llmfit is not a Kultrun hard dependency. The default
+              estimator is Kultrun. When the configured provider is
+              `llmfit` and the executable is missing, estimation is
+              unavailable/unresolved — not a silent Kultrun fallback.
+Why now:      T0/T1 must not require the binary; T2 proves it from a
+              clean install with the optional extra.
+To make real: The optional extra `estimators` now pins `llmfit==1.1.14`
+              (MIT). Operator runbook still needed.
+Retire when:  a release actually ships the extra and an operator runbook
+              names the pin, or llmfit is dropped.
+Status:       OPEN
+
+### K-38 — llmfit ram_gb uses a coarse floor
+Label:        PROVISIONAL
+Owner stage:  1.4B
+Subsystem:    adapters / estimators / llmfit
+Authorizes:   NO
+What:         `llmfit plan` `minimum.ram_gb` often reports 8 GiB even for
+              sub-2B models. VRAM figures track parameter/quant/context
+              more closely. Comparison against Kultrun RAM will LARGE-
+              DIFFERENCE on small models for this reason, not a unit bug.
+Why now:      We must not rewrite llmfit. Document and compare; do not
+              treat the floor as Kultrun SAFE RAM.
+To make real: Use a finer llmfit field if one appears, or ignore ram_gb
+              for GPU placement when VRAM is the limiting resource.
+Retire when:  llmfit publishes a host-independent RAM requirement without
+              the floor, or Kultrun stops consuming ram_gb for GPU fits.
 Status:       OPEN
 
 ## Deferred capability register

@@ -51,7 +51,7 @@ src/kultrun/BUILD.json
 # Node/frontend generated dependencies
 node_modules/
 
-# OS / editor
-.DS_Store
+validation/
+
 .idea/
 .vscode/

@@ -306,11 +306,14 @@ contracts, or most planning and resource logic.
 enough; a live Hugging Face fetch is only L2 if claimed.
 
 **Stage 1.4B** is deterministic and fixture-driven against current
-host/capacity fixtures. Required shape tests include a tiny host, a
-medium GPU, CPU-only, unknown memory requirement, insufficient storage,
-an underutilized candidate, bounds at 20% and 100%, a candidate over
-capacity, and several preferred candidates. Real model inference is not
-required.
+host/capacity fixtures, plus captured `llmfit plan` JSON for CI.
+Required shape tests include a tiny host, a medium GPU, CPU-only,
+unknown memory requirement, insufficient storage, an underutilized
+candidate, bounds at 20% and 100%, a candidate over capacity, and
+several preferred candidates. Planning is run with the Kultrun estimator
+and with llmfit (fixtures in CI; real binary at T2). Real model
+inference is not required. Cross-provider comparison is a development
+tool, not a product test of ranking quality.
 
 Most of Stage 1.2 can be developed against the committed Stage 1.1 fixture
 with no host at all.

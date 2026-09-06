@@ -908,9 +908,22 @@ compatibility, feasibility, `DeploymentCapacity`, `CapacityUtilization`,
 lower/upper utilization filtering, deterministic ranking,
 `SelectionRecommendation` and `DeploymentPlan` v0.
 
+**One active estimator.** Requirements arrive through
+`ModelRequirementEstimator`. Default provider: Kultrun (packaged /
+formula_v0). Alternative: llmfit via `llmfit plan`, normalized into the
+same `ModelRequirement`. Composition selects one; planning does not
+branch on provider id. Cross-provider comparison is
+`tools/compare_model_estimators.py` plus tests — not API, Console, or
+`DeploymentPlan`.
+
+The candidate catalog expands to roughly 18–30 representative
+deployment variants (the original 1.4A six remain regression fixtures)
+with a meaningful overlap both estimators can evaluate.
+
 Consumes `HostCapabilities`, `CapacityEnvelope` (SAFE for the fit
-boundary), `RuntimeProfile`s, `ModelMetadata[]`, `ModelRequirement[]`
-and `SelectionPolicy`. It never reserves and never downloads.
+boundary), `RuntimeProfile`s, `ModelMetadata[]`, the active estimator's
+`ModelRequirement[]` and `SelectionPolicy`. It never reserves and never
+downloads.
 
 Every candidate receives an explainable evaluation: compatibility,
 storage feasibility (peak acquisition distinct from installed size),
@@ -922,7 +935,7 @@ No silent threshold relaxation.
 
 `SelectionRecommendation`: primary, preferred alternatives, underutilized
 alternatives, rejected, rationale, utilization, expected resource use,
-runtime, confidence, policy version, evidence references.
+runtime, confidence, policy version, **active** estimator identity.
 `DeploymentPlan` v0 names selected model/variant, runtime, executor
 kind, placement, expected RAM/VRAM/unified/storage, expected
 utilization and rationale.
@@ -931,9 +944,12 @@ Boundary tests are part of the brief: 19.99% underutilized, 20% and 100%
 preferred if otherwise compatible, 100.01% infeasible, unknown
 requirement unresolved, storage failure infeasible regardless of memory
 utilization. Fixture-driven against current host/capacity fixtures
-(tiny host, medium GPU, CPU-only, and the cases above). No inference.
+(tiny host, medium GPU, CPU-only, and the cases above). Planning tests
+run with both estimators where both support the models. T2 proves real
+`llmfit plan` from an installed artifact. No inference. T3 only if
+integration is genuinely host-sensitive.
 
-**Output:** `FeasibilityResult v0` + `SelectionRecommendation v0` + `DeploymentPlan v0` · **Gate:** L1, with fixture replay of the reference host envelope
+**Output:** `FeasibilityResult v0` + `SelectionRecommendation v0` + `DeploymentPlan v0` + `ModelRequirementEstimator` · **Gate:** L1 (T2 includes real llmfit execution; T3 not required unless host-sensitive)
 
 ### Stage 1.4C — Model acquisition + inventory
 
@@ -1254,8 +1270,10 @@ weights-plus-margin VRAM figure; both correctly appeared in
 ### Stage 3.2 — CapacityEvidence
 
 `CapacityEvidenceProvider` with a **required internal conservative
-estimator**. External providers — `llmfit`, Accelerate, runtime-native,
-benchmarks — are advisory adapters with a mandatory fallback, per §9.
+estimator**. External providers for *host capacity* — Accelerate,
+runtime-native, benchmarks — are advisory adapters with a mandatory
+fallback, per §9. llmfit is **not** a capacity authority; Stage 1.4B
+already uses it as a replaceable `ModelRequirementEstimator`.
 
 Theoretical and observed evidence stay distinguishable, each carrying
 basis and confidence.
@@ -1675,39 +1693,48 @@ DEFERRED ITEMS               Selection (1.4B), acquisition (1.4C), local-file
 
 ```text
 CURRENT STAGE                Feasibility + capacity-based selection +
-                             DeploymentPlan v0. No download, no reservation.
+                             DeploymentPlan v0. One active estimator.
+                             No download, no reservation. No product
+                             cross-provider reconciliation.
 PREDECESSOR OUTPUTS          Stage 1.4A catalog and ModelRequirement v0;
                              Stage 1.2 CapacityEnvelope; Stage 1.3 runtimes.
-THIS STAGE'S REQUIRED OUTPUT DeploymentCapacity, CapacityUtilization,
+THIS STAGE'S REQUIRED OUTPUT ModelRequirementEstimator port; Kultrun and
+                             llmfit adapters; ModelEstimationRequest;
+                             DeploymentCapacity, CapacityUtilization,
                              SelectionPolicy, FeasibilityResult per
                              candidate, SelectionRecommendation,
-                             DeploymentPlan v0.
-CORE CONTRACTS AFFECTED      planning.* (new). planning ⟂ resource preserved.
-ADAPTERS AFFECTED            none required; logic is domain-owned and
-                             fixture-driven.
+                             DeploymentPlan v0; development-only
+                             compare_model_estimators tool.
+CORE CONTRACTS AFFECTED      model.estimation_request (new);
+                             model.requirement (additive provider fields);
+                             planning.* (new). planning ⟂ resource preserved.
+ADAPTERS AFFECTED            adapters/estimators (kultrun, llmfit).
 PERSISTED STATE              Recommendations are recomputed, not stored as
-                             truth. A displayed recommendation may carry
-                             policy version, envelope identity, timestamp.
+                             truth. Comparison reports are not runtime state.
 MUTATION / FAILURE BOUNDARY  No mutation. SAFE capacity only. No silent
                              relaxation of utilization bounds. Unknown
                              load-bearing requirement → UNRESOLVED.
+                             Configured estimator missing → unavailable,
+                             not a silent Kultrun fallback.
 CANCELLATION / CLEANUP       No mutation.
-ACCEPTANCE LEVEL             L1 with fixture replay of host/capacity
-                             shapes. Boundary tests: 19.99% underutilized;
-                             20% and 100% preferred; 100.01% infeasible;
-                             unknown requirement; storage failure independent
+ACCEPTANCE LEVEL             L1. T2 proves real llmfit plan from a clean
+                             wheel. T3 only if host-sensitive. Boundary
+                             tests: 19.99% underutilized; 20% and 100%
+                             preferred; 100.01% infeasible; unknown
+                             requirement; storage failure independent
                              of memory utilization; tiny host; medium GPU;
-                             CPU-only; multiple preferred candidates.
-ADMIN SURFACE                GET selection/evaluation; Prototype Console
-                             Model Selection panel (eligible / underutilized
-                             / does not fit / recommended + why).
-DEBT ENTRIES                 SelectionPolicy defaults 0.20 / 1.00
-                             (configurable, not constants).
-                             allow_underutilized_fallback reserved, default
-                             off. Multi-GPU placement seam unused.
+                             CPU-only; multiple preferred candidates;
+                             both estimators through the same Planning.
+ADMIN SURFACE                GET /v1/models/selection; kultrun models
+                             recommend; Prototype Console Model Selection
+                             (active estimator only).
+DEBT ENTRIES                 SelectionPolicy defaults 0.20 / 1.00.
+                             allow_underutilized_fallback reserved, off.
+                             llmfit optional extra; RAM floor in llmfit
+                             ram_gb documented. Multi-GPU seam unused.
 DEFERRED ITEMS               Learned ranking, portfolio optimizer, live
                              Hub search, offload optimizer, acquisition,
-                             admission, inference.
+                             admission, inference, production reconciler.
 ```
 
 ---
