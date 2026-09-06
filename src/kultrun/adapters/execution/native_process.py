@@ -100,6 +100,7 @@ class NativeProcessExecutor:
                 stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
                 start_new_session=True,
+                bufsize=0,
             )
         except OSError as error:
             now = self._clock.now()
@@ -244,10 +245,21 @@ def _which(name: str) -> str | None:
 
 
 def _pump(stream: IO[bytes], capture: _Capture) -> threading.Thread:
+    """Copy available pipe bytes as they arrive.
+
+    Buffered `read(n)` waits until n bytes or EOF. A hold workload writes a
+    short line and then sleeps, so the console would show empty stdout until
+    the process exited. `os.read` returns as soon as any data is in the pipe.
+    """
+
     def run() -> None:
+        fd = stream.fileno()
         try:
             while True:
-                chunk = stream.read(_CHUNK)
+                try:
+                    chunk = os.read(fd, _CHUNK)
+                except OSError:
+                    return
                 if not chunk:
                     return
                 capture.feed(chunk)

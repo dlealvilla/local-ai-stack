@@ -208,6 +208,18 @@ class TestCompositionCopiesTheRecipe:
 
 
 class TestNativeProcessLifecycle:
+    def test_stdout_is_visible_while_the_process_is_still_running(
+        self, service: ExecutionService
+    ) -> None:
+        handle = service.start(HOST, _spec("--hold"))
+        try:
+            running = _wait_output(service, handle, f"{MARKER}:start")
+            assert running.observed_state is ExecutionState.RUNNING
+            assert is_resolved(running.pid)
+            assert f"{MARKER}:start" in running.stdout
+        finally:
+            service.stop_all_running()
+
     def test_a_process_starts_and_exits_zero(self, service: ExecutionService) -> None:
         handle = service.start(HOST, _spec("--once"))
         assert is_resolved(handle.pid)
@@ -259,6 +271,7 @@ class TestNativeProcessLifecycle:
         try:
             running = _wait_output(service, handle, f"{MARKER}:start")
             assert running.observed_state is ExecutionState.RUNNING
+            assert f"{MARKER}:start" in running.stdout
             stopped = service.stop(running.execution_id)
             finished = _wait(service, stopped)
             assert finished.observed_state is ExecutionState.EXITED
@@ -277,6 +290,8 @@ class TestNativeProcessLifecycle:
         )
         try:
             running = _wait_output(service, handle, f"{MARKER}:start")
+            assert running.observed_state is ExecutionState.RUNNING
+            assert f"{MARKER}:start" in running.stdout
             stopped = service.stop(running.execution_id)
             finished = _wait(service, stopped)
             assert finished.observed_state is ExecutionState.FAILED
@@ -305,6 +320,8 @@ class TestNativeProcessLifecycle:
         handle = owned.start(HOST, _spec("--hold"))
         try:
             running = _wait_output(owned, handle, f"{MARKER}:start")
+            assert running.observed_state is ExecutionState.RUNNING
+            assert f"{MARKER}:start" in running.stdout
             assert is_resolved(running.pid)
             pid = running.pid
 
@@ -380,11 +397,13 @@ class TestPlatformApiAndConsole:
         started = start_reference_workload(platform, hold=True)
         running = _wait_output(platform.executions, started, f"{MARKER}:start")
         assert running.observed_state is ExecutionState.RUNNING
+        assert f"{MARKER}:start" in running.stdout
         listed = _items(_call(platform, "/runtime")["executions"])
         first = _obj(listed[0])
         assert first["execution_id"] == started.execution_id.value
         assert first["observed_state"] == "running"
         assert isinstance(first["pid"], int)
+        assert f"{MARKER}:start" in str(first.get("stdout") or "")
 
         response = platform.router.handle(
             ApiRequest(method=Method.POST, path="/v1/runtime/execution/stop")
