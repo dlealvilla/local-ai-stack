@@ -19,6 +19,7 @@ from kultrun.audit.contracts import AuditDecision, AuditEvent, AuditId, AuditOut
 from kultrun.capacity.contracts import CapacityEvidence, EvidenceType
 from kultrun.entitlement.contracts import Entitlement, EntitlementKind
 from kultrun.evidence.contracts import Confidence, LayeredBytes, Provenance
+from kultrun.execution import contracts as _execution_contracts  # noqa: F401
 from kultrun.host.contracts import (
     Accelerator,
     AcceleratorVendor,
@@ -88,6 +89,7 @@ from kultrun.resource.contracts import (
     WorkloadProfile,
     WorkloadType,
 )
+from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
 from kultrun.storage.contracts import ProviderClass, StoragePool, StoragePoolId
 from kultrun.training.contracts import (
     DatasetSnapshot,

@@ -57,8 +57,10 @@ Status:       OPEN | RETIRED (<stage>, <date>)
 
 ## Open entries
 
-Eleven: seven from Stage 0.1 and four from Stage 0.3. None authorizes a
-mutation, so none is caught by rule 2.
+Open entries continue from kernel through Stage 1.3. Most do not authorize
+a mutation. `K-29` and `K-34` start real work (storage reservation; the
+reference process) and are tolerable only because the API is loopback
+(`K-08`).
 
 Two carry hard conditions. `K-03` — no migration engine — must retire before
 the first `schema_version` bump ships. `K-08` — no authentication — must
@@ -559,6 +561,74 @@ and no check that a panel actually displays the value the API returned.
 **Retires when** the console carries something a customer relies on. Until
 then, looking at it is part of the acceptance ritual and cheaper than the
 infrastructure would be.
+
+### K-31 — process identity is not reattached across control-plane restarts
+Label:        PROVISIONAL
+Owner stage:  1.3
+Subsystem:    execution
+Authorizes:   NO
+What:         `NativeProcessExecutor` proves ownership by holding the
+              `Popen` object. After a control-plane restart a recorded PID
+              that still exists is `UNVERIFIED` and is never signalled.
+              There is no start-time check, no `/proc/<pid>/stat` cookie,
+              and no supervisor that reaps orphans.
+Why now:      Stage 1.3 proves start/observe/stop in one process. Claiming
+              a PID we cannot prove is ours would be a false success.
+To make real: A durable process cookie (start time, or an equivalent) and
+              a bounded reattach path that still refuses to signal
+              unverified processes.
+Retire when:  the scheduled lifecycle reconciliation stage that owns
+              restart of running inference instances, not before.
+Status:       OPEN
+
+### K-32 — execution health is UNKNOWN
+Label:        PROVISIONAL
+Owner stage:  1.3
+Subsystem:    execution
+Authorizes:   NO
+What:         `ExecutionHealth` is a separate field from observed state,
+              and v0 always reports `UNKNOWN`. A live PID is not a
+              functioning inference API.
+Why now:      Stage 1.3 has no application-level probe. Collapsing health
+              into RUNNING would have to be undone at Stage 1.6.
+To make real: A probe appropriate to the workload (later, an inference
+              endpoint health check) that can be unhealthy while the
+              process is still running.
+Retire when:  Stage 1.6 introduces a real instance health check.
+Status:       OPEN
+
+### K-33 — ContainerEngine is an unimplemented seam
+Label:        DEFERRED
+Owner stage:  1.3
+Subsystem:    execution
+Authorizes:   NO
+What:         `ContainerEngine` is declared on the executor port and has
+              no adapter. Native process execution is the only path.
+Why now:      Docker/OCI/Kubernetes must not become mandatory by existing.
+              The seam exists so an OCI executor is an adapter later.
+To make real: An optional OCI adapter behind the same `Executor` port,
+              selected per deployment, never as a default.
+Retire when:  a container executor is an accepted adapter, or the product
+              decides the seam is unused and removes it deliberately.
+Status:       OPEN
+
+### K-34 — the runtime mutation is unauthenticated and unaudited
+Label:        DEFERRED
+Owner stage:  1.3
+Subsystem:    api / execution
+Authorizes:   YES (starts/stops only the reference workload on loopback)
+What:         `POST /v1/runtime/execution` and `/stop` start and stop a
+              real process and are reachable by anyone who can reach the
+              API. They accept no arbitrary argv. They write no
+              `AuditEvent`.
+Why now:      Same bound as K-08 and K-29: the API binds to loopback and
+              there is no authentication anywhere yet. The workload is
+              the product-controlled acceptance harness, not a shell.
+To make real: Authentication, or Stage 1.5A admission and audit on
+              mutating endpoints. Whichever comes first.
+Retire when:  authentication arrives, or mutating execution endpoints pass
+              through admission and audit.
+Status:       OPEN
 
 ## Deferred capability register
 

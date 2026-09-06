@@ -18,9 +18,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from kultrun.adapters.execution.native_process import NativeProcessExecutor
 from kultrun.adapters.host import fixtures, hwloc, native_linux, nvidia
 from kultrun.adapters.install import apt
 from kultrun.adapters.persistence import file_store
+from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.storage import posix_reservation, replayed
 
 # Contract registration is a side effect of import, so the catalogue the
@@ -38,6 +40,9 @@ from kultrun.capacity.envelope import CapacityService
 from kultrun.components.contracts import ComponentNecessity, ComponentRequirement
 from kultrun.entitlement import contracts as _entitlement_contracts  # noqa: F401
 from kultrun.evidence import contracts as _evidence_contracts  # noqa: F401
+from kultrun.execution import contracts as _execution_contracts  # noqa: F401
+from kultrun.execution.contracts import ExecutionId, ExecutionState, ExecutorHandle
+from kultrun.execution.service import ExecutionService
 from kultrun.host import contracts as _host_contracts  # noqa: F401
 from kultrun.host.contracts import HostCapabilities, MountFacts
 from kultrun.host.discovery import HostDiscoveryService
@@ -53,6 +58,7 @@ from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.registry import AdapterRegistry
 from kultrun.kernel.schema import validate_registry
+from kultrun.kernel.unresolved import is_resolved
 from kultrun.knowledge import contracts as _knowledge_contracts  # noqa: F401
 from kultrun.model import contracts as _model_contracts  # noqa: F401
 from kultrun.platform.approval import ApprovalLog
@@ -64,10 +70,13 @@ from kultrun.platform.contracts import (
     StartupReport,
 )
 from kultrun.platform.health import HealthAggregator
+from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
 from kultrun.resource import contracts as _resource_contracts  # noqa: F401
+from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
+from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService
@@ -145,6 +154,51 @@ class _HostDiscoveryPhase:
         return ComponentHealth(component=self.component, status=HealthStatus.HEALTHY)
 
 
+class _ExecutionPhase:
+    """Adapts `execution` to the control plane's startup and health ports.
+
+    The domain reports facts (unverified leftover PIDs) and never grades
+    them. Grading belongs here because "degraded" is a platform judgement.
+    """
+
+    phase = Name("execution")
+    component = Name("execution")
+
+    def __init__(self, executions: ExecutionService) -> None:
+        self._executions = executions
+
+    def reconcile(self) -> PhaseReport:
+        try:
+            detail = self._executions.reconcile()
+        except Exception as error:
+            return PhaseReport(
+                phase=self.phase,
+                succeeded=False,
+                detail=f"execution reconcile failed: {error}",
+            )
+        leftovers = self._executions.unverified_count()
+        return PhaseReport(
+            phase=self.phase,
+            succeeded=True,
+            detail=detail,
+            defects=() if leftovers == 0 else (detail,),
+        )
+
+    def check_health(self) -> ComponentHealth:
+        leftovers = self._executions.unverified_count()
+        if leftovers:
+            return ComponentHealth(
+                component=self.component,
+                status=HealthStatus.DEGRADED,
+                detail=f"{leftovers} unverified process(es) left unclaimed",
+            )
+        return ComponentHealth(
+            component=self.component,
+            status=HealthStatus.HEALTHY,
+            detail="no unverified processes",
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class Platform:
     """An assembled, started platform."""
@@ -160,6 +214,8 @@ class Platform:
     #: an operator changes directory is state that will eventually be lost.
     capacity: CapacityService
     sanity: StorageSanityService
+    executions: ExecutionService
+    runtimes: RuntimeCatalogue
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -334,18 +390,24 @@ def build(
         store,
         clock=resolved_clock,
     )
+    executor = NativeProcessExecutor(resolved_clock)
+    executions = ExecutionService(executor, store)
+    runtimes = RuntimeCatalogue((ReferenceProcessRuntime(hold=True),))
+    execution_phase = _ExecutionPhase(executions)
 
     startup = Startup(resolved_clock)
     startup.register(StoreReconcilePhase(store))
     startup.register(state)
     startup.register(preparation)
     startup.register(host_phase)
+    startup.register(execution_phase)
 
     health = HealthAggregator(resolved_clock)
     health.register(state)
     health.register(approvals)
     health.register(preparation)
     health.register(host_phase)
+    health.register(execution_phase)
 
     report = startup.run(state=state)
 
@@ -358,6 +420,9 @@ def build(
         hosts=hosts,
         capacity=capacity,
         sanity=sanity,
+        executions=executions,
+        runtimes=runtimes,
+        executor_identity=executor.identity.value,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
         evidence_mode=mode.value,
@@ -374,6 +439,8 @@ def build(
         preparation=preparation,
         capacity=capacity,
         sanity=sanity,
+        executions=executions,
+        runtimes=runtimes,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -702,10 +769,126 @@ def _storage(arguments: Sequence[str]) -> int:
     return check_storage_sanity(arguments[1:])
 
 
+def start_reference_workload(platform: Platform, *, hold: bool) -> ExecutorHandle:
+    """Compose the reference recipe and start it. Lives here, not in either domain."""
+    launch = ReferenceProcessRuntime(hold=hold).launch_spec()
+    spec = executor_spec_from(launch)
+    return platform.executions.start(platform.hosts.current.host_id, spec)
+
+
+def _runtime(arguments: Sequence[str]) -> int:
+    """The `runtime` command group: start, status, stop the reference workload."""
+    if not arguments or arguments[0] in ("-h", "--help"):
+        print("usage: kultrun runtime {start,status,stop}", file=sys.stderr)
+        return 0 if arguments else 2
+    command = arguments[0]
+    rest = list(arguments[1:])
+    if command == "start":
+        return _runtime_start(rest)
+    if command == "status":
+        return _runtime_status()
+    if command == "stop":
+        return _runtime_stop(rest)
+    print(f"kultrun: unknown runtime command {command!r}", file=sys.stderr)
+    print("usage: kultrun runtime {start,status,stop}", file=sys.stderr)
+    return 2
+
+
+def _runtime_start(arguments: Sequence[str]) -> int:
+    once = "--once" in arguments
+    hold_flag = "--hold" in arguments
+    if once and hold_flag:
+        print("kultrun: choose --once or --hold, not both", file=sys.stderr)
+        return 2
+    hold = not once
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    handle = start_reference_workload(platform, hold=hold)
+    _print_execution(handle)
+    if not hold:
+        handle = _wait_until_terminal(platform, handle)
+        _print_execution(handle)
+        code = handle.exit_code
+        if handle.observed_state.value == "exited" and code == 0:
+            return 0
+        return 1
+    print("running; interrupt to stop", file=sys.stderr)
+    try:
+        handle = _wait_until_terminal(platform, handle)
+    except KeyboardInterrupt:
+        handle = platform.executions.stop(handle.execution_id)
+    _print_execution(handle)
+    return 0
+
+
+def _runtime_status() -> int:
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    handles = platform.executions.list()
+    if not handles:
+        print("no executions")
+        return 0
+    for handle in handles:
+        _print_execution(handle)
+    return 0
+
+
+def _runtime_stop(arguments: Sequence[str]) -> int:
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    if arguments:
+        handle = platform.executions.stop(ExecutionId.parse(arguments[0]))
+        _print_execution(handle)
+        return 0
+    stopped = platform.executions.stop_all_running()
+    if not stopped:
+        print("no owned running executions to stop")
+        return 0
+    for handle in stopped:
+        _print_execution(handle)
+    return 0
+
+
+def _wait_until_terminal(
+    platform: Platform, handle: ExecutorHandle
+) -> ExecutorHandle:
+    import time
+
+    current = handle
+    deadline = time.monotonic() + 30
+    while current.observed_state in (
+        ExecutionState.PENDING,
+        ExecutionState.STARTING,
+        ExecutionState.RUNNING,
+        ExecutionState.STOPPING,
+    ):
+        if time.monotonic() > deadline:
+            return current
+        time.sleep(0.05)
+        current = platform.executions.observe(current.execution_id)
+    return current
+
+
+def _print_execution(handle: ExecutorHandle) -> None:
+    pid = handle.pid if is_resolved(handle.pid) else "-"
+    exit_code = handle.exit_code if is_resolved(handle.exit_code) else "-"
+    print(
+        f"{handle.execution_id.value}  {handle.observed_state.value}  "
+        f"pid {pid}  exit {exit_code}  ownership {handle.ownership.value}"
+    )
+    if handle.stdout:
+        print("--- stdout ---")
+        print(handle.stdout, end="" if handle.stdout.endswith("\n") else "\n")
+    if handle.stderr:
+        print("--- stderr ---")
+        print(handle.stderr, end="" if handle.stderr.endswith("\n") else "\n")
+
+
 COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "version": lambda _: show_version(),
     "host": lambda _: show_host(),
     "storage": _storage,
+    "runtime": _runtime,
     "serve": lambda _: serve(),
 }
 
@@ -713,10 +896,11 @@ COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
 def main(argv: Sequence[str] | None = None) -> int:
     """The `kultrun` command.
 
-    Deliberately three subcommands and no framework. Each exists because the
-    workflow needs it: `version` identifies a deployed build, `host` lets a
-    real-host run be observed without shipping a script beside the product,
-    and `serve` is what the platform does.
+    Deliberately a small command set and no framework. Each exists because
+    the workflow needs it: `version` identifies a deployed build, `host`
+    lets a real-host run be observed without shipping a script beside the
+    product, `storage` and `runtime` are explicit mutations, and `serve`
+    is what the platform does.
     """
     arguments = list(sys.argv[1:] if argv is None else argv)
     if not arguments or arguments[0] in ("-h", "--help", "help"):

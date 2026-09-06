@@ -1,0 +1,221 @@
+"""Process launch and observation, without runtime or model semantics.
+
+The executor receives a structured specification — an executable and an
+argument list — never a shell string. `docs/ROADMAP.md` Stage 1.3: native
+process execution is first-class; a container engine is a later adapter
+behind the same port.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import re
+from dataclasses import dataclass
+from enum import StrEnum
+from pathlib import Path
+
+from kultrun.host.contracts import HostId
+from kultrun.kernel.errors import ValidationError
+from kultrun.kernel.ids import EntityId, Name
+from kultrun.kernel.schema import Contract, contract, meaning
+from kultrun.kernel.unresolved import NOT_MEASURED, Maybe
+
+_ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+class ExecutionId(EntityId):
+    """Identifies one execution the platform started."""
+
+    prefix = "exec"
+
+
+class ExecutionState(StrEnum):
+    """Observed process lifecycle. Desired state is a separate field."""
+
+    PENDING = "pending"
+    STARTING = "starting"
+    RUNNING = "running"
+    STOPPING = "stopping"
+    EXITED = "exited"
+    FAILED = "failed"
+
+
+class ExecutionHealth(StrEnum):
+    """Whether the process is functioning, as distinct from whether it exists.
+
+    Stage 1.3 has no application-level probe. ``UNKNOWN`` is the honest
+    v0 answer: a live PID is not proof that a future inference API works.
+    """
+
+    HEALTHY = "healthy"
+    UNHEALTHY = "unhealthy"
+    UNKNOWN = "unknown"
+
+
+class ExecutionOwnership(StrEnum):
+    """Whether Kultrun can prove this process is the one it started.
+
+    After a control-plane restart the PID in a record may have been reused.
+    Claiming that process would be lying. ``UNVERIFIED`` means it looks
+    alive and we will not signal it.
+    """
+
+    OWNED = "owned"
+    UNVERIFIED = "unverified"
+    ABSENT = "absent"
+
+
+@contract(kind="execution.device_request", version=1)
+@dataclass(frozen=True, slots=True)
+class DeviceRequest(Contract):
+    """An accelerator Kultrun has already decided to attach.
+
+    Named the way Kultrun identifies devices, not the way a container
+    runtime names them. Translation to a CDI name belongs in an OCI
+    adapter later, never here.
+    """
+
+    index: int = meaning("which accelerator, as Kultrun numbers them on the host")
+
+
+@contract(kind="execution.spec", version=1)
+@dataclass(frozen=True, slots=True)
+class ExecutorSpec(Contract):
+    """A structured process launch. Never a shell command string."""
+
+    executable: str = meaning("the program to exec; not a shell line")
+    arguments: tuple[str, ...] = meaning(
+        "argv after the executable; each element is one argument"
+    )
+    environment: tuple[str, ...] = meaning(
+        "extra environment bindings as NAME=value strings", default=()
+    )
+    working_directory: str | None = meaning(
+        "working directory, or the executor's default", default=None
+    )
+    output_limit_bytes: int = meaning(
+        "stdout and stderr are each truncated at this size", default=16 * 1024
+    )
+    grace_period_seconds: float = meaning(
+        "how long SIGTERM may take before SIGKILL", default=2.0
+    )
+    device_requests: tuple[DeviceRequest, ...] = meaning(
+        "accelerators already authorized for this launch; unused by the "
+        "native executor in Stage 1.3",
+        default=(),
+    )
+
+    def __post_init__(self) -> None:
+        _reject_shell_string(self.executable, what="executable")
+        if not self.executable.strip():
+            raise ValidationError("executable must not be empty")
+        if "\0" in self.executable:
+            raise ValidationError("executable must not contain a NUL")
+        for argument in self.arguments:
+            if not isinstance(argument, str):
+                raise ValidationError(
+                    "every argument must be a string",
+                    actual_type=type(argument).__name__,
+                )
+            if "\0" in argument:
+                raise ValidationError("arguments must not contain a NUL")
+        for entry in self.environment:
+            name, value = _split_env(entry)
+            if not _ENV_NAME.match(name):
+                raise ValidationError(
+                    "environment name is not a valid identifier",
+                    name=name,
+                )
+            if "\0" in value:
+                raise ValidationError(
+                    "environment values must not contain a NUL",
+                    name=name,
+                )
+        if self.output_limit_bytes < 1:
+            raise ValidationError(
+                "output limit must be at least one byte",
+                output_limit_bytes=self.output_limit_bytes,
+            )
+        if self.grace_period_seconds <= 0:
+            raise ValidationError(
+                "grace period must be positive",
+                grace_period_seconds=self.grace_period_seconds,
+            )
+
+
+@contract(kind="execution.handle", version=1)
+@dataclass(frozen=True, slots=True)
+class ExecutorHandle(Contract):
+    """One execution, as the platform last observed it.
+
+    Desired, observed and health stay separate fields even when v0 leaves
+    health unknown. Collections of these are `executions[]`; there is no
+    `current_execution`.
+    """
+
+    execution_id: ExecutionId = meaning("platform-minted identity of this execution")
+    host_id: HostId = meaning("the host the process was started on")
+    executor: Name = meaning("which executor adapter started it")
+    desired_state: ExecutionState = meaning("what Kultrun wants")
+    observed_state: ExecutionState = meaning("what actually exists")
+    health: ExecutionHealth = meaning(
+        "whether it is functioning; unknown until a real probe exists"
+    )
+    ownership: ExecutionOwnership = meaning(
+        "whether this PID is proven to be the process we started"
+    )
+    created_at: dt.datetime = meaning("when the record was created, UTC")
+    executable: str = meaning("the program that was exec'd")
+    arguments: tuple[str, ...] = meaning("the argument list that was exec'd")
+    pid: Maybe[int] = meaning(
+        "operating-system process id while one is known", default=NOT_MEASURED
+    )
+    started_at: dt.datetime | None = meaning(
+        "when the process became running; absent until it does", default=None
+    )
+    exited_at: dt.datetime | None = meaning(
+        "when the process left running; absent while it has not", default=None
+    )
+    exit_code: Maybe[int] = meaning(
+        "wait status when observed exited or failed", default=NOT_MEASURED
+    )
+    stdout: str = meaning("bounded stdout captured so far", default="")
+    stderr: str = meaning("bounded stderr captured so far", default="")
+    output_truncated: bool = meaning(
+        "true when a stream hit the capture limit", default=False
+    )
+    detail: str | None = meaning(
+        "why a start or stop failed, when it did", default=None
+    )
+
+
+def environment_as_dict(entries: tuple[str, ...]) -> dict[str, str]:
+    """NAME=value strings into a mapping. Entries are already validated."""
+    return dict(_split_env(entry) for entry in entries)
+
+
+def _split_env(entry: str) -> tuple[str, str]:
+    if "=" not in entry:
+        raise ValidationError(
+            "environment entry must be NAME=value",
+            entry=entry,
+        )
+    name, value = entry.split("=", 1)
+    return name, value
+
+
+_SHELL_NAMES = frozenset({"sh", "bash", "zsh", "dash", "csh", "ksh", "fish"})
+
+
+def _reject_shell_string(value: str, *, what: str) -> None:
+    """Refuse the shapes that would turn structured launch into `sh -c`."""
+    if not isinstance(value, str):
+        raise ValidationError(
+            f"{what} must be a string",
+            actual_type=type(value).__name__,
+        )
+    if Path(value).name in _SHELL_NAMES:
+        raise ValidationError(
+            f"{what} must not be a shell; Kultrun does not expose sh -c",
+            executable=value,
+        )

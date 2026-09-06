@@ -123,6 +123,9 @@ class TestTheCheckerFinds:
             ("execution", "runtime"),
             ("runtime", "execution"),
             ("execution", "capacity"),
+            ("capacity", "execution"),
+            ("runtime", "capacity"),
+            ("capacity", "runtime"),
             ("storage", "model"),
             ("capacity", "model"),
             ("knowledge", "gateway"),
@@ -353,6 +356,13 @@ class TestLawFive:
     def test_an_adapter_inherits_its_domains_forbidden_edges(self) -> None:
         """A container engine adapter is still forbidden to read capacity."""
         problems = violations([adapter_edge("container", "capacity")])
+        assert problems != []
+        assert "non-edge" in problems[0]
+        assert "Law 5" in problems[0]
+
+    def test_a_runtime_adapter_cannot_import_capacity(self) -> None:
+        """Runtime receives resolved constraints; it does not own policy."""
+        problems = violations([adapter_edge("runtime", "capacity")])
         assert problems != []
         assert "non-edge" in problems[0]
         assert "Law 5" in problems[0]

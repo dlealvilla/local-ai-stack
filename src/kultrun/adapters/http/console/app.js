@@ -170,7 +170,9 @@ async function renderMode() {
       ['mode', String(mode.evidence_mode).replace(/_/g, ' ')],
       ['physical host connected', mode.physical_host_connected
         ? pill('yes', 'ok') : pill('no', 'warn')],
+      ['host evidence', String(mode.host_evidence_kind || mode.evidence_mode).replace(/_/g, ' ')],
       ['storage evidence', String(mode.storage_evidence_kind).replace(/_/g, ' ')],
+      ['process evidence', String(mode.process_evidence_kind || 'not reported').replace(/_/g, ' ')],
     ];
     if (mode.fixture) {
       pairs.push(
@@ -413,42 +415,36 @@ async function renderRuntime() {
   try {
     const state = await get('/runtime');
     panel.classList.remove('hidden');
+
+    const executor = state.executor || {};
+    const profiles = state.profiles || [];
+    const executions = state.executions || [];
+    const processEvidence = (state.process_evidence && state.process_evidence.kind)
+      || 'not reported';
+    const profileName = profiles.length
+      ? profiles.map((profile) => profile.display_name || profile.runtime).join(', ')
+      : 'none registered';
+
     const pairs = [
-      ['executor', state.executor],
-      ['runtime', state.runtime],
+      ['executor', executor.identity || 'not reported'],
+      ['runtime / profile', profileName],
       ['acceptance workload', state.workload || 'none configured'],
+      ['process evidence', String(processEvidence).replace(/_/g, ' ')],
+      ['host evidence mode', String(state.host_evidence_mode || '').replace(/_/g, ' ')],
+      ['executions', String(executions.length)],
     ];
-    const execution = state.execution;
-    if (execution) {
-      pairs.push(
-        ['execution id', execution.execution_id],
-        ['state', pill(String(execution.state).replace(/_/g, ' '),
-          execution.state === 'running' ? 'ok'
-            : execution.state === 'failed' ? 'bad' : 'unknown')],
-        ['pid', execution.pid],
-        ['started', execution.started_at],
-        ['exited', execution.exited_at],
-        ['exit code', execution.exit_code],
-      );
-    } else {
-      pairs.push(['execution', 'none started']);
-    }
     rows(target, pairs);
 
-    if (execution && (execution.stdout || execution.stderr)) {
-      for (const stream of ['stdout', 'stderr']) {
-        if (!execution[stream]) continue;
-        const block = document.createElement('details');
-        const summary = document.createElement('summary');
-        summary.textContent = stream;
-        const pre = document.createElement('pre');
-        pre.textContent = execution[stream];
-        block.append(summary, pre);
-        target.append(block);
-      }
+    if (executions.length === 0) {
+      target.append(span('muted', 'No executions started.'));
     }
-    if (state.controls_available) {
-      target.append(runtimeControls(execution));
+    for (const execution of executions) {
+      target.append(executionCard(execution));
+    }
+
+    const controls = state.controls || {};
+    if (controls.start_reference || controls.stop) {
+      target.append(runtimeControls(executions, controls));
     }
     json(document.getElementById('runtime-json'), state);
   } catch (error) {
@@ -461,14 +457,57 @@ async function renderRuntime() {
   }
 }
 
-function runtimeControls(execution) {
+function executionCard(execution) {
+  const card = document.createElement('div');
+  card.className = 'pool';
+  const head = document.createElement('div');
+  head.className = 'pool-head';
+  const title = document.createElement('span');
+  title.className = 'pool-path';
+  title.textContent = execution.execution_id || 'unknown execution';
+  const observed = String(execution.observed_state || '').replace(/_/g, ' ');
+  head.append(title, pill(observed,
+    execution.observed_state === 'running' ? 'ok'
+      : execution.observed_state === 'failed' ? 'bad' : 'unknown'));
+  card.append(head);
+
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  rows(grid, [
+    ['desired state', execution.desired_state],
+    ['observed state', execution.observed_state],
+    ['health', execution.health],
+    ['ownership', execution.ownership],
+    ['pid', execution.pid],
+    ['started', execution.started_at],
+    ['exited', execution.exited_at],
+    ['exit code', execution.exit_code],
+    ['output truncated', execution.output_truncated],
+  ]);
+  card.append(grid);
+
+  for (const stream of ['stdout', 'stderr']) {
+    if (!execution[stream]) continue;
+    const block = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = stream;
+    const pre = document.createElement('pre');
+    pre.textContent = execution[stream];
+    block.append(summary, pre);
+    card.append(block);
+  }
+  return card;
+}
+
+function runtimeControls(executions, controls) {
   const wrap = document.createElement('div');
   wrap.style.marginTop = '0.9rem';
-  const running = execution && (execution.state === 'running' || execution.state === 'starting');
+  const running = executions.some((execution) =>
+    execution.observed_state === 'running' || execution.observed_state === 'starting');
 
   const start = document.createElement('button');
-  start.textContent = 'Start acceptance workload';
-  start.disabled = Boolean(running);
+  start.textContent = 'Start test workload';
+  start.disabled = !controls.start_reference;
   start.addEventListener('click', async () => {
     start.disabled = true;
     try {
@@ -482,7 +521,7 @@ function runtimeControls(execution) {
   stop.className = 'danger';
   stop.style.marginLeft = '0.5rem';
   stop.textContent = 'Stop';
-  stop.disabled = !running;
+  stop.disabled = !controls.stop || !running;
   stop.addEventListener('click', async () => {
     stop.disabled = true;
     try {

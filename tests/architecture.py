@@ -82,6 +82,10 @@ FORBIDDEN_EDGES: frozenset[tuple[str, str]] = frozenset(
         # safely be launched. Execution consumes an authorized allocation.
         ("execution", "capacity"),
         ("capacity", "execution"),
+        # Runtime translates a recipe. It receives already-resolved
+        # constraints through its own inputs and never owns capacity policy.
+        ("runtime", "capacity"),
+        ("capacity", "runtime"),
         # Storage probing must not know model identities; managed usage
         # arrives through a port that speaks only bytes per pool.
         ("storage", "model"),
@@ -187,6 +191,7 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "resource.workload",
         "resource.reservation",
         "inference.instance",
+        "execution.handle",
     }
 )
 

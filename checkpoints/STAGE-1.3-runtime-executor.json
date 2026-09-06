@@ -1,0 +1,44 @@
+{
+  "stage": "1.3",
+  "name": "runtime-executor",
+  "milestone": 1,
+  "output": "ExecutorSpec + ExecutorHandle + DeviceRequest + RuntimeProfile + RuntimeLaunchSpec + NativeProcessExecutor",
+  "status": "local-acceptance-complete-t3-pending",
+  "gate": "L2",
+  "t3_required": true,
+  "t3_host_shape": "generic Linux x86_64, no GPU required",
+  "old_runpod_reused": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "ec6b943af0722ac84fb96854d946da16966aaddb",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.2A-storage-sanity-console.json",
+      "checkpoints/WORKFLOW-model-lifecycle-roadmap.json"
+    ]
+  },
+  "architecture": {
+    "execution_orthogonal_runtime": true,
+    "runtime_orthogonal_capacity": true,
+    "arbitrary_shell_api": false,
+    "capacity_policy_owned_by_runtime": false
+  },
+  "runtime": {
+    "package": "kultrun.runtime",
+    "contracts": ["runtime.profile", "runtime.launch_spec"],
+    "port": "InferenceRuntime",
+    "reference_adapter": "reference-process"
+  },
+  "execution": {
+    "package": "kultrun.execution",
+    "native_process_executor": true,
+    "lifecycle": ["pending", "starting", "running", "stopping", "exited", "failed"],
+    "container_engine": "unimplemented"
+  },
+  "reference_workload": {
+    "module": "kultrun.adapters.runtime.reference_workload",
+    "deterministic": true,
+    "product_feature": false,
+    "acceptance_harness": true
+  },
+  "debt": ["K-31", "K-32", "K-33", "K-34"],
+  "next": "Stage 1.4A after T3 closes 1.3"
+}

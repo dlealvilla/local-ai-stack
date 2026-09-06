@@ -133,6 +133,8 @@ class TestReplayIsNeverPresentedAsLive:
         assert mode["evidence_mode"] == EvidenceMode.FIXTURE_REPLAY.value
         assert mode["physical_host_connected"] is False
         assert mode["storage_evidence_kind"] == "replayed_test_evidence"
+        assert mode["process_evidence_kind"] == "live_local_process"
+        assert mode["host_evidence_kind"] == "fixture_replay"
 
     def test_the_mode_surface_describes_what_is_being_replayed(
         self, replayed: Platform
@@ -155,6 +157,8 @@ class TestReplayIsNeverPresentedAsLive:
         mode = _call(platform, "/mode")
         assert mode["physical_host_connected"] is True
         assert mode["storage_evidence_kind"] == "live_empirical_verification"
+        assert mode["process_evidence_kind"] == "live_local_process"
+        assert mode["host_evidence_kind"] == "live_host"
 
     def test_the_sanity_surface_labels_replayed_evidence(
         self, replayed: Platform

@@ -122,6 +122,7 @@ class TestStartingFromNothing:
             "platform-state",
             "component-preparation",
             "host-discovery",
+            "execution",
         ]
 
     def test_the_store_reconciles_before_anything_reads_it(

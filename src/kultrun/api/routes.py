@@ -1,12 +1,8 @@
-"""The Stage 0.3 endpoints.
+"""The Platform API endpoints.
 
-All read-only. The Milestone 0 gate says the Platform API answers from
-platform state, and at this stage there is nothing to mutate.
-
-This module is where every later stage adds its surface, which is the point
-of building it now. `docs/ROADMAP.md` Part II §4.6 makes an API surface part
-of the definition of done for every stage, and that is only affordable if
-adding one costs a handful of lines against a table that already exists.
+Reads answer from platform state. Mutations that exist are explicit POST
+routes and never run on GET, so a page load cannot start a process or
+reserve storage.
 """
 
 from __future__ import annotations
@@ -18,6 +14,8 @@ from kultrun.api.contracts import ApiRequest
 from kultrun.api.router import Router
 from kultrun.capacity.contracts import CapacityEnvelope, HeadroomPolicy
 from kultrun.capacity.envelope import CapacityService
+from kultrun.execution.contracts import ExecutionId
+from kultrun.execution.service import ExecutionService
 from kultrun.host.contracts import DeploymentProfile, HostCapabilities
 from kultrun.host.inventory import HostInventory
 from kultrun.host.profile import shape_of
@@ -28,12 +26,15 @@ from kultrun.kernel.errors import (
     PreconditionFailedError,
     ValidationError,
 )
+from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import registered_contracts
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
 from kultrun.platform.health import HealthAggregator
+from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.startup import Startup
 from kultrun.platform.state import PlatformStateStore
+from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService, summarize
 
@@ -55,6 +56,11 @@ class ControlPlane:
     hosts: HostInventory
     capacity: CapacityService
     sanity: StorageSanityService
+    executions: ExecutionService
+    runtimes: RuntimeCatalogue
+    #: Adapter identity, e.g. native-process. A string so the API does not
+    #: import an adapter module.
+    executor_identity: str
     #: How the control plane turns host mounts into stored sanity evidence.
     #: Injected rather than computed here so `api` does not acquire storage
     #: logic; the composition root owns the wiring.
@@ -194,6 +200,10 @@ def register(router: Router, plane: ControlPlane) -> Router:
                 if replaying
                 else "live_empirical_verification"
             ),
+            "process_evidence_kind": "live_local_process",
+            "host_evidence_kind": (
+                "fixture_replay" if replaying else "live_host"
+            ),
             "fixture": dict(plane.fixture_description)
             if plane.fixture_description
             else None,
@@ -280,10 +290,58 @@ def register(router: Router, plane: ControlPlane) -> Router:
         """The headroom policy in force, so a decision stays explicable."""
         return plane.capacity.policy
 
+    def runtime(_: ApiRequest) -> dict[str, object]:
+        """Runtime profiles and every execution, observed now.
+
+        Host/capacity evidence may be a fixture replay. Process evidence is
+        always this machine: NativeProcessExecutor runs here. The two are
+        not one "LIVE" flag.
+        """
+        return {
+            "executor": {
+                "identity": plane.executor_identity,
+                "kind": "native_process",
+            },
+            "profiles": list(plane.runtimes.profiles()),
+            "executions": list(plane.executions.list()),
+            "workload": "kultrun.adapters.runtime.reference_workload",
+            "process_evidence": {
+                "kind": "live_local_process",
+                "summary": (
+                    "NativeProcessExecutor ran on this machine. "
+                    "Host and capacity evidence is independent."
+                ),
+            },
+            "host_evidence_mode": plane.evidence_mode,
+            "controls": {
+                "start_reference": True,
+                "stop": True,
+                "arbitrary_command": False,
+            },
+        }
+
+    def start_reference(request: ApiRequest) -> object:
+        """Start the bounded reference workload. Empty body only."""
+        _reject_arbitrary_command(request)
+        launch = plane.runtimes.launch(Name("reference-process"))
+        spec = executor_spec_from(launch)
+        return plane.executions.start(plane.hosts.current.host_id, spec)
+
+    def stop_execution(request: ApiRequest) -> object:
+        """Stop one owned execution, or every owned running execution."""
+        _reject_arbitrary_command(request)
+        raw_id = (request.query.get("execution_id") or "").strip()
+        if raw_id:
+            return plane.executions.stop(ExecutionId.parse(raw_id))
+        return list(plane.executions.stop_all_running())
+
     router.get("/capacity", capacity)
     router.get("/storage/sanity", storage_sanity)
     router.post("/storage/sanity-check", run_storage_sanity)
     router.get("/capacity/policy", capacity_policy)
+    router.get("/runtime", runtime)
+    router.post("/runtime/execution", start_reference)
+    router.post("/runtime/execution/stop", stop_execution)
     router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)
@@ -296,3 +354,29 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/startup", startup)
     router.get("/approvals", approvals)
     return router
+
+
+_ARBITRARY_COMMAND_KEYS = frozenset(
+    {
+        "executable",
+        "command",
+        "args",
+        "arguments",
+        "shell",
+        "argv",
+        "cmd",
+    }
+)
+
+
+def _reject_arbitrary_command(request: ApiRequest) -> None:
+    """The API starts one product-controlled workload, never a caller argv."""
+    payload = request.body or {}
+    keys = set(request.query) | {str(key) for key in payload}
+    refused = sorted(keys & _ARBITRARY_COMMAND_KEYS)
+    if refused:
+        raise ValidationError(
+            "arbitrary commands are not accepted; "
+            "only the reference workload may be started",
+            refused=refused,
+        )

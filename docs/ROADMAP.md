@@ -1582,6 +1582,41 @@ DEFERRED ITEMS
 If a proposed change is not necessary to produce the current stage's
 output, defer and record it.
 
+### Stage 1.3 brief
+
+```text
+CURRENT STAGE                Runtime / executor exoskeleton. No LLM.
+PREDECESSOR OUTPUTS          Stage 1.2A closed (Storage Sanity + Prototype
+                             Console); model-lifecycle roadmap checkpoint.
+THIS STAGE'S REQUIRED OUTPUT ExecutorSpec, ExecutorHandle, DeviceRequest,
+                             RuntimeProfile, RuntimeLaunchSpec,
+                             NativeProcessExecutor, InferenceRuntime port,
+                             ContainerEngine seam (unimplemented).
+CORE CONTRACTS AFFECTED      execution.*, runtime.* (new); architecture
+                             non-edge runtime ⟂ capacity added.
+ADAPTERS AFFECTED            adapters/execution/native_process;
+                             adapters/runtime/reference_process
+                             (acceptance harness, not an inference engine).
+PERSISTED STATE              ExecutorHandle records. On restart, PIDs we
+                             cannot prove are ours become UNVERIFIED and
+                             are never signalled (K-31).
+MUTATION / FAILURE BOUNDARY  POST /v1/runtime/execution starts only the
+                             reference workload; arbitrary argv is refused.
+                             Missing executable fails closed.
+CANCELLATION / CLEANUP       SIGTERM then SIGKILL after a bounded grace.
+                             Output capture is bounded. No supervisor.
+ACCEPTANCE LEVEL             L2 — process lifecycle on a real OS. Local T2
+                             on macOS proves portable primitives; the
+                             stage gate still wants a generic Linux host
+                             (no GPU) because L1 cannot close a runtime.
+ADMIN SURFACE                GET /v1/runtime, POST start/stop; Prototype
+                             Console runtime panel; kultrun runtime CLI.
+DEBT ENTRIES                 K-31 reattach, K-32 health UNKNOWN, K-33
+                             ContainerEngine, K-34 unauthenticated mutation.
+DEFERRED ITEMS               Production reconciliation; OCI executor;
+                             inference health; Stage 1.4A catalog.
+```
+
 ---
 
 # PART VI — FINAL SEQUENCE

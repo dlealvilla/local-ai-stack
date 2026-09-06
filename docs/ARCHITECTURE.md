@@ -148,15 +148,16 @@ nothing else in tier 7.
 
 ## 4. Enforced non-edges
 
-Two pairs must not know about each other at all. Each separation is a
+These pairs must not know about each other at all. Each separation is a
 constitutional requirement, and making it structural is what stops it
 eroding under delivery pressure.
 
 | Pair | Why they are peers | Consequence |
 |---|---|---|
 | `planning` ⟂ `resource` | "Resource Manager is authoritative for admission. Capacity Planner recommends." Recommendation and authorization must be independently auditable. | Neither imports the other. `platform` sequences plan → admit. |
-| `execution` ⟂ `runtime` | "Executor and inference runtime are separate abstractions." Executor logic must not leak into runtime domain logic. | Neither imports the other. `inference` composes both. |
+| `execution` ⟂ `runtime` | "Executor and inference runtime are separate abstractions." Executor logic must not leak into runtime domain logic. | Neither imports the other. `platform` copies a launch spec into an executor spec; later `inference` composes both. |
 | `execution` ⟂ `capacity` | How a workload is launched is a different question from what may safely be launched. A container engine that could read the capacity envelope would eventually be asked to decide something. | Neither imports the other. `resource` authorizes; `execution` only materializes what was already admitted. |
+| `runtime` ⟂ `capacity` | Runtime translates already-resolved configuration into an executable recipe. Capacity policy is not a runtime concern. | Neither imports the other. Constraints arrive on the launch spec as data. |
 
 `execution` may import `host.contracts` and nothing else from `host`,
 because it needs to know whether a container engine exists — that fact is
@@ -804,7 +805,7 @@ conservative state on a persistence error.
 | **Owns** | `ExecutorSpec`, `ExecutorHandle`, `DeviceRequest`, process execution, environment, filesystem mapping, signals, logs, process health, and PID reuse protection. |
 | **Consumes** | `kernel` · `host.contracts` only |
 | **Ports** | `Executor`, with native process execution as the first and reference implementation · `ContainerEngine`, for the optional container path |
-| **Must not** | Contain model semantics or runtime options. Assume a container runtime exists. Import `capacity` — how a workload is launched is a different question from what may safely be launched. Become a source of host facts. |
+| **Must not** | Contain model semantics or runtime options. Assume a container runtime exists. Import `capacity` — how a workload is launched is a different question from what may safely be launched. Import `runtime` — the executor receives a generic spec. Become a source of host facts. |
 | **Created** | 1.3 |
 
 ```text
@@ -873,15 +874,16 @@ capacity contract.
 | | |
 |---|---|
 | **Owns** | `RuntimeProfile`, `RuntimeLaunchSpec`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. |
-| **Consumes** | `kernel` · `host` · `model` contracts |
+| **Consumes** | `kernel` |
 | **Ports** | `InferenceRuntime` |
-| **Must not** | Import `execution`. Own capacity policy. Let a runtime-specific option reach a core signature. |
+| **Must not** | Import `execution`. Import `capacity`. Own capacity policy. Let a runtime-specific option reach a core signature. |
 | **Created** | 1.3 · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
-Stage 4.3 exists because the previous attempt held a platform-level
-concurrency number that was never mapped to the runtime's own control.
-The mapping belongs here, inside the adapter's translation layer, and
-nowhere else.
+Later deepening may read `host` and `model` contracts. It must never read
+`capacity` or `execution`. Stage 4.3 exists because the previous attempt
+held a platform-level concurrency number that was never mapped to the
+runtime's own control. The mapping belongs here, inside the adapter's
+translation layer, and nowhere else.
 
 ## TIER 6 — Serving and the record of it
 
@@ -1082,7 +1084,7 @@ adapters/host/            hwloc · nvml · native_linux · native_darwin ·
                           amd_smi · level_zero · nfd · captured_fixture
 adapters/execution/       native_process · oci
 adapters/container/       docker · podman · containerd
-adapters/runtime/         vllm · llama_cpp · mlx
+adapters/runtime/         reference_process · (vllm · llama_cpp · mlx later)
 adapters/model_source/    huggingface · local_file
 adapters/capacity/        llmfit · accelerate · benchmark
 adapters/usage/           partitioned_local · exporter
@@ -1349,7 +1351,7 @@ previous attempt had sound rules and drifted anyway. These tests run at
 | Test | Asserts |
 |---|---|
 | Tier direction (§1) | No module imports a higher tier, and no intra-tier import exists outside the §3 edge list. |
-| Declared non-edges (§4) | `planning` ⊥ `resource`; `execution` ⊥ `runtime`; `storage` and `capacity` ⊥ `model`; nothing imports `intelligence`; `agents` reaches the platform only via `api`. |
+| Declared non-edges (§4) | `planning` ⊥ `resource`; `execution` ⊥ `runtime`; `execution` ⊥ `capacity`; `runtime` ⊥ `capacity`; `storage` and `capacity` ⊥ `model`; nothing imports `intelligence`; `agents` reaches the platform only via `api`. |
 | Narrow edge scope (§3) | `capacity` imports only `storage.contracts` and `host.contracts`; `execution` imports only `host.contracts`. |
 | Adapter budget (Law 5) | An adapter imports only what the domain declaring its port may import. A `HostDiscoveryProvider` cannot reach `model`, `planning`, `resource`, `runtime` or `inference`. |
 | No provider in core | No core module names a discovery provider, a vendor library or a CDI concept. |

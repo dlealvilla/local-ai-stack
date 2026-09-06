@@ -113,15 +113,17 @@ and 1.2 is the first stage developed under it.
 
 **Stage 1.2A is closed** — Storage Sanity Sonar v0 and the Prototype
 Console, including local Fixture Replay Mode. Checkpoint:
-`checkpoints/STAGE-1.2A-storage-sanity-console.json`. Stage 1.3 was not
-begun.
+`checkpoints/STAGE-1.2A-storage-sanity-console.json`.
 
-The near-term Milestone 1 sequence after 1.2A is explicit rather than
-compressed: 1.3 runtime/executor; 1.4A catalog/metadata; 1.4B
-feasibility and selection; 1.4C acquisition and plural inventory; 1.5A
-admission; 1.5B inference-instance lifecycle; 1.6 real inference;
-then 1.7–1.8.
+**Stage 1.3 is in progress.** Local T0/T1/T2 prove the runtime/executor
+exoskeleton. The authoritative gate is `L2` on a generic Linux host (no
+GPU). That T3 run has not happened yet. Do not start Stage 1.4A until
+1.3 is closed.
 
-**Next is Stage 1.3 — runtime / executor exoskeleton.** No LLM required.
-Do not start it until the predecessor HEAD and this roadmap sequence
-are verified.
+The near-term Milestone 1 sequence after 1.3 is explicit: 1.4A
+catalog/metadata; 1.4B feasibility and selection; 1.4C acquisition and
+plural inventory; 1.5A admission; 1.5B inference-instance lifecycle;
+1.6 real inference; then 1.7–1.8.
+
+**Next after Stage 1.3 closes:** Stage 1.4A — Model Sources / Catalog +
+Metadata. Its own bounded brief is required.
