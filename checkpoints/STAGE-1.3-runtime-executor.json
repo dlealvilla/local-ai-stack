@@ -40,5 +40,21 @@
     "acceptance_harness": true
   },
   "debt": ["K-31", "K-32", "K-33", "K-34"],
+  "local_acceptance": {
+    "source_commit": "16902eaf5cd4964f3bd6fc4828d63a7311f1dad5",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "5663ae06ca4d1be440aae9ce552a0523400292adbc52db868478810d6dad34e1",
+    "build_id": "0.1.0+16902eaf5cd4",
+    "clean_source": true,
+    "source_checkout_required": false,
+    "runtime_once": "exited 0; stdout start+done",
+    "console": {
+      "prototype_http": 200,
+      "start_stop": true,
+      "arbitrary_command_rejected": true,
+      "process_evidence_kind": "live_local_process",
+      "host_evidence_mode": "fixture_replay"
+    }
+  },
   "next": "Stage 1.4A after T3 closes 1.3"
 }
