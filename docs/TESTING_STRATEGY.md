@@ -302,6 +302,16 @@ Do not rent one for: editing code, contract changes, unit tests, fixture
 replay, documentation, packaging tests, catalog/metadata/feasibility
 contracts, or most planning and resource logic.
 
+**Stage 1.4A** is T0/T1/T2. No GPU. A packaged curated candidate set is
+enough; a live Hugging Face fetch is only L2 if claimed.
+
+**Stage 1.4B** is deterministic and fixture-driven against current
+host/capacity fixtures. Required shape tests include a tiny host, a
+medium GPU, CPU-only, unknown memory requirement, insufficient storage,
+an underutilized candidate, bounds at 20% and 100%, a candidate over
+capacity, and several preferred candidates. Real model inference is not
+required.
+
 Most of Stage 1.2 can be developed against the committed Stage 1.1 fixture
 with no host at all.
 

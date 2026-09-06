@@ -126,5 +126,6 @@ catalog/metadata; 1.4B feasibility and selection; 1.4C acquisition and
 plural inventory; 1.5A admission; 1.5B inference-instance lifecycle;
 1.6 real inference; then 1.7–1.8.
 
-**Next:** Stage 1.4A — Model Sources / Catalog + Metadata. Its own
-bounded brief is required. Do not begin it from this closeout.
+**Next:** Stage 1.4A — Model Sources / Catalog + Metadata. The bounded
+brief is in `docs/ROADMAP.md` Part V. Stage 1.4B is specified there as
+the capacity-based selector and is **not** begun from 1.4A.

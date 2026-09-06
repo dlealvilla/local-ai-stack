@@ -1136,28 +1136,86 @@ The Capacity Planner must reliably answer:
 This is a core product capability.
 
 Capacity-based **model selection** is a named step, not a side effect of
-inventory or of the Capacity Planner's estimates. Conceptually:
+inventory or of the Capacity Planner's estimates. It asks not only
+"which models technically fit?" but "which models fit **safely** and
+make **sensible use** of this machine?"
+
+**Size is not parameter count and is not artifact size.** For deployment
+feasibility, size means the estimated **deployed resource requirement**
+under a proposed runtime, quantization, context configuration, placement
+and device strategy: weights + runtime overhead + KV/cache +
+activations + other required deployment memory. Parameter count and
+download bytes may be displayed; they do not decide fit.
+
+Hard eligibility filtering is separate from soft ranking. Conceptually:
 
 ```text
-candidate models
-  → hard feasibility filters
-  → feasible candidates
+ALL CANDIDATES
+  → source / metadata validity
+  → license / policy eligibility
+  → architecture / format compatibility
+  → runtime compatibility
+  → storage feasibility          (separate hard constraint)
+  → memory / deployment feasibility against SAFE capacity
+  → upper utilization filter     (> maximum → infeasible)
+  → lower utilization filter     (< minimum → underutilized, not preferred)
+  → PREFERRED FEASIBLE CANDIDATES
   → deterministic ranking
   → SelectionRecommendation
-       (primary + alternatives + rejected candidates + rationale)
 ```
 
-Feasibility classifies a candidate against the current deployment as
+Compatibility against the current deployment remains
 `COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, or
-`UNRESOLVED`, with explainable reasons. It consumes host capabilities,
-the capacity envelope, model requirements, runtime capabilities and
-policy. It does not reserve resources.
+`UNRESOLVED`, with explainable reasons. That is not the same question as
+whether a compatible candidate makes sensible use of the machine.
 
-The selector should prefer a model that fits safely, is
-runtime-compatible, makes meaningful use of the available hardware,
-preserves appropriate headroom, offers stronger capability than an
-unnecessarily small alternative, and is not a candidate that fits
-weights but fails once runtime overhead is considered.
+`DeploymentCapacity` is the relevant **SAFE** slice of the current
+`CapacityEnvelope` for a proposed placement — not a universal server
+score. Discrete GPU: primary limiting capacity is safe VRAM for the
+selected accelerator; secondary is safe RAM; storage is a separate hard
+constraint. CPU-only: primary is safe RAM; storage remains separate.
+Unified memory, when it exists, is its own primary capacity and is never
+forced into VRAM semantics. Multi-GPU evaluation uses the proposed
+placement, not the sum of every visible device.
+
+`CapacityUtilization` is the maximum of
+`required / safe` across the applicable **deployment-limiting memory**
+resources (for example `max(required_vram/safe_vram, required_ram/safe_ram)`).
+Storage is **not** in this ratio. A large disk must not make a
+compute-heavy model look like a better hardware fit. Only the SAFE layer
+is the fit boundary; reported and effective may be displayed. Safety
+headroom is not subtracted twice.
+
+`SelectionPolicy` holds the preferred-band thresholds. They are policy
+defaults, not architecture constants. v0 defaults: minimum utilization
+0.20, maximum 1.00. A candidate below the minimum may physically run; it
+is `FEASIBLE_UNDERUTILIZED` and is excluded from the default preferred
+pool (`underutilizes available deployment capacity`). A candidate above
+the maximum is infeasible (`estimated deployment requirement exceeds
+safe capacity`). The preferred band is inclusive at both configured
+bounds. CPU/GPU offload is `CONDITIONALLY_COMPATIBLE` unless current
+policy and runtime explicitly support it; it is never a hidden way to
+force an oversized model into the preferred band.
+
+If every otherwise-feasible candidate is underutilized, the selector
+returns `NO_PREFERRED_CANDIDATE` and may list underutilized alternatives
+separately. It does not silently relax the minimum. If every candidate
+exceeds safe capacity, it returns `NO_FEASIBLE_CANDIDATE`. It does not
+lower reserves, use reported capacity, invent offload, or pick a model
+outside the source set.
+
+Once candidates are inside the preferred band, ranking is deterministic
+and explainable. Utilization is one ranking signal, not the winner-take-all
+criterion: a 97% candidate is not inherently better than a 70% candidate
+of similar capability. v0 may consider feasibility class, trusted
+capability evidence, runtime fit, utilization, operating headroom,
+context, quantization quality, and a deterministic tie-break. It is not
+a learned engine.
+
+Feasibility consumes host capabilities, the capacity envelope, model
+requirements, runtime capabilities and `SelectionPolicy`. It does not
+reserve resources. A recommendation is recomputed from current inputs; it
+is not permanent truth.
 
 The first implementation is deterministic and explainable. Learned or
 empirical recommendation intelligence is later and must not be required
@@ -2850,11 +2908,17 @@ Important concepts include:
 
 - HostCapabilities;
 - CapacityEnvelope;
+- DeploymentCapacity;
+- CapacityUtilization;
 - ModelMetadata;
 - ModelArtifact;
 - ModelRequirement;
 - ModelSource;
 - ModelInventoryRecord;
+- CompatibilityEvidence;
+- FeasibilityResult;
+- SelectionPolicy;
+- SelectionRecommendation;
 - InferenceInstance;
 - Workload;
 - WorkloadProfile;
@@ -3168,11 +3232,15 @@ Do not implement a massive marketplace.
 
 Start with:
 
-- a curated candidate set;
-- Hugging Face adapter;
-- local file import;
+- a curated candidate set (approximately 4–8 representative variants);
+- a Hugging Face adapter behind a Kultrun-owned `ModelSource` port;
+- local file import as a later adapter;
 - explicit revision;
-- source-independent metadata.
+- source-independent `ModelMetadata` and `ModelRequirement`;
+- evidence, confidence and unresolved fields on every load-bearing estimate.
+
+Stage 1.4A displays the catalog. It does not recommend. Stage 1.4B
+evaluates and recommends. Do not search the whole Hub in v0.
 
 This is enough to validate the architecture.
 

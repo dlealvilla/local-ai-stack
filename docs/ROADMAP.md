@@ -875,42 +875,63 @@ Milestone 10 fills the seam rather than introducing it.
 
 ### Stage 1.4A — Model sources / catalog + metadata
 
-One replaceable `ModelSource` implementation and a small curated
-candidate set. Normalize into platform-owned `ModelMetadata` and
-`ModelRequirement` (host-independent). Identity, source, revision,
-family, architecture, parameter count, quantization, artifact size,
-context capability, runtime and accelerator compatibility, license /
-commercial-use metadata, estimated RAM / VRAM / unified memory, storage
-requirement, runtime-overhead evidence where available, and
-derivation/lineage hooks.
+Provide a small **source-agnostic candidate set** plus normalized
+metadata and requirement evidence sufficient for later feasibility and
+selection. This stage does **not** choose a model, download one, or
+rank.
 
-This domain describes the model. It does not decide whether the current
-host can run it. No ranking. No marketplace. Hugging Face or local-file
-is enough; the port must not assume one vendor, one hub, or installer-
-bundled weights.
+One replaceable `ModelSource` implementation. First source: Hugging Face
+Hub identity behind a Kultrun-owned adapter; live Hub search of the
+whole corpus is not in v0. A curated set of approximately 4–8 variants
+chosen for spread across family, parameter size, quantization, memory
+requirement and context. Normalize into platform-owned `ModelMetadata`
+and host-independent `ModelRequirement` v0.
 
-**Output:** `ModelSource` + `ModelMetadata v1` + `ModelRequirement v0` · **Gate:** L1 (L2 only if a real source fetch is claimed)
+Every candidate exposes enough for an administrator to see: identity,
+parameters, quantization, artifact size, estimated RAM, estimated VRAM
+(or unified memory where applicable), context, supported runtime(s),
+license, requirement confidence and estimation method. Load-bearing
+unknowns stay unresolved. Runtime-overhead and KV estimates may be
+coarse and conservative; a seam remains for later runtime evidence
+(Stage 1.6) to improve them.
+
+Quantized variants are distinct candidates when deployment requirements
+differ. No recommendation in the Prototype Console — a **Model Catalog**
+panel only.
+
+**Output:** `ModelSource` + `ModelMetadata v1` + `ModelRequirement v0` + catalog API + Prototype Console catalog panel · **Gate:** L1 (L2 only if a real source fetch is claimed)
 
 ### Stage 1.4B — Feasibility + capacity-based selection
 
-Compatibility classification against the current deployment:
-`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`,
-with explainable reasons (insufficient safe accelerator memory,
-unsupported runtime/format, insufficient safe RAM or storage,
-architecture mismatch, conditional CPU/GPU offload, unresolved
-requirement evidence).
+Kultrun's first capacity-based model selection stage. It owns
+compatibility, feasibility, `DeploymentCapacity`, `CapacityUtilization`,
+lower/upper utilization filtering, deterministic ranking,
+`SelectionRecommendation` and `DeploymentPlan` v0.
 
-Feasibility consumes `HostCapabilities`, `CapacityEnvelope`, model
-requirements, runtime capabilities and relevant policy. It never
-reserves.
+Consumes `HostCapabilities`, `CapacityEnvelope` (SAFE for the fit
+boundary), `RuntimeProfile`s, `ModelMetadata[]`, `ModelRequirement[]`
+and `SelectionPolicy`. It never reserves and never downloads.
 
-Then deterministic ranking of feasible candidates into a
-`SelectionRecommendation` (primary, alternatives, rejected candidates,
-rationale) and a `DeploymentPlan` v0: selected artifact/variant,
-runtime, executor, proposed placement and resource requirement,
-context/concurrency, alternatives, evidence, confidence/policy version.
+Every candidate receives an explainable evaluation: compatibility,
+storage feasibility (peak acquisition distinct from installed size),
+required vs safe memory, utilization, preferred-band status, reasons,
+unresolved requirements, confidence. Preferred band is the configured
+policy window (v0 default 20–100% of SAFE deployment capacity).
+Underutilized candidates are classified, not collapsed into unsupported.
+No silent threshold relaxation.
 
-No download. No reservation. No learned recommender.
+`SelectionRecommendation`: primary, preferred alternatives, underutilized
+alternatives, rejected, rationale, utilization, expected resource use,
+runtime, confidence, policy version, evidence references.
+`DeploymentPlan` v0 names selected model/variant, runtime, executor
+kind, placement, expected RAM/VRAM/unified/storage, expected
+utilization and rationale.
+
+Boundary tests are part of the brief: 19.99% underutilized, 20% and 100%
+preferred if otherwise compatible, 100.01% infeasible, unknown
+requirement unresolved, storage failure infeasible regardless of memory
+utilization. Fixture-driven against current host/capacity fixtures
+(tiny host, medium GPU, CPU-only, and the cases above). No inference.
 
 **Output:** `FeasibilityResult v0` + `SelectionRecommendation v0` + `DeploymentPlan v0` · **Gate:** L1, with fixture replay of the reference host envelope
 
@@ -1615,6 +1636,78 @@ DEBT ENTRIES                 K-31 reattach, K-32 health UNKNOWN, K-33
                              ContainerEngine, K-34 unauthenticated mutation.
 DEFERRED ITEMS               Production reconciliation; OCI executor;
                              inference health; Stage 1.4A catalog.
+```
+
+### Stage 1.4A brief
+
+```text
+CURRENT STAGE                Model sources / catalog + metadata. No
+                             selection, download, admission or inference.
+PREDECESSOR OUTPUTS          Stage 1.3 closed at L2 (runtime/executor);
+                             Stage 1.2 capacity envelope; Stage 1.2A console;
+                             model-lifecycle roadmap checkpoint.
+THIS STAGE'S REQUIRED OUTPUT ModelSource port, one Hugging-Face-identity
+                             adapter, 4–8 curated candidates, ModelMetadata,
+                             ModelRequirement v0 with evidence/confidence,
+                             GET catalog API, Prototype Console catalog panel.
+CORE CONTRACTS AFFECTED      model.metadata, model.requirement (fields added
+                             additively); model.ports.ModelSource (new).
+ADAPTERS AFFECTED            adapters/model_source (huggingface-curated).
+PERSISTED STATE              None required. Catalog is packaged evidence,
+                             not inventory. Inventory remains 1.4C.
+MUTATION / FAILURE BOUNDARY  Read-only. GET never downloads. Unknown
+                             requirement stays unresolved, never zero.
+CANCELLATION / CLEANUP       No mutation, no orphans.
+ACCEPTANCE LEVEL             L1. L2 only if a live source fetch is claimed.
+                             T0/T1/T2; no GPU. Wheel clean install.
+ADMIN SURFACE                GET /v1/models; Prototype Console Model Catalog.
+                             No recommendation, no ranking display.
+DEBT ENTRIES                 Live huggingface_hub fetch deferred until a
+                             network T3 is claimed. Requirement estimates
+                             are conservative v0 (K-entry). Console
+                             unresolved-PID rendering fixed on this frontend
+                             touch if still present.
+DEFERRED ITEMS               Selection (1.4B), acquisition (1.4C), local-file
+                             source, whole-Hub search, learned ranking.
+```
+
+### Stage 1.4B brief
+
+```text
+CURRENT STAGE                Feasibility + capacity-based selection +
+                             DeploymentPlan v0. No download, no reservation.
+PREDECESSOR OUTPUTS          Stage 1.4A catalog and ModelRequirement v0;
+                             Stage 1.2 CapacityEnvelope; Stage 1.3 runtimes.
+THIS STAGE'S REQUIRED OUTPUT DeploymentCapacity, CapacityUtilization,
+                             SelectionPolicy, FeasibilityResult per
+                             candidate, SelectionRecommendation,
+                             DeploymentPlan v0.
+CORE CONTRACTS AFFECTED      planning.* (new). planning ⟂ resource preserved.
+ADAPTERS AFFECTED            none required; logic is domain-owned and
+                             fixture-driven.
+PERSISTED STATE              Recommendations are recomputed, not stored as
+                             truth. A displayed recommendation may carry
+                             policy version, envelope identity, timestamp.
+MUTATION / FAILURE BOUNDARY  No mutation. SAFE capacity only. No silent
+                             relaxation of utilization bounds. Unknown
+                             load-bearing requirement → UNRESOLVED.
+CANCELLATION / CLEANUP       No mutation.
+ACCEPTANCE LEVEL             L1 with fixture replay of host/capacity
+                             shapes. Boundary tests: 19.99% underutilized;
+                             20% and 100% preferred; 100.01% infeasible;
+                             unknown requirement; storage failure independent
+                             of memory utilization; tiny host; medium GPU;
+                             CPU-only; multiple preferred candidates.
+ADMIN SURFACE                GET selection/evaluation; Prototype Console
+                             Model Selection panel (eligible / underutilized
+                             / does not fit / recommended + why).
+DEBT ENTRIES                 SelectionPolicy defaults 0.20 / 1.00
+                             (configurable, not constants).
+                             allow_underutilized_fallback reserved, default
+                             off. Multi-GPU placement seam unused.
+DEFERRED ITEMS               Learned ranking, portfolio optimizer, live
+                             Hub search, offload optimizer, acquisition,
+                             admission, inference.
 ```
 
 ---

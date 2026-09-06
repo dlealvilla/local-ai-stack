@@ -57,7 +57,7 @@ Status:       OPEN | RETIRED (<stage>, <date>)
 
 ## Open entries
 
-Open entries continue from kernel through Stage 1.3. Most do not authorize
+Open entries continue from kernel through Stage 1.4A. Most do not authorize
 a mutation. `K-29` and `K-34` start real work (storage reservation; the
 reference process) and are tolerable only because the API is loopback
 (`K-08`).
@@ -628,6 +628,42 @@ To make real: Authentication, or Stage 1.5A admission and audit on
               mutating endpoints. Whichever comes first.
 Retire when:  authentication arrives, or mutating execution endpoints pass
               through admission and audit.
+Status:       OPEN
+
+### K-35 — the Hugging Face adapter does not fetch the live Hub
+Label:        DEFERRED
+Owner stage:  1.4A
+Subsystem:    adapters / model_source
+Authorizes:   NO
+What:         The first `ModelSource` uses Hugging Face identity
+              (`source_ref`) and a packaged curated candidate set. It
+              does not call `huggingface_hub` or search the Hub.
+Why now:      v0 must be T0/T1/T2 without a network or a GPU. Whole-Hub
+              search is explicitly out of scope. Packaged metadata is
+              enough to prove normalization and the catalog surface.
+To make real: An optional live enricher behind the same `ModelSource`
+              port, with the packaged catalog as the mandatory fallback
+              when the Hub is absent, slow or disagreed with.
+Retire when:  a stage claims a real source fetch (L2) or product policy
+              requires live Hub metadata.
+Status:       OPEN
+
+### K-36 — ModelRequirement v0 estimates are curated and conservative
+Label:        PROVISIONAL
+Owner stage:  1.4A
+Subsystem:    model
+Authorizes:   NO
+What:         Weight, RAM, VRAM, overhead and KV figures on the curated
+              set are coarse estimates with an explicit method and
+              confidence. They are not measured runtime evidence.
+Why now:      Stage 1.4B needs *some* host-independent requirement to
+              filter against SAFE capacity. Inventing a precise
+              estimator now would be untested intelligence.
+To make real: Runtime-specific estimation (seam now) plus Stage 1.6
+              predicted-vs-actual evidence. Load-bearing unknowns stay
+              unresolved rather than filled.
+Retire when:  Stage 3.1 / 1.6 evidence replaces the curated v0 method
+              for the fields that authorize a later admission.
 Status:       OPEN
 
 ## Deferred capability register

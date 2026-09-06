@@ -722,6 +722,10 @@ no storage mutation, because Milestone 1 performs none — the model is
 placed by hand. That is why a policy-only envelope is honest at Milestone
 1 and would not be at Milestone 2.
 
+`DeploymentCapacity` and `CapacityUtilization` are **not** owned here.
+They are planning projections of this envelope for a proposed placement.
+Capacity remains the owner of reported / effective / safe host facts.
+
 **Who does what, restated because it is easy to blur.** `host` observes and
 normalizes; it applies no capacity policy. `storage` performs empirical
 storage probing and owns `EmpiricalProbeEvidence` — the filesystem is
@@ -750,12 +754,12 @@ ended up with a 48-minute capacity query.
 
 | | |
 |---|---|
-| **Owns** | `ModelMetadata` and `ModelArtifact` normalized from any source. `ModelInventoryRecord` with explicit artifact states (remote, acquiring, stored, invalid, updating, deleted) and lineage — parent model and revision, derivation type, owner, dataset reference, promotion state. Running is not an inventory state. `ModelRequirement`, host-independent. The acquisition workflow and `AcquisitionReceipt`. |
+| **Owns** | `ModelMetadata` and `ModelArtifact` normalized from any source. `ModelInventoryRecord` with explicit artifact states (remote, acquiring, stored, invalid, updating, deleted) and lineage — parent model and revision, derivation type, owner, dataset reference, promotion state. Running is not an inventory state. `ModelRequirement`, host-independent: weight memory, artifact and peak-acquisition storage, estimated RAM / VRAM / unified memory, context, quantization (via the candidate's metadata), supported runtimes, architecture/device needs, runtime overhead, KV/cache, estimation method, confidence and evidence basis. The acquisition workflow and `AcquisitionReceipt`. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `storage` ports and contracts |
 | **Produces** | `ModelInventoryRecord v1` · `ModelRequirement v1` · `AcquisitionReceipt` |
 | **Ports** | `ModelSource` · `ModelMetadataEnricher` |
 | **Implements** | `storage.ports.ManagedUsageSource` |
-| **Must not** | Let a model requirement depend on the host — feasibility is where host and requirement meet. Fill a missing metadata field with a guess; absent values stay unresolved and are reported. Let an external source failure mark the local platform unhealthy. Collapse inventory into a single `current_model`. Treat a stored artifact as a running workload. |
+| **Must not** | Let a model requirement depend on the host — feasibility is where host and requirement meet. Fill a missing metadata field with a guess; absent values stay unresolved and are reported. Treat unknown requirement as zero or as a fit. Let an external source failure mark the local platform unhealthy. Collapse inventory into a single `current_model`. Treat a stored artifact as a running workload. Rank or recommend — that is `planning`. Download — that is acquisition at 1.4C. Expose raw Hugging Face objects as domain contracts. |
 | **Created** | 1.4A catalog/metadata · 1.4C acquisition and plural inventory · **Deepened** 2.5 source, 2.6 acquisition, 3.1 requirement |
 
 Model sits above capacity and storage because of an explicit roadmap
@@ -770,16 +774,18 @@ cannot see it.
 
 | | |
 |---|---|
-| **Owns** | `FeasibilityResult` — four verdicts (`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`), per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, maximum viable configuration, reasons and evidence references. `DeploymentPlan`. `SelectionRecommendation` (primary, alternatives, rejected candidates, rationale). Selection, with recorded rejection reasons. |
+| **Owns** | `DeploymentCapacity` — the SAFE slice of the current envelope relevant to a proposed placement, never a universal server score. `CapacityUtilization` — max of required/safe across applicable deployment-limiting **memory** resources; storage is excluded. `SelectionPolicy` — configurable preferred-band bounds (v0 defaults 0.20–1.00), never architecture constants. `FeasibilityResult` — compatibility verdicts (`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`) plus capacity-fit class (`PREFERRED`, `UNDERUTILIZED`, `EXCEEDS_SAFE`) with per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, reasons and evidence references. Underutilized is not unsupported. `DeploymentPlan`. `SelectionRecommendation` (primary, preferred alternatives, underutilized alternatives, rejected candidates, rationale, policy version). Selection, with recorded rejection reasons. `NO_PREFERRED_CANDIDATE` and `NO_FEASIBLE_CANDIDATE` are explicit outcomes. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` · `components` · `capacity` · `model` |
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
-| **Must not** | Import `resource`. Reserve anything. Select on unverified capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. |
+| **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. |
 | **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection |
 
 Feasibility must be computable for candidates that are not yet acquired.
 The previous attempt could only assess models it already had, which is
-what made selection impossible.
+what made selection impossible. Stage 1.4A supplies metadata and
+host-independent requirements; Stage 1.4B owns filtering and selection.
+Unknown load-bearing requirements yield `UNRESOLVED`, never a silent fit.
 
 ### `resource`
 
@@ -1193,14 +1199,21 @@ cancel: cooperative, lock released without relying on process exit,
 
 ```text
 curated candidates → ModelMetadata (unresolved fields explicit)
-  → ModelRequirement per candidate
-  → capacity CapacityEnvelope
-  → planning FeasibilityResult per candidate, with limiting factor
-  → planning Selector, deterministic under a recorded policy version
-  → SelectionRecommendation + DeploymentPlan with alternatives and confidence
+  → ModelRequirement per candidate (weights, RAM, VRAM/unified, KV,
+    overhead, storage + peak acquisition, method, confidence)
+  → capacity CapacityEnvelope (SAFE layer only for the fit boundary)
+  → planning DeploymentCapacity for the proposed placement
+  → planning FeasibilityResult per candidate: compatibility, storage,
+    memory, CapacityUtilization, preferred-band status, reasons
+  → planning Selector, deterministic under a recorded SelectionPolicy
+  → SelectionRecommendation + DeploymentPlan
+       (primary, preferred alternatives, underutilized alternatives,
+        rejected, rationale, policy version, evidence)
   → approval → Trace D → Trace C
 
-every rejected candidate records why it lost
+every rejected or excluded candidate records why
+a recommendation is recomputed; it is not stored as permanent truth
+planning never reserves
 ```
 
 **Trace F — knowledge answers a question** (7.2–7.3, 8.3)
