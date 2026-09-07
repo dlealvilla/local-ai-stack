@@ -117,10 +117,12 @@ class TestThePackageCanBeBuilt:
     ) -> None:
         extras = project["project"]["optional-dependencies"]  # type: ignore[index]
         assert extras["estimators"] == ["llmfit==1.1.14"]
+        assert extras["acquisition"] == ["huggingface_hub>=0.23,<1"]
         section = project["project"]
         assert isinstance(section, dict)
         required = section.get("dependencies", [])
         assert "llmfit" not in str(required)
+        assert "huggingface_hub" not in str(required)
 
     def test_the_declared_entry_point_resolves(self) -> None:
         """A console script naming a callable that does not exist installs

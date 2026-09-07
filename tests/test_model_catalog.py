@@ -326,3 +326,11 @@ class TestConsoleHonesty:
         assert "RequirementEvidenceReconciler" not in script
         assert "llmfit unavailable" in script
         assert "fallbackLabel" in script
+
+    def test_the_inventory_panel_is_not_the_catalog(self) -> None:
+        html = (asset_root() / "index.html").read_text(encoding="utf-8")
+        script = (asset_root() / "app.js").read_text(encoding="utf-8")
+        assert "Model inventory" in html
+        assert "Stored is not running" in html.replace("\n", " ")
+        assert "renderInventory" in script
+        assert "current_model" not in script

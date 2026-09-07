@@ -18,11 +18,14 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from kultrun.adapters.acquisition import fixture as fixture_acquisition
+from kultrun.adapters.acquisition import huggingface as huggingface_acquisition
 from kultrun.adapters.estimators import kultrun as kultrun_estimator
 from kultrun.adapters.estimators import llmfit as llmfit_estimator
 from kultrun.adapters.execution.native_process import NativeProcessExecutor
 from kultrun.adapters.host import fixtures, hwloc, native_linux, nvidia
 from kultrun.adapters.install import apt
+from kultrun.adapters.model_source.candidates import acceptance_candidate
 from kultrun.adapters.model_source.huggingface import HuggingFaceSource
 from kultrun.adapters.persistence import file_store
 from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
@@ -64,9 +67,12 @@ from kultrun.kernel.schema import validate_registry
 from kultrun.kernel.unresolved import is_resolved
 from kultrun.knowledge import contracts as _knowledge_contracts  # noqa: F401
 from kultrun.model import contracts as _model_contracts  # noqa: F401
+from kultrun.model.acquisition import AcquisitionService
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.estimator_router import EstimatorRouter
-from kultrun.model.ports import ModelRequirementEstimator
+from kultrun.model.inventory import ModelInventory
+from kultrun.model.ports import ModelAcquisitionProvider, ModelRequirementEstimator
+from kultrun.model.store import ModelArtifactStore
 from kultrun.planning import contracts as _planning_contracts  # noqa: F401
 from kultrun.planning.service import SelectionService
 from kultrun.platform.approval import ApprovalLog
@@ -226,6 +232,8 @@ class Platform:
     runtimes: RuntimeCatalogue
     models: ModelCatalogue
     selection: SelectionService
+    inventory: ModelInventory
+    acquisition: AcquisitionService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -261,6 +269,8 @@ STATE_ROOT_VARIABLE = "KULTRUN_STATE_ROOT"
 FIXTURE_VARIABLE = "KULTRUN_FIXTURE"
 ESTIMATOR_VARIABLE = "KULTRUN_MODEL_REQUIREMENT_ESTIMATOR"
 ESTIMATOR_MODES = ("auto", "llmfit", "kultrun")
+ACQUISITION_VARIABLE = "KULTRUN_MODEL_ACQUISITION_PROVIDER"
+ACQUISITION_MODES = ("huggingface", "fixture")
 
 
 class EvidenceMode(StrEnum):
@@ -301,11 +311,14 @@ def resolve_configuration(
     source = os.environ if environment is None else environment
     configured = source.get(STATE_ROOT_VARIABLE, "").strip()
     estimator = source.get(ESTIMATOR_VARIABLE, "").strip()
+    acquisition = source.get(ACQUISITION_VARIABLE, "").strip()
     overrides: dict[str, object] = {}
     if configured:
         overrides["state_root"] = configured
     if estimator:
         overrides["model_requirement_estimator"] = estimator
+    if acquisition:
+        overrides["model_acquisition_provider"] = acquisition
     return config_schema().load({"platform": overrides} if overrides else {})
 
 
@@ -324,6 +337,26 @@ def estimator_registry() -> AdapterRegistry[ModelRequirementEstimator]:
     registry.register("kultrun", kultrun_estimator.build)
     registry.register("llmfit", llmfit_estimator.build)
     return registry
+
+
+def acquisition_registry() -> AdapterRegistry[ModelAcquisitionProvider]:
+    """Named acquisition providers. Composition picks the adapter."""
+    registry: AdapterRegistry[ModelAcquisitionProvider] = AdapterRegistry(
+        "model.ModelAcquisitionProvider"
+    )
+    registry.register("fixture", fixture_acquisition.build)
+    registry.register("huggingface", huggingface_acquisition.build)
+    return registry
+
+
+def resolve_acquisition(name: str) -> ModelAcquisitionProvider:
+    if name not in ACQUISITION_MODES:
+        raise ConfigError(
+            "unknown model acquisition provider",
+            requested=name,
+            registered=list(ACQUISITION_MODES),
+        )
+    return acquisition_registry().create(name)
 
 
 def resolve_estimator(mode: str) -> ModelRequirementEstimator:
@@ -364,6 +397,7 @@ def build(
     requirements: Sequence[ComponentRequirement] | None = None,
     provisioners: Sequence[ComponentProvisioner] | None = None,
     fixture: str | None = None,
+    acquisition_adapter: str | None = None,
 ) -> Platform:
     """Assemble the platform and run its startup path.
 
@@ -442,9 +476,19 @@ def build(
     executor = NativeProcessExecutor(resolved_clock)
     executions = ExecutionService(executor, store)
     runtimes = RuntimeCatalogue((ReferenceProcessRuntime(hold=True),))
-    models = ModelCatalogue(HuggingFaceSource())
+    models = ModelCatalogue(HuggingFaceSource(), extras=(acceptance_candidate(),))
     selection = SelectionService(
         resolve_estimator(settings.model_requirement_estimator),
+        resolved_clock,
+    )
+    artifact_store = ModelArtifactStore(state_root)
+    inventory = ModelInventory(store, artifact_store)
+    acquisition = AcquisitionService(
+        resolve_acquisition(
+            acquisition_adapter or settings.model_acquisition_provider
+        ),
+        inventory,
+        artifact_store,
         resolved_clock,
     )
     execution_phase = _ExecutionPhase(executions)
@@ -478,6 +522,8 @@ def build(
         runtimes=runtimes,
         models=models,
         selection=selection,
+        inventory=inventory,
+        acquisition=acquisition,
         executor_identity=executor.identity.value,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
@@ -499,6 +545,8 @@ def build(
         runtimes=runtimes,
         models=models,
         selection=selection,
+        inventory=inventory,
+        acquisition=acquisition,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -994,10 +1042,128 @@ def show_models() -> int:
 def _models(arguments: Sequence[str]) -> int:
     if not arguments:
         return show_models()
-    if arguments[0] == "recommend":
+    command = arguments[0]
+    if command == "recommend":
         return show_recommendation()
-    print("usage: kultrun models [recommend]", file=sys.stderr)
+    if command == "inventory":
+        return show_inventory()
+    if command == "acquire":
+        return acquire_named(arguments[1:])
+    if command == "delete":
+        return delete_named(arguments[1:])
+    print(
+        "usage: kultrun models [recommend|inventory|acquire|delete]",
+        file=sys.stderr,
+    )
     return 2
+
+
+def show_inventory() -> int:
+    """List stored artifacts. Stored is not running."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    artifacts = platform.inventory.artifacts()
+    print(
+        f"provider {platform.acquisition.provider_identity}  "
+        f"artifacts {len(artifacts)}  serving no"
+    )
+    print("stored is not running")
+    if not artifacts:
+        print("empty inventory")
+        return 0
+    for artifact in artifacts:
+        name = artifact.logical_name if is_resolved(artifact.logical_name) else "-"
+        revision = artifact.revision if is_resolved(artifact.revision) else "-"
+        quant = artifact.quantization if is_resolved(artifact.quantization) else "-"
+        print(
+            f"\n{artifact.artifact_id.value}  {name}  "
+            f"{artifact.state.value}  serving no"
+        )
+        print(
+            f"  revision {revision}  quant {quant}  "
+            f"bytes {_bytes(artifact.installed_bytes)}  "
+            f"verify {artifact.verification_state.value}"
+        )
+        source = artifact.source_ref if is_resolved(artifact.source_ref) else "-"
+        print(f"  source {source}  provider {artifact.acquisition_provider}")
+    return 0
+
+
+def acquire_named(arguments: Sequence[str]) -> int:
+    """Acquire a known candidate. Selection remains read-only."""
+    from kultrun.kernel.errors import KultrunError
+    from kultrun.model.acquisition import request_from_entry
+
+    recommended = "--recommended" in arguments
+    names = [item for item in arguments if not item.startswith("-")]
+    if recommended and not names:
+        platform = build()
+        _warn_if_state_root_defaulted(platform)
+        host = platform.hosts.current
+        envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+        recommendation = platform.selection.recommend(
+            envelope=envelope,
+            candidates=platform.models.entries(),
+            available_runtimes=tuple(
+                profile.runtime.value
+                for profile in platform.runtimes.profiles()
+                if profile.runtime.value != "reference-process"
+            ),
+        )
+        if recommendation.primary is None:
+            print("kultrun: no recommended candidate", file=sys.stderr)
+            return 1
+        names = [recommendation.primary.logical_name.value]
+    if len(names) != 1:
+        print(
+            "usage: kultrun models acquire <candidate-id> | --recommended",
+            file=sys.stderr,
+        )
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    entry = platform.models.acquirable(names[0])
+    if entry is None:
+        print(f"kultrun: no such candidate {names[0]!r}", file=sys.stderr)
+        return 2
+    host = platform.hosts.current
+    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    try:
+        receipt = platform.acquisition.acquire(
+            request_from_entry(entry), envelope, host.host_id
+        )
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    print(
+        f"{receipt.outcome}  {receipt.artifact_id.value}  "
+        f"{receipt.state.value}  serving no"
+    )
+    if is_resolved(receipt.resolved_revision):
+        print(f"  revision {receipt.resolved_revision}")
+    if is_resolved(receipt.failure_reason):
+        print(f"  failure {receipt.failure_reason}")
+    return 0 if receipt.outcome != "failed" else 1
+
+
+def delete_named(arguments: Sequence[str]) -> int:
+    from kultrun.kernel.errors import KultrunError
+    from kultrun.model.contracts import ArtifactId
+
+    if len(arguments) != 1:
+        print("usage: kultrun models delete <artifact-id>", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        artifact = platform.acquisition.delete(
+            ArtifactId.parse(arguments[0]), platform.hosts.current.host_id
+        )
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    print(f"deleted  {artifact.artifact_id.value}  serving no")
+    return 0
 
 
 def show_recommendation() -> int:
@@ -1067,8 +1233,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     Deliberately a small command set and no framework. Each exists because
     the workflow needs it: `version` identifies a deployed build, `host`
     lets a real-host run be observed without shipping a script beside the
-    product, `models` lists the curated catalog, `storage` and `runtime` are
-    explicit mutations, and `serve` is what the platform does.
+    product, `models` lists the catalog and inventory and can acquire or
+    delete stored artifacts, `storage` and `runtime` are explicit mutations,
+    and `serve` is what the platform does.
     """
     arguments = list(sys.argv[1:] if argv is None else argv)
     if not arguments or arguments[0] in ("-h", "--help", "help"):

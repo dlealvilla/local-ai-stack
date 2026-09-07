@@ -89,6 +89,10 @@ class Router:
         """Register a read-only route."""
         self.route(Method.GET, path, handler)
 
+    def delete(self, path: str, handler: Handler) -> None:
+        """Register a delete mutation. Unreachable by GET."""
+        self.route(Method.DELETE, path, handler)
+
     def paths(self) -> tuple[str, ...]:
         """Every registered route, for the Admin surface and for diagnosis."""
         return tuple(

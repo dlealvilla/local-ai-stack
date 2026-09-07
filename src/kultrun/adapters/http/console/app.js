@@ -29,6 +29,7 @@ const SUBSYSTEMS = [
   { name: 'Runtime / executor', probe: '/runtime' },
   { name: 'Model catalog', probe: '/models' },
   { name: 'Model selection', probe: '/models/selection' },
+  { name: 'Model inventory', probe: '/models/inventory' },
   { name: 'Resource admission', probe: null, stage: '1.5' },
   { name: 'Inference', probe: null, stage: '1.6' },
 ];
@@ -37,6 +38,19 @@ const SUBSYSTEMS = [
 
 async function get(path) {
   const response = await fetch(API + path, { headers: { Accept: 'application/json' } });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = body && body.error ? body.error.message || body.error.code : response.statusText;
+    throw new Error(`${response.status} ${detail}`);
+  }
+  return body ? body.payload : null;
+}
+
+async function destroy(path) {
+  const response = await fetch(API + path, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  });
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     const detail = body && body.error ? body.error.message || body.error.code : response.statusText;
@@ -596,6 +610,26 @@ function catalogCard(entry) {
   const params = isUnresolved(meta.parameter_count) || meta.parameter_count == null
     ? fmt(meta.parameter_count)
     : `${(Number(meta.parameter_count) / 1e9).toFixed(1)}B`;
+  const action = document.createElement('div');
+  action.style.marginTop = '0.9rem';
+  const button = document.createElement('button');
+  button.textContent = 'Acquire';
+  const status = span('muted', ' stores this variant; does not start serving');
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = 'acquiring…';
+    try {
+      const result = await post('/models/acquire', { candidate: meta.logical_name });
+      status.textContent =
+        ` ${result.outcome} · ${String(result.state || '').replace(/_/g, ' ')} · serving no`;
+      await refresh();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = 'Acquire';
+      status.textContent = ` failed: ${error.message}`;
+    }
+  });
+  action.append(button, status);
   rows(grid, [
     ['source ref', meta.source_ref],
     ['parameters', params],
@@ -611,7 +645,7 @@ function catalogCard(entry) {
     ['requirement confidence', req.confidence],
     ['estimation method', req.estimation_method],
   ]);
-  card.append(grid);
+  card.append(grid, action);
   return card;
 }
 
@@ -700,6 +734,126 @@ async function renderSelection() {
     panel.classList.remove('hidden');
     failure(target, error);
   }
+}
+
+async function renderInventory() {
+  const panel = document.getElementById('inventory-panel');
+  const summary = document.getElementById('inventory-summary');
+  const target = document.getElementById('inventory');
+  try {
+    const state = await get('/models/inventory');
+    panel.classList.remove('hidden');
+    rows(summary, [
+      ['stored artifacts', String(state.count || 0)],
+      ['running instances', String((state.running || []).length)],
+      ['stored implies running', state.stored_implies_running ? 'yes' : 'no'],
+      ['serving', state.serving ? 'yes' : 'no'],
+      ['provider', (state.provider && state.provider.identity) || 'not reported'],
+    ]);
+    target.replaceChildren();
+    target.append(span('muted',
+      'Stored artifacts occupy disk. They are not loaded, reserved, or serving.'));
+    if (state.acceptance_target) {
+      target.append(acceptanceAcquire(state.acceptance_target));
+    }
+    if (!state.artifacts || state.artifacts.length === 0) {
+      target.append(span('muted', 'No stored artifacts.'));
+    }
+    for (const artifact of state.artifacts || []) {
+      target.append(inventoryCard(artifact));
+    }
+    json(document.getElementById('inventory-json'), state);
+  } catch (error) {
+    if (error.message.startsWith('404')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
+function acceptanceAcquire(target) {
+  const wrap = document.createElement('div');
+  wrap.className = 'pool';
+  const head = document.createElement('div');
+  head.className = 'pool-head';
+  const title = document.createElement('span');
+  title.className = 'pool-path';
+  title.textContent = target.logical_name;
+  head.append(title, pill('acceptance target', 'unknown'));
+  wrap.append(head);
+  const note = document.createElement('p');
+  note.className = 'note';
+  note.textContent = target.note || 'bounded provider proof; not a recommendation';
+  wrap.append(note);
+  const button = document.createElement('button');
+  button.textContent = 'Acquire acceptance artifact';
+  const status = span('muted', ` ${target.source_ref || ''}`);
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = 'acquiring…';
+    try {
+      const result = await post('/models/acquire', { candidate: target.logical_name });
+      status.textContent =
+        ` ${result.outcome} · ${String(result.state || '').replace(/_/g, ' ')} · serving no`;
+      await refresh();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = 'Acquire acceptance artifact';
+      status.textContent = ` failed: ${error.message}`;
+    }
+  });
+  wrap.append(button, status);
+  return wrap;
+}
+
+function inventoryCard(artifact) {
+  const card = document.createElement('div');
+  card.className = 'pool';
+  const head = document.createElement('div');
+  head.className = 'pool-head';
+  const title = document.createElement('span');
+  title.className = 'pool-path';
+  title.textContent = fmt(artifact.logical_name);
+  const state = String(artifact.state || '').replace(/_/g, ' ');
+  head.append(title, pill(state, artifact.state === 'stored' ? 'ok' : 'unknown'));
+  card.append(head);
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  rows(grid, [
+    ['artifact id', artifact.artifact_id],
+    ['revision', artifact.revision],
+    ['quantization', artifact.quantization],
+    ['format', artifact.artifact_format],
+    ['state', artifact.state],
+    ['verification', artifact.verification_state],
+    ['disk usage', bytes(artifact.installed_bytes)],
+    ['source', artifact.source_ref],
+    ['acquired', artifact.acquired_at],
+    ['provider', artifact.acquisition_provider],
+    ['serving', 'no'],
+  ]);
+  card.append(grid);
+  const action = document.createElement('div');
+  action.style.marginTop = '0.9rem';
+  const button = document.createElement('button');
+  button.className = 'danger';
+  button.textContent = 'Delete';
+  const status = span('muted', ' removes stored files; does not stop a runtime');
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      await destroy('/models/artifact?artifact_id=' + encodeURIComponent(artifact.artifact_id));
+      await refresh();
+    } catch (error) {
+      button.disabled = false;
+      status.textContent = ` failed: ${error.message}`;
+    }
+  });
+  action.append(button, status);
+  card.append(action);
+  return card;
 }
 
 async function renderHost() {
@@ -807,6 +961,7 @@ async function refresh() {
     await renderRuntime();
     await renderCatalog();
     await renderSelection();
+    await renderInventory();
     await renderHost();
     await renderProviders();
     await renderProgress();

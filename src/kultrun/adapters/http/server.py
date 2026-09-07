@@ -118,6 +118,21 @@ def _make_handler(router: Router) -> type[BaseHTTPRequestHandler]:
             response = router.handle(request)
             self._write(response.status, response.body)
 
+        def do_DELETE(self) -> None:
+            parsed = urlparse(self.path)
+            request = ApiRequest(
+                method=Method.DELETE,
+                path=parsed.path,
+                query={
+                    key: values[0]
+                    for key, values in parse_qs(parsed.query).items()
+                    if values
+                },
+                correlation_id=self.headers.get("X-Correlation-Id"),
+            )
+            response = router.handle(request)
+            self._write(response.status, response.body)
+
         def do_POST(self) -> None:
             parsed = urlparse(self.path)
             request = ApiRequest(

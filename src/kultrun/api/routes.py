@@ -28,7 +28,10 @@ from kultrun.kernel.errors import (
 )
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import registered_contracts
+from kultrun.model.acquisition import AcquisitionService, request_from_entry
 from kultrun.model.catalogue import ModelCatalogue
+from kultrun.model.contracts import ArtifactId
+from kultrun.model.inventory import ModelInventory
 from kultrun.planning.service import SelectionService, plan_from
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
@@ -62,6 +65,8 @@ class ControlPlane:
     runtimes: RuntimeCatalogue
     models: ModelCatalogue
     selection: SelectionService
+    inventory: ModelInventory
+    acquisition: AcquisitionService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -349,6 +354,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
         )
         planned = plan_from(recommendation)
         return {
+            "download": False,
             "estimator_mode": recommendation.estimator_mode,
             "estimator_provider": recommendation.estimator_provider,
             "estimator_version": recommendation.estimator_version,
@@ -360,6 +366,80 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "recommendation": recommendation,
             "plan": planned,
         }
+
+    def models_inventory(_: ApiRequest) -> dict[str, object]:
+        """Plural stored artifacts. Stored is not running."""
+        artifacts = list(plane.inventory.artifacts())
+        extras = plane.models.extras()
+        acceptance = None
+        if extras:
+            meta = extras[0].metadata
+            acceptance = {
+                "logical_name": meta.logical_name.value,
+                "source_ref": meta.source_ref,
+                "note": "bounded provider proof; not a recommendation",
+            }
+        return {
+            "artifacts": artifacts,
+            "count": len(artifacts),
+            "running": [],
+            "inference_instances": [],
+            "stored_implies_running": False,
+            "serving": False,
+            "acceptance_target": acceptance,
+            "provider": {
+                "identity": plane.acquisition.provider_identity,
+                "version": plane.acquisition.provider_version,
+            },
+            "catalog_candidates": [
+                entry.metadata.logical_name.value for entry in plane.models.entries()
+            ],
+        }
+
+    def acquire_model(request: ApiRequest) -> object:
+        """Acquire a known candidate. No arbitrary URL or destination path."""
+        _reject_arbitrary_destination(request)
+        candidate = (request.query.get("candidate") or "").strip()
+        recommended = (request.query.get("recommended") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if recommended and not candidate:
+            host = plane.hosts.current
+            envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+            recommendation = plane.selection.recommend(
+                envelope=envelope,
+                candidates=plane.models.entries(),
+                available_runtimes=_inference_runtime_names(plane),
+            )
+            if recommendation.primary is None:
+                raise PreconditionFailedError("no recommended candidate to acquire")
+            candidate = recommendation.primary.logical_name.value
+        if not candidate:
+            raise ValidationError(
+                "a known candidate is required", parameter="candidate"
+            )
+        entry = plane.models.acquirable(candidate)
+        if entry is None:
+            raise NotFoundError("no such candidate", candidate=candidate)
+        host = plane.hosts.current
+        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        return plane.acquisition.acquire(
+            request_from_entry(entry), envelope, host.host_id
+        )
+
+    def delete_artifact(request: ApiRequest) -> object:
+        """Delete one stored artifact. Not stop or unload."""
+        _reject_arbitrary_destination(request)
+        raw = (request.query.get("artifact_id") or "").strip()
+        if not raw:
+            raise ValidationError(
+                "an artifact id is required", parameter="artifact_id"
+            )
+        return plane.acquisition.delete(
+            ArtifactId.parse(raw), plane.hosts.current.host_id
+        )
 
     def start_reference(request: ApiRequest) -> object:
         """Start the bounded reference workload. Empty body only."""
@@ -385,6 +465,9 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)
     router.get("/models/selection", models_selection)
+    router.get("/models/inventory", models_inventory)
+    router.post("/models/acquire", acquire_model)
+    router.delete("/models/artifact", delete_artifact)
     router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)
@@ -397,6 +480,34 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/startup", startup)
     router.get("/approvals", approvals)
     return router
+
+
+_ARBITRARY_DESTINATION_KEYS = frozenset(
+    {
+        "path",
+        "dest",
+        "destination",
+        "target",
+        "url",
+        "repo",
+        "local_dir",
+        "directory",
+        "output",
+        "output_dir",
+    }
+)
+
+
+def _reject_arbitrary_destination(request: ApiRequest) -> None:
+    """Ordinary product callers may not choose a URL or filesystem path."""
+    payload = request.body or {}
+    keys = set(request.query) | {str(key) for key in payload}
+    refused = sorted(keys & _ARBITRARY_DESTINATION_KEYS)
+    if refused:
+        raise ValidationError(
+            "arbitrary URLs and destination paths are not accepted",
+            refused=refused,
+        )
 
 
 _ARBITRARY_COMMAND_KEYS = frozenset(
