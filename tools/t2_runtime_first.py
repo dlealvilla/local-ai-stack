@@ -96,7 +96,13 @@ def main() -> int:
             print(acquired.stderr or acquired.stdout)
             return 1
         stored = run(
-            [str(kultrun), "models", "acquire", "--store-only", "tinyllama-1.1b-chat-q4"],
+            [
+                str(kultrun),
+                "models",
+                "acquire",
+                "--store-only",
+                "tinyllama-1.1b-chat-q4",
+            ],
             env,
         )
         if stored.returncode != 0:
@@ -106,11 +112,92 @@ def main() -> int:
         if reserved.returncode != 0:
             print(reserved.stderr or reserved.stdout)
             return 1
+        reservation_id = reserved.stdout.split()[1]
+        created = run(
+            [str(kultrun), "instances", "create", reservation_id], env
+        )
+        if created.returncode != 0:
+            print(created.stderr or created.stdout)
+            return 1
+        instance_id = created.stdout.split()[0]
+        started = run([str(kultrun), "instances", "start", instance_id], env)
+        if started.returncode != 0:
+            print(started.stderr or started.stdout)
+            return 1
+        stopped = run([str(kultrun), "instances", "stop", instance_id], env)
+        if stopped.returncode != 0:
+            print(stopped.stderr or stopped.stdout)
+            return 1
+        released = run(
+            [str(kultrun), "resources", "release", reservation_id], env
+        )
+        if released.returncode != 0:
+            print(released.stderr or released.stdout)
+            return 1
+
+        stale = run(
+            [
+                str(python),
+                "-c",
+                "from dataclasses import replace;"
+                "from kultrun.main import build, resolve_configuration;"
+                "from kultrun.runtime.contracts import VerificationStatus;"
+                "p=build(resolve_configuration());"
+                "host=p.hosts.current;"
+                "profile=p.runtime_setup.verified(host)[0];"
+                "p.runtime_setup.evidence.put_profile("
+                "replace(profile, status=VerificationStatus.STALE));"
+                "state=p.deployment.recommend(host, {})['state'];"
+                "print(state)",
+            ],
+            env,
+        )
+        if stale.stdout.strip() != "runtime_not_verified":
+            print("FAIL: stale profile still recommended", stale.stdout, stale.stderr)
+            return 1
+        rejected = run(
+            [str(kultrun), "models", "acquire", "--plan", plan_id], env
+        )
+        if rejected.returncode == 0:
+            print("FAIL: stale plan acquired")
+            return 1
+
+        api = run(
+            [
+                str(python),
+                "-c",
+                "from kultrun.adapters.http.console import ASSETS, read;"
+                "from kultrun.api.contracts import ApiRequest, Method;"
+                "from kultrun.main import build, resolve_configuration;"
+                "html=read('index.html').decode(); js=read('app.js').decode();"
+                "print(all(read(n) for n in ASSETS),"
+                " 'Runtime setup' in html,"
+                " 'Store Only' in js,"
+                " 'Acquire from plan' in js,"
+                " 'does not recommend' in html)",
+            ],
+            env,
+        )
+        candidates = run([str(kultrun), "runtimes", "candidates"], env)
         evidence["recommend"] = recommended.stdout
         evidence["acquire"] = acquired.stdout
         evidence["store_only"] = stored.stdout
         evidence["reserve"] = reserved.stdout
+        evidence["instance"] = started.stdout
+        evidence["stop"] = stopped.stdout
+        evidence["release"] = released.stdout
+        evidence["stale_recommend"] = stale.stdout.strip()
+        evidence["stale_acquire_exit"] = rejected.returncode
+        evidence["console"] = api.stdout.strip()
+        evidence["candidates"] = candidates.stdout.strip().splitlines()[:6]
+        evidence["source_checkout"] = False
         print(json.dumps(evidence, indent=2))
+        if started.returncode != 0 or "running" not in started.stdout:
+            print("FAIL: instance did not start", started.stdout)
+            return 1
+        if "True True True True True" not in api.stdout:
+            print("FAIL: Console", api.stdout)
+            return 1
         return 0
 
 
