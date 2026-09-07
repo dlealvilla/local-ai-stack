@@ -2,8 +2,12 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN.** Checkpoint:
+Status: **OPEN / READY_FOR_T3.** `L1`. Checkpoint:
 `checkpoints/STAGE-1.6A-container-executor.json`.
+
+T0/T1/T2 passed on committed source `d244200`. Real Docker Engine T3 is
+required to close at L2 and has not run: the development host is Darwin
+and Docker Desktop is not an architectural dependency.
 
 This stage proves that Runtime owns WHAT and Executor owns HOW across two
 real execution mechanisms. It does not load a real model and it does not
@@ -78,6 +82,19 @@ Runtime adapter does not grow Docker or bind-address branches.
 Limitations (debt): host networking is a Linux-only v0 choice;
 bridge/publish mapping, extra networks, and GPU device attachment are
 deferred.
+
+## T2
+
+Wheel `kultrun-0.1.0-py3-none-any.whl` SHA256
+`8cd70b4c244b4c8cdb52217c10b947e2f6c92149ce048ea87f8b4eecfa2b0c11`
+from `d2442003888bc6ed12e5287d74a9c70e203c75db`. Native reference
+serving, fake-engine ContainerExecutor, Small→Large→Small, API/CLI/Console
+all passed in a clean install.
+
+## T3
+
+Not run. Needs Linux Docker Engine, this exact wheel, and the reference
+image fixture. Do not close from fake-engine tests.
 
 ## Executable resolution
 
