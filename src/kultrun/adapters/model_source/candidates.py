@@ -137,7 +137,7 @@ def acceptance_candidate() -> ModelCatalogEntry:
             logical_name=Name(ACCEPTANCE_LOGICAL),
             source=IDENTITY,
             source_ref=ACCEPTANCE_SOURCE_REF,
-            source_revision=NOT_PROVIDED,
+            source_revision="main",
             family="gpt2",
             parameter_count=1_000,
             context_length_tokens=32,
