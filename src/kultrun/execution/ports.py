@@ -1,8 +1,8 @@
 """How a workload is realized.
 
 `Executor` is the seam. Native process execution is the first and
-reference implementation. `ContainerEngine` is declared so an OCI adapter
-is later an implementation rather than a redesign — it is unimplemented.
+reference implementation. `ContainerEngine` is the optional container
+path; Docker is one adapter behind it, never a generic contract.
 """
 
 from __future__ import annotations
@@ -10,9 +10,16 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from kultrun.execution.contracts import (
+    ContainerEngineProbe,
+    ContainerExecutionConfig,
     ExecutorCapabilityProfile,
     ExecutorHandle,
     ExecutorSpec,
+)
+from kultrun.execution.engine import (
+    ContainerCreateResult,
+    ContainerInspection,
+    ContainerLogs,
 )
 from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.ids import Name
@@ -46,9 +53,49 @@ class Executor(Protocol):
 
 @runtime_checkable
 class ContainerEngine(Protocol):
-    """Optional container path. Not implemented in Stage 1.3."""
+    """Create, inspect, log, stop and remove containers. Not an Executor."""
 
     @property
     def identity(self) -> Name:
-        """Which engine this would be."""
+        """Which engine this is, e.g. docker."""
+        ...
+
+    def probe(self) -> ContainerEngineProbe:
+        """Bounded availability probe. Distinguishes missing binary from daemon."""
+        ...
+
+    def create(
+        self,
+        *,
+        name: str,
+        config: ContainerExecutionConfig,
+        command: tuple[str, ...],
+        environment: tuple[str, ...],
+        labels: tuple[str, ...],
+    ) -> ContainerCreateResult:
+        """Create a stopped container. Must not invoke a shell."""
+        ...
+
+    def start(self, container_id: str) -> ContainerCreateResult:
+        """Start an already-created container."""
+        ...
+
+    def inspect(self, container_id: str) -> ContainerInspection | None:
+        """Current engine-native state, or None when the id is unknown."""
+        ...
+
+    def logs(self, container_id: str, *, limit_bytes: int) -> ContainerLogs:
+        """Bounded stdout/stderr from the engine."""
+        ...
+
+    def stop(self, container_id: str, *, grace_period_seconds: float) -> None:
+        """Ask the container to exit. The executor maps the result."""
+        ...
+
+    def kill(self, container_id: str) -> None:
+        """Forced stop. Idempotent if already stopped."""
+        ...
+
+    def remove(self, container_id: str) -> None:
+        """Delete a Kultrun-owned container id. Never a query of all containers."""
         ...

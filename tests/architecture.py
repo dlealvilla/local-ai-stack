@@ -618,6 +618,7 @@ BANNED_IMPLEMENTATION_FIELDS = frozenset(
         "popen_kwargs",
         "cuda_visible_devices_for_vllm",
         "vllm_model_argument",
+        "image",
     }
 )
 
@@ -675,12 +676,19 @@ def seam_import_leaks(source_root: Path) -> list[str]:
     problems: list[str] = []
     inference = source_root / "kultrun" / "inference"
     for path in inference.rglob("*.py"):
-        problems.extend(_imports_named(path, "subprocess"))
+        problems.extend(
+            _imports_named(path, "subprocess", "kultrun.adapters.container")
+        )
     for path in (source_root / "kultrun" / "adapters" / "runtime").rglob("*.py"):
         if path.name.endswith("_workload.py"):
             continue
         problems.extend(
-            _imports_named(path, "subprocess", "kultrun.adapters.execution")
+            _imports_named(
+                path,
+                "subprocess",
+                "kultrun.adapters.execution",
+                "kultrun.adapters.container",
+            )
         )
     for path in (source_root / "kultrun" / "execution").rglob("*.py"):
         problems.extend(
@@ -700,6 +708,17 @@ def seam_import_leaks(source_root: Path) -> list[str]:
                 "kultrun.adapters.runtime",
                 "kultrun.planning",
                 "kultrun.model",
+            )
+        )
+    for path in (source_root / "kultrun" / "adapters" / "container").rglob("*.py"):
+        problems.extend(
+            _imports_named(
+                path,
+                "kultrun.runtime",
+                "kultrun.adapters.runtime",
+                "kultrun.planning",
+                "kultrun.model",
+                "kultrun.capacity",
             )
         )
     for path in (source_root / "kultrun" / "resource").rglob("*.py"):

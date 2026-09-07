@@ -29,6 +29,7 @@ from kultrun.execution.contracts import (
     FeatureSupport,
     environment_as_dict,
 )
+from kultrun.execution.resolve import is_interpreter_component, native_interpreter
 from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.clock import Clock, SystemClock
 from kultrun.kernel.errors import InternalError, ValidationError
@@ -144,7 +145,14 @@ class NativeProcessExecutor:
         """Exec the spec. Fails closed if the executable cannot be resolved."""
         resolved = _resolve_executable(spec.executable)
         env = os.environ.copy()
-        env.update(environment_as_dict(spec.environment))
+        spec_env = environment_as_dict(spec.environment)
+        env.update(spec_env)
+        if "PYTHONPATH" not in spec_env:
+            root = _package_parent()
+            current = env.get("PYTHONPATH", "")
+            parts = current.split(os.pathsep) if current else []
+            if root not in parts:
+                env["PYTHONPATH"] = root + os.pathsep + current if current else root
         stdout_cap = _Capture(limit=spec.output_limit_bytes, chunks=[])
         stderr_cap = _Capture(limit=spec.output_limit_bytes, chunks=[])
         argv = [resolved, *spec.arguments]
@@ -277,6 +285,8 @@ def build(clock: Clock | None = None) -> NativeProcessExecutor:
 
 
 def _resolve_executable(executable: str) -> str:
+    if is_interpreter_component(executable):
+        return native_interpreter()
     path = Path(executable)
     if path.is_file() and os.access(path, os.X_OK):
         return str(path)
@@ -289,6 +299,12 @@ def _resolve_executable(executable: str) -> str:
     if path.is_file():
         return str(path.resolve())
     raise ValidationError("executable not found", executable=executable)
+
+
+def _package_parent() -> str:
+    import kultrun
+
+    return str(Path(kultrun.__file__).resolve().parent.parent)
 
 
 def _which(name: str) -> str | None:

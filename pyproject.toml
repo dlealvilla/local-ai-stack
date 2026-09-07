@@ -46,6 +46,9 @@ include = [
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 addopts = "-q --strict-markers --strict-config"
+markers = [
+    "container_engine: real Docker Engine on Linux (Stage 1.6A T3)",
+]
 
 [tool.ruff]
 line-length = 88

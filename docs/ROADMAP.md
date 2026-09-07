@@ -607,7 +607,9 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.5C Runtime / Executor boundary          ← capability profile + support descriptor; no vLLM
   ↓
-1.6A executor capability + ContainerExecutor (next)
+1.6A executor capability + ContainerExecutor  ← CLOSED L2
+  ↓
+1.6B Runtime Resolution                   ← not begun from 1.6A
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1064,11 +1066,29 @@ provisioning, no verification, no model-selection remap, no vLLM.
 
 **Output:** reconciled Runtime / Executor seam · **Gate:** L1 (T3 not required)
 
+### Stage 1.6A — Minimal ContainerExecutor + executor portability
+
+Prove that the same `RuntimeAdapter` and executor-neutral
+`RuntimeLaunchSpec` can be realized by `NativeProcessExecutor` and a
+minimal `ContainerExecutor`. Docker Engine is the first
+`ContainerEngine` implementation and is not a generic contract.
+
+No vLLM, no RuntimeResolver, no provisioning, no verification, no
+model-selection remap, no Kubernetes.
+
+**Output:** `ContainerExecutor` + Docker CLI `ContainerEngine` + same
+reference-serving Runtime through both executors · **Gate:** L2 **CLOSED**
+(Linux Docker Engine T3; host-network v0; no GPU/bridge/vLLM container proof)
+
+### Stage 1.6B — Runtime Resolution
+
+Not begun from 1.6A. RuntimeCandidate generation, provisioning plans,
+and verified runtime profiles belong here or later.
+
 ### Stage 1.6 — Real inference vertical
 
-Split after 1.5C. The next bounded stage is **1.6A** — formal executor
-capability reporting plus a minimal ContainerExecutor — under a separate
-brief. Later letters cover provisioning, verification,
+Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
+Later letters cover provisioning, verification,
 `RuntimeCapabilityProfile`, eligibility remap, acquisition, admission,
 and real inference. Those stages are **not begun** here.
 
@@ -1918,6 +1938,62 @@ ADMIN SURFACE                Existing instance / runtime / resource / model
 DEBT ENTRIES                 K-33 ContainerExecutor (1.6A); verified
                              RuntimeCapabilityProfile; runtime-first remap.
 DEFERRED ITEMS               1.6A minimal ContainerExecutor and later 1.6
+                             letters. Do not begin them from this stage.
+```
+
+### Stage 1.6A brief
+
+```text
+CURRENT STAGE                Minimal ContainerExecutor + executor
+                             portability. No vLLM, no RuntimeResolver,
+                             no provisioning, no model-selection remap.
+PREDECESSOR OUTPUTS          Stage 1.5C CLOSED L1
+                             (8e78dea7a56dcd9cd23faef0a4a45fb08a1141a3).
+THIS STAGE'S REQUIRED OUTPUT ContainerExecutor on the generic Executor
+                             port; first ContainerEngine (Docker CLI);
+                             truthful ExecutorCapabilityProfile;
+                             executor-owned ContainerExecutionConfig;
+                             same reference-serving RuntimeLaunchSpec
+                             realized by native and container executors;
+                             runtime-owned readiness preserved.
+CORE CONTRACTS AFFECTED      execution.container_config (new);
+                             execution.engine_probe (new);
+                             ExecutorCapabilityProfile consumed, not
+                             reshaped; RuntimeLaunchSpec remains generic.
+ADAPTERS AFFECTED            adapters/execution/container;
+                             adapters/container/docker;
+                             adapters/container/recording (T1 fake
+                             engine); NativeProcessExecutor resolves
+                             logical `python`; reference runtimes emit
+                             a component name, not sys.executable.
+PERSISTED STATE              ExecutorHandle as in 1.5C. Container id
+                             lives in external_identity. PID remains
+                             optional. Restart: unheld containers are
+                             UNVERIFIED and are not signalled.
+MUTATION / FAILURE BOUNDARY  Engine unavailable, image missing, invalid
+                             image, immediate exit, command missing,
+                             stop-already-stopped, forced stop. No raw
+                             Docker object leaves the adapter. No
+                             public image/mount/CLI fragment API.
+CANCELLATION / CLEANUP       Graceful docker stop then bounded kill.
+                             Remove only kultrun-labelled containers
+                             this executor created. Unrelated
+                             containers are never touched.
+ACCEPTANCE LEVEL             L2 CLOSED. Real Linux Docker Engine T3
+                             passed. Docker Desktop is not an
+                             architectural dependency. Physical limits:
+                             host-network v0, Docker Engine first
+                             implementation, no GPU/bridge/vLLM proof.
+ADMIN SURFACE                Existing runtime/instance surfaces may
+                             show executor identity, ExecutionId,
+                             external identity, capability
+                             availability. No `kultrun docker`. No
+                             container-management UI.
+DEBT ENTRIES                 GPU/device exposure in containers;
+                             bridge/publish networking if host net
+                             used; multiple engines; image management;
+                             Kubernetes.
+DEFERRED ITEMS               1.6B Runtime Resolution and later 1.6
                              letters. Do not begin them from this stage.
 ```
 

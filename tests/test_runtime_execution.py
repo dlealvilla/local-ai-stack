@@ -176,7 +176,7 @@ class TestExecutorSpecRejectsAShell:
 class TestCompositionCopiesTheRecipe:
     def test_the_reference_adapter_does_not_start_a_process(self) -> None:
         launch = ReferenceProcessRuntime(hold=False).launch_spec()
-        assert launch.executable == sys.executable
+        assert launch.executable == "python"
         assert "-m" in launch.arguments
         assert "--once" in launch.arguments
         assert "vllm" not in launch.executable.lower()

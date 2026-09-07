@@ -6,10 +6,6 @@ model. This adapter only writes a recipe; the executor starts it.
 
 from __future__ import annotations
 
-import os
-import sys
-from pathlib import Path
-
 from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.ids import Name
 from kultrun.runtime.contracts import (
@@ -23,14 +19,12 @@ from kultrun.runtime.contracts import (
 
 IDENTITY = Name("reference-process")
 EXECUTOR_KIND = Name("native-process")
+CONTAINER_EXECUTOR = Name("container-docker")
+PYTHON_COMPONENT = "python"
 
 #: Module executed as the child process. Packaged in the wheel so a clean
 #: install can prove the lifecycle without a source checkout.
 WORKLOAD_MODULE = "kultrun.adapters.runtime.reference_workload"
-
-#: `src/` in a checkout, or `site-packages` when installed. The child
-#: interpreter does not inherit pytest's pythonpath.
-_IMPORT_ROOT = str(Path(__file__).resolve().parents[3])
 
 
 class ReferenceProcessRuntime:
@@ -59,7 +53,11 @@ class ReferenceProcessRuntime:
             production_candidate=False,
             supported_os_families=("linux", "darwin"),
             supported_architectures=("x86_64", "arm64"),
-            compatible_executor_types=(EXECUTOR_KIND, Name("recording")),
+            compatible_executor_types=(
+                EXECUTOR_KIND,
+                Name("recording"),
+                CONTAINER_EXECUTOR,
+            ),
             required_features=(
                 "process_execution",
                 "structured_argv",
@@ -97,24 +95,10 @@ class ReferenceProcessRuntime:
         return RuntimeLaunchSpec(
             runtime=self.identity,
             profile=self.identity,
-            executable=sys.executable,
+            executable=PYTHON_COMPONENT,
             arguments=("-m", WORKLOAD_MODULE, mode),
-            environment=(
-                "KULTRUN_REFERENCE_WORKLOAD=1",
-                f"PYTHONPATH={_child_pythonpath()}",
-            ),
+            environment=("KULTRUN_REFERENCE_WORKLOAD=1",),
         )
-
-
-def _child_pythonpath() -> str:
-    """Make `-m kultrun...` resolvable in a source checkout and an install."""
-    current = os.environ.get("PYTHONPATH", "")
-    if not current:
-        return _IMPORT_ROOT
-    parts = current.split(os.pathsep)
-    if _IMPORT_ROOT in parts:
-        return current
-    return _IMPORT_ROOT + os.pathsep + current
 
 
 def build(*, hold: bool = True) -> ReferenceProcessRuntime:

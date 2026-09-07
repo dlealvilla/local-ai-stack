@@ -1,9 +1,9 @@
 """Process launch and observation, without runtime or model semantics.
 
 The executor receives a structured specification — an executable and an
-argument list — never a shell string. `docs/ROADMAP.md` Stage 1.3: native
-process execution is first-class; a container engine is a later adapter
-behind the same port.
+argument list — never a shell string. Native process execution is
+first-class; a container engine is an adapter behind the same port.
+Docker-specific fields do not belong on these generic contracts.
 """
 
 from __future__ import annotations
@@ -84,6 +84,35 @@ class ExecutorAvailability(StrEnum):
     AVAILABLE = "available"
     UNAVAILABLE = "unavailable"
     UNRESOLVED = "unresolved"
+
+
+class PullPolicy(StrEnum):
+    """Whether the engine may fetch an image. Ordinary reads never pull."""
+
+    NEVER = "never"
+    IF_MISSING = "if_missing"
+    ALWAYS = "always"
+
+
+class ContainerNetworkMode(StrEnum):
+    """How the executor realizes the spec's generic network bindings."""
+
+    HOST = "host"
+    BRIDGE = "bridge"
+
+
+class EngineFailureKind(StrEnum):
+    """Normalized engine failure. Never a vendor exception type."""
+
+    BINARY_MISSING = "binary_missing"
+    DAEMON_UNAVAILABLE = "daemon_unavailable"
+    PERMISSION_DENIED = "permission_denied"
+    UNSUPPORTED_VERSION = "unsupported_version"
+    IMAGE_MISSING = "image_missing"
+    INVALID_IMAGE = "invalid_image"
+    COMMAND_UNAVAILABLE = "command_unavailable"
+    NETWORK_FAILURE = "network_failure"
+    EXECUTION_FAILURE = "execution_failure"
 
 
 @contract(kind="execution.device_request", version=1)
@@ -297,6 +326,93 @@ class ExecutorCapabilityProfile(Contract):
     confidence: Confidence = meaning(
         "how much weight a caller may place on this report",
         default=Confidence.UNKNOWN,
+    )
+
+
+@contract(kind="execution.container_config", version=1)
+@dataclass(frozen=True, slots=True)
+class ContainerExecutionConfig(Contract):
+    """Executor-owned container realization. Not a RuntimeLaunchSpec field."""
+
+    image: str = meaning("OCI image reference the engine should run")
+    pull_policy: PullPolicy = meaning(
+        "when an image may be fetched; never during ordinary reads",
+        default=PullPolicy.NEVER,
+    )
+    network_mode: ContainerNetworkMode = meaning(
+        "how generic network bindings are realized",
+        default=ContainerNetworkMode.HOST,
+    )
+    working_directory: str | None = meaning(
+        "container working directory when the executor maps one",
+        default=None,
+    )
+    name_prefix: str = meaning(
+        "prefix for generated container names; must stay Kultrun-owned",
+        default="kultrun-",
+    )
+    managed_label: str = meaning(
+        "identity label that constrains cleanup",
+        default="kultrun.managed=1",
+    )
+    remove_on_stop: bool = meaning(
+        "whether this executor removes the container after stop",
+        default=True,
+    )
+    engine_executable: str = meaning(
+        "engine CLI name or path; composition-controlled, never caller argv",
+        default="docker",
+    )
+
+    def __post_init__(self) -> None:
+        _reject_shell_string(self.engine_executable, what="engine executable")
+        if not self.image.strip() or any(
+            character in self.image for character in " \t\n;|&$`()<>"
+        ):
+            raise ValidationError(
+                "image reference is not a safe token", image=self.image
+            )
+        if not self.name_prefix.startswith("kultrun"):
+            raise ValidationError(
+                "container name prefix must be Kultrun-owned",
+                name_prefix=self.name_prefix,
+            )
+        if "=" not in self.managed_label:
+            raise ValidationError("managed label must be key=value")
+        key, _, value = self.managed_label.partition("=")
+        if not key.startswith("kultrun.") or not value:
+            raise ValidationError(
+                "managed label must be a kultrun.* key",
+                managed_label=self.managed_label,
+            )
+        if self.working_directory is not None and (
+            not self.working_directory.strip() or "\0" in self.working_directory
+        ):
+            raise ValidationError("working directory is malformed")
+
+
+@contract(kind="execution.engine_probe", version=1)
+@dataclass(frozen=True, slots=True)
+class ContainerEngineProbe(Contract):
+    """Whether a container engine is actually usable, not theoretically."""
+
+    engine: Name = meaning("which engine adapter produced this probe")
+    availability: ExecutorAvailability = meaning(
+        "available only when the engine answered a bounded probe"
+    )
+    failure_kind: Maybe[str] = meaning(
+        "normalized reason when availability is not available",
+        default=NOT_PROVIDED,
+    )
+    version: Maybe[str] = meaning(
+        "engine version when the probe obtained one", default=NOT_PROVIDED
+    )
+    reason: Maybe[str] = meaning(
+        "human-readable normalized detail, never raw CLI stderr",
+        default=NOT_PROVIDED,
+    )
+    evidence: tuple[str, ...] = meaning(
+        "short provenance facts; never a vendor object", default=()
     )
 
 

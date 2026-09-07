@@ -14,7 +14,7 @@ from kultrun.api.contracts import ApiRequest
 from kultrun.api.router import Router
 from kultrun.capacity.contracts import CapacityEnvelope, HeadroomPolicy
 from kultrun.capacity.envelope import CapacityService
-from kultrun.execution.contracts import ExecutionId
+from kultrun.execution.contracts import ExecutionId, ExecutorCapabilityProfile
 from kultrun.execution.service import ExecutionService
 from kultrun.host.contracts import DeploymentProfile, HostCapabilities
 from kultrun.host.inventory import HostInventory
@@ -78,6 +78,8 @@ class ControlPlane:
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
+    #: Capability probe for the container executor. Composition-owned.
+    container_capability: Callable[[HostCapabilities], ExecutorCapabilityProfile]
     #: How the control plane turns host mounts into stored sanity evidence.
     #: Injected rather than computed here so `api` does not acquire storage
     #: logic; the composition root owns the wiring.
@@ -307,9 +309,16 @@ def register(router: Router, plane: ControlPlane) -> Router:
         return {
             "executor": {
                 "identity": plane.executor_identity,
-                "kind": "native_process",
+                "kind": (
+                    "container"
+                    if plane.executor_identity == "container-docker"
+                    else "native_process"
+                ),
             },
             "executor_capability": plane.executions.capabilities(
+                plane.hosts.current
+            ),
+            "container_executor_capability": plane.container_capability(
                 plane.hosts.current
             ),
             "profiles": list(plane.runtimes.profiles()),

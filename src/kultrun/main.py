@@ -20,8 +20,10 @@ from pathlib import Path
 
 from kultrun.adapters.acquisition import fixture as fixture_acquisition
 from kultrun.adapters.acquisition import huggingface as huggingface_acquisition
+from kultrun.adapters.container.docker import DockerCliEngine
 from kultrun.adapters.estimators import kultrun as kultrun_estimator
 from kultrun.adapters.estimators import llmfit as llmfit_estimator
+from kultrun.adapters.execution.container import ContainerExecutor
 from kultrun.adapters.execution.native_process import NativeProcessExecutor
 from kultrun.adapters.host import fixtures, hwloc, native_linux, nvidia
 from kultrun.adapters.install import apt
@@ -48,7 +50,13 @@ from kultrun.components.contracts import ComponentNecessity, ComponentRequiremen
 from kultrun.entitlement import contracts as _entitlement_contracts  # noqa: F401
 from kultrun.evidence import contracts as _evidence_contracts  # noqa: F401
 from kultrun.execution import contracts as _execution_contracts  # noqa: F401
-from kultrun.execution.contracts import ExecutionId, ExecutionState, ExecutorHandle
+from kultrun.execution.contracts import (
+    ContainerExecutionConfig,
+    ExecutionId,
+    ExecutionState,
+    ExecutorHandle,
+)
+from kultrun.execution.ports import Executor
 from kultrun.execution.service import ExecutionService
 from kultrun.host import contracts as _host_contracts  # noqa: F401
 from kultrun.host.contracts import HostCapabilities, MountFacts
@@ -281,6 +289,10 @@ ESTIMATOR_VARIABLE = "KULTRUN_MODEL_REQUIREMENT_ESTIMATOR"
 ESTIMATOR_MODES = ("auto", "llmfit", "kultrun")
 ACQUISITION_VARIABLE = "KULTRUN_MODEL_ACQUISITION_PROVIDER"
 ACQUISITION_MODES = ("huggingface", "fixture")
+EXECUTOR_VARIABLE = "KULTRUN_EXECUTOR"
+CONTAINER_IMAGE_VARIABLE = "KULTRUN_CONTAINER_IMAGE"
+LIVE_EXECUTORS = ("native-process", "container-docker")
+REFERENCE_CONTAINER_IMAGE = "kultrun-reference-serving:stage-16a"
 
 
 class EvidenceMode(StrEnum):
@@ -330,6 +342,27 @@ def resolve_configuration(
     if acquisition:
         overrides["model_acquisition_provider"] = acquisition
     return config_schema().load({"platform": overrides} if overrides else {})
+
+
+def resolve_live_executor(
+    environment: Mapping[str, str] | None = None,
+) -> tuple[str, str]:
+    """Which Executor the composition root wires as the live path."""
+    source = os.environ if environment is None else environment
+    named = source.get(EXECUTOR_VARIABLE, "native-process").strip() or "native-process"
+    if named not in LIVE_EXECUTORS:
+        raise ConfigError(
+            "unknown executor",
+            requested=named,
+            known=list(LIVE_EXECUTORS),
+        )
+    image = source.get(CONTAINER_IMAGE_VARIABLE, "").strip()
+    if named == "container-docker" and not image:
+        raise ConfigError(
+            "container executor requires an explicit image",
+            variable=CONTAINER_IMAGE_VARIABLE,
+        )
+    return named, image or REFERENCE_CONTAINER_IMAGE
 
 
 def config_schema() -> ConfigSchema:
@@ -481,8 +514,18 @@ def build(
         store,
         clock=resolved_clock,
     )
-    executor = NativeProcessExecutor(resolved_clock)
-    executions = ExecutionService(executor, store)
+    chosen_executor, container_image = resolve_live_executor()
+    container_executor = ContainerExecutor(
+        DockerCliEngine(),
+        ContainerExecutionConfig(image=container_image),
+        resolved_clock,
+    )
+    live_executor: Executor
+    if chosen_executor == "container-docker":
+        live_executor = container_executor
+    else:
+        live_executor = NativeProcessExecutor(resolved_clock)
+    executions = ExecutionService(live_executor, store)
     runtimes = RuntimeCatalogue(
         (ReferenceProcessRuntime(hold=True), ReferenceServingRuntime())
     )
@@ -557,7 +600,8 @@ def build(
         resources=resources,
         admission=admission,
         instances=instances,
-        executor_identity=executor.identity.value,
+        executor_identity=live_executor.identity.value,
+        container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
         evidence_mode=mode.value,
@@ -962,6 +1006,20 @@ def _runtime_start(arguments: Sequence[str]) -> int:
 def _runtime_status() -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    live = platform.executions.capabilities(host)
+    container = platform.plane.container_capability(host)
+    print(
+        f"executor {live.executor.value} {live.availability.value}"
+    )
+    print(
+        f"container-docker {container.availability.value}"
+        + (
+            f" {container.reason}"
+            if is_resolved(container.reason)
+            else ""
+        )
+    )
     handles = platform.executions.list()
     if not handles:
         print("no executions")
@@ -1008,9 +1066,14 @@ def _wait_until_terminal(platform: Platform, handle: ExecutorHandle) -> Executor
 def _print_execution(handle: ExecutorHandle) -> None:
     pid = handle.pid if is_resolved(handle.pid) else "-"
     exit_code = handle.exit_code if is_resolved(handle.exit_code) else "-"
+    external = (
+        handle.external_identity if is_resolved(handle.external_identity) else "-"
+    )
     print(
         f"{handle.execution_id.value}  {handle.observed_state.value}  "
-        f"pid {pid}  exit {exit_code}  ownership {handle.ownership.value}"
+        f"executor {handle.executor.value}  "
+        f"pid {pid}  external {external}  exit {exit_code}  "
+        f"ownership {handle.ownership.value}"
     )
     if handle.stdout:
         print("--- stdout ---")
