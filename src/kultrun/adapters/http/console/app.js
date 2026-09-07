@@ -1043,6 +1043,8 @@ function instanceCard(item) {
     ['desired', item.desired_state],
     ['observed', item.observed_state],
     ['runtime', item.runtime],
+    ['executor', item.executor],
+    ['execution id', item.execution_id],
     ['pid', item.pid],
     ['endpoint', endpoint],
     ['ready', item.ready],

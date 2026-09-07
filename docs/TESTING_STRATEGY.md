@@ -335,6 +335,18 @@ restart reconciliation that does not trust a persisted RUNNING label.
 T2 is a clean wheel. T3 is not required: Stage 1.3 already exercised
 generic process lifecycle on hardware.
 
+**Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
+suite runs against `NativeProcessExecutor` and a recording fixture.
+A runtime contract suite runs against the reference-serving adapter.
+Tests prove `ExecutorCapabilityProfile` (current host, Unknown stays
+Unknown), `RuntimeSupportDescriptor` (`TEST_ONLY` for reference
+families), executor-neutral `RuntimeLaunchSpec` / `ExecutorHandle`,
+generic `ExecutionId` without a required PID, runtime-owned readiness,
+and architecture non-edges (inference has no `subprocess`; runtime
+adapters do not import process execution; executors do not import
+runtime adapters). T1 re-runs the 1.5B lifecycle and resource/model
+regressions. T2 is a clean wheel. T3 is not required.
+
 **Stage 1.4C** is T0/T1 fixture acquisition plus T2 from a clean wheel.
 Normal CI stays offline: the fixture provider writes tiny files through
 the same staging, verification, promotion, inventory and delete path.

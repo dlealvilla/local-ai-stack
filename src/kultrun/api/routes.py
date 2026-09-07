@@ -309,7 +309,11 @@ def register(router: Router, plane: ControlPlane) -> Router:
                 "identity": plane.executor_identity,
                 "kind": "native_process",
             },
+            "executor_capability": plane.executions.capabilities(
+                plane.hosts.current
+            ),
             "profiles": list(plane.runtimes.profiles()),
+            "support": list(plane.runtimes.descriptors()),
             "executions": list(plane.executions.list()),
             "workload": "kultrun.adapters.runtime.reference_workload",
             "process_evidence": {

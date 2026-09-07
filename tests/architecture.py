@@ -197,6 +197,7 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "resource.summary",
         "inference.instance",
         "execution.handle",
+        "execution.capability_profile",
     }
 )
 
@@ -608,3 +609,99 @@ def import_all_contracts(source_root: Path) -> None:
 
     for path in sorted((source_root / "kultrun").glob("*/contracts.py")):
         importlib.import_module(f"kultrun.{path.parent.name}.contracts")
+
+
+BANNED_IMPLEMENTATION_FIELDS = frozenset(
+    {
+        "docker_image",
+        "docker_network",
+        "popen_kwargs",
+        "cuda_visible_devices_for_vllm",
+        "vllm_model_argument",
+    }
+)
+
+GENERIC_SEAM_KINDS = frozenset(
+    {
+        "runtime.launch_spec",
+        "runtime.launch_request",
+        "runtime.profile",
+        "runtime.support_descriptor",
+        "runtime.readiness",
+        "execution.spec",
+        "execution.handle",
+        "execution.capability_profile",
+        "inference.instance",
+    }
+)
+
+
+def implementation_field_leaks(
+    contracts: Mapping[tuple[str, int], type[Contract]],
+) -> list[str]:
+    """Generic seam contracts must not grow Docker or Popen fields."""
+    problems: list[str] = []
+    for (kind, version), contract_type in sorted(contracts.items()):
+        if kind not in GENERIC_SEAM_KINDS:
+            continue
+        for field in fields(cast("Any", contract_type)):
+            if field.name in BANNED_IMPLEMENTATION_FIELDS:
+                problems.append(f"{kind}@{version}.{field.name}")
+    return problems
+
+
+def _module_matches(module: str, wanted: set[str]) -> bool:
+    return any(module == name or module.startswith(f"{name}.") for name in wanted)
+
+
+def _imports_named(path: Path, *names: str) -> list[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    wanted = set(names)
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if _module_matches(alias.name, wanted):
+                    found.append(f"{path}:{node.lineno} imports {alias.name}")
+        elif isinstance(node, ast.ImportFrom) and node.module and _module_matches(
+            node.module, wanted
+        ):
+            found.append(f"{path}:{node.lineno} imports {node.module}")
+    return found
+
+
+def seam_import_leaks(source_root: Path) -> list[str]:
+    """Runtime owns WHAT; Executor owns HOW; Inference only composes."""
+    problems: list[str] = []
+    inference = source_root / "kultrun" / "inference"
+    for path in inference.rglob("*.py"):
+        problems.extend(_imports_named(path, "subprocess"))
+    for path in (source_root / "kultrun" / "adapters" / "runtime").rglob("*.py"):
+        if path.name.endswith("_workload.py"):
+            continue
+        problems.extend(
+            _imports_named(path, "subprocess", "kultrun.adapters.execution")
+        )
+    for path in (source_root / "kultrun" / "execution").rglob("*.py"):
+        problems.extend(
+            _imports_named(
+                path,
+                "kultrun.runtime",
+                "kultrun.adapters.runtime",
+                "kultrun.planning",
+                "kultrun.model",
+            )
+        )
+    for path in (source_root / "kultrun" / "adapters" / "execution").rglob("*.py"):
+        problems.extend(
+            _imports_named(
+                path,
+                "kultrun.runtime",
+                "kultrun.adapters.runtime",
+                "kultrun.planning",
+                "kultrun.model",
+            )
+        )
+    for path in (source_root / "kultrun" / "resource").rglob("*.py"):
+        problems.extend(_imports_named(path, "kultrun.inference"))
+    return problems

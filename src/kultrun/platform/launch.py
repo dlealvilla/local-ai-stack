@@ -22,4 +22,6 @@ def executor_spec_from(launch: RuntimeLaunchSpec) -> ExecutorSpec:
         device_requests=tuple(
             DeviceRequest(index=index) for index in launch.device_indexes
         ),
+        filesystem_mappings=launch.filesystem_mappings,
+        network_bindings=launch.network_bindings,
     )

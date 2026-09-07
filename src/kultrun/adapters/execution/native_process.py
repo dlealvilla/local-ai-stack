@@ -16,20 +16,24 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import IO
 
+from kultrun.evidence.contracts import Confidence
 from kultrun.execution.contracts import (
     ExecutionHealth,
     ExecutionId,
     ExecutionOwnership,
     ExecutionState,
+    ExecutorAvailability,
+    ExecutorCapabilityProfile,
     ExecutorHandle,
     ExecutorSpec,
+    FeatureSupport,
     environment_as_dict,
 )
-from kultrun.host.contracts import HostId
+from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.clock import Clock, SystemClock
 from kultrun.kernel.errors import InternalError, ValidationError
 from kultrun.kernel.ids import Name
-from kultrun.kernel.unresolved import NOT_MEASURED, is_resolved
+from kultrun.kernel.unresolved import NOT_MEASURED, NOT_PROVIDED, is_resolved
 
 IDENTITY = Name("native-process")
 
@@ -82,6 +86,59 @@ class NativeProcessExecutor:
     @property
     def identity(self) -> Name:
         return IDENTITY
+
+    def capabilities(self, host: HostCapabilities) -> ExecutorCapabilityProfile:
+        """Truthful native-process features on this host. Does not exec."""
+        native = host.execution.native_process
+        process = (
+            FeatureSupport.SUPPORTED if native else FeatureSupport.UNSUPPORTED
+        )
+        vendors = tuple(
+            sorted({item.vendor.value for item in host.accelerators})
+        )
+        return ExecutorCapabilityProfile(
+            executor=self.identity,
+            executor_type=Name("process"),
+            host_id=host.host_id,
+            host_fingerprint=host.fingerprint,
+            availability=(
+                ExecutorAvailability.AVAILABLE
+                if native
+                else ExecutorAvailability.UNAVAILABLE
+            ),
+            process_execution=process,
+            structured_argv=process,
+            environment_variables=process,
+            working_directory=process,
+            filesystem_access="host_native",
+            networking="host_native",
+            port_binding=process,
+            accelerator_exposure=process,
+            bounded_stdout=process,
+            bounded_stderr=process,
+            lifecycle_observation=process,
+            graceful_termination=process,
+            forced_termination=process,
+            isolation=FeatureSupport.UNSUPPORTED,
+            reason=(
+                NOT_PROVIDED
+                if native
+                else "host does not advertise native process execution"
+            ),
+            accelerator_exposure_mode="host_process_inheritance",
+            limitations=(
+                "container_isolation unsupported",
+                "no CDI device attachment",
+                "no Docker or OCI execution",
+            ),
+            evidence=(
+                f"os={host.operating_environment.os_name}",
+                f"arch={host.operating_environment.architecture.value}",
+                f"native_process={native}",
+                f"accelerator_vendors={','.join(vendors) or 'none'}",
+            ),
+            confidence=Confidence.HIGH if native else Confidence.LOW,
+        )
 
     def start(self, host_id: HostId, spec: ExecutorSpec) -> ExecutorHandle:
         """Exec the spec. Fails closed if the executable cannot be resolved."""

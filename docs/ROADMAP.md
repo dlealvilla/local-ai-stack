@@ -253,6 +253,7 @@ proves packaging, not Apple support.
 | Stage 1.4C — acquisition and inventory | Selective | Low |
 | Stage 1.5A — admission and reservation | Selective | Low |
 | Stage 1.5B — inference instance lifecycle | Selective | Low |
+| Stage 1.5C — Runtime / Executor boundary reconciliation | No | None |
 | Stage 1.6 — real inference vertical | Yes | **Very high** |
 | Stage 1.7 — gateway | Integrated only | Low |
 | Milestone 2 — storage empirical evidence | Yes | High |
@@ -604,7 +605,11 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.5B inference instance lifecycle         ← plural schema; reference serving; stop ≠ release
   ↓
-1.6 REAL INFERENCE VERTICAL               ← the earliest honest proof
+1.5C Runtime / Executor boundary          ← capability profile + support descriptor; no vLLM
+  ↓
+1.6A executor capability + ContainerExecutor (next)
+  ↓
+1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
 post-inference breadth review, then 1.7 onward
 ```
@@ -1034,7 +1039,7 @@ endpoint, lifecycle state, desired vs observed vs health, timestamps.
 
 Lifecycle: create, start, observe, stop, restart — plus **reconciliation
 on restart**. A reference serving process proves the path. Real LLM
-loading is Stage 1.6.
+loading is later. Stage 1.5C reconciles the Runtime / Executor seam first.
 
 Stop does **not** release the reservation. Release is a separate
 primitive and is refused while a linked instance is STARTING, RUNNING,
@@ -1044,7 +1049,28 @@ reservations.
 
 **Output:** `InferenceInstance v1` (plural) + reference serving lifecycle · **Gate:** L1
 
+### Stage 1.5C — Runtime / Executor boundary reconciliation
+
+Inspect and minimally correct the Runtime / Executor contracts so a later
+real runtime can be added without embedding `subprocess` or Docker in
+domain types. Preserve ResourceManager and InferenceInstance lifecycle.
+
+Adds `ExecutorCapabilityProfile` (current-host capability evidence) and
+`RuntimeSupportDescriptor` (declared/static support). Reuses
+`RuntimeLaunchSpec` and `ExecutorHandle`. Reference serving is explicitly
+`TEST_ONLY`. A recording executor proves the generic spec is not
+native-process-specific. No ContainerExecutor, no RuntimeResolver, no
+provisioning, no verification, no model-selection remap, no vLLM.
+
+**Output:** reconciled Runtime / Executor seam · **Gate:** L1 (T3 not required)
+
 ### Stage 1.6 — Real inference vertical
+
+Split after 1.5C. The next bounded stage is **1.6A** — formal executor
+capability reporting plus a minimal ContainerExecutor — under a separate
+brief. Later letters cover provisioning, verification,
+`RuntimeCapabilityProfile`, eligibility remap, acquisition, admission,
+and real inference. Those stages are **not begun** here.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -1857,7 +1883,42 @@ ADMIN SURFACE                GET/POST /v1/inference/instances;
 DEBT ENTRIES                 Port allocator (K-45), supervisor/PID
                              reattach (K-31), real inference, cache,
                              auto-switch, scheduler (K-46).
-DEFERRED ITEMS               Stage 1.6 real model runtime + inference.
+DEFERRED ITEMS               Stage 1.5C Runtime / Executor reconciliation,
+                             then 1.6A ContainerExecutor / real inference.
+```
+
+### Stage 1.5C brief
+
+```text
+CURRENT STAGE                Runtime / Executor boundary reconciliation.
+                             No vLLM, no provisioning, no verification,
+                             no model-selection remap.
+PREDECESSOR OUTPUTS          Stage 1.5B CLOSED L1
+                             (620a78be94433a0e8a6624d36147b0e870fafd61).
+THIS STAGE'S REQUIRED OUTPUT ExecutorCapabilityProfile;
+                             RuntimeSupportDescriptor (reference TEST_ONLY);
+                             executor-neutral RuntimeLaunchSpec (KEEP/ADJUST);
+                             executor-neutral ExecutorHandle (KEEP/ADJUST);
+                             RecordingExecutor fixture; runtime-owned
+                             readiness; 1.5B/1.5A/1.4 regressions.
+CORE CONTRACTS AFFECTED      execution.capability_profile;
+                             runtime.support_descriptor; runtime.readiness;
+                             additive generic fields on launch spec,
+                             executor spec, and handle.
+ADAPTERS AFFECTED            NativeProcessExecutor.capabilities;
+                             reference-serving / reference-process;
+                             adapters/execution/recording (fixture only).
+PERSISTED STATE              InferenceInstance + ExecutorHandle as in 1.5B.
+                             Additive handle fields decode with defaults.
+MUTATION / FAILURE BOUNDARY  No new mutating workflows.
+CANCELLATION / CLEANUP       Unchanged executor stop + explicit release.
+ACCEPTANCE LEVEL             L1. T3 not required.
+ADMIN SURFACE                Existing instance / runtime / resource / model
+                             surfaces. No Runtime Setup.
+DEBT ENTRIES                 K-33 ContainerExecutor (1.6A); verified
+                             RuntimeCapabilityProfile; runtime-first remap.
+DEFERRED ITEMS               1.6A minimal ContainerExecutor and later 1.6
+                             letters. Do not begin them from this stage.
 ```
 
 ---

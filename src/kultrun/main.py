@@ -1496,6 +1496,11 @@ def inspect_named_instance(arguments: Sequence[str]) -> int:
     print(f"desired {instance.desired_state.value}")
     print(f"observed {instance.observed_state.value}")
     print(f"runtime {instance.runtime.value}")
+    print(f"executor {instance.executor.value}")
+    print(
+        "execution "
+        f"{instance.execution_id.value if instance.execution_id is not None else '-'}"
+    )
     print(f"pid {instance.pid if is_resolved(instance.pid) else '-'}")
     print(f"endpoint {endpoint}")
     print(f"ready {instance.ready if is_resolved(instance.ready) else 'unknown'}")

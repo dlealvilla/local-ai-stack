@@ -23,9 +23,11 @@ from tests.architecture import (
     KERNEL_CONCEPTS,
     ImportEdge,
     host_scoping_violations,
+    implementation_field_leaks,
     import_all_contracts,
     reference_violations,
     scan,
+    seam_import_leaks,
     unassigned_packages,
     unmapped_adapter_families,
     violations,
@@ -75,6 +77,13 @@ class TestTheRealTree:
 
     def test_the_tree_obeys_the_dependency_law(self) -> None:
         assert violations(scan(SOURCE_ROOT)) == []
+
+    def test_runtime_executor_seams_do_not_import_each_other(self) -> None:
+        assert seam_import_leaks(SOURCE_ROOT) == []
+
+    def test_generic_seams_have_no_docker_or_popen_fields(self) -> None:
+        import_all_contracts(SOURCE_ROOT)
+        assert implementation_field_leaks(registered_contracts()) == []
 
     def test_nothing_in_the_core_imports_an_adapter(self) -> None:
         """Only the composition root. An adapter may still use its own tier."""

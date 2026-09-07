@@ -9,8 +9,12 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from kultrun.execution.contracts import ExecutorHandle, ExecutorSpec
-from kultrun.host.contracts import HostId
+from kultrun.execution.contracts import (
+    ExecutorCapabilityProfile,
+    ExecutorHandle,
+    ExecutorSpec,
+)
+from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.ids import Name
 
 
@@ -21,6 +25,10 @@ class Executor(Protocol):
     @property
     def identity(self) -> Name:
         """Which executor this is, recorded on the handle."""
+        ...
+
+    def capabilities(self, host: HostCapabilities) -> ExecutorCapabilityProfile:
+        """What this executor can provide on the given host. Does not exec."""
         ...
 
     def start(self, host_id: HostId, spec: ExecutorSpec) -> ExecutorHandle:

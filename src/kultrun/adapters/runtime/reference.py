@@ -10,11 +10,15 @@ import os
 import sys
 from pathlib import Path
 
+from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.ids import Name
 from kultrun.runtime.contracts import (
     RuntimeLaunchRequest,
     RuntimeLaunchSpec,
     RuntimeProfile,
+    RuntimeReadiness,
+    RuntimeSupportDescriptor,
+    RuntimeSupportTier,
 )
 
 IDENTITY = Name("reference-process")
@@ -45,6 +49,44 @@ class ReferenceProcessRuntime:
             display_name="Reference process (acceptance harness)",
             executor_kind=EXECUTOR_KIND,
             capabilities=("process-lifecycle", "bounded-output"),
+        )
+
+    def support(self) -> RuntimeSupportDescriptor:
+        return RuntimeSupportDescriptor(
+            runtime=self.identity,
+            display_name="Reference process (acceptance harness)",
+            support_tier=RuntimeSupportTier.TEST_ONLY,
+            production_candidate=False,
+            supported_os_families=("linux", "darwin"),
+            supported_architectures=("x86_64", "arm64"),
+            compatible_executor_types=(EXECUTOR_KIND, Name("recording")),
+            required_features=(
+                "process_execution",
+                "structured_argv",
+                "environment_variables",
+            ),
+            limitations=("not a model-serving runtime", "TEST_ONLY harness"),
+            evidence=("stage-1.3-reference-process",),
+            confidence=Confidence.HIGH,
+        )
+
+    def inspect_readiness(
+        self,
+        *,
+        stdout: str,
+        stderr: str,
+        execution_alive: bool,
+        bound_address: str | None = None,
+        bound_port: int | None = None,
+    ) -> RuntimeReadiness:
+        del stdout, stderr, bound_address, bound_port
+        if not execution_alive:
+            return RuntimeReadiness(
+                ready=False, reason="execution is not alive"
+            )
+        return RuntimeReadiness(
+            ready=True,
+            reason="process harness has no HTTP probe; liveness is enough",
         )
 
     def launch_spec(

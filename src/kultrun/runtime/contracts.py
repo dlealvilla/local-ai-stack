@@ -11,12 +11,28 @@ launch spec into an `ExecutorSpec`.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
+from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.errors import ValidationError
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import Contract, contract, meaning
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
+
+
+class RuntimeSupportTier(StrEnum):
+    """How far this declared support may be trusted.
+
+    ``TEST_ONLY`` and ``REFERENCE`` must never become production serving
+    candidates. ``PRODUCT`` is reserved for later real runtimes.
+    ``FUTURE`` is declared but not selectable.
+    """
+
+    PRODUCT = "product"
+    REFERENCE = "reference"
+    TEST_ONLY = "test_only"
+    FUTURE = "future"
 
 
 @contract(kind="runtime.launch_request", version=1)
@@ -81,6 +97,14 @@ class RuntimeLaunchSpec(Contract):
         "Kultrun accelerator indexes already chosen; empty in Stage 1.3",
         default=(),
     )
+    filesystem_mappings: tuple[str, ...] = meaning(
+        "generic filesystem requirements the executor should honour",
+        default=(),
+    )
+    network_bindings: tuple[str, ...] = meaning(
+        "generic bind or publish requirements, never a Docker network name",
+        default=(),
+    )
 
     def __post_init__(self) -> None:
         if not self.executable.strip():
@@ -127,3 +151,87 @@ class RuntimeLaunchSpec(Contract):
             )
         if any(index < 0 for index in self.device_indexes):
             raise ValidationError("device indexes must be non-negative")
+        for mapping in self.filesystem_mappings:
+            if not mapping or "\0" in mapping:
+                raise ValidationError("filesystem mapping is malformed")
+        for binding in self.network_bindings:
+            if not binding or "\0" in binding:
+                raise ValidationError("network binding is malformed")
+
+
+@contract(kind="runtime.support_descriptor", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeSupportDescriptor(Contract):
+    """Declared, static support. Not installed, not operational, not verified."""
+
+    runtime: Name = meaning("stable runtime identity")
+    display_name: str = meaning("human-readable name for consoles")
+    support_tier: RuntimeSupportTier = meaning(
+        "whether this family is a product candidate or a harness"
+    )
+    production_candidate: bool = meaning(
+        "false for reference and test-only families; they must not be AUTO-selected"
+    )
+    compatible_executor_types: tuple[Name, ...] = meaning(
+        "executor identities this recipe can be handed to"
+    )
+    descriptor_version: int = meaning("descriptor shape version", default=1)
+    supported_os_families: tuple[str, ...] = meaning(
+        "operating-system families this family claims, e.g. linux, darwin",
+        default=(),
+    )
+    supported_architectures: tuple[str, ...] = meaning(
+        "CPU architectures this family claims, e.g. x86_64, arm64",
+        default=(),
+    )
+    supported_accelerator_families: tuple[str, ...] = meaning(
+        "accelerator families this family claims; empty means none required",
+        default=(),
+    )
+    required_features: tuple[str, ...] = meaning(
+        "executor features the recipe needs, e.g. structured_argv",
+        default=(),
+    )
+    known_model_architectures: tuple[str, ...] = meaning(
+        "model families this runtime claims, when the claim is reliable",
+        default=(),
+    )
+    known_formats: tuple[str, ...] = meaning(
+        "artifact formats this runtime claims", default=()
+    )
+    known_quantizations: tuple[str, ...] = meaning(
+        "quantizations this runtime claims", default=()
+    )
+    known_modalities: tuple[str, ...] = meaning(
+        "modalities this runtime claims", default=()
+    )
+    required_components: tuple[Name, ...] = meaning(
+        "packages or binaries that would later be provisioned", default=()
+    )
+    limitations: tuple[str, ...] = meaning("known restrictions", default=())
+    evidence: tuple[str, ...] = meaning("where the declaration came from", default=())
+    confidence: Confidence = meaning(
+        "how much weight a later resolver may place on this declaration",
+        default=Confidence.LOW,
+    )
+
+
+@contract(kind="runtime.readiness", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeReadiness(Contract):
+    """Runtime-owned answer: is this workload READY?
+
+    Distinct from executor liveness. A live process that has not passed
+    its runtime probe is not ready.
+    """
+
+    ready: bool = meaning("whether the runtime-specific workload is ready")
+    address: Maybe[str] = meaning(
+        "bind address when the runtime published one", default=NOT_PROVIDED
+    )
+    port: Maybe[int] = meaning(
+        "bind port when the runtime published one", default=NOT_PROVIDED
+    )
+    reason: Maybe[str] = meaning(
+        "why it is not ready, or how readiness was decided", default=NOT_PROVIDED
+    )

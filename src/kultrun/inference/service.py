@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import time
-import urllib.error
-import urllib.request
 from dataclasses import replace
 from typing import Any
 
@@ -51,7 +48,6 @@ from kultrun.runtime.contracts import RuntimeLaunchRequest, RuntimeLaunchSpec
 
 SERVING_RUNTIME = Name("reference-serving")
 STARTUP_TIMEOUT_SECONDS = 5.0
-READY_MARKER = "kultrun-reference-serving:ready"
 _LIVE = frozenset(
     {ObservedState.STARTING, ObservedState.RUNNING, ObservedState.STOPPING}
 )
@@ -344,7 +340,15 @@ class InstanceService:
             and handle.observed_state is ExecutionState.RUNNING
             and instance.endpoint is not None
         ):
-            ready = _health_ok(instance.endpoint)
+            verdict = self._runtimes.inspect_readiness(
+                instance.runtime,
+                stdout=handle.stdout,
+                stderr=handle.stderr,
+                execution_alive=True,
+                bound_address=instance.endpoint.address,
+                bound_port=instance.endpoint.port,
+            )
+            ready = verdict.ready
             return self._write(
                 instance,
                 health=HealthState.HEALTHY if ready else HealthState.UNHEALTHY,
@@ -414,11 +418,19 @@ class InstanceService:
         deadline = time.monotonic() + self._startup_timeout
         while time.monotonic() < deadline:
             handle = self._executions.observe(execution_id)
-            parsed = _ready_from_stdout(handle.stdout)
-            if parsed is not None and _health_ok(
-                InferenceEndpoint(scheme="http", address=parsed[0], port=parsed[1])
+            alive = handle.observed_state is ExecutionState.RUNNING
+            verdict = self._runtimes.inspect_readiness(
+                instance.runtime,
+                stdout=handle.stdout,
+                stderr=handle.stderr,
+                execution_alive=alive,
+            )
+            if (
+                verdict.ready
+                and is_resolved(verdict.address)
+                and is_resolved(verdict.port)
             ):
-                return parsed
+                return str(verdict.address), int(verdict.port)
             if handle.observed_state in {
                 ExecutionState.EXITED,
                 ExecutionState.FAILED,
@@ -499,27 +511,6 @@ def _spec_from(launch: RuntimeLaunchSpec) -> ExecutorSpec:
         device_requests=tuple(
             DeviceRequest(index=index) for index in launch.device_indexes
         ),
+        filesystem_mappings=launch.filesystem_mappings,
+        network_bindings=launch.network_bindings,
     )
-
-
-def _ready_from_stdout(stdout: str) -> tuple[str, int] | None:
-    for line in stdout.splitlines():
-        if not line.startswith(READY_MARKER):
-            continue
-        parts = line.split()
-        if len(parts) >= 3:
-            try:
-                return parts[1], int(parts[2])
-            except ValueError:
-                return None
-    return None
-
-
-def _health_ok(endpoint: InferenceEndpoint) -> bool:
-    url = f"{endpoint.scheme}://{endpoint.address}:{endpoint.port}/health"
-    try:
-        with urllib.request.urlopen(url, timeout=0.4) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
-        return False
-    return bool(isinstance(body, dict) and body.get("ready") is True)
