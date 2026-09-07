@@ -37,3 +37,11 @@ class ModelCatalogue:
             if entry.metadata.logical_name.value == logical_name:
                 return entry
         return None
+
+    def for_model(self, model_id: object) -> ModelCatalogEntry | None:
+        """Resolve a catalog/extra entry by model identity."""
+        token = getattr(model_id, "value", model_id)
+        for entry in (*self.entries(), *self._extras):
+            if entry.metadata.model_id.value == token:
+                return entry
+        return None

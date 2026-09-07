@@ -102,6 +102,55 @@ class SelectionService:
         )
 
 
+def plan_for_entry(
+    service: SelectionService,
+    entry: ModelCatalogEntry,
+    envelope: CapacityEnvelope,
+    available_runtimes: tuple[str, ...] = (),
+) -> DeploymentPlan:
+    """A plan for one known stored candidate. Does not change ranking."""
+    capacity = deployment_capacity(envelope)
+    requirement = service.estimator.estimate(_request(entry, capacity.placement))
+    evaluation = evaluate(
+        entry.metadata,
+        requirement,
+        capacity,
+        available_runtimes,
+        service.policy,
+    )
+    runtime = (
+        evaluation.supported_runtimes[0] if evaluation.supported_runtimes else None
+    )
+    return DeploymentPlan(
+        model_id=evaluation.model_id,
+        logical_name=evaluation.logical_name,
+        source_ref=evaluation.source_ref,
+        quantization=evaluation.quantization,
+        runtime=runtime if runtime is not None else NOT_PROVIDED,
+        executor_kind="native-process",
+        placement=capacity.placement,
+        expected_ram_bytes=evaluation.required_ram_bytes,
+        expected_vram_bytes=evaluation.required_vram_bytes,
+        expected_unified_bytes=evaluation.required_unified_bytes,
+        expected_storage_bytes=evaluation.required_storage_bytes,
+        expected_utilization=evaluation.utilization.ratio,
+        estimator_provider=(
+            evaluation.estimator_provider
+            if is_resolved(evaluation.estimator_provider)
+            else service.estimator.identity.value
+        ),
+        policy_version=service.policy.policy_version,
+        rationale=evaluation.reasons,
+        estimator_mode=(
+            evaluation.estimator_mode
+            if is_resolved(evaluation.estimator_mode)
+            else service.estimator.identity.value
+        ),
+        fallback_used=evaluation.fallback_used,
+        fallback_reason=evaluation.fallback_reason,
+    )
+
+
 def plan_from(recommendation: SelectionRecommendation) -> DeploymentPlan | None:
     """A plan exists only when there is a primary recommendation."""
     primary = recommendation.primary

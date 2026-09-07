@@ -59,7 +59,7 @@ from kultrun.install.preparation import ComponentProvisioner, Preparation
 from kultrun.kernel.build import identity as build_identity
 from kultrun.kernel.clock import Clock, SystemClock
 from kultrun.kernel.config import ConfigSchema, Configuration
-from kultrun.kernel.errors import ConfigError
+from kultrun.kernel.errors import ConfigError, PreconditionFailedError
 from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.registry import AdapterRegistry
@@ -75,6 +75,7 @@ from kultrun.model.ports import ModelAcquisitionProvider, ModelRequirementEstima
 from kultrun.model.store import ModelArtifactStore
 from kultrun.planning import contracts as _planning_contracts  # noqa: F401
 from kultrun.planning.service import SelectionService
+from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import (
     ComponentHealth,
@@ -89,6 +90,8 @@ from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
 from kultrun.resource import contracts as _resource_contracts  # noqa: F401
+from kultrun.resource.lock import AdmissionLock
+from kultrun.resource.manager import ResourceManager
 from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
 from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
@@ -234,6 +237,8 @@ class Platform:
     selection: SelectionService
     inventory: ModelInventory
     acquisition: AcquisitionService
+    resources: ResourceManager
+    admission: AdmissionService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -508,6 +513,25 @@ def build(
     health.register(execution_phase)
 
     report = startup.run(state=state)
+    resources = ResourceManager(
+        store, resolved_clock, AdmissionLock(state_root)
+    )
+    try:
+        actor_id = state.current.administrator_id
+    except PreconditionFailedError:
+        from kultrun.identity.contracts import SubjectId
+
+        actor_id = SubjectId.generate()
+    admission = AdmissionService(
+        resources,
+        inventory,
+        models,
+        selection,
+        capacity,
+        store,
+        resolved_clock,
+        actor_id,
+    )
 
     plane = ControlPlane(
         state=state,
@@ -524,6 +548,8 @@ def build(
         selection=selection,
         inventory=inventory,
         acquisition=acquisition,
+        resources=resources,
+        admission=admission,
         executor_identity=executor.identity.value,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
@@ -547,6 +573,8 @@ def build(
         selection=selection,
         inventory=inventory,
         acquisition=acquisition,
+        resources=resources,
+        admission=admission,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -1217,10 +1245,128 @@ def show_recommendation() -> int:
     return 0
 
 
+def _resources(arguments: Sequence[str]) -> int:
+    if not arguments:
+        return show_resource_summary()
+    command = arguments[0]
+    if command == "reservations":
+        return show_reservations()
+    if command == "reserve":
+        return reserve_named(arguments[1:])
+    if command == "release":
+        return release_named(arguments[1:])
+    print(
+        "usage: kultrun resources [reservations|reserve|release]",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def show_resource_summary() -> int:
+    """SAFE / RESERVED / AVAILABLE. Reserved is not running."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    summary = platform.resources.summary(envelope)
+    print(
+        f"health {summary.health.value}  active {summary.active_count}  "
+        f"serving no  running 0"
+    )
+    print("reserved is not running")
+    print(
+        f"ram  safe {_bytes(summary.safe_ram_bytes)}  "
+        f"reserved {_bytes(summary.reserved_ram_bytes)}  "
+        f"available {_bytes(summary.available_ram_bytes)}"
+    )
+    for device in summary.accelerators:
+        print(
+            f"gpu {device.index}  safe {_bytes(device.safe_bytes)}  "
+            f"reserved {_bytes(device.reserved_bytes)}  "
+            f"available {_bytes(device.available_bytes)}"
+        )
+    return 0
+
+
+def show_reservations() -> int:
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    items = platform.resources.reservations()
+    print(f"reservations {len(items)}  serving no")
+    if not items:
+        print("no active reservations")
+        return 0
+    for item in items:
+        name = item.logical_name if is_resolved(item.logical_name) else "-"
+        print(
+            f"{item.reservation_id.value}  {name}  {item.state.value}  "
+            f"ram {_bytes(item.admitted_ram_bytes)}  "
+            f"accel {_bytes(item.admitted_vram_bytes)}"
+        )
+    return 0
+
+
+def reserve_named(arguments: Sequence[str]) -> int:
+    from kultrun.kernel.errors import KultrunError
+    from kultrun.model.contracts import ArtifactId
+
+    if len(arguments) != 1:
+        print("usage: kultrun resources reserve <artifact-id>", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    try:
+        decision = platform.admission.reserve(
+            ArtifactId.parse(arguments[0]),
+            host,
+            _stored_sanity(platform, host),
+            tuple(
+                profile.runtime.value
+                for profile in platform.runtimes.profiles()
+                if profile.runtime.value != "reference-process"
+            ),
+        )
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    granted = (
+        decision.reservation.reservation_id.value
+        if decision.reservation is not None
+        else "-"
+    )
+    print(f"{decision.verdict.value}  {granted}  serving no")
+    for line in decision.reasons:
+        print(f"  {line}")
+    return 0 if decision.verdict.value == "admitted" else 1
+
+
+def release_named(arguments: Sequence[str]) -> int:
+    from kultrun.kernel.errors import KultrunError
+    from kultrun.resource.contracts import ReservationId
+
+    if len(arguments) != 1:
+        print(
+            "usage: kultrun resources release <reservation-id>",
+            file=sys.stderr,
+        )
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        released = platform.admission.release(ReservationId.parse(arguments[0]))
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    print(f"released  {released.reservation_id.value}  serving no")
+    return 0
+
+
 COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "version": lambda _: show_version(),
     "host": lambda _: show_host(),
     "models": _models,
+    "resources": _resources,
     "storage": _storage,
     "runtime": _runtime,
     "serve": lambda _: serve(),
