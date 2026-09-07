@@ -6,6 +6,7 @@ Lives in platform so planning ⟂ resource stays structural.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 
 from kultrun.audit.contracts import (
     AuditDecision,
@@ -18,7 +19,7 @@ from kultrun.capacity.envelope import CapacityService
 from kultrun.host.contracts import HostCapabilities
 from kultrun.identity.contracts import SubjectId
 from kultrun.kernel.clock import Clock
-from kultrun.kernel.errors import NotFoundError, ValidationError
+from kultrun.kernel.errors import ConflictError, NotFoundError, ValidationError
 from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
@@ -58,6 +59,7 @@ class AdmissionService:
         store: Store,
         clock: Clock,
         actor_id: SubjectId,
+        reservation_in_use: Callable[[ReservationId], bool] | None = None,
     ) -> None:
         self._manager = manager
         self._inventory = inventory
@@ -67,6 +69,7 @@ class AdmissionService:
         self._store = store
         self._clock = clock
         self._actor_id = actor_id
+        self._reservation_in_use = reservation_in_use or (lambda _: False)
 
     @property
     def manager(self) -> ResourceManager:
@@ -103,6 +106,12 @@ class AdmissionService:
         return decision
 
     def release(self, reservation_id: ReservationId) -> ResourceReservation:
+        if self._reservation_in_use(reservation_id):
+            raise ConflictError(
+                "reservation is in use by a live instance",
+                reason="reservation_in_use",
+                reservation_id=reservation_id.value,
+            )
         released = self._manager.release(reservation_id)
         self._audit(
             "resource.release",
@@ -199,9 +208,7 @@ def request_from_artifact(
 def _plan_fingerprint(
     artifact: ModelArtifact, plan: DeploymentPlan, index: int | None
 ) -> str:
-    revision = (
-        artifact.revision if is_resolved(artifact.revision) else ""
-    )
+    revision = artifact.revision if is_resolved(artifact.revision) else ""
     quant = getattr(plan, "quantization", "")
     runtime = getattr(plan, "runtime", "")
     placement = plan.placement
