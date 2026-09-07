@@ -603,12 +603,15 @@ Owner stage:  1.6A
 Subsystem:    execution
 Authorizes:   NO
 What:         `ContainerExecutor` exists behind the generic `Executor`
-              port. Docker CLI is the first `ContainerEngine`. GPU/CDI
-              exposure, bridge/publish networking, additional engines,
-              image management and Kubernetes are not implemented.
-Why now:      Stage 1.6A only needs one second execution mechanism and
-              a truthful capability profile. Claiming NVIDIA container
-              inference would be a lie.
+              port. Docker CLI is the first `ContainerEngine`. Stage
+              1.6A T3 proved Linux host-network v0 against Docker
+              Engine; GPU/CDI exposure, bridge/publish networking,
+              additional engines, image management and Kubernetes are
+              not implemented.
+Why now:      Stage 1.6A needed one second execution mechanism and a
+              truthful capability profile. Claiming NVIDIA container
+              inference would be a lie. T3 left accelerator exposure
+              UNKNOWN.
 To make real: implement and verify device attachment separately; add
               engines as adapters; keep Docker out of generic contracts.
 Retire when:  a later stage accepts GPU-in-container or additional

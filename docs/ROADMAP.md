@@ -607,7 +607,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.5C Runtime / Executor boundary          ← capability profile + support descriptor; no vLLM
   ↓
-1.6A executor capability + ContainerExecutor (this stage)
+1.6A executor capability + ContainerExecutor  ← CLOSED L2
   ↓
 1.6B Runtime Resolution                   ← not begun from 1.6A
   ↓
@@ -1077,8 +1077,8 @@ No vLLM, no RuntimeResolver, no provisioning, no verification, no
 model-selection remap, no Kubernetes.
 
 **Output:** `ContainerExecutor` + Docker CLI `ContainerEngine` + same
-reference-serving Runtime through both executors · **Gate:** L2 (real
-container engine required to close)
+reference-serving Runtime through both executors · **Gate:** L2 **CLOSED**
+(Linux Docker Engine T3; host-network v0; no GPU/bridge/vLLM container proof)
 
 ### Stage 1.6B — Runtime Resolution
 
@@ -1979,10 +1979,11 @@ CANCELLATION / CLEANUP       Graceful docker stop then bounded kill.
                              Remove only kultrun-labelled containers
                              this executor created. Unrelated
                              containers are never touched.
-ACCEPTANCE LEVEL             L2. Fake-engine T0/T1/T2 cannot close
-                             this stage. Real Docker Engine T3 is
-                             required. Docker Desktop is not an
-                             architectural dependency.
+ACCEPTANCE LEVEL             L2 CLOSED. Real Linux Docker Engine T3
+                             passed. Docker Desktop is not an
+                             architectural dependency. Physical limits:
+                             host-network v0, Docker Engine first
+                             implementation, no GPU/bridge/vLLM proof.
 ADMIN SURFACE                Existing runtime/instance surfaces may
                              show executor identity, ExecutionId,
                              external identity, capability

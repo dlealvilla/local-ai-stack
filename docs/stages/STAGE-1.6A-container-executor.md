@@ -2,12 +2,8 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN / READY_FOR_T3.** `L1`. Checkpoint:
+Status: **CLOSED — L2.** Checkpoint:
 `checkpoints/STAGE-1.6A-container-executor.json`.
-
-T0/T1/T2 passed on committed source `d244200`. Real Docker Engine T3 is
-required to close at L2 and has not run: the development host is Darwin
-and Docker Desktop is not an architectural dependency.
 
 This stage proves that Runtime owns WHAT and Executor owns HOW across two
 real execution mechanisms. It does not load a real model and it does not
@@ -37,8 +33,7 @@ MUTATION / FAILURE BOUNDARY  Normalized engine/image/lifecycle failures.
 CANCELLATION / CLEANUP       Stop then optional remove, constrained to
                              Kultrun-managed identity. No unrelated
                              container deletion.
-ACCEPTANCE LEVEL             L2 after real Docker Engine T3. T0/T1/T2
-                             alone leave the stage OPEN / READY_FOR_T3.
+ACCEPTANCE LEVEL             L2. Real Docker Engine T3 passed on Linux.
 ADMIN SURFACE                Diagnostic executor identity and capability.
                              No docker CLI family. No container UI.
 DEBT ENTRIES                 GPU container exposure; richer networking;
@@ -63,7 +58,7 @@ NativeProcessExecutor    ContainerExecutor
                       Docker CLI adapter
       ↓                      ↓
 ExecutorHandle            ExecutorHandle
-      ↘                      ↙
+      ↘                       ↙
        runtime-owned readiness
                ↓
              READY
@@ -79,9 +74,14 @@ Reference serving still binds loopback and reports its endpoint. The
 container executor realizes that with **Linux host networking** so the
 Runtime adapter does not grow Docker or bind-address branches.
 
-Limitations (debt): host networking is a Linux-only v0 choice;
-bridge/publish mapping, extra networks, and GPU device attachment are
-deferred.
+## Physical limitations (accepted, not closed)
+
+* Linux host-network v0 only. Bridge/publish is unproven.
+* Docker Engine is the first `ContainerEngine`. No Podman/containerd
+  second engine.
+* No GPU container exposure proof. Accelerator exposure remains UNKNOWN.
+* No vLLM or real-model container proof.
+* T3 host was Linux aarch64 (Colima/Lima Ubuntu 24.04 guest), not x86_64.
 
 ## T2
 
@@ -93,8 +93,17 @@ all passed in a clean install.
 
 ## T3
 
-Not run. Needs Linux Docker Engine, this exact wheel, and the reference
-image fixture. Do not close from fake-engine tests.
+Passed on Ubuntu 24.04.4 LTS aarch64 with Docker Engine 29.5.2. Exact T2
+wheel installed in a clean venv (no source checkout). Reference image
+`kultrun-reference-serving:stage-16a` built from that wheel. Canonical
+harness `tools/t3_container_executor.py` ran native then container through
+Kultrun `RuntimeAdapter` → `RuntimeLaunchSpec` → `ContainerExecutor` →
+`DockerCliEngine` → Docker Engine. Runtime-owned `/health` succeeded.
+Graceful stop and Kultrun-managed cleanup left 0 managed containers.
+
+A fixture-only fix (`97e9e76`) renamed the copied wheel to a PEP 427
+filename so `pip` could install it inside the image. Product source and
+the accepted wheel SHA did not change.
 
 ## Executable resolution
 

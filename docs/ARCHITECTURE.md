@@ -915,6 +915,9 @@ Runtime = WHAT. Executor = HOW. InferenceInstance composes them.
 Docker Engine is the first `ContainerEngine` implementation. Docker is
 not present on generic contracts. Native process execution remains the
 default live path; container execution is optional and composition-selected.
+Stage 1.6A closed L2 against a real Linux Docker Engine using host
+networking v0. GPU device attachment, bridge networking, and
+vLLM-in-container remain unproven.
 
 Future chain, **not implemented in 1.5C**:
 
@@ -1311,7 +1314,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.5A | `resource` admission and reservation | `capacity`, `ModelRequirement` | ✅ crude requirement, already in the ledger |
 | 1.5B | `inference` instance lifecycle (plural, reference serving) | `resource`, `execution`, `runtime`, `model` | ✅ |
 | 1.5C | Runtime / Executor boundary reconciliation | 1.5B | ✅ |
-| 1.6A | Minimal ContainerExecutor + executor portability | 1.5C | ⏳ this stage |
+| 1.6A | Minimal ContainerExecutor + executor portability | 1.5C | ✅ closed L2 |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

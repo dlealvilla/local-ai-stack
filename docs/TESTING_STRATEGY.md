@@ -340,9 +340,10 @@ executor contract suite covers `RecordingExecutor`,
 `NativeProcessExecutor`, and `ContainerExecutor` (fake `ContainerEngine`
 at T1). Architecture tests keep Docker out of generic
 `RuntimeLaunchSpec` / Inference / Runtime adapters. T2 is a clean wheel.
-Closing the stage requires L2: a real Docker Engine on Linux running the
-same reference-serving Runtime through `ContainerExecutor`. Docker
-Desktop is not an architectural dependency.
+T3 passed L2 on Linux Docker Engine 29.5.2: the same reference-serving
+Runtime ran through `ContainerExecutor` with host-network v0. Docker
+Desktop is not an architectural dependency. GPU exposure, bridge
+networking, and vLLM-in-container were not part of this proof.
 
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
