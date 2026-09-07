@@ -489,6 +489,8 @@ def verify_staging(staging: Path, resolved_revision: str) -> _Verified:
     for path in sorted(root.rglob("*")):
         if path.name == MANIFEST_NAME:
             continue
+        if ".cache" in path.relative_to(root).parts:
+            continue
         if path.is_symlink():
             resolved = path.resolve()
             if root not in resolved.parents and resolved != root:

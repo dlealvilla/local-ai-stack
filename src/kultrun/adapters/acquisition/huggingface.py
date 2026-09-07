@@ -6,7 +6,9 @@ location, does not mark STORED, and never persists a token.
 
 from __future__ import annotations
 
+import importlib
 import os
+import shutil
 from importlib import metadata
 from pathlib import Path
 from typing import Any
@@ -43,9 +45,10 @@ class HuggingFaceAcquisitionProvider:
         revision = _requested_revision(request)
         token = _token(request)
         try:
-            info = api_cls(token=token, timeout=PIN_TIMEOUT_SECONDS).model_info(
+            info = api_cls(token=token).model_info(
                 request.source_ref,
                 revision=revision,
+                timeout=PIN_TIMEOUT_SECONDS,
             )
         except Exception as error:
             raise _normalize(error) from error
@@ -72,9 +75,13 @@ class HuggingFaceAcquisitionProvider:
                 allow_patterns=patterns,
                 token=token,
                 max_workers=1,
+                etag_timeout=float(PIN_TIMEOUT_SECONDS),
             )
         except Exception as error:
             raise _normalize(error) from error
+        cache = staging_dir / ".cache"
+        if cache.is_dir():
+            shutil.rmtree(cache)
         files, total = _list_files(staging_dir)
         evidence = [f"huggingface_sha:{revision}"]
         if patterns:
@@ -95,16 +102,13 @@ def build() -> HuggingFaceAcquisitionProvider:
 
 def _hub() -> tuple[Any, Any]:
     try:
-        from huggingface_hub import (  # type: ignore[import-not-found]
-            HfApi,
-            snapshot_download,
-        )
+        module = importlib.import_module("huggingface_hub")
     except ImportError as error:
         raise AcquisitionProviderError(
             AcquisitionFailureReason.PROVIDER_UNAVAILABLE.value,
             "huggingface_hub is not installed",
         ) from error
-    return HfApi, snapshot_download
+    return module.HfApi, module.snapshot_download
 
 
 def _requested_revision(request: ModelAcquisitionRequest) -> str:
@@ -166,6 +170,11 @@ def _normalize(error: Exception) -> AcquisitionProviderError:
     name = type(error).__name__
     text = str(error)
     lowered = f"{name} {text}".lower()
+    if isinstance(error, TypeError):
+        return AcquisitionProviderError(
+            AcquisitionFailureReason.PROVIDER_EXECUTION_ERROR.value,
+            "provider execution error",
+        )
     if (
         "401" in lowered
         or "unauthorized" in lowered
