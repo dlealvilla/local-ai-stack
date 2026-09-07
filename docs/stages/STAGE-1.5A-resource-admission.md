@@ -2,8 +2,9 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **WORKING.** `L1`. Control-plane admission and persistent
-reservations. Reserved is not running.
+Status: **CLOSED.** `L1`. Control-plane admission and persistent
+reservations. Reserved is not running. Checkpoint:
+`checkpoints/STAGE-1.5A-resource-admission.json`.
 
 This stage answers whether a planned stored workload may consume
 resources now. It does not launch a process or create an

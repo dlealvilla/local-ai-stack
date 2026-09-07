@@ -146,5 +146,11 @@ Bounded real Hub T2 from a clean wheel. No reservation, no
 InferenceInstance. Checkpoint:
 `checkpoints/STAGE-1.4C-model-acquisition-inventory.json`.
 
-**Next:** Stage 1.5A — Resource Admission + ResourceReservation, under a
-separate bounded brief. Do not begin it from 1.4C.
+**Stage 1.5A is closed** at `L1`. `ResourceRequest`, explainable
+`AdmissionDecision`, persistent plural `ResourceReservation`, SAFE minus
+ACTIVE arithmetic, atomic concurrent admission, release, API/CLI/Console.
+Reserved is not running. No InferenceInstance, no launch. Checkpoint:
+`checkpoints/STAGE-1.5A-resource-admission.json`.
+
+**Next:** Stage 1.5B — InferenceInstance lifecycle, under a separate
+bounded brief. Do not begin it from 1.5A.

@@ -1,0 +1,132 @@
+{
+  "stage": "1.5A",
+  "name": "resource-admission",
+  "milestone": 1,
+  "output": "ResourceRequest + AdmissionDecision + persistent ResourceReservation + ResourceManager",
+  "status": "closed",
+  "gate": "L1",
+  "t3_required": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "fee0a26153101c4a96dac8103b9fc152a24422ee",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.4C-model-acquisition-inventory.json",
+      "checkpoints/STAGE-1.4B-feasibility-selection.json"
+    ],
+    "starting_source_commit": "fee0a26153101c4a96dac8103b9fc152a24422ee"
+  },
+  "architecture": {
+    "resource_package": "kultrun.resource",
+    "planning_imports_resource": false,
+    "resource_imports_planning": false,
+    "capacity_boundary": "resource consumes CapacityEnvelope SAFE layer",
+    "model_artifact_boundary": "STORED required; disk not reserved again",
+    "resource_reservation": true,
+    "inference_instance_introduced": false,
+    "reservation_means_physical_allocation": false,
+    "safe_authoritative": true,
+    "reported_authoritative": false,
+    "effective_authoritative": false,
+    "utilization_used_as_capacity": false,
+    "gpus_aggregated": false,
+    "unknown_never_zero": true
+  },
+  "admission": {
+    "policy_version": "1.5A.0",
+    "arithmetic": "CURRENT RESERVABLE = CURRENT SAFE - SUM(ACTIVE)",
+    "verdicts": ["admitted", "rejected", "unresolved"],
+    "lock": "{state_root}/resources/admission.lock fcntl.LOCK_EX",
+    "available_never_negative": true,
+    "overcommit_rejects_new": true,
+    "reservation_silently_resized": false
+  },
+  "lifecycle": {
+    "written": ["active", "released"],
+    "serving_states": false,
+    "leases": false,
+    "automatic_reservation": false
+  },
+  "api": {
+    "GET /v1/resources": "SAFE / RESERVED / AVAILABLE; serving false",
+    "GET /v1/resources/reservations": "plural reservations",
+    "POST /v1/resources/reservations": "artifact_id; server-derived amounts",
+    "DELETE /v1/resources/reservations": "reservation_id; not delete-model",
+    "cli": "kultrun resources [reservations|reserve|release]",
+    "run_command_introduced": false,
+    "client_ram_vram_authoritative": false
+  },
+  "console": {
+    "resource_reservations_panel": true,
+    "reserve_control": true,
+    "release_control": true,
+    "reserved_implies_running": false,
+    "product_logic_in_ui": false,
+    "local_verify": {
+      "url": "http://127.0.0.1:8420/prototype/",
+      "reserve": "active 1; running 0; serving false",
+      "release": "active 0; running 0"
+    }
+  },
+  "contracts": [
+    "resource.request@1",
+    "resource.admission_decision@1",
+    "resource.reservation@1",
+    "resource.summary@1",
+    "resource.device_summary@1",
+    "resource.workload@1"
+  ],
+  "debt": ["K-44", "K-45", "K-46", "K-47", "K-48", "K-49"],
+  "local_acceptance": {
+    "source_commit": "4c2752447e45975f0b0f4d5673a1c3ae013d977d",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "34b89a735c6bd9943f385398734fa0478669efd1d5db1033f8710a5743c4d500",
+    "build_id": "0.1.0+4c2752447e45",
+    "clean_source": true,
+    "source_checkout": false,
+    "initial_active": 0,
+    "first_reservation": "qwen2.5-14b-instruct-q4 admitted",
+    "second_reservation": "tinyllama-1.1b-chat-q4 admitted",
+    "rejected_over_capacity": "second 14B reservation rejected; reservable 8.7 GiB",
+    "release": "first 14B reservation released",
+    "subsequent_admission": "14B admitted after release",
+    "restart": "2 ACTIVE persisted; availability recomputed",
+    "api": "200 0 False 2",
+    "cli": true,
+    "console_assets": true,
+    "running_instances": 0,
+    "process_launch": false
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-07",
+    "method": "focused tests + architecture + full suite + clean wheel T2",
+    "local_tests": 645,
+    "focused_tests": 23,
+    "architecture": 61,
+    "ruff": "clean",
+    "mypy": "strict clean, 153 files"
+  },
+  "test_modes": {
+    "T0": "23 focused admission tests plus architecture 61",
+    "T1": "architecture plus full suite 645; Host/Capacity/Sonar/catalog/estimator/selection/acquisition regressions",
+    "T2": "clean wheel; fixture inventory; reserve; reject remaining capacity; release; restart persistence; API/CLI/Console",
+    "T3": "not required",
+    "T4": "not required"
+  },
+  "not_begun": [
+    "Stage 1.5B InferenceInstance lifecycle",
+    "runtime model loading",
+    "vLLM / llama.cpp inference",
+    "prompt execution",
+    "scheduler / queues / quotas",
+    "physical resource enforcement"
+  ],
+  "END_LINK": {
+    "t2_source_commit": "4c2752447e45975f0b0f4d5673a1c3ae013d977d",
+    "final_build_id": "0.1.0+4c2752447e45",
+    "final_artifact_sha256": "34b89a735c6bd9943f385398734fa0478669efd1d5db1033f8710a5743c4d500",
+    "checkpoint": "checkpoints/STAGE-1.5A-resource-admission.json",
+    "next": "1.5B — InferenceInstance lifecycle, under a separate bounded brief"
+  }
+}
