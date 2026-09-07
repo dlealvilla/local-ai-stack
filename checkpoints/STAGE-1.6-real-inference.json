@@ -1,0 +1,63 @@
+{
+  "stage": "1.6",
+  "name": "runtime-first-real-inference",
+  "milestone": 1,
+  "output": "Runtime-first deployment architecture + first real inference",
+  "status": "open",
+  "gate": "L1",
+  "readiness": "READY_FOR_T5",
+  "t3_required": false,
+  "t5_required": true,
+  "START_LINK": {
+    "predecessor_accepted_commit": "620a78be94433a0e8a6624d36147b0e870fafd61",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.5B-inference-instance-lifecycle.json"
+    ],
+    "starting_source_commit": "620a78be94433a0e8a6624d36147b0e870fafd61",
+    "safety_tag": "checkpoint/stage-1.5B-closed-620a78b",
+    "safety_branch": "safety/pre-runtime-first-620a78b",
+    "feature_branch": "stage/1.6-runtime-first"
+  },
+  "architecture": {
+    "normal_flow": "HOST → RUNTIME → VERIFY → ELIGIBLE MODEL → CAPACITY → SELECT → PLAN → ACQUIRE → RESERVE → RUN",
+    "store_only_exception": true,
+    "runtime_capability_profile_independent_of_model": true,
+    "catalog_source_neutral": true,
+    "eligibility_separate_from_capacity": true,
+    "normal_acquisition_requires_plan_and_verified_runtime": true,
+    "inference_does_not_reselect_runtime": true,
+    "gateway_begun": false,
+    "real_llm_introduced": false,
+    "fixed_stored_active_partition": false
+  },
+  "local_acceptance": {
+    "source_commit": "13fb463e30dc266546fc770c50c5508c99d60efb",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "8051140ca710594feadeebca1aee7ed71a68f7f04b104895963894bf82f4d599",
+    "build_id": "0.1.0+13fb463e30dc",
+    "clean_source": true,
+    "source_checkout": false,
+    "t2_script": "tools/t2_runtime_first.py",
+    "recommend_blocked_before_verify": true,
+    "runtime_provider": "fixture-vllm",
+    "primary": "qwen2.5-14b-instruct-awq",
+    "plan_id": "dplan_be20a5e5cb90eefe",
+    "normal_artifact": "artifact_0f8cea75f8f6fb1f",
+    "store_only_artifact": "artifact_6be7c5b9c92f82ae",
+    "reservation": "resv_bb1aa3eda08d22f8",
+    "instance": "inst_12dd75f465e603eb",
+    "instance_runtime": "fixture-vllm",
+    "stale_recommend": "runtime_not_verified",
+    "stale_acquire_rejected": true
+  },
+  "t5": {
+    "status": "not_run",
+    "reason": "requires a fresh Linux/NVIDIA host and isolated vLLM 0.10.2"
+  },
+  "merge": {
+    "merged_to_kultrun": false,
+    "kultrun_head": "620a78be94433a0e8a6624d36147b0e870fafd61"
+  },
+  "closed": false,
+  "evidence_level": "L1"
+}
