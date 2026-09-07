@@ -602,7 +602,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.5A resource admission + reservation
   ↓
-1.5B inference instance lifecycle         ← plural schema; one running instance acceptable
+1.5B inference instance lifecycle         ← plural schema; reference serving; stop ≠ release
   ↓
 1.6 REAL INFERENCE VERTICAL               ← the earliest honest proof
   ↓
@@ -1030,25 +1030,19 @@ This is the first mutating *workload* workflow, so it emits an
 First-class `InferenceInstance`, plural from v1 (`inference_instances[]`,
 never `current_inference_instance`): instance id, ModelArtifact
 reference, runtime, executor, RuntimeLaunchSpec, ResourceReservation,
-assigned device(s), endpoint, runtime concurrency, platform request
-limit, access-policy reference, lifecycle state, health, timestamps,
-observed resource evidence.
+endpoint, lifecycle state, desired vs observed vs health, timestamps.
 
-Lifecycle: start, load, run, health, stop, unload, restart — plus
-**reconciliation on restart**, in this stage, not a later one.
-Distinguish desired, observed and health. Distinguish status (is the
-port reachable) from health (does the API function).
+Lifecycle: create, start, observe, stop, restart — plus **reconciliation
+on restart**. A reference serving process proves the path. Real LLM
+loading is Stage 1.6.
 
-One initial real or reference instance is acceptable. The schema must
-already allow: the same model with several instances; several different
-models running when hardware permits. Do not implement replica
-orchestration. Do not make it architecturally impossible.
+Stop does **not** release the reservation. Release is a separate
+primitive and is refused while a linked instance is STARTING, RUNNING,
+STOPPING, or UNKNOWN. Stored / active / running are lifecycle labels,
+not fixed capacity partitions. Active commitments follow the current
+reservations.
 
-Stop/unload releases runtime resources and the reservation; it does not
-delete the stored artifact. Model deletion is a separate inventory
-operation.
-
-**Output:** `InferenceInstance v1` (plural) · **Gate:** L2
+**Output:** `InferenceInstance v1` (plural) + reference serving lifecycle · **Gate:** L1
 
 ### Stage 1.6 — Real inference vertical
 
@@ -1826,6 +1820,44 @@ DEBT ENTRIES                 Leases, ports, quotas, preemption, scheduler,
                              physical enforcement deferred.
 DEFERRED ITEMS               InferenceInstance (1.5B), runtime launch,
                              model load, inference.
+```
+
+### Stage 1.5B brief
+
+```text
+CURRENT STAGE                InferenceInstance lifecycle. STORED artifact
+                             + ACTIVE reservation + Runtime + Executor
+                             → create/start/observe/stop. Reference
+                             serving only. No real LLM, no prompts.
+PREDECESSOR OUTPUTS          Stage 1.5A ResourceReservation; Stage 1.4C
+                             STORED artifacts; Stage 1.3 Runtime/Executor.
+THIS STAGE'S REQUIRED OUTPUT InferenceInstance; InstanceId; desired vs
+                             observed; reference-serving runtime;
+                             readiness; persistence; restart
+                             reconciliation; release-while-live guard;
+                             dynamic Small→Large→Small mobility;
+                             API/CLI/Console.
+CORE CONTRACTS AFFECTED      inference.instance additive lifecycle
+                             fields; runtime.launch_request (new).
+ADAPTERS AFFECTED            adapters/runtime/serving + serving_workload.
+PERSISTED STATE              InferenceInstance in the platform store.
+                             Process identity is not blindly trusted
+                             after control-plane restart.
+MUTATION / FAILURE BOUNDARY  POST create/start/stop. Stop does not
+                             release. Release refused while live or
+                             UNKNOWN. Client argv and amounts rejected.
+CANCELLATION / CLEANUP       Explicit stop; explicit release after
+                             STOPPED. No scheduler.
+ACCEPTANCE LEVEL             L1. T0/T1 lifecycle + mobility. T2 clean
+                             wheel. T3 not required (1.3 already proved
+                             generic process lifecycle).
+ADMIN SURFACE                GET/POST /v1/inference/instances;
+                             POST start/stop; kultrun instances;
+                             Console Inference instances.
+DEBT ENTRIES                 Port allocator (K-45), supervisor/PID
+                             reattach (K-31), real inference, cache,
+                             auto-switch, scheduler (K-46).
+DEFERRED ITEMS               Stage 1.6 real model runtime + inference.
 ```
 
 ---

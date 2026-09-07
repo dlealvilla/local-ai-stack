@@ -802,8 +802,10 @@ Subsystem:    resource
 Authorizes:   NO
 What:         ResourceRequest.port_count is unused. No port reservation,
               discovery, proxy, or gateway routing.
-Why now:      No InferenceInstance exists to bind an endpoint.
-To make real: Stage 1.5B if a port must be exclusive before launch.
+Why now:      The 1.5B reference server binds 127.0.0.1:0 and reports
+              the port. Real runtimes will need exclusive ports.
+To make real: Stage 1.6 if a production runtime cannot self-report a
+              bound endpoint.
 Retire when:  endpoint/port reservation is required for instance start.
 Status:       OPEN
 
@@ -852,6 +854,58 @@ What:         v0 does not invent CPU counts or runtime scratch. Those
 Why now:      Current plans do not carry trusted CPU or scratch figures.
 To make real: Runtime-specific planning.
 Retire when:  a trusted CPU or scratch requirement exists.
+Status:       OPEN
+
+### K-50 — runtime-specific readiness is reference-only
+Label:        DEFERRED
+Owner stage:  1.5B
+Subsystem:    inference
+Authorizes:   NO
+What:         RUNNING requires a bounded /health response from the
+              reference server. vLLM, llama.cpp and MLX readiness are
+              not implemented.
+Why now:      Stage 1.5B proves lifecycle, not model load.
+To make real: Stage 1.6 per runtime adapter.
+Retire when:  a real runtime owns its readiness translation.
+Status:       OPEN
+
+### K-51 — real model load and inference
+Label:        DEFERRED
+Owner stage:  1.5B
+Subsystem:    runtime
+Authorizes:   NO
+What:         No vLLM, llama.cpp, MLX, CUDA or ROCm model load. No
+              prompt, chat, completions, or token API.
+Why now:      A reference process is enough to prove instance lifecycle.
+To make real: Stage 1.6 bounded brief.
+Retire when:  a real request reaches a real model.
+Status:       OPEN
+
+### K-52 — no shared execution cache
+Label:        DEFERRED
+Owner stage:  1.5B
+Subsystem:    inference
+Authorizes:   NO
+What:         Stored path is not assumed to be the permanent execution
+              location, but no NVMe staging, eviction, or cache tier
+              exists.
+Why now:      One host, reference serving, artifacts stay where stored.
+To make real: When local execution cache or network-to-NVMe staging is
+              required.
+Retire when:  a stage owns the cache/eviction workflow.
+Status:       OPEN
+
+### K-53 — no automatic model switching
+Label:        DEFERRED
+Owner stage:  1.5B
+Subsystem:    inference
+Authorizes:   NO
+What:         No idle unload, LRU eviction, or automatic active-model
+              replacement. Operators compose stop → release → reserve
+              → start.
+Why now:      Lifecycle mutations stay explicit.
+To make real: After several concurrent instances and a scheduler owner.
+Retire when:  a stage owns deactivate/switch-model policy.
 Status:       OPEN
 
 ## Deferred capability register

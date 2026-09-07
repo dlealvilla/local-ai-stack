@@ -152,5 +152,12 @@ ACTIVE arithmetic, atomic concurrent admission, release, API/CLI/Console.
 Reserved is not running. No InferenceInstance, no launch. Checkpoint:
 `checkpoints/STAGE-1.5A-resource-admission.json`.
 
-**Next:** Stage 1.5B — InferenceInstance lifecycle, under a separate
-bounded brief. Do not begin it from 1.5A.
+**Stage 1.5B is closed** at `L1`. Plural `InferenceInstance` lifecycle
+composed from STORED artifacts, ACTIVE reservations, Runtime and
+Executor. Reference serving only. Stop does not release. Capacity
+follows the active reservation; stored/active are states, not
+partitions. Checkpoint:
+`checkpoints/STAGE-1.5B-inference-instance-lifecycle.json`.
+
+**Next:** Stage 1.6 — real model runtime + real inference, under a
+separate bounded brief. Do not begin it from 1.5B.

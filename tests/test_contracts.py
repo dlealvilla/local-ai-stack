@@ -110,6 +110,7 @@ from kultrun.resource.contracts import (
     WorkloadType,
 )
 from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
+from kultrun.runtime.contracts import RuntimeLaunchRequest
 from kultrun.storage.contracts import ProviderClass, StoragePool, StoragePoolId
 from kultrun.training.contracts import (
     DatasetSnapshot,
@@ -449,6 +450,7 @@ EVERY_CONTRACT = [
         reserved_ram_bytes=0,
         available_ram_bytes=48_000_000_000,
     ),
+    lambda: RuntimeLaunchRequest(instance_id="inst_test"),
     lambda: InferenceEndpoint(scheme="http", address="127.0.0.1", port=8000),
     lambda: InferenceInstance(
         instance_id=InstanceId.generate(),
@@ -712,8 +714,9 @@ def test_the_registry_and_the_committed_fingerprint_agree() -> None:
     }
     committed = set(
         json.loads(
-            (Path(__file__).resolve().parent / "golden" / "schema_fingerprint.json")
-            .read_text(encoding="utf-8")
+            (
+                Path(__file__).resolve().parent / "golden" / "schema_fingerprint.json"
+            ).read_text(encoding="utf-8")
         )
     )
     assert registered == committed

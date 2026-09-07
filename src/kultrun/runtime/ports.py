@@ -9,7 +9,11 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from kultrun.kernel.ids import Name
-from kultrun.runtime.contracts import RuntimeLaunchSpec, RuntimeProfile
+from kultrun.runtime.contracts import (
+    RuntimeLaunchRequest,
+    RuntimeLaunchSpec,
+    RuntimeProfile,
+)
 
 
 @runtime_checkable
@@ -25,6 +29,8 @@ class InferenceRuntime(Protocol):
         """What this adapter can do."""
         ...
 
-    def launch_spec(self) -> RuntimeLaunchSpec:
+    def launch_spec(
+        self, request: RuntimeLaunchRequest | None = None
+    ) -> RuntimeLaunchSpec:
         """Produce the recipe. Must not start a process."""
         ...

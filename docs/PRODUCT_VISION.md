@@ -858,9 +858,18 @@ a model is loaded.
 
 A reservation belongs to a future inference or workload instance, not
 globally to a model artifact. Several reservations may reference one
-stored artifact. Stopping or unloading an instance later releases
-runtime RAM, VRAM, process, endpoint and the reservation; the stored
-artifact remains until a separate delete operation.
+stored artifact. Stopping an instance stops the process and does not
+silently release the reservation. Release is an explicit later action.
+The stored artifact remains until a separate delete operation.
+
+`STORED` and `ACTIVE` / `RUNNING` are lifecycle labels, not fixed
+capacity partitions. There is no stored-memory bucket and no active-memory
+bucket. Disk, RAM, VRAM and unified memory stay separate physical
+accounts. A stored artifact consumes persistent disk whether or not an
+instance is running. Active RAM/VRAM commitments follow the reservations
+that currently back live or committed workloads, and they move when those
+reservations are released and others are admitted. Several
+`InferenceInstance` records may exist at once.
 
 There is no long-term global `selected = true`. Selection produces a
 `SelectionRecommendation`: a primary recommendation, alternatives,

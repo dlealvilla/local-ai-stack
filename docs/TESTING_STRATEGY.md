@@ -325,6 +325,16 @@ admission atomicity, restart persistence, current-capacity recomputation,
 and overcommit when SAFE shrinks. T2 is a clean wheel. T3 is not
 required: nothing physical is allocated.
 
+**Stage 1.5B** is T0/T1 InferenceInstance lifecycle against the
+reference serving process. Tests prove desired vs observed transitions,
+one live instance per reservation, multiple instances, release blocked
+while live or UNKNOWN, dynamic Small→Large→Small resource mobility with
+no stored/active partition, stored disk remaining distinct from active
+VRAM, capacity shrink leaving a running instance, and control-plane
+restart reconciliation that does not trust a persisted RUNNING label.
+T2 is a clean wheel. T3 is not required: Stage 1.3 already exercised
+generic process lifecycle on hardware.
+
 **Stage 1.4C** is T0/T1 fixture acquisition plus T2 from a clean wheel.
 Normal CI stays offline: the fixture provider writes tiny files through
 the same staging, verification, promotion, inventory and delete path.

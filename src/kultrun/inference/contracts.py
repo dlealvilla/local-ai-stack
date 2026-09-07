@@ -24,11 +24,12 @@ import datetime as dt
 from dataclasses import dataclass
 from enum import StrEnum
 
+from kultrun.execution.contracts import ExecutionId
 from kultrun.host.contracts import HostId
 from kultrun.kernel.ids import EntityId, Name
 from kultrun.kernel.schema import Contract, contract, meaning
 from kultrun.kernel.unresolved import NOT_MEASURED, Maybe
-from kultrun.model.contracts import ModelId
+from kultrun.model.contracts import ArtifactId, ModelId
 from kultrun.resource.contracts import ReservationId
 
 
@@ -48,6 +49,26 @@ class LifecycleState(StrEnum):
     STOPPING = "stopping"
     STOPPED = "stopped"
     FAILED = "failed"
+    UNKNOWN = "unknown"
+
+
+class DesiredState(StrEnum):
+    """What Kultrun wants the instance to be. Not what it is."""
+
+    RUNNING = "running"
+    STOPPED = "stopped"
+
+
+class ObservedState(StrEnum):
+    """What the instance actually is, last reconciled."""
+
+    CREATED = "created"
+    STARTING = "starting"
+    RUNNING = "running"
+    STOPPING = "stopping"
+    STOPPED = "stopped"
+    FAILED = "failed"
+    UNKNOWN = "unknown"
 
 
 class HealthState(StrEnum):
@@ -121,4 +142,46 @@ class InferenceInstance(Contract):
     )
     started_at: dt.datetime | None = meaning(
         "when it began serving; absent until it does", default=None
+    )
+    artifact_id: ArtifactId | None = meaning(
+        "the STORED artifact this instance serves", default=None
+    )
+    desired_state: DesiredState = meaning(
+        "what Kultrun wants", default=DesiredState.STOPPED
+    )
+    observed_state: ObservedState = meaning(
+        "what was last reconciled", default=ObservedState.CREATED
+    )
+    execution_id: ExecutionId | None = meaning(
+        "the executor handle, when a process was started", default=None
+    )
+    pid: Maybe[int] = meaning(
+        "OS process id while one is known and owned", default=NOT_MEASURED
+    )
+    ready: Maybe[bool] = meaning(
+        "whether the serving endpoint answered; distinct from process existence",
+        default=NOT_MEASURED,
+    )
+    created_at: dt.datetime | None = meaning(
+        "when the instance record was created", default=None
+    )
+    stopped_at: dt.datetime | None = meaning(
+        "when the process last left running", default=None
+    )
+    last_observed_at: dt.datetime | None = meaning(
+        "when observed state was last reconciled", default=None
+    )
+    exit_code: Maybe[int] = meaning(
+        "process exit status when it has exited", default=NOT_MEASURED
+    )
+    failure_reason: Maybe[str] = meaning(
+        "bounded why start or run failed", default=NOT_MEASURED
+    )
+    logical_name: Maybe[str] = meaning(
+        "catalog name of the served candidate", default=NOT_MEASURED
+    )
+    quantization: Maybe[str] = meaning("variant being served", default=NOT_MEASURED)
+    serving_runtime: Maybe[str] = meaning(
+        "reference-serving identity; never an LLM engine in 1.5B",
+        default=NOT_MEASURED,
     )

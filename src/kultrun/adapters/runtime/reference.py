@@ -11,7 +11,11 @@ import sys
 from pathlib import Path
 
 from kultrun.kernel.ids import Name
-from kultrun.runtime.contracts import RuntimeLaunchSpec, RuntimeProfile
+from kultrun.runtime.contracts import (
+    RuntimeLaunchRequest,
+    RuntimeLaunchSpec,
+    RuntimeProfile,
+)
 
 IDENTITY = Name("reference-process")
 EXECUTOR_KIND = Name("native-process")
@@ -43,7 +47,10 @@ class ReferenceProcessRuntime:
             capabilities=("process-lifecycle", "bounded-output"),
         )
 
-    def launch_spec(self) -> RuntimeLaunchSpec:
+    def launch_spec(
+        self, request: RuntimeLaunchRequest | None = None
+    ) -> RuntimeLaunchSpec:
+        del request
         mode = "--hold" if self._hold else "--once"
         return RuntimeLaunchSpec(
             runtime=self.identity,

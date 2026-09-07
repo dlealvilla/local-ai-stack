@@ -1734,6 +1734,13 @@
         "optional": true,
         "type": "str | None"
       },
+      "artifact_id": {
+        "may_be_unresolved": false,
+        "meaning": "the STORED artifact this instance serves",
+        "nullable": true,
+        "optional": true,
+        "type": "ArtifactId | None"
+      },
       "configuration_version": {
         "may_be_unresolved": false,
         "meaning": "advances when the serving configuration changes, so a restart can tell a stale instance from a current one",
@@ -1748,6 +1755,20 @@
         "optional": true,
         "type": "int | Unresolved"
       },
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the instance record was created",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "desired_state": {
+        "may_be_unresolved": false,
+        "meaning": "what Kultrun wants",
+        "nullable": false,
+        "optional": true,
+        "type": "DesiredState"
+      },
       "endpoint": {
         "may_be_unresolved": false,
         "meaning": "where it is reachable, once it is",
@@ -1755,12 +1776,33 @@
         "optional": true,
         "type": "InferenceEndpoint | None"
       },
+      "execution_id": {
+        "may_be_unresolved": false,
+        "meaning": "the executor handle, when a process was started",
+        "nullable": true,
+        "optional": true,
+        "type": "ExecutionId | None"
+      },
       "executor": {
         "may_be_unresolved": false,
         "meaning": "the executor running the process",
         "nullable": false,
         "optional": false,
         "type": "Name"
+      },
+      "exit_code": {
+        "may_be_unresolved": true,
+        "meaning": "process exit status when it has exited",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "failure_reason": {
+        "may_be_unresolved": true,
+        "meaning": "bounded why start or run failed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "health": {
         "may_be_unresolved": false,
@@ -1783,12 +1825,26 @@
         "optional": false,
         "type": "InstanceId"
       },
+      "last_observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when observed state was last reconciled",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
       "lifecycle_state": {
         "may_be_unresolved": false,
         "meaning": "what the platform intends and observes",
         "nullable": false,
         "optional": false,
         "type": "LifecycleState"
+      },
+      "logical_name": {
+        "may_be_unresolved": true,
+        "meaning": "catalog name of the served candidate",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "model_id": {
         "may_be_unresolved": false,
@@ -1804,6 +1860,20 @@
         "optional": true,
         "type": "str | Unresolved"
       },
+      "observed_state": {
+        "may_be_unresolved": false,
+        "meaning": "what was last reconciled",
+        "nullable": false,
+        "optional": true,
+        "type": "ObservedState"
+      },
+      "pid": {
+        "may_be_unresolved": true,
+        "meaning": "OS process id while one is known and owned",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "platform_max_concurrent_requests": {
         "may_be_unresolved": true,
         "meaning": "the gateway's limit for this instance, a different dimension from runtime concurrency",
@@ -1811,9 +1881,23 @@
         "optional": true,
         "type": "int | Unresolved"
       },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "variant being served",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "reachable": {
         "may_be_unresolved": true,
         "meaning": "whether the port answers; a reachable port is not a working API",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
+      "ready": {
+        "may_be_unresolved": true,
+        "meaning": "whether the serving endpoint answered; distinct from process existence",
         "nullable": false,
         "optional": true,
         "type": "bool | Unresolved"
@@ -1839,9 +1923,23 @@
         "optional": true,
         "type": "int | Unresolved"
       },
+      "serving_runtime": {
+        "may_be_unresolved": true,
+        "meaning": "reference-serving identity; never an LLM engine in 1.5B",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "started_at": {
         "may_be_unresolved": false,
         "meaning": "when it began serving; absent until it does",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "stopped_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the process last left running",
         "nullable": true,
         "optional": true,
         "type": "datetime | None"
@@ -4563,6 +4661,39 @@
       }
     },
     "python": "Result"
+  },
+  "runtime.launch_request@1": {
+    "fields": {
+      "artifact_id": {
+        "may_be_unresolved": true,
+        "meaning": "stored artifact identity for provenance only",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "bind_address": {
+        "may_be_unresolved": false,
+        "meaning": "loopback address the reference server should bind",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "instance_id": {
+        "may_be_unresolved": false,
+        "meaning": "which InferenceInstance this recipe is for",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "mode": {
+        "may_be_unresolved": false,
+        "meaning": "reference serving mode: healthy, exit-immediately, never-ready, crash-after-ready",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      }
+    },
+    "python": "RuntimeLaunchRequest"
   },
   "runtime.launch_spec@1": {
     "fields": {

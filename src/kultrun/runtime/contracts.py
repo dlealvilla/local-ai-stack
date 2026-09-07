@@ -16,6 +16,26 @@ from pathlib import Path
 from kultrun.kernel.errors import ValidationError
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import Contract, contract, meaning
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
+
+
+@contract(kind="runtime.launch_request", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeLaunchRequest(Contract):
+    """What inference asks a runtime to translate. Not argv."""
+
+    instance_id: str = meaning("which InferenceInstance this recipe is for")
+    mode: str = meaning(
+        "reference serving mode: healthy, exit-immediately, never-ready, "
+        "crash-after-ready",
+        default="healthy",
+    )
+    bind_address: str = meaning(
+        "loopback address the reference server should bind", default="127.0.0.1"
+    )
+    artifact_id: Maybe[str] = meaning(
+        "stored artifact identity for provenance only", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="runtime.profile", version=1)

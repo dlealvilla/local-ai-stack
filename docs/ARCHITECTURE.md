@@ -897,11 +897,11 @@ translation layer, and nowhere else.
 
 | | |
 |---|---|
-| **Owns** | `InferenceInstance` — instance identity, host, model artifact and revision, runtime, executor, endpoint, reservation, context, runtime concurrency, platform request limit, access-policy reference, lifecycle state, desired vs observed vs health, configuration version. The lifecycle: start, health, stop, restart, unload. `InferenceEndpoint`. The distinction between status and health. Collections are `inference_instances[]`. The same artifact may have many instances; many models may run at once. |
+| **Owns** | `InferenceInstance` — instance identity, host, model artifact and revision, runtime, executor, endpoint, reservation, context, runtime concurrency, platform request limit, access-policy reference, lifecycle state, desired vs observed vs health, configuration version. The lifecycle: create, start, observe, stop, restart. `InferenceEndpoint`. The distinction between status and health. Collections are `inference_instances[]`. The same artifact may have many instances; many models may run at once. |
 | **Consumes** | `kernel` · `resource` · `execution` · `runtime` · `model` |
 | **Produces** | A running instance, a healthy endpoint, and reconciliation on restart |
-| **Must not** | Route requests, authenticate, or emit usage events. Confuse a reachable port with a functioning API. Collapse to `current_inference_instance` or `model.running`. Delete a stored artifact on stop/unload. |
-| **Created** | 1.5B plural schema · 1.6 first live instance · **Deepened** 4.4 concurrent live instances |
+| **Must not** | Route requests, authenticate, or emit usage events. Confuse a reachable port with a functioning API. Collapse to `current_inference_instance` or `model.running`. Delete a stored artifact on stop. Import `planning`. Import `platform`. Construct runtime argv. Reimplement subprocess management. Auto-release a reservation on stop. Treat stored/active as capacity partitions. |
+| **Created** | 1.5B reference serving lifecycle (plural) · 1.6 real model inference · **Deepened** 4.4 concurrent live instances |
 
 ### `analytics`
 
@@ -1184,13 +1184,22 @@ Planning / DeploymentPlan
   → ResourceReservation ACTIVE          ← Stage 1.5A stops here
        reserved is not running
 
-later 1.5B / 1.6:
-  → runtime RuntimeLaunchSpec
-  → execution ExecutorHandle
-  → inference InferenceInstance         → health → endpoint published
+later 1.5B:
+  ModelArtifact STORED
+    → ResourceReservation ACTIVE
+    → InferenceInstance
+    → Runtime (launch spec)
+    → Executor (process)
+    → observe readiness / endpoint
+    → stop process; reservation remains ACTIVE until explicit release
 
-failure: release the reservation, no orphan process, no orphan port
-stop:    stop the runtime, then release the reservation; artifact remains
+Stored / Active / Running are lifecycle states, not capacity partitions.
+Disk, RAM, VRAM and unified memory stay separate. Capacity follows the
+active reservation, not a fixed stored/active split.
+
+failure: instance FAILED; reservation remains ACTIVE
+stop:    stop the process; reservation remains ACTIVE
+release: rejected while STARTING / RUNNING / STOPPING / UNKNOWN
 ```
 
 **Trace D — a model is acquired** (1.4C thin v0; 2.6 deepened)
@@ -1268,8 +1277,8 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.4B | `planning` v0: feasibility, selection, `DeploymentPlan`; `ModelRequirementEstimator` | `capacity`, `model`, `host` | ✅ |
 | 1.4C | acquisition v0, plural inventory | `storage` pool, `model` | ✅ via finding 1 |
 | 1.5A | `resource` admission and reservation | `capacity`, `ModelRequirement` | ✅ crude requirement, already in the ledger |
-| 1.5B | `inference` instance schema (plural) | `resource`, `execution`, `runtime`, `model` | ✅ |
-| 1.6 | first live `InferenceInstance` | 1.5B | ✅ |
+| 1.5B | `inference` instance lifecycle (plural, reference serving) | `resource`, `execution`, `runtime`, `model` | ✅ |
+| 1.6 | first real-model `InferenceInstance` | 1.5B | ✅ |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |
 | 2.1–2.4 | `storage` deepened | `host`, `evidence`, `ManagedUsageSource` | ✅ implemented by `model` at 1.4C |
