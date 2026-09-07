@@ -103,12 +103,46 @@ T0/T1 fixture lifecycle, SAFE preflight, catalog/selection regressions
 two fixture artifacts, delete one, bounded real Hugging Face acquisition,
 API, CLI, Console assets. T3 not required.
 
+T0: 34 focused acquisition tests. T1: architecture 61, full suite 619,
+ruff clean, mypy strict 153 files. Local Prototype Console on
+`127.0.0.1:8420/prototype` acquired then deleted the fixture acceptance
+artifact; inventory showed stored artifacts 1 → 0, running instances 0,
+stored implies running no.
+
+### T2 clean wheel
+
+Source commit `6a2f7872219334afa3c54fde93810b2c626ef92b`.
+Artifact `kultrun-0.1.0-py3-none-any.whl`.
+SHA-256 `1657a46f24c6b4a24c166047b5a2e7f7183505ed2e665b0b2d3ccedd90bc101d`.
+Build `0.1.0+6a2f78722193`. Installed with extra `acquisition` into an
+isolated venv; `kultrun.__file__` was not the source checkout.
+
+| Proof | Result |
+|---|---|
+| Catalog / recommend | 19 candidates; recommend does not download |
+| Empty inventory | `empty inventory` |
+| Fixture acquire ×2 | acceptance + tinyllama stored |
+| Delete one | remaining `tinyllama-1.1b-chat-q4` |
+| Real Hub acquire | `huggingface_hub` 0.36.2; `snapshot_download` |
+| Source | `hf-internal-testing/tiny-random-gpt2` |
+| Requested / resolved | `main` / `71034c5d8bde858ff824298bdedc65515b97d2b9` |
+| Bytes / files | 12512611 / 10 |
+| Verification | required files + readable + pinned revision + safetensors header |
+| Artifact | `artifact_7a01cf58000f8295` STORED; serving false |
+| API | GET inventory `200 2 False` |
+| Console assets | shipped in wheel |
+
 ## Debt
 
 K-39 scheduler/resume; K-40 warehouse/dedup; K-41 conversion/quant;
 K-42 gated UX / license engine; K-43 optional `huggingface_hub` extra.
 
-## Not in this stage
+## Not begun
 
-ResourceReservation, InferenceInstance, runtime loading, vLLM,
-llama.cpp inference, prompt execution, large production downloads.
+Stage 1.5A ResourceReservation. Stage 1.5B InferenceInstance. Runtime
+loading, vLLM, llama.cpp inference, prompt execution, large production
+downloads.
+
+## Checkpoint
+
+`checkpoints/STAGE-1.4C-model-acquisition-inventory.json`

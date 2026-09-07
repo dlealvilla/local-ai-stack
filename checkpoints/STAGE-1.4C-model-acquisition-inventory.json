@@ -1,0 +1,184 @@
+{
+  "stage": "1.4C",
+  "name": "model-acquisition-inventory",
+  "milestone": 1,
+  "output": "ModelAcquisitionProvider + HuggingFaceAcquisitionProvider + verified ModelArtifact + plural ModelInventory",
+  "status": "closed",
+  "gate": "L1",
+  "t3_required": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "9f97bd5d167824ba373e1f88bcfd56e9d5503ff7",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.4B-feasibility-selection.json",
+      "checkpoints/STAGE-1.4A-model-catalog.json"
+    ],
+    "starting_source_commit": "9f97bd5d167824ba373e1f88bcfd56e9d5503ff7"
+  },
+  "architecture": {
+    "model_source_downloads": false,
+    "acquisition_separate_from_source": true,
+    "planning_unchanged": true,
+    "stored_implies_running": false,
+    "resource_reservation_introduced": false,
+    "inference_instance_introduced": false,
+    "unknown_never_zero": true,
+    "safe_storage_authoritative": true,
+    "reported_capacity_authorizes_acquisition": false,
+    "provider_concepts_in_core": false
+  },
+  "port": {
+    "name": "kultrun.model.ports.ModelAcquisitionProvider",
+    "request": "model.acquisition_request@1",
+    "receipt": "model.acquisition_receipt@1",
+    "manifest": "model.artifact_manifest@1",
+    "future_providers": [
+      "local_file",
+      "object_storage",
+      "enterprise_registry",
+      "managed_repository"
+    ]
+  },
+  "adapters": {
+    "fixture": {
+      "adapter": "kultrun.adapters.acquisition.fixture.FixtureAcquisitionProvider",
+      "identity": "fixture",
+      "network": false
+    },
+    "huggingface": {
+      "adapter": "kultrun.adapters.acquisition.huggingface.HuggingFaceAcquisitionProvider",
+      "identity": "huggingface",
+      "package": "huggingface_hub>=0.23,<1",
+      "license": "Apache-2.0",
+      "optional_extra": "acquisition",
+      "mechanism": "HfApi.model_info + snapshot_download",
+      "tested_hub_version": "0.36.2",
+      "credentials": "HF_TOKEN / HUGGING_FACE_HUB_TOKEN env; never persisted"
+    }
+  },
+  "lifecycle": {
+    "states": ["remote", "acquiring", "stored", "invalid", "deleted"],
+    "serving_states_on_artifact": false,
+    "staging": "{state_root}/models/staging/<identity-key>",
+    "promotion": "Path.replace into models/artifacts/<artifact_id>",
+    "partial_exposed_as_stored": false,
+    "deleted_records": "tombstones"
+  },
+  "inventory": {
+    "plural": true,
+    "zero_one_many": true,
+    "revisions_distinguished": true,
+    "quantizations_distinguished": true,
+    "stored_not_running": true
+  },
+  "api": {
+    "GET /v1/models": "catalog; unchanged",
+    "GET /v1/models/selection": "recommendation; still does not download",
+    "GET /v1/models/inventory": "plural artifacts; serving false",
+    "POST /v1/models/acquire": "known candidate or recommended; no URL/path",
+    "DELETE /v1/models/artifact": "exact artifact_id; not stop/unload",
+    "cli": "kultrun models inventory|acquire|delete",
+    "run_command_introduced": false
+  },
+  "console": {
+    "catalog_panel": true,
+    "selection_panel": true,
+    "inventory_panel": true,
+    "acquire_control": true,
+    "delete_control": true,
+    "stored_implies_running": false,
+    "product_logic_in_ui": false,
+    "local_verify": {
+      "url": "http://127.0.0.1:8420/prototype/",
+      "provider": "fixture",
+      "acquire_acceptance": "stored artifacts 1; running 0; serving no",
+      "delete_acceptance": "stored artifacts 0; running 0"
+    }
+  },
+  "contracts": [
+    "model.acquisition_request@1",
+    "model.acquisition_receipt@1",
+    "model.artifact_manifest@1",
+    "model.artifact@1",
+    "model.inventory_record@1",
+    "config.platform@1"
+  ],
+  "debt": ["K-39", "K-40", "K-41", "K-42", "K-43"],
+  "local_acceptance": {
+    "source_commit": "6a2f7872219334afa3c54fde93810b2c626ef92b",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "1657a46f24c6b4a24c166047b5a2e7f7183505ed2e665b0b2d3ccedd90bc101d",
+    "build_id": "0.1.0+6a2f78722193",
+    "clean_source": true,
+    "source_checkout": false,
+    "fixture": {
+      "empty_inventory": true,
+      "acquired": 2,
+      "deleted": "artifact_bd6e7bdea2648d0c",
+      "remaining": "tinyllama-1.1b-chat-q4"
+    },
+    "huggingface": {
+      "actual_provider_executed": true,
+      "hub": "0.36.2",
+      "provider_version": "0.36.2",
+      "source_repo": "hf-internal-testing/tiny-random-gpt2",
+      "requested_revision": "main",
+      "resolved_revision": "71034c5d8bde858ff824298bdedc65515b97d2b9",
+      "downloaded_bytes": 12512611,
+      "file_count": 10,
+      "files": [
+        ".gitattributes",
+        "config.json",
+        "merges.txt",
+        "model.safetensors",
+        "pytorch_model.bin",
+        "special_tokens_map.json",
+        "tf_model.h5",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "vocab.json"
+      ],
+      "verification": "required_files+regular_readable+revision_pinned+safetensors_header",
+      "verification_state": "passed",
+      "artifact_id": "artifact_7a01cf58000f8295",
+      "inventory_state": "stored",
+      "serving": false,
+      "license_id": "apache-2.0"
+    },
+    "api": "200 2 False",
+    "console_assets": true
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-07",
+    "method": "focused tests + architecture + full suite + clean wheel + bounded Hub + local console",
+    "local_tests": 619,
+    "focused_tests": 34,
+    "architecture": 61,
+    "ruff": "clean",
+    "mypy": "strict clean, 153 files"
+  },
+  "test_modes": {
+    "T0": "34 focused acquisition/security/lifecycle tests plus architecture 61",
+    "T1": "architecture plus full suite 619; Host/Capacity/Sonar and 19-candidate selection regressions",
+    "T2": "clean wheel with [acquisition]; fixture plural inventory; real tiny Hub snapshot_download",
+    "T3": "not required",
+    "T4": "not required"
+  },
+  "not_begun": [
+    "Stage 1.5A resource admission and ResourceReservation",
+    "Stage 1.5B InferenceInstance",
+    "runtime model loading",
+    "vLLM / llama.cpp inference",
+    "prompt execution",
+    "large production model download"
+  ],
+  "END_LINK": {
+    "t2_source_commit": "6a2f7872219334afa3c54fde93810b2c626ef92b",
+    "final_build_id": "0.1.0+6a2f78722193",
+    "final_artifact_sha256": "1657a46f24c6b4a24c166047b5a2e7f7183505ed2e665b0b2d3ccedd90bc101d",
+    "checkpoint": "checkpoints/STAGE-1.4C-model-acquisition-inventory.json",
+    "next": "1.5A — Resource Admission + ResourceReservation, under a separate bounded brief"
+  }
+}

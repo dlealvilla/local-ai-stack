@@ -139,6 +139,12 @@ comparison is development-only. Real `llmfit plan` 1.1.14 proven from a
 clean installed wheel. Checkpoint:
 `checkpoints/STAGE-1.4B-feasibility-selection.json`.
 
-**Next:** Stage 1.4C — Model acquisition + plural Model Inventory. The
-bounded brief is in `docs/ROADMAP.md` Part V. Do not begin admission or
-inference from 1.4C.
+**Stage 1.4C is closed** at `L1`. Replaceable `ModelAcquisitionProvider`,
+Hugging Face and fixture adapters, staged/verified `ModelArtifact`,
+plural inventory, safe delete, API/CLI/Console. Stored is not running.
+Bounded real Hub T2 from a clean wheel. No reservation, no
+InferenceInstance. Checkpoint:
+`checkpoints/STAGE-1.4C-model-acquisition-inventory.json`.
+
+**Next:** Stage 1.5A — Resource Admission + ResourceReservation, under a
+separate bounded brief. Do not begin it from 1.4C.
