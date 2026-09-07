@@ -41,6 +41,7 @@ def main() -> int:
         shutil.rmtree(context)
     context.mkdir(parents=True)
     shutil.copy2(FIXTURE / "Dockerfile", context / "Dockerfile")
+    # Stable context name; Dockerfile renames to a PEP 427 filename for pip.
     shutil.copy2(wheel, context / "kultrun.whl")
     built = subprocess.run(
         ["docker", "build", "-t", TAG, str(context)],

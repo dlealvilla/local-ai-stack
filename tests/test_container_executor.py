@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from kultrun.adapters.container.recording import RecordingContainerEngine
@@ -251,3 +252,21 @@ def test_runtime_adapter_does_not_branch_on_executor() -> None:
 
 def test_pull_policy_default_is_never() -> None:
     assert _config().pull_policy is PullPolicy.NEVER
+
+
+def test_reference_image_dockerfile_pip_installs_pep427_wheel_name() -> None:
+    dockerfile = (
+        Path(__file__).resolve().parent
+        / "fixtures"
+        / "containers"
+        / "reference-serving"
+        / "Dockerfile"
+    )
+    text = dockerfile.read_text(encoding="utf-8")
+    match = re.search(r"pip install --no-cache-dir (\S+)", text)
+    assert match is not None
+    installed = Path(match.group(1)).name
+    assert re.fullmatch(
+        r"[A-Za-z0-9][\w.]*-[0-9][\w.+]*-py3-none-any\.whl",
+        installed,
+    ), installed
