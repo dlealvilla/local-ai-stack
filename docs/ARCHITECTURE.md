@@ -791,11 +791,11 @@ Unknown load-bearing requirements yield `UNRESOLVED`, never a silent fit.
 
 | | |
 |---|---|
-| **Owns** | `Workload` and the generic workload types, `ResourceRequirement`, `AdmissionDecision`, `ResourceReservation`, `WorkloadProfile`. The Resource Manager. |
+| **Owns** | `Workload` and the generic workload types, `ResourceRequest`, `AdmissionDecision`, `ResourceReservation`, `WorkloadProfile`, `ResourceSummary`. The Resource Manager. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `capacity` safe layer · `model` requirement |
 | **Produces** | `AdmissionDecision` · `ResourceReservation`, persisted and reconciled |
 | **Must not** | Import `planning`, `runtime` or `inference`. Know selection ranking. Admit against a reported or effective value. Conflate requested requirement, admitted reservation, observed consumption and peak observed consumption. |
-| **Created** | 1.5A · **Deepened** 4.1 workload types, 4.2 oversubscription, 4.3 concurrency |
+| **Created** | 1.5A admission and reservation · **Deepened** 4.1 workload types, 4.2 oversubscription, 4.3 concurrency |
 
 The ordering this module enforces is the mutation contract for the whole
 platform: reserve before mutation, roll the reservation back if start
@@ -1170,16 +1170,24 @@ client → api → gateway
   → adapters/usage partition
 ```
 
-**Trace C — an instance starts** (1.5A, 1.5B, 1.6)
+**Trace C — capacity is reserved, then later an instance starts**
+(1.5A reservation; 1.5B/1.6 launch)
 
 ```text
-model inventory record → ModelRequirement
-  → resource ResourceRequirement
-  → capacity safe layer               → AdmissionDecision
-  → resource ResourceReservation      (reserve before mutation)
+STORED ModelArtifact ≠ ResourceReservation ≠ InferenceInstance
+
+Planning / DeploymentPlan
+  ≠ resource admission
+  → platform translates artifact + plan → ResourceRequest
+  → current SAFE − ACTIVE reservations
+  → AdmissionDecision
+  → ResourceReservation ACTIVE          ← Stage 1.5A stops here
+       reserved is not running
+
+later 1.5B / 1.6:
   → runtime RuntimeLaunchSpec
   → execution ExecutorHandle
-  → inference InferenceInstance       → health → endpoint published
+  → inference InferenceInstance         → health → endpoint published
 
 failure: release the reservation, no orphan process, no orphan port
 stop:    stop the runtime, then release the reservation; artifact remains

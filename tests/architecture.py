@@ -191,7 +191,10 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "storage.pool",
         "model.inventory_record",
         "resource.workload",
+        "resource.request",
         "resource.reservation",
+        "resource.admission_decision",
+        "resource.summary",
         "inference.instance",
         "execution.handle",
     }

@@ -3838,6 +3838,273 @@
     },
     "python": "PolicyRef"
   },
+  "resource.admission_decision@1": {
+    "fields": {
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "the host the decision is for",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "ledger_health": {
+        "may_be_unresolved": false,
+        "meaning": "ACTIVE reservations versus current SAFE",
+        "nullable": false,
+        "optional": false,
+        "type": "LedgerHealth"
+      },
+      "reason_code": {
+        "may_be_unresolved": true,
+        "meaning": "typed reason",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "reasons": {
+        "may_be_unresolved": false,
+        "meaning": "human-readable explanation",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "request_id": {
+        "may_be_unresolved": false,
+        "meaning": "the request this decides",
+        "nullable": false,
+        "optional": false,
+        "type": "RequestId"
+      },
+      "reservation": {
+        "may_be_unresolved": false,
+        "meaning": "the grant, when admitted",
+        "nullable": true,
+        "optional": true,
+        "type": "ResourceReservation | None"
+      },
+      "reused": {
+        "may_be_unresolved": false,
+        "meaning": "true when an existing ACTIVE grant was returned",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "serving": {
+        "may_be_unresolved": false,
+        "meaning": "always false in 1.5A; a reservation is not a running instance",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "verdict": {
+        "may_be_unresolved": false,
+        "meaning": "whether the request may consume resources now",
+        "nullable": false,
+        "optional": false,
+        "type": "AdmissionVerdict"
+      }
+    },
+    "python": "AdmissionDecision"
+  },
+  "resource.device_summary@1": {
+    "fields": {
+      "available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE minus reserved, or 0 when overcommitted; never negative",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "index": {
+        "may_be_unresolved": false,
+        "meaning": "which assigned accelerator",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "reserved_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "sum of ACTIVE grants on this device",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "safe_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current SAFE device memory",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "DeviceResourceSummary"
+  },
+  "resource.request@1": {
+    "fields": {
+      "accelerator_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "device memory on the selected accelerator; never a GPU sum",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "accelerator_index": {
+        "may_be_unresolved": false,
+        "meaning": "assigned device for discrete GPU; none for CPU-only",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "artifact_id": {
+        "may_be_unresolved": false,
+        "meaning": "the STORED artifact this would serve",
+        "nullable": false,
+        "optional": false,
+        "type": "ArtifactId"
+      },
+      "capacity_policy_version": {
+        "may_be_unresolved": true,
+        "meaning": "headroom policy of the envelope",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "context the estimate assumed",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "cpu": {
+        "may_be_unresolved": true,
+        "meaning": "CPU requirement; unresolved and non-load-bearing in v0",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "estimator_provider": {
+        "may_be_unresolved": true,
+        "meaning": "estimator that produced the requirement",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "envelope identity at request time",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "the host whose SAFE capacity is considered",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "incremental_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "future scratch/cache only; never the already-stored artifact size",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": true,
+        "meaning": "catalog name",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "canonical model identity",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "model_revision": {
+        "may_be_unresolved": true,
+        "meaning": "artifact revision",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "placement": {
+        "may_be_unresolved": false,
+        "meaning": "device strategy the plan selected",
+        "nullable": false,
+        "optional": false,
+        "type": "MemoryPlacement"
+      },
+      "plan_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "assumptions that produced these amounts",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "plan_version": {
+        "may_be_unresolved": true,
+        "meaning": "selection/plan policy version",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "port_count": {
+        "may_be_unresolved": true,
+        "meaning": "future endpoint/port seam; unused in v0",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "variant",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "host memory requested; unknown is not zero",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "request_id": {
+        "may_be_unresolved": false,
+        "meaning": "idempotency identity of this admission",
+        "nullable": false,
+        "optional": false,
+        "type": "RequestId"
+      },
+      "runtime": {
+        "may_be_unresolved": true,
+        "meaning": "proposed runtime, for provenance",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "unified memory when that is the placement; never fake VRAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "workload_type": {
+        "may_be_unresolved": false,
+        "meaning": "generic job type; inference is the v0 case",
+        "nullable": false,
+        "optional": true,
+        "type": "WorkloadType"
+      }
+    },
+    "python": "ResourceRequest"
+  },
   "resource.reservation@1": {
     "fields": {
       "accelerator_index": {
@@ -3846,6 +4113,20 @@
         "nullable": true,
         "optional": true,
         "type": "int | None"
+      },
+      "admission_policy_version": {
+        "may_be_unresolved": true,
+        "meaning": "admission arithmetic version",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "admitted_cpu": {
+        "may_be_unresolved": true,
+        "meaning": "CPU commitment; unresolved and non-load-bearing in v0",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
       },
       "admitted_ram_bytes": {
         "may_be_unresolved": true,
@@ -3861,12 +4142,47 @@
         "optional": false,
         "type": "int | Unresolved"
       },
+      "admitted_unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "unified memory granted; never a VRAM alias",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "admitted_vram_bytes": {
         "may_be_unresolved": true,
         "meaning": "accelerator memory granted, on the device named below",
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "artifact_id": {
+        "may_be_unresolved": false,
+        "meaning": "the stored model these resources are committed for",
+        "nullable": true,
+        "optional": true,
+        "type": "ArtifactId | None"
+      },
+      "available_accelerator_after": {
+        "may_be_unresolved": true,
+        "meaning": "device memory remaining for new work after this grant; never negative",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "available_ram_after": {
+        "may_be_unresolved": true,
+        "meaning": "RAM remaining for new work after this grant; never negative",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "capacity_policy_version": {
+        "may_be_unresolved": true,
+        "meaning": "headroom policy in force when admitted",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "created_at": {
         "may_be_unresolved": false,
@@ -3875,12 +4191,61 @@
         "optional": false,
         "type": "datetime"
       },
+      "estimator_provider": {
+        "may_be_unresolved": true,
+        "meaning": "estimator that produced the requirement",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "capacity envelope identity at admission",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "host_id": {
         "may_be_unresolved": false,
         "meaning": "the host whose resources are held",
         "nullable": false,
         "optional": false,
         "type": "HostId"
+      },
+      "logical_name": {
+        "may_be_unresolved": true,
+        "meaning": "catalog name of the stored candidate",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "model_revision": {
+        "may_be_unresolved": true,
+        "meaning": "artifact revision reserved against",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "plan_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "identity of the plan assumptions at admission",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "variant reserved against",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "release_reason": {
+        "may_be_unresolved": true,
+        "meaning": "why the grant ended, when it has",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "released_at": {
         "may_be_unresolved": false,
@@ -3889,12 +4254,47 @@
         "optional": true,
         "type": "datetime | None"
       },
+      "request_id": {
+        "may_be_unresolved": false,
+        "meaning": "the admission request that produced this grant",
+        "nullable": true,
+        "optional": true,
+        "type": "RequestId | None"
+      },
       "reservation_id": {
         "may_be_unresolved": false,
         "meaning": "platform-minted identity of this grant",
         "nullable": false,
         "optional": false,
         "type": "ReservationId"
+      },
+      "reserved_accelerator_before": {
+        "may_be_unresolved": true,
+        "meaning": "ACTIVE device memory already reserved on the selected accelerator",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "reserved_ram_before": {
+        "may_be_unresolved": true,
+        "meaning": "ACTIVE RAM already reserved before this grant",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "safe_accelerator_at_admission": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE device memory on the selected accelerator when admitted",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "safe_ram_at_admission": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE RAM observed when admitted",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
       },
       "state": {
         "may_be_unresolved": false,
@@ -3912,6 +4312,123 @@
       }
     },
     "python": "ResourceReservation"
+  },
+  "resource.summary@1": {
+    "fields": {
+      "accelerators": {
+        "may_be_unresolved": false,
+        "meaning": "per-device accelerator ledger",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[DeviceResourceSummary, ...]"
+      },
+      "active_count": {
+        "may_be_unresolved": false,
+        "meaning": "ACTIVE reservations",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "available_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE RAM minus reserved, or 0 when overcommitted; never negative",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "available_unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE unified minus reserved, or 0 when overcommitted",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "capacity_policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "headroom policy of the envelope",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "health": {
+        "may_be_unresolved": false,
+        "meaning": "whether ACTIVE grants fit current SAFE",
+        "nullable": false,
+        "optional": false,
+        "type": "LedgerHealth"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "current envelope identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "which host this describes",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "admission arithmetic version",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "reserved_incremental_storage_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "ACTIVE incremental storage only; not stored artifact bytes",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "reserved_ram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "sum of ACTIVE RAM grants",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "reserved_unified_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "sum of ACTIVE unified grants",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "running_instances": {
+        "may_be_unresolved": false,
+        "meaning": "always 0 in 1.5A",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "safe_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current SAFE system memory",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "safe_unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current SAFE unified memory",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "serving": {
+        "may_be_unresolved": false,
+        "meaning": "always false; reserved is not running",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      }
+    },
+    "python": "ResourceSummary"
   },
   "resource.workload@1": {
     "fields": {

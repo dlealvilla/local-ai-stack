@@ -57,7 +57,7 @@ Status:       OPEN | RETIRED (<stage>, <date>)
 
 ## Open entries
 
-Open entries continue from kernel through Stage 1.4C. Most do not authorize
+Open entries continue from kernel through Stage 1.5A. Most do not authorize
 a mutation. `K-29` and `K-34` start real work (storage reservation; the
 reference process) and are tolerable only because the API is loopback
 (`K-08`).
@@ -781,6 +781,77 @@ What:         `huggingface_hub>=0.23,<1` (Apache-2.0) is extra
 Why now:      Offline T0/T1 must stay installable. T2 installs the extra.
 To make real: Release extra + operator pin, or drop the Hub adapter.
 Retire when:  a release ships the extra with an operator runbook.
+Status:       OPEN
+
+### K-44 — reservation has no lease or TTL
+Label:        DEFERRED
+Owner stage:  1.5A
+Subsystem:    resource
+Authorizes:   NO
+What:         ACTIVE reservations stay ACTIVE until explicit release.
+              There is no heartbeat, expiry, or reclamation daemon.
+Why now:      No running instance exists to renew a lease.
+To make real: Instance/restart reconciliation after 1.5B.
+Retire when:  a later stage owns reservation leases.
+Status:       OPEN
+
+### K-45 — ports are a seam, not an allocator
+Label:        DEFERRED
+Owner stage:  1.5A
+Subsystem:    resource
+Authorizes:   NO
+What:         ResourceRequest.port_count is unused. No port reservation,
+              discovery, proxy, or gateway routing.
+Why now:      No InferenceInstance exists to bind an endpoint.
+To make real: Stage 1.5B if a port must be exclusive before launch.
+Retire when:  endpoint/port reservation is required for instance start.
+Status:       OPEN
+
+### K-46 — no scheduler, queues, or preemption
+Label:        DEFERRED
+Owner stage:  1.5A
+Subsystem:    resource
+Authorizes:   NO
+What:         Admission is now or not. No waiting queue, fairness,
+              priority, bin packing, or retry daemon.
+Why now:      The first vertical needs a yes/no grant, not a scheduler.
+To make real: After several concurrent instances exist.
+Retire when:  a stage owns scheduling policy.
+Status:       OPEN
+
+### K-47 — no enterprise quotas
+Label:        DEFERRED
+Owner stage:  1.5A
+Subsystem:    resource
+Authorizes:   NO
+What:         No user/team/department pools or license limits.
+Why now:      Host SAFE minus ACTIVE is the only ledger.
+To make real: Identity and entitlement stages.
+Retire when:  quota policy has an owner.
+Status:       OPEN
+
+### K-48 — no physical resource enforcement
+Label:        DEFERRED
+Owner stage:  1.5A
+Subsystem:    resource
+Authorizes:   NO
+What:         Reservations are control-plane accounting. No cgroups,
+              CUDA quotas, namespaces, or container limits.
+Why now:      Physical realization belongs to later runtime/execution.
+To make real: When an instance must be prevented from exceeding its grant.
+Retire when:  a stage owns enforcement adapters.
+Status:       OPEN
+
+### K-49 — CPU and incremental storage are non-load-bearing
+Label:        DEFERRED
+Owner stage:  1.5A
+Subsystem:    resource
+Authorizes:   NO
+What:         v0 does not invent CPU counts or runtime scratch. Those
+              fields stay unresolved unless later evidence supplies them.
+Why now:      Current plans do not carry trusted CPU or scratch figures.
+To make real: Runtime-specific planning.
+Retire when:  a trusted CPU or scratch requirement exists.
 Status:       OPEN
 
 ## Deferred capability register

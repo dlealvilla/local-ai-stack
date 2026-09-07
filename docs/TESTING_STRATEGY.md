@@ -319,6 +319,12 @@ or is underutilized must not invoke Kultrun. Real model inference is not
 required. Cross-provider comparison is a development tool, not a product
 test of ranking quality.
 
+**Stage 1.5A** is T0/T1 control-plane admission. Tests prove SAFE minus
+ACTIVE reservations, per-device accelerator accounting, concurrent
+admission atomicity, restart persistence, current-capacity recomputation,
+and overcommit when SAFE shrinks. T2 is a clean wheel. T3 is not
+required: nothing physical is allocated.
+
 **Stage 1.4C** is T0/T1 fixture acquisition plus T2 from a clean wheel.
 Normal CI stays offline: the fixture provider writes tiny files through
 the same staging, verification, promotion, inventory and delete path.

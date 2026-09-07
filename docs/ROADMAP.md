@@ -1023,7 +1023,7 @@ explainable. A denied admission mutates nothing.
 This is the first mutating *workload* workflow, so it emits an
 `AuditEvent`. Every mutating workflow from here on emits one.
 
-**Output:** `AdmissionDecision + ResourceReservation` · **Gate:** L2
+**Output:** `AdmissionDecision + ResourceReservation` · **Gate:** L1 (control-plane accounting; T3 not required)
 
 ### Stage 1.5B — Inference instance lifecycle
 
@@ -1791,6 +1791,41 @@ DEBT ENTRIES                 Resumable-download manager, pause/cancel,
 DEFERRED ITEMS               ResourceReservation (1.5A), InferenceInstance
                              (1.5B), runtime loading, large production
                              model download.
+```
+
+### Stage 1.5A brief
+
+```text
+CURRENT STAGE                Resource admission + persistent
+                             ResourceReservation. Reserved ≠ running.
+                             No InferenceInstance, no launch.
+PREDECESSOR OUTPUTS          Stage 1.4C closed at L1 (STORED artifacts);
+                             Stage 1.4B DeploymentPlan; Stage 1.2 SAFE
+                             capacity.
+THIS STAGE'S REQUIRED OUTPUT ResourceRequest; AdmissionDecision;
+                             ResourceReservation ACTIVE/RELEASED;
+                             ResourceManager; SAFE − ACTIVE arithmetic;
+                             atomic concurrent admission; release;
+                             resource summary; API/CLI/Console.
+CORE CONTRACTS AFFECTED      resource.request, resource.admission_decision,
+                             resource.summary, resource.device_summary
+                             (new); resource.reservation additive fields.
+ADAPTERS AFFECTED            none. Composition translates plan → request.
+PERSISTED STATE              ResourceReservation + Workload + ResourceRequest
+                             in the platform store. Available is recomputed.
+MUTATION / FAILURE BOUNDARY  POST reserve / DELETE release. Client amounts
+                             are not authoritative. STORED artifact required.
+                             SAFE layer only. Overcommit rejects new work.
+CANCELLATION / CLEANUP       Explicit release. No TTL/lease daemon.
+ACCEPTANCE LEVEL             L1. T0/T1 fixture arithmetic and persistence.
+                             T2 clean wheel. T3 not required.
+ADMIN SURFACE                GET /v1/resources; GET/POST/DELETE
+                             /v1/resources/reservations; kultrun resources;
+                             Console Resource reservations.
+DEBT ENTRIES                 Leases, ports, quotas, preemption, scheduler,
+                             physical enforcement deferred.
+DEFERRED ITEMS               InferenceInstance (1.5B), runtime launch,
+                             model load, inference.
 ```
 
 ---

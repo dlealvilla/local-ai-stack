@@ -25,8 +25,8 @@ from enum import StrEnum
 from kultrun.host.contracts import HostId
 from kultrun.kernel.ids import EntityId
 from kultrun.kernel.schema import Contract, contract, meaning
-from kultrun.kernel.unresolved import Maybe
-from kultrun.model.contracts import ModelId
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
+from kultrun.model.contracts import ArtifactId, MemoryPlacement, ModelId
 
 
 class WorkloadId(EntityId):
@@ -39,6 +39,12 @@ class ReservationId(EntityId):
     """Identifies one admitted claim on host resources."""
 
     prefix = "resv"
+
+
+class RequestId(EntityId):
+    """Identifies one admission request. Not an artifact or reservation."""
+
+    prefix = "rreq"
 
 
 class WorkloadType(StrEnum):
@@ -69,6 +75,41 @@ class ReservationState(StrEnum):
     ACTIVE = "active"
     RELEASED = "released"
     FAILED = "failed"
+
+
+class AdmissionVerdict(StrEnum):
+    """Whether the workload may consume resources now."""
+
+    ADMITTED = "admitted"
+    REJECTED = "rejected"
+    UNRESOLVED = "unresolved"
+
+
+class LedgerHealth(StrEnum):
+    """Current capacity versus ACTIVE reservations. Not a reservation state."""
+
+    WITHIN_CAPACITY = "within_capacity"
+    OVERCOMMITTED = "overcommitted"
+    UNRESOLVED = "unresolved"
+
+
+class AdmissionReason(StrEnum):
+    """Typed explanation for a non-admitted (or reused) decision."""
+
+    ADMITTED = "admitted"
+    REUSED = "reused"
+    INSUFFICIENT_SAFE_RAM = "insufficient_safe_ram"
+    INSUFFICIENT_SAFE_ACCELERATOR = "insufficient_safe_accelerator"
+    INSUFFICIENT_SAFE_UNIFIED = "insufficient_safe_unified"
+    SELECTED_ACCELERATOR_UNKNOWN = "incompatible_placement"
+    ARTIFACT_NOT_STORED = "artifact_not_stored"
+    LEDGER_OVERCOMMITTED = "ledger_overcommitted"
+    UNRESOLVED_SAFE_CAPACITY = "unresolved_safe_capacity"
+    UNRESOLVED_REQUIREMENT = "unresolved_requirement"
+    PLACEMENT_UNDETERMINED = "placement_undetermined"
+
+
+POLICY_VERSION = "1.5A.0"
 
 
 @contract(kind="resource.workload", version=1)
@@ -143,3 +184,196 @@ class ResourceReservation(Contract):
     released_at: dt.datetime | None = meaning(
         "when the grant ended; absent while it is still held", default=None
     )
+    request_id: RequestId | None = meaning(
+        "the admission request that produced this grant", default=None
+    )
+    artifact_id: ArtifactId | None = meaning(
+        "the stored model these resources are committed for", default=None
+    )
+    plan_fingerprint: Maybe[str] = meaning(
+        "identity of the plan assumptions at admission", default=NOT_PROVIDED
+    )
+    admitted_unified_bytes: Maybe[int] = meaning(
+        "unified memory granted; never a VRAM alias", default=NOT_PROVIDED
+    )
+    admitted_cpu: Maybe[int] = meaning(
+        "CPU commitment; unresolved and non-load-bearing in v0",
+        default=NOT_PROVIDED,
+    )
+    host_fingerprint: Maybe[str] = meaning(
+        "capacity envelope identity at admission", default=NOT_PROVIDED
+    )
+    capacity_policy_version: Maybe[str] = meaning(
+        "headroom policy in force when admitted", default=NOT_PROVIDED
+    )
+    admission_policy_version: Maybe[str] = meaning(
+        "admission arithmetic version", default=NOT_PROVIDED
+    )
+    safe_ram_at_admission: Maybe[int] = meaning(
+        "SAFE RAM observed when admitted", default=NOT_PROVIDED
+    )
+    safe_accelerator_at_admission: Maybe[int] = meaning(
+        "SAFE device memory on the selected accelerator when admitted",
+        default=NOT_PROVIDED,
+    )
+    reserved_ram_before: Maybe[int] = meaning(
+        "ACTIVE RAM already reserved before this grant", default=NOT_PROVIDED
+    )
+    reserved_accelerator_before: Maybe[int] = meaning(
+        "ACTIVE device memory already reserved on the selected accelerator",
+        default=NOT_PROVIDED,
+    )
+    available_ram_after: Maybe[int] = meaning(
+        "RAM remaining for new work after this grant; never negative",
+        default=NOT_PROVIDED,
+    )
+    available_accelerator_after: Maybe[int] = meaning(
+        "device memory remaining for new work after this grant; never negative",
+        default=NOT_PROVIDED,
+    )
+    release_reason: Maybe[str] = meaning(
+        "why the grant ended, when it has", default=NOT_PROVIDED
+    )
+    estimator_provider: Maybe[str] = meaning(
+        "estimator that produced the requirement", default=NOT_PROVIDED
+    )
+    logical_name: Maybe[str] = meaning(
+        "catalog name of the stored candidate", default=NOT_PROVIDED
+    )
+    quantization: Maybe[str] = meaning("variant reserved against", default=NOT_PROVIDED)
+    model_revision: Maybe[str] = meaning(
+        "artifact revision reserved against", default=NOT_PROVIDED
+    )
+
+
+@contract(kind="resource.request", version=1)
+@dataclass(frozen=True, slots=True)
+class ResourceRequest(Contract):
+    """One future workload's resource commitment. Not a ranking, not a launch.
+
+    Amounts are derived server-side from a stored artifact and a plan.
+    Unknown never becomes zero. Stored artifact disk is not requested again.
+    """
+
+    request_id: RequestId = meaning("idempotency identity of this admission")
+    host_id: HostId = meaning("the host whose SAFE capacity is considered")
+    artifact_id: ArtifactId = meaning("the STORED artifact this would serve")
+    model_id: ModelId = meaning("canonical model identity")
+    plan_fingerprint: str = meaning("assumptions that produced these amounts")
+    placement: MemoryPlacement = meaning("device strategy the plan selected")
+    ram_bytes: Maybe[int] = meaning("host memory requested; unknown is not zero")
+    accelerator_bytes: Maybe[int] = meaning(
+        "device memory on the selected accelerator; never a GPU sum"
+    )
+    unified_bytes: Maybe[int] = meaning(
+        "unified memory when that is the placement; never fake VRAM"
+    )
+    logical_name: Maybe[str] = meaning("catalog name", default=NOT_PROVIDED)
+    runtime: Maybe[str] = meaning(
+        "proposed runtime, for provenance", default=NOT_PROVIDED
+    )
+    accelerator_index: int | None = meaning(
+        "assigned device for discrete GPU; none for CPU-only", default=None
+    )
+    cpu: Maybe[int] = meaning(
+        "CPU requirement; unresolved and non-load-bearing in v0",
+        default=NOT_PROVIDED,
+    )
+    incremental_storage_bytes: Maybe[int] = meaning(
+        "future scratch/cache only; never the already-stored artifact size",
+        default=NOT_PROVIDED,
+    )
+    port_count: Maybe[int] = meaning(
+        "future endpoint/port seam; unused in v0", default=NOT_PROVIDED
+    )
+    estimator_provider: Maybe[str] = meaning(
+        "estimator that produced the requirement", default=NOT_PROVIDED
+    )
+    plan_version: Maybe[str] = meaning(
+        "selection/plan policy version", default=NOT_PROVIDED
+    )
+    model_revision: Maybe[str] = meaning("artifact revision", default=NOT_PROVIDED)
+    quantization: Maybe[str] = meaning("variant", default=NOT_PROVIDED)
+    context_tokens: Maybe[int] = meaning(
+        "context the estimate assumed", default=NOT_PROVIDED
+    )
+    capacity_policy_version: Maybe[str] = meaning(
+        "headroom policy of the envelope", default=NOT_PROVIDED
+    )
+    host_fingerprint: Maybe[str] = meaning(
+        "envelope identity at request time", default=NOT_PROVIDED
+    )
+    workload_type: WorkloadType = meaning(
+        "generic job type; inference is the v0 case", default=WorkloadType.INFERENCE
+    )
+
+
+@contract(kind="resource.admission_decision", version=1)
+@dataclass(frozen=True, slots=True)
+class AdmissionDecision(Contract):
+    """Explainable admit / reject / unresolved. Not a boolean."""
+
+    verdict: AdmissionVerdict = meaning("whether the request may consume resources now")
+    request_id: RequestId = meaning("the request this decides")
+    host_id: HostId = meaning("the host the decision is for")
+    ledger_health: LedgerHealth = meaning("ACTIVE reservations versus current SAFE")
+    reasons: tuple[str, ...] = meaning("human-readable explanation")
+    reason_code: Maybe[str] = meaning("typed reason", default=NOT_PROVIDED)
+    reservation: ResourceReservation | None = meaning(
+        "the grant, when admitted", default=None
+    )
+    reused: bool = meaning(
+        "true when an existing ACTIVE grant was returned", default=False
+    )
+    serving: bool = meaning(
+        "always false in 1.5A; a reservation is not a running instance",
+        default=False,
+    )
+
+
+@contract(kind="resource.device_summary", version=1)
+@dataclass(frozen=True, slots=True)
+class DeviceResourceSummary(Contract):
+    """SAFE / RESERVED / AVAILABLE for one accelerator. Never a GPU sum."""
+
+    index: int = meaning("which assigned accelerator")
+    safe_bytes: Maybe[int] = meaning("current SAFE device memory")
+    reserved_bytes: int = meaning("sum of ACTIVE grants on this device")
+    available_bytes: Maybe[int] = meaning(
+        "SAFE minus reserved, or 0 when overcommitted; never negative"
+    )
+
+
+@contract(kind="resource.summary", version=1)
+@dataclass(frozen=True, slots=True)
+class ResourceSummary(Contract):
+    """Current ledger. Available is recomputed; it is never stored as truth."""
+
+    host_id: HostId = meaning("which host this describes")
+    host_fingerprint: str = meaning("current envelope identity")
+    health: LedgerHealth = meaning("whether ACTIVE grants fit current SAFE")
+    policy_version: str = meaning("admission arithmetic version")
+    capacity_policy_version: str = meaning("headroom policy of the envelope")
+    safe_ram_bytes: Maybe[int] = meaning("current SAFE system memory")
+    reserved_ram_bytes: int = meaning("sum of ACTIVE RAM grants")
+    available_ram_bytes: Maybe[int] = meaning(
+        "SAFE RAM minus reserved, or 0 when overcommitted; never negative"
+    )
+    accelerators: tuple[DeviceResourceSummary, ...] = meaning(
+        "per-device accelerator ledger", default=()
+    )
+    safe_unified_bytes: Maybe[int] = meaning(
+        "current SAFE unified memory", default=NOT_PROVIDED
+    )
+    reserved_unified_bytes: int = meaning(
+        "sum of ACTIVE unified grants", default=0
+    )
+    available_unified_bytes: Maybe[int] = meaning(
+        "SAFE unified minus reserved, or 0 when overcommitted", default=NOT_PROVIDED
+    )
+    reserved_incremental_storage_bytes: int = meaning(
+        "ACTIVE incremental storage only; not stored artifact bytes", default=0
+    )
+    active_count: int = meaning("ACTIVE reservations", default=0)
+    serving: bool = meaning("always false; reserved is not running", default=False)
+    running_instances: int = meaning("always 0 in 1.5A", default=0)

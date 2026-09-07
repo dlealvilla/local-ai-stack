@@ -850,10 +850,17 @@ configuration). Different models may also run at the same time when
 hardware permits — including a general model, a coding model, an
 embedding model, and other compatible services.
 
-A `ResourceReservation` belongs to an inference or workload instance,
-not globally to a model artifact. Stopping or unloading an instance
-releases runtime RAM, VRAM, process, endpoint and the reservation; the
-stored artifact remains until a separate delete operation.
+A `ResourceReservation` is a control-plane commitment: Kultrun has
+admitted a defined share of SAFE capacity to a future workload. It is
+not physical allocation. It does not prove RAM or VRAM has been granted
+by the OS, that a GPU context exists, that a process is running, or that
+a model is loaded.
+
+A reservation belongs to a future inference or workload instance, not
+globally to a model artifact. Several reservations may reference one
+stored artifact. Stopping or unloading an instance later releases
+runtime RAM, VRAM, process, endpoint and the reservation; the stored
+artifact remains until a separate delete operation.
 
 There is no long-term global `selected = true`. Selection produces a
 `SelectionRecommendation`: a primary recommendation, alternatives,
