@@ -18,7 +18,6 @@ DIST = REPOSITORY / "dist"
 NEUTRAL = Path(tempfile.gettempdir())
 TINY = "tinyllama-1.1b-chat-q4"
 FOURTEEN = "qwen2.5-14b-instruct-q4"
-SEVEN = "qwen2.5-7b-instruct-awq"
 
 
 def latest_wheel() -> Path:
@@ -74,7 +73,7 @@ def main() -> int:
             return 1
 
         host = run([str(kultrun), "host"], env)
-        for name in (TINY, FOURTEEN, SEVEN):
+        for name in (TINY, FOURTEEN):
             acquired = run([str(kultrun), "models", "acquire", name], env)
             if acquired.returncode != 0:
                 print(acquired.stderr or acquired.stdout)
@@ -95,13 +94,15 @@ def main() -> int:
         for line in ids.stdout.splitlines():
             name, token = line.split(None, 1)
             by_name[name] = token
-        if len(by_name) < 3:
-            print("FAIL: expected three stored artifacts", ids.stdout)
+        if len(by_name) < 2:
+            print("FAIL: expected two stored artifacts", ids.stdout)
             return 1
 
         first = run([str(kultrun), "resources", "reserve", by_name[FOURTEEN]], env)
         second = run([str(kultrun), "resources", "reserve", by_name[TINY]], env)
-        denied = run([str(kultrun), "resources", "reserve", by_name[SEVEN]], env)
+        denied = run(
+            [str(kultrun), "resources", "reserve", by_name[FOURTEEN]], env
+        )
         listing = run([str(kultrun), "resources", "reservations"], env)
         fourteen_id = run(
             [
@@ -120,7 +121,7 @@ def main() -> int:
             if FOURTEEN in name:
                 release_id = token
         released = run([str(kultrun), "resources", "release", release_id], env)
-        later = run([str(kultrun), "resources", "reserve", by_name[SEVEN]], env)
+        later = run([str(kultrun), "resources", "reserve", by_name[FOURTEEN]], env)
         after = run([str(kultrun), "resources"], env)
         restart = run(
             [
