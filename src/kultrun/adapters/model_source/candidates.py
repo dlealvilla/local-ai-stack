@@ -124,6 +124,51 @@ def packaged_candidates() -> tuple[ModelCatalogEntry, ...]:
     return _CANDIDATES
 
 
+ACCEPTANCE_LOGICAL = "kultrun-hf-acceptance-tiny"
+ACCEPTANCE_SOURCE_REF = "hf-internal-testing/tiny-random-gpt2"
+
+
+def acceptance_candidate() -> ModelCatalogEntry:
+    """Bounded public Hub target for acquisition proof. Not a recommendation."""
+    model_id = _id(ACCEPTANCE_LOGICAL)
+    return ModelCatalogEntry(
+        metadata=ModelMetadata(
+            model_id=model_id,
+            logical_name=Name(ACCEPTANCE_LOGICAL),
+            source=IDENTITY,
+            source_ref=ACCEPTANCE_SOURCE_REF,
+            source_revision=NOT_PROVIDED,
+            family="gpt2",
+            parameter_count=1_000,
+            context_length_tokens=32,
+            quantization="fp32",
+            license_id="apache-2.0",
+            commercial_use_restricted=False,
+            architecture="gpt2",
+            display_name="Kultrun HF acceptance (tiny)",
+            supported_runtimes=(),
+        ),
+        requirement=ModelRequirement(
+            model_id=model_id,
+            confidence=Confidence.LOW,
+            storage_bytes=2_000_000,
+            peak_additional_bytes=4_000_000,
+            vram_weights_bytes=NOT_PROVIDED,
+            vram_kv_bytes_per_token=NOT_PROVIDED,
+            vram_overhead_bytes=NOT_PROVIDED,
+            ram_bytes=NOT_PROVIDED,
+            estimated_vram_bytes=NOT_PROVIDED,
+            assumed_context_tokens=32,
+            supported_runtimes=(),
+            estimation_method="acceptance_fixture",
+            estimator_provider=PROVIDER,
+            estimator_version=PROVIDER_VERSION,
+            assumptions=("bounded acceptance target", "not a production model"),
+            measured=False,
+        ),
+    )
+
+
 # Original six first (1.4A fixtures). Numbers must not drift.
 _CANDIDATES: tuple[ModelCatalogEntry, ...] = (
     _entry(
