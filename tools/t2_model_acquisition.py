@@ -83,8 +83,12 @@ def main() -> int:
         catalog = run([str(kultrun), "models"], env)
         recommend = run([str(kultrun), "models", "recommend"], env)
         empty = run([str(kultrun), "models", "inventory"], env)
-        first = run([str(kultrun), "models", "acquire", ACCEPTANCE], env)
-        second = run([str(kultrun), "models", "acquire", TINYLLAMA], env)
+        first = run(
+            [str(kultrun), "models", "acquire", "--store-only", ACCEPTANCE], env
+        )
+        second = run(
+            [str(kultrun), "models", "acquire", "--store-only", TINYLLAMA], env
+        )
         two = run([str(kultrun), "models", "inventory"], env)
         if any(
             item.returncode != 0
@@ -136,7 +140,9 @@ def main() -> int:
             return 1
 
         env["KULTRUN_MODEL_ACQUISITION_PROVIDER"] = "huggingface"
-        hf = run([str(kultrun), "models", "acquire", ACCEPTANCE], env)
+        hf = run(
+            [str(kultrun), "models", "acquire", "--store-only", ACCEPTANCE], env
+        )
         if hf.returncode != 0:
             print(hf.stdout)
             print(hf.stderr)

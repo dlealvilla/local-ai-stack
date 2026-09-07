@@ -161,6 +161,7 @@ def _request(
         accelerator_bytes=vram,
         unified_bytes=NOT_PROVIDED,
         logical_name=artifact.logical_name,
+        runtime="reference-serving",
         accelerator_index=0,
         incremental_storage_bytes=NOT_PROVIDED,
         workload_type=WorkloadType.INFERENCE,
@@ -597,15 +598,31 @@ class TestSurfaces:
         monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
         monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
         monkeypatch.setenv("KULTRUN_MODEL_ACQUISITION_PROVIDER", "fixture")
-        assert main(["models", "acquire", "tinyllama-1.1b-chat-q4"]) == 0
+        assert (
+            main(["models", "acquire", "--store-only", "tinyllama-1.1b-chat-q4"])
+            == 0
+        )
         platform = _platform(tmp_path)
-        artifact = platform.inventory.artifacts()[0]
+        from kultrun.runtime.contracts import RuntimePolicy
+
+        profile = platform.runtime_setup.provision_and_verify(
+            platform.hosts.current,
+            RuntimePolicy(allow_fixture_runtime=True, requested_runtime="fixture-vllm"),
+        )
+        result = platform.deployment.recommend(platform.hosts.current, {})
+        plan = result["plan"]
+        assert plan is not None
+        assert plan.runtime_profile_id == profile.profile_id.value
+        receipt = platform.deployment.acquire_normal(
+            str(plan.plan_id), platform.hosts.current, {}
+        )
         reserved = _call(
             platform,
             "/resources/reservations",
             method=Method.POST,
-            query={"artifact_id": artifact.artifact_id.value},
+            query={"plan_id": str(plan.plan_id)},
         )
+        del receipt
         assert reserved.status == 200
         reservation = _obj(_obj(reserved.body["payload"])["reservation"])
         reservation_id = str(reservation["reservation_id"])

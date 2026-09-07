@@ -774,11 +774,11 @@ cannot see it.
 
 | | |
 |---|---|
-| **Owns** | `DeploymentCapacity` — the SAFE slice of the current envelope relevant to a proposed placement, never a universal server score. `CapacityUtilization` — max of required/safe across applicable deployment-limiting **memory** resources; storage is excluded. `SelectionPolicy` — configurable preferred-band bounds (v0 defaults 0.20–1.00), never architecture constants. `FeasibilityResult` — compatibility verdicts (`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`) plus capacity-fit class (`PREFERRED`, `UNDERUTILIZED`, `EXCEEDS_SAFE`) with per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, reasons and evidence references. Underutilized is not unsupported. `DeploymentPlan`. `SelectionRecommendation` (primary, preferred alternatives, underutilized alternatives, rejected candidates, rationale, policy version). Selection, with recorded rejection reasons. `NO_PREFERRED_CANDIDATE` and `NO_FEASIBLE_CANDIDATE` are explicit outcomes. |
+| **Owns** | `DeploymentCapacity` — the SAFE slice of the current envelope relevant to a proposed placement, never a universal server score. `CapacityUtilization` — max of required/safe across applicable deployment-limiting **memory** resources; storage is excluded. `SelectionPolicy` — configurable preferred-band bounds (v0 defaults 0.20–1.00), never architecture constants. `FeasibilityResult` — compatibility verdicts (`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`) plus capacity-fit class (`PREFERRED`, `UNDERUTILIZED`, `EXCEEDS_SAFE`) with per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, reasons and evidence references. Underutilized is not unsupported. `RuntimeCapabilitySnapshot`, `RuntimeEligibleModelCandidate`, `FeasibleModelCandidate`, `SelectedDeploymentCandidate`. `DeploymentPlan`. `SelectionRecommendation` (primary, preferred alternatives, underutilized alternatives, rejected candidates, rationale, policy version). `RUNTIME_NOT_VERIFIED` when no VERIFIED profile exists. Selection, with recorded rejection reasons. `NO_PREFERRED_CANDIDATE` and `NO_FEASIBLE_CANDIDATE` are explicit outcomes. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` · `components` · `capacity` · `model` |
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
-| **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. Import a concrete estimator adapter, import `EstimatorRouter`, or branch on provider id. Average, min/max, or otherwise reconcile multiple estimators. Expose dual estimates. Fallback to another estimator because a valid estimate is over-capacity, underutilized, or low-ranked. |
+| **Must not** | Import `resource`. Import `runtime`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. Import a concrete estimator adapter, import `EstimatorRouter`, or branch on provider id. Average, min/max, or otherwise reconcile multiple estimators. Expose dual estimates. Fallback to another estimator because a valid estimate is over-capacity, underutilized, or low-ranked. |
 | **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection |
 
 Feasibility must be computable for candidates that are not yet acquired.
@@ -879,17 +879,18 @@ capacity contract.
 
 | | |
 |---|---|
-| **Owns** | `RuntimeProfile`, `RuntimeLaunchSpec`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. |
-| **Consumes** | `kernel` |
-| **Ports** | `InferenceRuntime` |
-| **Must not** | Import `execution`. Import `capacity`. Own capacity policy. Let a runtime-specific option reach a core signature. |
-| **Created** | 1.3 · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
+| **Owns** | `RuntimeProfile`, `RuntimeLaunchSpec`, `RuntimeCandidate`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, verification fingerprint, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. |
+| **Consumes** | `kernel` · `host.contracts` |
+| **Ports** | `InferenceRuntime` · `RuntimeProvisioner` · `RuntimeVerifier` |
+| **Must not** | Import `execution`. Import `capacity`. Import `model` or `planning`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat installed as verified. |
+| **Created** | 1.3 · **Deepened** 1.6 runtime-first capability profiles · 4.3 concurrency binding, 13.4 adapter serving |
 
-Later deepening may read `host` and `model` contracts. It must never read
-`capacity` or `execution`. Stage 4.3 exists because the previous attempt
-held a platform-level concurrency number that was never mapped to the
-runtime's own control. The mapping belongs here, inside the adapter's
-translation layer, and nowhere else.
+Runtime may read `host.contracts` to generate candidates and verification
+fingerprints. It must never read `capacity`, `execution`, `model` or
+`planning`. Stage 4.3 exists because the previous attempt held a
+platform-level concurrency number that was never mapped to the runtime's
+own control. The mapping belongs here, inside the adapter's translation
+layer, and nowhere else.
 
 ## TIER 6 — Serving and the record of it
 
@@ -1208,7 +1209,7 @@ release: rejected while STARTING / RUNNING / STOPPING / UNKNOWN
 ModelSource (identity/metadata only)
   ≠ ModelRequirementEstimator
   ≠ Planning / SelectionRecommendation
-  → ModelAcquisitionRequest (known candidate; no caller path)
+  → ModelAcquisitionRequest (STORE_ONLY candidate, or NORMAL via DeploymentPlan)
   → SAFE storage preflight (not ResourceReservation)
   → ModelAcquisitionProvider.pin_revision + fetch into staging
   → verify required files / revision / manifest

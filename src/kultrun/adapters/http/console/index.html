@@ -75,12 +75,26 @@
       <div id="sanity"></div>
     </section>
 
+    <section id="runtime-setup-panel" class="hidden">
+      <h2>Runtime setup</h2>
+      <p class="note">
+        Host-driven runtime candidates, provisioning and verification.
+        Executable model recommendation stays blocked until a runtime is
+        VERIFIED. This panel displays platform answers; it does not choose
+        a model.
+      </p>
+      <div class="grid" id="runtime-setup-summary"></div>
+      <div id="runtime-setup"></div>
+      <details><summary>View JSON</summary><pre id="runtime-setup-json"></pre></details>
+    </section>
+
     <section id="catalog-panel" class="hidden">
       <h2>Model catalog</h2>
       <p class="note">
-        Normalized candidates from the configured source. This panel does
-        not recommend, rank or download. Fit against this host is the
-        Model Selection panel.
+        Source-neutral catalog. This panel does not recommend, rank or download
+        for execution. Store Only warehouses an artifact without
+        requiring a verified runtime. Executable recommendation is the
+        Model Selection panel and needs a VERIFIED runtime.
       </p>
       <div class="grid" id="catalog-summary"></div>
       <div id="catalog"></div>
@@ -90,9 +104,9 @@
     <section id="selection-panel" class="hidden">
       <h2>Model selection</h2>
       <p class="note">
-        One active estimator, SAFE capacity, and the preferred-band
-        recommendation. This panel does not compare estimators, download
-        a model, or reserve resources.
+        Models this verified runtime can run, then capacity fit.
+        Blocked until a RuntimeCapabilityProfile is VERIFIED.
+        Acquire here uses the DeploymentPlan, not a catalog id.
       </p>
       <div class="grid" id="selection-summary"></div>
       <div id="selection"></div>

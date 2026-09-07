@@ -443,7 +443,7 @@ class TestApiCliConsole:
             platform,
             "/models/acquire",
             method=Method.POST,
-            query={"candidate": ACCEPTANCE_LOGICAL},
+            query={"candidate": ACCEPTANCE_LOGICAL, "mode": "store_only"},
         )
         assert acquired.status == 200
         receipt = acquired.body["payload"]
@@ -454,7 +454,7 @@ class TestApiCliConsole:
             platform,
             "/models/acquire",
             method=Method.POST,
-            query={"candidate": "tinyllama-1.1b-chat-q4"},
+            query={"candidate": "tinyllama-1.1b-chat-q4", "mode": "store_only"},
         )
         assert second.status == 200
         listing = _call(platform, "/models/inventory").body["payload"]
@@ -486,8 +486,11 @@ class TestApiCliConsole:
         monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
         assert main(["models", "inventory"]) == 0
         assert "empty inventory" in capsys.readouterr().out
-        assert main(["models", "acquire", ACCEPTANCE_LOGICAL]) == 0
-        assert main(["models", "acquire", "tinyllama-1.1b-chat-q4"]) == 0
+        assert main(["models", "acquire", "--store-only", ACCEPTANCE_LOGICAL]) == 0
+        assert (
+            main(["models", "acquire", "--store-only", "tinyllama-1.1b-chat-q4"])
+            == 0
+        )
         assert main(["models", "inventory"]) == 0
         printed = capsys.readouterr().out
         assert "serving no" in printed

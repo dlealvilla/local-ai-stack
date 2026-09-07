@@ -99,6 +99,10 @@ FORBIDDEN_EDGES: frozenset[tuple[str, str]] = frozenset(
         # Intelligence produces evidence and recommendations; making it
         # unable to reach the authorizer makes "never authorizes" structural.
         ("intelligence", "resource"),
+        # Runtime capability is not model selection or capacity.
+        ("runtime", "planning"),
+        ("runtime", "model"),
+        ("planning", "runtime"),
         # Training infrastructure stays separate from inference
         # infrastructure (Part IV `training`; PRODUCT_VISION §74).
         ("training", "inference"),
@@ -174,6 +178,7 @@ NARROW_EDGES: Mapping[tuple[str, str], str] = {
     # Execution needs to know whether a container engine exists — that fact
     # is on HostCapabilities — without acquiring the ability to go and look.
     ("execution", "host"): "contracts",
+    ("runtime", "host"): "contracts",
 }
 
 #: Part II §5. `contracts` may import only the kernel and lower contracts.
@@ -197,6 +202,10 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "resource.summary",
         "inference.instance",
         "execution.handle",
+        "runtime.candidate",
+        "runtime.provisioning_plan",
+        "runtime.installation",
+        "runtime.capability_profile",
     }
 )
 

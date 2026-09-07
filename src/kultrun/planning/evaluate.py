@@ -16,6 +16,7 @@ from kultrun.kernel.unresolved import (
 )
 from kultrun.model.contracts import MemoryPlacement, ModelMetadata, ModelRequirement
 from kultrun.planning.contracts import (
+    CapacityCommitments,
     CapacityFitClass,
     CapacityUtilization,
     CompatibilityVerdict,
@@ -38,12 +39,26 @@ _QUANT_RANK = {
 }
 
 
-def deployment_capacity(envelope: CapacityEnvelope) -> DeploymentCapacity:
+def _remaining(safe: object, reserved: int) -> object:
+    if not is_resolved(safe) or not isinstance(safe, int):
+        return safe
+    leftover = safe - reserved
+    return leftover if leftover > 0 else 0
+
+
+def deployment_capacity(
+    envelope: CapacityEnvelope,
+    commitments: CapacityCommitments | None = None,
+) -> DeploymentCapacity:
     """SAFE slice for v0: first assigned GPU, else CPU-only.
 
     Unified memory is a seam: Stage 1.2 does not assert a GPU budget on
     unified hosts, so this does not invent one.
+
+    ``commitments`` are ACTIVE reservation bytes supplied by composition.
+    Planning never imports ResourceManager.
     """
+    held = commitments or CapacityCommitments()
     gpu = next(
         (
             accelerator
@@ -66,8 +81,10 @@ def deployment_capacity(envelope: CapacityEnvelope) -> DeploymentCapacity:
             host_fingerprint=envelope.host_fingerprint,
             placement=MemoryPlacement.DISCRETE_GPU,
             accelerator_index=gpu.index,
-            safe_ram_bytes=envelope.memory.safe_bytes,
-            safe_vram_bytes=gpu.memory.safe_bytes,
+            safe_ram_bytes=_remaining(
+                envelope.memory.safe_bytes, held.reserved_ram_bytes
+            ),
+            safe_vram_bytes=_remaining(gpu.memory.safe_bytes, held.reserved_vram_bytes),
             safe_unified_bytes=NOT_PROVIDED,
             safe_storage_bytes=storage,
             envelope_policy_version=envelope.policy_version,
@@ -77,7 +94,9 @@ def deployment_capacity(envelope: CapacityEnvelope) -> DeploymentCapacity:
         host_fingerprint=envelope.host_fingerprint,
         placement=MemoryPlacement.CPU_ONLY,
         accelerator_index=None,
-        safe_ram_bytes=envelope.memory.safe_bytes,
+        safe_ram_bytes=_remaining(
+            envelope.memory.safe_bytes, held.reserved_ram_bytes
+        ),
         safe_vram_bytes=NOT_PROVIDED,
         safe_unified_bytes=NOT_PROVIDED,
         safe_storage_bytes=storage,
@@ -91,6 +110,9 @@ def _ratio(required: object, safe: object) -> Maybe[float]:
     if not isinstance(required, int) or not isinstance(safe, int):
         return NOT_PROVIDED
     if safe <= 0:
+        if isinstance(required, int) and required > 0:
+            # Zero remaining SAFE is a known exhaustion, not an unknown.
+            return 2.0
         return Unresolved(
             UnresolvedReason.UNSUPPORTED,
             "safe capacity is not a positive quantity",

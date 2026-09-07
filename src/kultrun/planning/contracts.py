@@ -14,10 +14,16 @@ from enum import StrEnum
 from kultrun.capacity.contracts import CapacityEnvelope
 from kultrun.evidence.contracts import Confidence
 from kultrun.host.contracts import HostId
-from kultrun.kernel.ids import Name
+from kultrun.kernel.ids import EntityId, Name
 from kultrun.kernel.schema import Contract, contract, meaning
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
 from kultrun.model.contracts import MemoryPlacement, ModelId
+
+
+class PlanId(EntityId):
+    """Identifies one persisted DeploymentPlan."""
+
+    prefix = "dplan"
 
 
 class CompatibilityVerdict(StrEnum):
@@ -44,6 +50,15 @@ class SelectionOutcome(StrEnum):
     RECOMMENDED = "recommended"
     NO_PREFERRED_CANDIDATE = "no_preferred_candidate"
     NO_FEASIBLE_CANDIDATE = "no_feasible_candidate"
+    UNRESOLVED = "unresolved"
+    RUNTIME_NOT_VERIFIED = "runtime_not_verified"
+
+
+class EligibilityVerdict(StrEnum):
+    """Whether a verified runtime can plausibly serve this model."""
+
+    ELIGIBLE = "eligible"
+    INELIGIBLE = "ineligible"
     UNRESOLVED = "unresolved"
 
 
@@ -235,7 +250,7 @@ class DeploymentPlan(Contract):
     logical_name: Name = meaning("catalog name")
     source_ref: str = meaning("upstream identity")
     quantization: Maybe[str] = meaning("selected variant")
-    runtime: Maybe[str] = meaning("proposed runtime")
+    runtime: Maybe[str] = meaning("proposed runtime family")
     executor_kind: Maybe[str] = meaning("proposed executor")
     placement: MemoryPlacement = meaning("proposed device strategy")
     expected_ram_bytes: Maybe[int] = meaning("estimator RAM")
@@ -253,8 +268,140 @@ class DeploymentPlan(Contract):
     fallback_reason: Maybe[str] = meaning(
         "typed primary failure that caused fallback", default=NOT_PROVIDED
     )
+    plan_id: Maybe[str] = meaning(
+        "minted plan identity when this plan has been persisted",
+        default=NOT_PROVIDED,
+    )
+    runtime_profile_id: Maybe[str] = meaning(
+        "RuntimeCapabilityProfile this plan assumes", default=NOT_PROVIDED
+    )
+    runtime_installation_id: Maybe[str] = meaning(
+        "installation the profile was produced from", default=NOT_PROVIDED
+    )
+    runtime_version: Maybe[str] = meaning(
+        "exact runtime version assumed", default=NOT_PROVIDED
+    )
+    runtime_provider: Maybe[str] = meaning(
+        "adapter identity that will launch", default=NOT_PROVIDED
+    )
+    host_id: Maybe[str] = meaning("target host", default=NOT_PROVIDED)
+    host_fingerprint: Maybe[str] = meaning(
+        "host identity at planning time", default=NOT_PROVIDED
+    )
+    context_tokens: Maybe[int] = meaning(
+        "context the estimate assumed", default=NOT_PROVIDED
+    )
+    runtime_concurrency: Maybe[int] = meaning(
+        "planned runtime max sequences", default=NOT_PROVIDED
+    )
+    eligibility_verdict: Maybe[str] = meaning(
+        "runtime eligibility at plan time", default=NOT_PROVIDED
+    )
+    capacity_fit: Maybe[str] = meaning(
+        "capacity class at plan time", default=NOT_PROVIDED
+    )
+    plan_fingerprint: Maybe[str] = meaning(
+        "identity of load-bearing plan assumptions", default=NOT_PROVIDED
+    )
+
+
+@contract(kind="planning.capacity_commitments", version=1)
+@dataclass(frozen=True, slots=True)
+class CapacityCommitments(Contract):
+    """ACTIVE reservation bytes. Platform copies numbers; not ResourceManager."""
+
+    reserved_ram_bytes: int = meaning("sum of ACTIVE RAM grants", default=0)
+    reserved_vram_bytes: int = meaning(
+        "sum of ACTIVE device-memory grants on the proposed accelerator",
+        default=0,
+    )
+    reserved_unified_bytes: int = meaning(
+        "sum of ACTIVE unified grants", default=0
+    )
+
+
+@contract(kind="planning.runtime_capability_snapshot", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeCapabilitySnapshot(Contract):
+    """Planning-owned view of a RuntimeCapabilityProfile. No runtime import."""
+
+    profile_id: str = meaning("capability profile identity")
+    installation_id: str = meaning("installation identity")
+    runtime_provider: str = meaning("adapter identity")
+    runtime_family: str = meaning("family used for eligibility")
+    runtime_version: str = meaning("exact version")
+    executor_kind: str = meaning("executor")
+    host_id: str = meaning("host")
+    status: str = meaning("verification status")
+    support_tier: str = meaning("product, fixture, reference, or future")
+    verification_fingerprint: str = meaning("environment identity")
+    supported_architectures: tuple[str, ...] = meaning("claimed architectures")
+    supported_formats: tuple[str, ...] = meaning("claimed formats", default=())
+    supported_quantizations: tuple[str, ...] = meaning(
+        "claimed quantizations", default=()
+    )
+    supported_modalities: tuple[str, ...] = meaning("claimed modalities", default=())
+
+
+@contract(kind="planning.runtime_eligible_candidate", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeEligibleModelCandidate(Contract):
+    """Can this verified runtime plausibly serve this model? Not capacity."""
+
+    model_id: ModelId = meaning("candidate identity")
+    logical_name: Name = meaning("catalog name")
+    profile_id: str = meaning("capability snapshot used")
+    runtime_provider: str = meaning("adapter")
+    runtime_family: str = meaning("family")
+    runtime_version: str = meaning("version")
+    executor_kind: str = meaning("executor")
+    host_id: str = meaning("host")
+    architecture: Maybe[str] = meaning("model architecture")
+    artifact_format: Maybe[str] = meaning("inferred or stated format")
+    quantization: Maybe[str] = meaning("model quantization")
+    verdict: EligibilityVerdict = meaning("eligible, ineligible, or unresolved")
+    reasons: tuple[str, ...] = meaning("why")
+    confidence: Maybe[str] = meaning("how sure", default=NOT_PROVIDED)
+
+
+@contract(kind="planning.feasible_candidate", version=1)
+@dataclass(frozen=True, slots=True)
+class FeasibleModelCandidate(Contract):
+    """Runtime-eligible candidate after capacity assessment."""
+
+    eligibility: RuntimeEligibleModelCandidate = meaning("upstream eligibility")
+    evaluation: ModelEvaluation = meaning("capacity and compatibility evaluation")
+
+
+@contract(kind="planning.selected_deployment", version=1)
+@dataclass(frozen=True, slots=True)
+class SelectedDeploymentCandidate(Contract):
+    """Exact executable combination chosen for a DeploymentPlan."""
+
+    model_id: ModelId = meaning("selected model")
+    logical_name: Name = meaning("catalog name")
+    source_ref: str = meaning("upstream identity")
+    model_revision: Maybe[str] = meaning("revision when known")
+    runtime_profile_id: str = meaning("verified profile")
+    runtime_provider: str = meaning("launch adapter")
+    runtime_family: str = meaning("family")
+    runtime_version: str = meaning("exact version")
+    executor_kind: str = meaning("executor")
+    host_id: str = meaning("target host")
+    quantization: Maybe[str] = meaning("variant")
+    placement: MemoryPlacement = meaning("device strategy")
+    context_tokens: Maybe[int] = meaning("planned context")
+    runtime_concurrency: Maybe[int] = meaning("planned concurrency")
+    eligibility_verdict: str = meaning("runtime eligibility")
+    capacity_fit: str = meaning("capacity class")
+    expected_ram_bytes: Maybe[int] = meaning("estimator RAM")
+    expected_vram_bytes: Maybe[int] = meaning("estimator VRAM")
+    expected_storage_bytes: Maybe[int] = meaning("peak acquisition")
+    selection_reason: tuple[str, ...] = meaning("why this combination")
+    confidence: Maybe[str] = meaning("selection confidence", default=NOT_PROVIDED)
 
 
 def envelope_fingerprint(envelope: CapacityEnvelope) -> str:
     """Stable identity of the envelope a recommendation was computed against."""
     return envelope.host_fingerprint
+

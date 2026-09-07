@@ -1044,13 +1044,17 @@ reservations.
 
 **Output:** `InferenceInstance v1` (plural) + reference serving lifecycle · **Gate:** L1
 
-### Stage 1.6 — Real inference vertical
+### Stage 1.6 — Runtime-first architecture + real inference
 
-Selected stored model, admitted reservation, runtime, executor,
-InferenceInstance, endpoint, a real prompt, a real response. Prototype
-Console inference-test view.
+Host-driven runtime candidates, provision, verification and a
+`RuntimeCapabilityProfile` **before** executable-model selection.
+Eligibility is distinct from capacity. A persisted `DeploymentPlan`
+exists before NORMAL acquisition. `STORE_ONLY` remains an explicit
+warehouse path. Then reservation, InferenceInstance, and (Gate C) a
+real vLLM response.
 
-**Output:** healthy `InferenceEndpoint` serving a real request · **Gate:** L3
+**Output:** verified runtime-first funnel + healthy real inference · **Gate:** L3
+(Gate A+B remain OPEN / READY_FOR_T5 at L1; do not merge to `kultrun` before T5)
 
 ### Milestone 1 Hardware Breadth Review — after Stage 1.6, before broadening
 

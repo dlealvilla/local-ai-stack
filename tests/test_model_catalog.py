@@ -188,6 +188,12 @@ class TestSelectionSurface:
             }
         )
         platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
+        from kultrun.runtime.contracts import RuntimePolicy
+
+        platform.runtime_setup.provision_and_verify(
+            platform.hosts.current,
+            RuntimePolicy(allow_fixture_runtime=True, requested_runtime="fixture-vllm"),
+        )
         payload = _call(platform, "/models/selection")
         assert payload["estimator_provider"] == "kultrun"
         assert "kultrun_estimate" not in payload
@@ -217,6 +223,12 @@ class TestSelectionSurface:
             {"platform": {"state_root": str(tmp_path / "state")}}
         )
         platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
+        from kultrun.runtime.contracts import RuntimePolicy
+
+        platform.runtime_setup.provision_and_verify(
+            platform.hosts.current,
+            RuntimePolicy(allow_fixture_runtime=True, requested_runtime="fixture-vllm"),
+        )
         payload = _call(platform, "/models/selection")
         assert payload["estimator_mode"] == "auto"
         assert payload["estimator_provider"] == "llmfit"
@@ -235,6 +247,12 @@ class TestSelectionSurface:
             {"platform": {"state_root": str(tmp_path / "state")}}
         )
         platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
+        from kultrun.runtime.contracts import RuntimePolicy
+
+        platform.runtime_setup.provision_and_verify(
+            platform.hosts.current,
+            RuntimePolicy(allow_fixture_runtime=True, requested_runtime="fixture-vllm"),
+        )
         payload = _call(platform, "/models/selection")
         assert payload["estimator_mode"] == "auto"
         assert payload["estimator_provider"] == "kultrun"
@@ -254,6 +272,13 @@ class TestSelectionSurface:
         monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
         monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
         monkeypatch.setenv("KULTRUN_MODEL_REQUIREMENT_ESTIMATOR", "kultrun")
+        from kultrun.runtime.contracts import RuntimePolicy
+
+        platform = build()
+        platform.runtime_setup.provision_and_verify(
+            platform.hosts.current,
+            RuntimePolicy(allow_fixture_runtime=True, requested_runtime="fixture-vllm"),
+        )
         assert main(["models", "recommend"]) == 0
         printed = capsys.readouterr().out
         assert "mode kultrun" in printed
@@ -274,6 +299,13 @@ class TestSelectionSurface:
         monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
         monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
         monkeypatch.setenv("PATH", "/nonexistent")
+        from kultrun.runtime.contracts import RuntimePolicy
+
+        platform = build()
+        platform.runtime_setup.provision_and_verify(
+            platform.hosts.current,
+            RuntimePolicy(allow_fixture_runtime=True, requested_runtime="fixture-vllm"),
+        )
         assert main(["models", "recommend"]) == 0
         printed = capsys.readouterr().out
         assert "mode auto" in printed

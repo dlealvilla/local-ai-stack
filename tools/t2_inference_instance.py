@@ -75,7 +75,9 @@ def main() -> int:
             return 1
 
         for name in (TINY, FOURTEEN):
-            acquired = run([str(kultrun), "models", "acquire", name], env)
+            acquired = run(
+                [str(kultrun), "models", "acquire", "--store-only", name], env
+            )
             if acquired.returncode != 0:
                 print(acquired.stderr or acquired.stdout)
                 return 1
@@ -93,6 +95,7 @@ from kultrun.kernel.errors import ConflictError, PreconditionFailedError
 from kultrun.main import build, resolve_configuration
 from kultrun.resource.contracts import LedgerHealth, ReservationState
 
+from kultrun.runtime.contracts import RuntimePolicy
 p = build(resolve_configuration())
 arts = {str(a.logical_name): a for a in p.inventory.artifacts()}
 tiny, large = arts['tinyllama-1.1b-chat-q4'], arts['qwen2.5-14b-instruct-q4']
@@ -101,12 +104,22 @@ assert len(p.instances.list()) == 0
 
 host = p.hosts.current
 envl = p.capacity.compute(host, {})
-runtimes = p.runtimes.product_identities()
-d1 = p.admission.reserve(tiny.artifact_id, host, {}, runtimes)
-d2 = p.admission.reserve(large.artifact_id, host, {}, runtimes)
+profile = p.runtime_setup.provision_and_verify(
+    host, RuntimePolicy(allow_fixture_runtime=True, requested_runtime='fixture-vllm')
+)
+assert profile.status.value == 'verified'
+result = p.deployment.recommend(host, {})
+plan = result['plan']
+assert plan is not None
+p.deployment.acquire_normal(str(plan.plan_id), host, {})
+d1 = p.admission.reserve(str(plan.plan_id), host, {})
+d2 = p.admission.reserve(str(plan.plan_id), host, {})
 assert d1.reservation and d2.reservation
-a = p.instances.create(tiny, d1.reservation)
-b = p.instances.create(large, d2.reservation)
+planned = p.deployment.artifact_for_plan(plan)
+assert planned is not None
+a = p.instances.create(planned, d1.reservation)
+b = p.instances.create(planned, d2.reservation)
+del tiny, large
 health = p.resources.summary(envl).health
 ra = p.instances.start(a.instance_id, ledger_health=health)
 assert ra.observed_state is ObservedState.RUNNING

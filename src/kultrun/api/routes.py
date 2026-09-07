@@ -30,11 +30,12 @@ from kultrun.kernel.errors import (
 )
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import registered_contracts
-from kultrun.model.acquisition import AcquisitionService, request_from_entry
+from kultrun.kernel.unresolved import is_resolved
+from kultrun.model.acquisition import AcquisitionService
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import ArtifactId
 from kultrun.model.inventory import ModelInventory
-from kultrun.planning.service import SelectionService, plan_from
+from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
@@ -45,6 +46,7 @@ from kultrun.platform.state import PlatformStateStore
 from kultrun.resource.contracts import RequestId, ReservationId
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.catalogue import RuntimeCatalogue
+from kultrun.runtime.contracts import RuntimePolicy
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService, summarize
 
@@ -75,6 +77,8 @@ class ControlPlane:
     resources: ResourceManager
     admission: AdmissionService
     instances: InstanceService
+    runtime_setup: object
+    deployment: object
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -342,17 +346,14 @@ def register(router: Router, plane: ControlPlane) -> Router:
         }
 
     def models_selection(_: ApiRequest) -> dict[str, object]:
-        """Active-estimator selection. No dual estimates. No download."""
+        """Executable recommendation. Blocked without a VERIFIED runtime."""
         host = plane.hosts.current
-        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
-        recommendation = plane.selection.recommend(
-            envelope=envelope,
-            candidates=plane.models.entries(),
-            available_runtimes=plane.runtimes.product_identities(),
-        )
-        planned = plan_from(recommendation)
+        result = plane.deployment.recommend(host, plane.stored_sanity(host))
+        recommendation = result["recommendation"]
+        planned = result["plan"]
         return {
             "download": False,
+            "state": result["state"],
             "estimator_mode": recommendation.estimator_mode,
             "estimator_provider": recommendation.estimator_provider,
             "estimator_version": recommendation.estimator_version,
@@ -363,11 +364,20 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "outcome": recommendation.outcome.value,
             "recommendation": recommendation,
             "plan": planned,
+            "runtime_profile_id": result.get("runtime_profile_id"),
+            "runtime_provider": result.get("runtime_provider"),
+            "runtime_version": result.get("runtime_version"),
+            "eligibility": result.get("eligibility"),
         }
 
     def models_inventory(_: ApiRequest) -> dict[str, object]:
         """Plural stored artifacts. Stored is not running."""
         artifacts = list(plane.inventory.artifacts())
+        host = plane.hosts.current
+        runnable = {
+            item.artifact_id.value: plane.deployment.currently_runnable(item, host)
+            for item in artifacts
+        }
         extras = plane.models.extras()
         acceptance = None
         if extras:
@@ -383,6 +393,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "running": [],
             "inference_instances": [],
             "stored_implies_running": False,
+            "currently_runnable": runnable,
             "serving": False,
             "acceptance_target": acceptance,
             "provider": {
@@ -395,37 +406,43 @@ def register(router: Router, plane: ControlPlane) -> Router:
         }
 
     def acquire_model(request: ApiRequest) -> object:
-        """Acquire a known candidate. No arbitrary URL or destination path."""
+        """Acquire by plan (normal) or explicit store-only. Mode is mandatory."""
         _reject_arbitrary_destination(request)
-        candidate = (request.query.get("candidate") or "").strip()
-        recommended = (request.query.get("recommended") or "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-        if recommended and not candidate:
-            host = plane.hosts.current
-            envelope = plane.capacity.compute(host, plane.stored_sanity(host))
-            recommendation = plane.selection.recommend(
-                envelope=envelope,
-                candidates=plane.models.entries(),
-                available_runtimes=plane.runtimes.product_identities(),
+        mode = (request.query.get("mode") or "").strip()
+        if request.body:
+            raw_mode = request.body.get("mode")
+            if isinstance(raw_mode, str) and raw_mode.strip():
+                mode = raw_mode.strip()
+        if mode not in {"store_only", "normal_execution"}:
+            raise ValidationError(
+                "acquisition mode must be store_only or normal_execution",
+                parameter="mode",
             )
-            if recommendation.primary is None:
-                raise PreconditionFailedError("no recommended candidate to acquire")
-            candidate = recommendation.primary.logical_name.value
+        host = plane.hosts.current
+        sanity = plane.stored_sanity(host)
+        if mode == "normal_execution":
+            plan_id = (request.query.get("plan_id") or "").strip()
+            if request.body and not plan_id:
+                raw_plan = request.body.get("plan_id")
+                if isinstance(raw_plan, str):
+                    plan_id = raw_plan.strip()
+            if not plan_id:
+                raise ValidationError(
+                    "normal execution acquisition requires a deployment plan",
+                    parameter="plan_id",
+                )
+            return plane.deployment.acquire_normal(plan_id, host, sanity)
+        candidate = (request.query.get("candidate") or "").strip()
+        if request.body and not candidate:
+            raw_candidate = request.body.get("candidate")
+            if isinstance(raw_candidate, str):
+                candidate = raw_candidate.strip()
         if not candidate:
             raise ValidationError(
-                "a known candidate is required", parameter="candidate"
+                "store-only acquisition requires a known candidate",
+                parameter="candidate",
             )
-        entry = plane.models.acquirable(candidate)
-        if entry is None:
-            raise NotFoundError("no such candidate", candidate=candidate)
-        host = plane.hosts.current
-        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
-        return plane.acquisition.acquire(
-            request_from_entry(entry), envelope, host.host_id
-        )
+        return plane.deployment.acquire_store_only(candidate, host, sanity)
 
     def delete_artifact(request: ApiRequest) -> object:
         """Delete one stored artifact. Not stop or unload."""
@@ -456,9 +473,65 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/storage/sanity", storage_sanity)
     router.post("/storage/sanity-check", run_storage_sanity)
     router.get("/capacity/policy", capacity_policy)
+    def runtime_candidates(request: ApiRequest) -> object:
+        host = plane.hosts.current
+        requested = (request.query.get("runtime") or "").strip()
+        policy = RuntimePolicy(allow_fixture_runtime=plane.fixture_shape is not None)
+        if requested:
+            policy = RuntimePolicy(
+                allow_fixture_runtime=plane.fixture_shape is not None,
+                requested_runtime=requested,
+            )
+        return {
+            "candidates": list(plane.runtime_setup.candidates(host, policy)),
+            "model_required": False,
+        }
+
+    def list_runtime_evidence(_: ApiRequest) -> object:
+        host = plane.hosts.current
+        return {
+            "installations": list(plane.runtime_setup.evidence.installations()),
+            "profiles": list(plane.runtime_setup.profiles(host)),
+            "verified": list(plane.runtime_setup.verified(host)),
+        }
+
+    def provision_runtime(request: ApiRequest) -> object:
+        host = plane.hosts.current
+        requested = (request.query.get("runtime") or "").strip()
+        if request.body and not requested:
+            raw = request.body.get("runtime")
+            if isinstance(raw, str):
+                requested = raw.strip()
+        policy = RuntimePolicy(allow_fixture_runtime=plane.fixture_shape is not None)
+        if requested:
+            policy = RuntimePolicy(
+                allow_fixture_runtime=True,
+                requested_runtime=requested,
+            )
+        candidate = plane.runtime_setup.select(host, policy)
+        plan = plane.runtime_setup.plan_for(candidate)
+        return plane.runtime_setup.provision(plan)
+
+    def verify_runtime(request: ApiRequest) -> object:
+        host = plane.hosts.current
+        installation_id = (request.query.get("installation_id") or "").strip()
+        if request.body and not installation_id:
+            raw = request.body.get("installation_id")
+            if isinstance(raw, str):
+                installation_id = raw.strip()
+        if not installation_id:
+            raise ValidationError(
+                "an installation id is required", parameter="installation_id"
+            )
+        return plane.runtime_setup.verify(installation_id, host)
+
     router.get("/runtime", runtime)
     router.post("/runtime/execution", start_reference)
     router.post("/runtime/execution/stop", stop_execution)
+    router.get("/runtimes/candidates", runtime_candidates)
+    router.get("/runtimes", list_runtime_evidence)
+    router.post("/runtimes/provision", provision_runtime)
+    router.post("/runtimes/verify", verify_runtime)
     router.get("/models", models)
     router.get("/models/selection", models_selection)
 
@@ -512,19 +585,22 @@ def register(router: Router, plane: ControlPlane) -> Router:
         """Admit a STORED artifact. Client amounts are not authoritative."""
         _reject_arbitrary_destination(request)
         _reject_client_quantities(request)
-        raw = (request.query.get("artifact_id") or "").strip()
-        if not raw:
+        plan_id = (request.query.get("plan_id") or "").strip()
+        if request.body and not plan_id:
+            raw_plan = request.body.get("plan_id")
+            if isinstance(raw_plan, str):
+                plan_id = raw_plan.strip()
+        if not plan_id:
             raise ValidationError(
-                "a stored artifact id is required", parameter="artifact_id"
+                "a deployment plan id is required", parameter="plan_id"
             )
         token = (request.query.get("request_id") or "").strip()
         request_id = RequestId.parse(token) if token else None
         host = plane.hosts.current
         return plane.admission.reserve(
-            ArtifactId.parse(raw),
+            plan_id,
             host,
             plane.stored_sanity(host),
-            plane.runtimes.product_identities(),
             request_id=request_id,
         )
 
@@ -580,6 +656,17 @@ def register(router: Router, plane: ControlPlane) -> Router:
             raise ValidationError("serving_mode is not a product parameter")
         host = plane.hosts.current
         envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        instance = plane.instances.get(InstanceId.parse(raw))
+        if instance is None:
+            raise NotFoundError("no such instance", instance_id=raw)
+        if instance.reservation_id is not None:
+            reservation = plane.resources.get(instance.reservation_id)
+            if reservation is not None and reservation.request_id is not None:
+                asked = plane.resources.request(reservation.request_id)
+                if asked is not None and is_resolved(asked.runtime_profile_id):
+                    plane.runtime_setup.require_current_profile(
+                        str(asked.runtime_profile_id), host
+                    )
         return plane.instances.start(
             InstanceId.parse(raw),
             ledger_health=plane.resources.summary(envelope).health,

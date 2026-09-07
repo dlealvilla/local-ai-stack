@@ -2230,12 +2230,26 @@
         "optional": false,
         "type": "Name"
       },
+      "mode": {
+        "may_be_unresolved": false,
+        "meaning": "store_only warehouse path, or normal_execution which requires a plan",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
       "model_id": {
         "may_be_unresolved": false,
         "meaning": "canonical candidate identity",
         "nullable": false,
         "optional": false,
         "type": "ModelId"
+      },
+      "plan_id": {
+        "may_be_unresolved": true,
+        "meaning": "DeploymentPlan identity for normal_execution",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "pool_id": {
         "may_be_unresolved": false,
@@ -3080,6 +3094,32 @@
     },
     "python": "ModelRequirement"
   },
+  "planning.capacity_commitments@1": {
+    "fields": {
+      "reserved_ram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "sum of ACTIVE RAM grants",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "reserved_unified_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "sum of ACTIVE unified grants",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "reserved_vram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "sum of ACTIVE device-memory grants on the proposed accelerator",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      }
+    },
+    "python": "CapacityCommitments"
+  },
   "planning.capacity_utilization@1": {
     "fields": {
       "limiting_resource": {
@@ -3190,6 +3230,27 @@
   },
   "planning.deployment_plan@1": {
     "fields": {
+      "capacity_fit": {
+        "may_be_unresolved": true,
+        "meaning": "capacity class at plan time",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "context the estimate assumed",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "eligibility_verdict": {
+        "may_be_unresolved": true,
+        "meaning": "runtime eligibility at plan time",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "estimator_mode": {
         "may_be_unresolved": false,
         "meaning": "configured estimator mode",
@@ -3260,6 +3321,20 @@
         "optional": true,
         "type": "bool"
       },
+      "host_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "host identity at planning time",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": true,
+        "meaning": "target host",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "logical_name": {
         "may_be_unresolved": false,
         "meaning": "catalog name",
@@ -3280,6 +3355,20 @@
         "nullable": false,
         "optional": false,
         "type": "MemoryPlacement"
+      },
+      "plan_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "identity of load-bearing plan assumptions",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "plan_id": {
+        "may_be_unresolved": true,
+        "meaning": "minted plan identity when this plan has been persisted",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "policy_version": {
         "may_be_unresolved": false,
@@ -3304,9 +3393,44 @@
       },
       "runtime": {
         "may_be_unresolved": true,
-        "meaning": "proposed runtime",
+        "meaning": "proposed runtime family",
         "nullable": false,
         "optional": false,
+        "type": "str | Unresolved"
+      },
+      "runtime_concurrency": {
+        "may_be_unresolved": true,
+        "meaning": "planned runtime max sequences",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "runtime_installation_id": {
+        "may_be_unresolved": true,
+        "meaning": "installation the profile was produced from",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime_profile_id": {
+        "may_be_unresolved": true,
+        "meaning": "RuntimeCapabilityProfile this plan assumes",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": true,
+        "meaning": "adapter identity that will launch",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "exact runtime version assumed",
+        "nullable": false,
+        "optional": true,
         "type": "str | Unresolved"
       },
       "source_ref": {
@@ -3318,6 +3442,25 @@
       }
     },
     "python": "DeploymentPlan"
+  },
+  "planning.feasible_candidate@1": {
+    "fields": {
+      "eligibility": {
+        "may_be_unresolved": false,
+        "meaning": "upstream eligibility",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeEligibleModelCandidate"
+      },
+      "evaluation": {
+        "may_be_unresolved": false,
+        "meaning": "capacity and compatibility evaluation",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelEvaluation"
+      }
+    },
+    "python": "FeasibleModelCandidate"
   },
   "planning.model_evaluation@1": {
     "fields": {
@@ -3519,6 +3662,364 @@
       }
     },
     "python": "ModelEvaluation"
+  },
+  "planning.runtime_capability_snapshot@1": {
+    "fields": {
+      "executor_kind": {
+        "may_be_unresolved": false,
+        "meaning": "executor",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "installation_id": {
+        "may_be_unresolved": false,
+        "meaning": "installation identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "profile_id": {
+        "may_be_unresolved": false,
+        "meaning": "capability profile identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "family used for eligibility",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "adapter identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact version",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "verification status",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "support_tier": {
+        "may_be_unresolved": false,
+        "meaning": "product, fixture, reference, or future",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "supported_architectures": {
+        "may_be_unresolved": false,
+        "meaning": "claimed architectures",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "supported_formats": {
+        "may_be_unresolved": false,
+        "meaning": "claimed formats",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "supported_modalities": {
+        "may_be_unresolved": false,
+        "meaning": "claimed modalities",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "supported_quantizations": {
+        "may_be_unresolved": false,
+        "meaning": "claimed quantizations",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "verification_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "environment identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "RuntimeCapabilitySnapshot"
+  },
+  "planning.runtime_eligible_candidate@1": {
+    "fields": {
+      "architecture": {
+        "may_be_unresolved": true,
+        "meaning": "model architecture",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "artifact_format": {
+        "may_be_unresolved": true,
+        "meaning": "inferred or stated format",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "confidence": {
+        "may_be_unresolved": true,
+        "meaning": "how sure",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "executor_kind": {
+        "may_be_unresolved": false,
+        "meaning": "executor",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "catalog name",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "candidate identity",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "profile_id": {
+        "may_be_unresolved": false,
+        "meaning": "capability snapshot used",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "model quantization",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "reasons": {
+        "may_be_unresolved": false,
+        "meaning": "why",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "family",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "adapter",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "version",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "verdict": {
+        "may_be_unresolved": false,
+        "meaning": "eligible, ineligible, or unresolved",
+        "nullable": false,
+        "optional": false,
+        "type": "EligibilityVerdict"
+      }
+    },
+    "python": "RuntimeEligibleModelCandidate"
+  },
+  "planning.selected_deployment@1": {
+    "fields": {
+      "capacity_fit": {
+        "may_be_unresolved": false,
+        "meaning": "capacity class",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "confidence": {
+        "may_be_unresolved": true,
+        "meaning": "selection confidence",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "planned context",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "eligibility_verdict": {
+        "may_be_unresolved": false,
+        "meaning": "runtime eligibility",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "executor_kind": {
+        "may_be_unresolved": false,
+        "meaning": "executor",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "expected_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "estimator RAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "expected_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "peak acquisition",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "expected_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "estimator VRAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "target host",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "catalog name",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "selected model",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "model_revision": {
+        "may_be_unresolved": true,
+        "meaning": "revision when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "placement": {
+        "may_be_unresolved": false,
+        "meaning": "device strategy",
+        "nullable": false,
+        "optional": false,
+        "type": "MemoryPlacement"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "variant",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "runtime_concurrency": {
+        "may_be_unresolved": true,
+        "meaning": "planned concurrency",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "family",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_profile_id": {
+        "may_be_unresolved": false,
+        "meaning": "verified profile",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "launch adapter",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact version",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "selection_reason": {
+        "may_be_unresolved": false,
+        "meaning": "why this combination",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "source_ref": {
+        "may_be_unresolved": false,
+        "meaning": "upstream identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "SelectedDeploymentCandidate"
   },
   "planning.selection_policy@1": {
     "fields": {
@@ -4144,6 +4645,13 @@
         "optional": false,
         "type": "str"
       },
+      "plan_id": {
+        "may_be_unresolved": true,
+        "meaning": "DeploymentPlan this request was derived from",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "plan_version": {
         "may_be_unresolved": true,
         "meaning": "selection/plan policy version",
@@ -4182,6 +4690,13 @@
       "runtime": {
         "may_be_unresolved": true,
         "meaning": "proposed runtime, for provenance",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime_profile_id": {
+        "may_be_unresolved": true,
+        "meaning": "RuntimeCapabilityProfile assumed by the plan",
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
@@ -4662,6 +5177,413 @@
     },
     "python": "Result"
   },
+  "runtime.candidate@1": {
+    "fields": {
+      "candidate_id": {
+        "may_be_unresolved": false,
+        "meaning": "minted identity of this candidate",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeCandidateId"
+      },
+      "compatibility": {
+        "may_be_unresolved": false,
+        "meaning": "host/executor plausibility",
+        "nullable": false,
+        "optional": false,
+        "type": "CompatibilityClass"
+      },
+      "confidence": {
+        "may_be_unresolved": true,
+        "meaning": "how sure the resolver is",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "executor_kind": {
+        "may_be_unresolved": false,
+        "meaning": "intended executor, e.g. native-process",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this candidate was evaluated against",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "known_limitations": {
+        "may_be_unresolved": false,
+        "meaning": "honest limits, never invented performance",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "preference": {
+        "may_be_unresolved": false,
+        "meaning": "lower is preferred among compatible AUTO candidates",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "provisioning_available": {
+        "may_be_unresolved": false,
+        "meaning": "whether a provisioner is registered for this path",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "reason": {
+        "may_be_unresolved": false,
+        "meaning": "why this candidate has this compatibility",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "required_backend": {
+        "may_be_unresolved": true,
+        "meaning": "expected accelerator/backend, e.g. nvidia-cuda",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "required_components": {
+        "may_be_unresolved": false,
+        "meaning": "components a provisioner would install",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "platform family, e.g. vllm; eligibility key",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "adapter identity, e.g. vllm or fixture-vllm",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "support_tier": {
+        "may_be_unresolved": false,
+        "meaning": "product, fixture, reference, or future",
+        "nullable": false,
+        "optional": false,
+        "type": "SupportTier"
+      }
+    },
+    "python": "RuntimeCandidate"
+  },
+  "runtime.capability_profile@1": {
+    "fields": {
+      "capability_schema_version": {
+        "may_be_unresolved": false,
+        "meaning": "version of the support-metadata table",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "evidence": {
+        "may_be_unresolved": false,
+        "meaning": "bounded verification evidence",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "executor_kind": {
+        "may_be_unresolved": false,
+        "meaning": "executor used during verification",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "failure_reason": {
+        "may_be_unresolved": true,
+        "meaning": "why verification failed or became stale",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "host identity the fingerprint includes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host the evidence belongs to",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "installation_id": {
+        "may_be_unresolved": false,
+        "meaning": "installation this evidence is of",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeInstallationId"
+      },
+      "known_limitations": {
+        "may_be_unresolved": false,
+        "meaning": "honest limits from verification or support metadata",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "lora_capability": {
+        "may_be_unresolved": true,
+        "meaning": "whether LoRA/adapters are claimed",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
+      "profile_id": {
+        "may_be_unresolved": false,
+        "meaning": "minted profile identity",
+        "nullable": false,
+        "optional": false,
+        "type": "CapabilityProfileId"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "platform family used for eligibility",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "adapter identity",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact runtime version verified",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "verified, failed, unverified, or stale",
+        "nullable": false,
+        "optional": false,
+        "type": "VerificationStatus"
+      },
+      "streaming_capability": {
+        "may_be_unresolved": true,
+        "meaning": "whether streaming is claimed",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
+      "support_tier": {
+        "may_be_unresolved": false,
+        "meaning": "whether this may authorize executable selection",
+        "nullable": false,
+        "optional": false,
+        "type": "SupportTier"
+      },
+      "supported_accelerator_types": {
+        "may_be_unresolved": false,
+        "meaning": "accelerator families, e.g. nvidia",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "supported_architectures": {
+        "may_be_unresolved": false,
+        "meaning": "architectures this runtime version claims; empty means unstated",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "supported_formats": {
+        "may_be_unresolved": false,
+        "meaning": "artifact formats; empty means unstated",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "supported_modalities": {
+        "may_be_unresolved": false,
+        "meaning": "modalities; empty means unstated",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "supported_quantizations": {
+        "may_be_unresolved": false,
+        "meaning": "quantizations; empty means unstated",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "tensor_parallel_capability": {
+        "may_be_unresolved": true,
+        "meaning": "whether tensor parallel is claimed",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
+      "usable_devices": {
+        "may_be_unresolved": false,
+        "meaning": "Kultrun accelerator indexes visible to the runtime",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[int, ...]"
+      },
+      "verification_confidence": {
+        "may_be_unresolved": true,
+        "meaning": "confidence of the operational proof",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "verification_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "identity of runtime/executor/accelerator/driver; not free capacity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "verification_method": {
+        "may_be_unresolved": false,
+        "meaning": "how operational proof was obtained",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "verified_accelerator_access": {
+        "may_be_unresolved": true,
+        "meaning": "operational proof that the expected accelerator is visible",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
+      "verified_at": {
+        "may_be_unresolved": true,
+        "meaning": "UTC timestamp of last verification",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "verified_engine_initialization": {
+        "may_be_unresolved": true,
+        "meaning": "operational proof that the engine initialized",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
+      "verified_readiness": {
+        "may_be_unresolved": true,
+        "meaning": "operational proof that readiness succeeded",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      }
+    },
+    "python": "RuntimeCapabilityProfile"
+  },
+  "runtime.installation@1": {
+    "fields": {
+      "executor_kind": {
+        "may_be_unresolved": false,
+        "meaning": "executor this installation is bound to",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "failure_reason": {
+        "may_be_unresolved": true,
+        "meaning": "typed install failure",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host the environment lives on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "installation_id": {
+        "may_be_unresolved": false,
+        "meaning": "minted installation identity",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeInstallationId"
+      },
+      "installed_at": {
+        "may_be_unresolved": true,
+        "meaning": "UTC timestamp when installation succeeded",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "location": {
+        "may_be_unresolved": true,
+        "meaning": "Kultrun-managed path",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "provenance": {
+        "may_be_unresolved": false,
+        "meaning": "how it was placed",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "provisioning_plan_id": {
+        "may_be_unresolved": true,
+        "meaning": "plan that produced this installation",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "platform family",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "adapter identity",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact installed version",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "whether the environment exists",
+        "nullable": false,
+        "optional": false,
+        "type": "InstallationStatus"
+      }
+    },
+    "python": "RuntimeInstallation"
+  },
   "runtime.launch_request@1": {
     "fields": {
       "artifact_id": {
@@ -4763,6 +5685,32 @@
     },
     "python": "RuntimeLaunchSpec"
   },
+  "runtime.policy@1": {
+    "fields": {
+      "allow_fixture_runtime": {
+        "may_be_unresolved": false,
+        "meaning": "whether a fixture runtime may be AUTO-selected (lab / T2)",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "which runtime-selection policy produced a candidate ranking",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "requested_runtime": {
+        "may_be_unresolved": true,
+        "meaning": "explicit runtime family or provider; empty means AUTO",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "RuntimePolicy"
+  },
   "runtime.profile@1": {
     "fields": {
       "capabilities": {
@@ -4802,6 +5750,95 @@
       }
     },
     "python": "RuntimeProfile"
+  },
+  "runtime.provisioning_plan@1": {
+    "fields": {
+      "candidate_id": {
+        "may_be_unresolved": false,
+        "meaning": "candidate this plan materializes",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeCandidateId"
+      },
+      "executor_kind": {
+        "may_be_unresolved": false,
+        "meaning": "executor the installation will use",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "expected_backend": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator/backend the verifier should prove",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "target host",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "installation_strategy": {
+        "may_be_unresolved": false,
+        "meaning": "how to place the runtime, e.g. isolated-venv or fixture-marker",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "intended_version": {
+        "may_be_unresolved": false,
+        "meaning": "pinned version or range; never latest",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "plan_id": {
+        "may_be_unresolved": false,
+        "meaning": "minted identity of this provisioning plan",
+        "nullable": false,
+        "optional": false,
+        "type": "ProvisioningPlanId"
+      },
+      "required_components": {
+        "may_be_unresolved": false,
+        "meaning": "packages or components to place",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "platform family",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "adapter that will be provisioned",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "target_location": {
+        "may_be_unresolved": true,
+        "meaning": "Kultrun-managed environment path when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "verification_method": {
+        "may_be_unresolved": false,
+        "meaning": "how verification should run afterwards",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "RuntimeProvisioningPlan"
   },
   "storage.pool@1": {
     "fields": {

@@ -908,6 +908,55 @@ To make real: After several concurrent instances and a scheduler owner.
 Retire when:  a stage owns deactivate/switch-model policy.
 Status:       OPEN
 
+### K-54 — fixture-vLLM is not production vLLM
+Label:        PROVISIONAL
+Owner stage:  1.6
+Subsystem:    runtime
+Authorizes:   NO for production T5
+What:         T0/T1/T2 use `fixture-vllm`, which launches the reference
+              serving workload and a versioned support table.
+Why now:      Architecture migration must be provable without a GPU.
+To make real: Gate C / T5 isolated vLLM provision and generation.
+Retire when:  T5 records a real VERIFIED vLLM profile before recommendation.
+Status:       OPEN
+
+### K-55 — llama.cpp and MLX are future seams
+Label:        DEFERRED
+Owner stage:  1.6
+Subsystem:    runtime
+Authorizes:   NO
+What:         Resolver lists them as FUTURE / unsupported. No production
+              adapter or provisioner.
+Why now:      Stage 1.6 production runtime is vLLM only.
+To make real: A later stage that owns a second production runtime.
+Retire when:  that runtime has a VERIFIED capability profile path.
+Status:       OPEN
+
+### K-56 — catalog query push-down
+Label:        DEFERRED
+Owner stage:  1.6
+Subsystem:    model
+Authorizes:   NO
+What:         Runtime constraints are not pushed into ModelSource queries.
+              Local eligibility remains authoritative.
+Why now:      Packaged catalog is small.
+To make real: When a live Hub or large catalog is queried.
+Retire when:  CatalogQuery carries runtime filters as an optimization.
+Status:       OPEN
+
+### K-57 — isolated vLLM environment is a minimal venv
+Label:        PROVISIONAL
+Owner stage:  1.6
+Subsystem:    runtime
+Authorizes:   NO
+What:         Real vLLM installs into `state_root/runtimes/vllm/<version>`
+              via stdlib venv + pip. Not a general component manager.
+Why now:      Smallest isolated placement that keeps vLLM out of core.
+To make real: If a later stage needs a shared component manager.
+Retire when:  a stage owns reusable runtime component environments.
+Status:       OPEN
+Status:       OPEN
+
 ## Deferred capability register
 
 Distinct from the debt entries above. A debt entry records an approximation

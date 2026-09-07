@@ -335,6 +335,12 @@ restart reconciliation that does not trust a persisted RUNNING label.
 T2 is a clean wheel. T3 is not required: Stage 1.3 already exercised
 generic process lifecycle on hardware.
 
+**Stage 1.6** is T0/T1 runtime-first ordering against fixtures, plus T2
+from a clean wheel. Tests prove broken/unverified runtime blocks NORMAL
+acquisition, eligibility ≠ capacity, STORE_ONLY, stale profiles, and a
+full Host→Runtime→Plan→Artifact→Reservation→Instance trace. T5 on a
+fresh Linux/NVIDIA host is required to close the stage at L3.
+
 **Stage 1.4C** is T0/T1 fixture acquisition plus T2 from a clean wheel.
 Normal CI stays offline: the fixture provider writes tiny files through
 the same staging, verification, promotion, inventory and delete path.

@@ -27,13 +27,20 @@ class RuntimeCatalogue:
         )
 
     def product_identities(self) -> tuple[str, ...]:
-        """Runtimes that may serve a model. Reference harnesses are not among them."""
+        """Runtimes that may serve a model. Harnesses are not among them.
+
+        Stage 1.6 executable selection uses VERIFIED capability profiles,
+        not this list. The list remains for launch lookup and tests.
+        """
         harness = frozenset({"reference-process", "reference-serving"})
         return tuple(
             profile.runtime.value
             for profile in self.profiles()
             if profile.runtime.value not in harness
         )
+
+    def get(self, runtime: Name) -> InferenceRuntime | None:
+        return self._adapters.get(runtime)
 
     def launch(
         self, runtime: Name, request: RuntimeLaunchRequest | None = None

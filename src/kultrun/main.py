@@ -28,8 +28,14 @@ from kultrun.adapters.install import apt
 from kultrun.adapters.model_source.candidates import acceptance_candidate
 from kultrun.adapters.model_source.huggingface import HuggingFaceSource
 from kultrun.adapters.persistence import file_store
+from kultrun.adapters.runtime.fixture_vllm import (
+    FixtureVllmProvisioner,
+    FixtureVllmRuntime,
+    FixtureVllmVerifier,
+)
 from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.runtime.serving import ReferenceServingRuntime
+from kultrun.adapters.runtime.vllm import VllmInferenceRuntime
 from kultrun.adapters.storage import posix_reservation, replayed
 
 # Contract registration is a side effect of import, so the catalogue the
@@ -67,7 +73,7 @@ from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.registry import AdapterRegistry
 from kultrun.kernel.schema import validate_registry
-from kultrun.kernel.unresolved import is_resolved
+from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.knowledge import contracts as _knowledge_contracts  # noqa: F401
 from kultrun.model import contracts as _model_contracts  # noqa: F401
 from kultrun.model.acquisition import AcquisitionService
@@ -87,8 +93,10 @@ from kultrun.platform.contracts import (
     PlatformSettings,
     StartupReport,
 )
+from kultrun.platform.deployment import DeploymentService
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
+from kultrun.platform.runtime_setup import RuntimeSetupService
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
@@ -98,6 +106,8 @@ from kultrun.resource.lock import AdmissionLock
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
 from kultrun.runtime.catalogue import RuntimeCatalogue
+from kultrun.runtime.resolver import RuntimeResolver
+from kultrun.runtime.store import RuntimeEvidenceStore
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService
@@ -244,6 +254,8 @@ class Platform:
     resources: ResourceManager
     admission: AdmissionService
     instances: InstanceService
+    runtime_setup: RuntimeSetupService
+    deployment: DeploymentService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -484,7 +496,20 @@ def build(
     executor = NativeProcessExecutor(resolved_clock)
     executions = ExecutionService(executor, store)
     runtimes = RuntimeCatalogue(
-        (ReferenceProcessRuntime(hold=True), ReferenceServingRuntime())
+        (
+            ReferenceProcessRuntime(hold=True),
+            ReferenceServingRuntime(),
+            FixtureVllmRuntime(),
+            VllmInferenceRuntime(),
+        )
+    )
+    allow_fixture = shape is not None
+    fixture_provisioner = FixtureVllmProvisioner(state_root, resolved_clock)
+    runtime_setup = RuntimeSetupService(
+        RuntimeResolver((fixture_provisioner,), allow_fixture=allow_fixture),
+        RuntimeEvidenceStore(store),
+        (fixture_provisioner,),
+        (FixtureVllmVerifier(),),
     )
     models = ModelCatalogue(HuggingFaceSource(), extras=(acceptance_candidate(),))
     selection = SelectionService(
@@ -527,6 +552,17 @@ def build(
         store, resolved_clock, inventory, resources, executions, runtimes
     )
     instances.reconcile()
+    deployment = DeploymentService(
+        runtime_setup,
+        selection,
+        models,
+        acquisition,
+        inventory,
+        capacity,
+        resources,
+        store,
+        resolved_clock,
+    )
     admission = AdmissionService(
         resources,
         inventory,
@@ -537,6 +573,7 @@ def build(
         resolved_clock,
         actor_id,
         reservation_in_use=instances.blocks_release,
+        deployment=deployment,
     )
 
     plane = ControlPlane(
@@ -557,6 +594,8 @@ def build(
         resources=resources,
         admission=admission,
         instances=instances,
+        runtime_setup=runtime_setup,
+        deployment=deployment,
         executor_identity=executor.identity.value,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
@@ -583,6 +622,8 @@ def build(
         resources=resources,
         admission=admission,
         instances=instances,
+        runtime_setup=runtime_setup,
+        deployment=deployment,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -1116,43 +1157,49 @@ def show_inventory() -> int:
 
 
 def acquire_named(arguments: Sequence[str]) -> int:
-    """Acquire a known candidate. Selection remains read-only."""
+    """Acquire via a deployment plan or an explicit store-only warehouse path."""
     from kultrun.kernel.errors import KultrunError
-    from kultrun.model.acquisition import request_from_entry
 
-    recommended = "--recommended" in arguments
+    store_only = "--store-only" in arguments
+    plan_flag = "--plan" in arguments
     names = [item for item in arguments if not item.startswith("-")]
-    if recommended and not names:
+    if plan_flag:
+        try:
+            plan_id = arguments[arguments.index("--plan") + 1]
+        except IndexError:
+            print(
+                "usage: kultrun models acquire --plan <deployment-plan>",
+                file=sys.stderr,
+            )
+            return 2
         platform = build()
         _warn_if_state_root_defaulted(platform)
         host = platform.hosts.current
-        envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
-        recommendation = platform.selection.recommend(
-            envelope=envelope,
-            candidates=platform.models.entries(),
-            available_runtimes=platform.runtimes.product_identities(),
-        )
-        if recommendation.primary is None:
-            print("kultrun: no recommended candidate", file=sys.stderr)
+        try:
+            receipt = platform.deployment.acquire_normal(
+                plan_id, host, _stored_sanity(platform, host)
+            )
+        except KultrunError as error:
+            print(f"kultrun: {error.message}", file=sys.stderr)
             return 1
-        names = [recommendation.primary.logical_name.value]
-    if len(names) != 1:
         print(
-            "usage: kultrun models acquire <candidate-id> | --recommended",
+            f"{receipt.outcome}  {receipt.artifact_id.value}  "
+            f"{receipt.state.value}  serving no"
+        )
+        return 0 if receipt.outcome != "failed" else 1
+    if not store_only or len(names) != 1:
+        print(
+            "usage: kultrun models acquire --plan <deployment-plan> | "
+            "--store-only <candidate-id>",
             file=sys.stderr,
         )
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
-    entry = platform.models.acquirable(names[0])
-    if entry is None:
-        print(f"kultrun: no such candidate {names[0]!r}", file=sys.stderr)
-        return 2
     host = platform.hosts.current
-    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
     try:
-        receipt = platform.acquisition.acquire(
-            request_from_entry(entry), envelope, host.host_id
+        receipt = platform.deployment.acquire_store_only(
+            names[0], host, _stored_sanity(platform, host)
         )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)
@@ -1190,17 +1237,11 @@ def delete_named(arguments: Sequence[str]) -> int:
 
 def show_recommendation() -> int:
     """Select using the configured estimator. Does not download or reserve."""
-    from kultrun.planning.service import plan_from
-
     platform = build()
     _warn_if_state_root_defaulted(platform)
     host = platform.hosts.current
-    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
-    recommendation = platform.selection.recommend(
-        envelope=envelope,
-        candidates=platform.models.entries(),
-        available_runtimes=platform.runtimes.product_identities(),
-    )
+    result = platform.deployment.recommend(host, _stored_sanity(platform, host))
+    recommendation = result["recommendation"]
     recommendation_mode = recommendation.estimator_mode
     fallback = (
         f"  fallback {recommendation.fallback_reason}"
@@ -1224,9 +1265,13 @@ def show_recommendation() -> int:
         print(
             f"primary {winner.logical_name.value}  {winner.capacity_fit.value}  {used}"
         )
-    planned = plan_from(recommendation)
+    planned = result["plan"]
     if planned is not None:
-        print(f"plan {planned.logical_name.value}  placement {planned.placement.value}")
+        print(
+            f"plan {planned.plan_id}  {planned.logical_name.value}  "
+            f"runtime {planned.runtime_provider}  "
+            f"placement {planned.placement.value}"
+        )
     return 0
 
 
@@ -1294,20 +1339,18 @@ def show_reservations() -> int:
 
 def reserve_named(arguments: Sequence[str]) -> int:
     from kultrun.kernel.errors import KultrunError
-    from kultrun.model.contracts import ArtifactId
 
     if len(arguments) != 1:
-        print("usage: kultrun resources reserve <artifact-id>", file=sys.stderr)
+        print("usage: kultrun resources reserve <deployment-plan>", file=sys.stderr)
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
     host = platform.hosts.current
     try:
         decision = platform.admission.reserve(
-            ArtifactId.parse(arguments[0]),
+            arguments[0],
             host,
             _stored_sanity(platform, host),
-            platform.runtimes.product_identities(),
         )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)
@@ -1502,6 +1545,98 @@ def inspect_named_instance(arguments: Sequence[str]) -> int:
     return 0
 
 
+def _runtimes(arguments: Sequence[str]) -> int:
+    if not arguments or arguments[0] in {"candidates", "list"}:
+        if arguments[:1] == ["candidates"]:
+            return show_runtime_candidates()
+        return show_runtime_evidence()
+    command = arguments[0]
+    if command == "provision":
+        return provision_runtime(arguments[1:])
+    if command == "verify":
+        return verify_runtime(arguments[1:])
+    print(
+        "usage: kultrun runtimes [candidates|provision|verify]",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def show_runtime_candidates() -> int:
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    items = platform.runtime_setup.candidates(platform.hosts.current)
+    print(f"runtime candidates {len(items)}  model required no")
+    for item in items:
+        print(
+            f"{item.runtime_provider.value}  {item.executor_kind.value}  "
+            f"{item.compatibility.value}  {item.support_tier.value}  {item.reason}"
+        )
+    return 0
+
+
+def show_runtime_evidence() -> int:
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    profiles = platform.runtime_setup.profiles(host)
+    print(f"runtime profiles {len(profiles)}")
+    for item in profiles:
+        print(
+            f"{item.profile_id.value}  {item.runtime_provider.value}  "
+            f"{item.runtime_version}  {item.status.value}"
+        )
+    return 0
+
+
+def provision_runtime(arguments: Sequence[str]) -> int:
+    from kultrun.kernel.errors import KultrunError
+    from kultrun.runtime.contracts import RuntimePolicy
+
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    requested = arguments[0] if arguments else None
+    policy = RuntimePolicy(
+        allow_fixture_runtime=True,
+        requested_runtime=requested or NOT_PROVIDED,
+    )
+    try:
+        candidate = platform.runtime_setup.select(host, policy)
+        plan = platform.runtime_setup.plan_for(candidate)
+        installation = platform.runtime_setup.provision(plan)
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    print(
+        f"{installation.status.value}  {installation.installation_id.value}  "
+        f"{installation.runtime_provider.value}  {installation.runtime_version}"
+    )
+    return 0 if installation.status.value == "installed" else 1
+
+
+def verify_runtime(arguments: Sequence[str]) -> int:
+    from kultrun.kernel.errors import KultrunError
+
+    if len(arguments) != 1:
+        print("usage: kultrun runtimes verify <installation-id>", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        profile = platform.runtime_setup.verify(
+            arguments[0], platform.hosts.current
+        )
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    print(
+        f"{profile.status.value}  {profile.profile_id.value}  "
+        f"{profile.runtime_provider.value}  {profile.runtime_version}"
+    )
+    return 0 if profile.status.value == "verified" else 1
+
+
 COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "version": lambda _: show_version(),
     "host": lambda _: show_host(),
@@ -1510,6 +1645,7 @@ COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "instances": _instances,
     "storage": _storage,
     "runtime": _runtime,
+    "runtimes": _runtimes,
     "serve": lambda _: serve(),
 }
 

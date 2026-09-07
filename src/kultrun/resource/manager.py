@@ -54,6 +54,9 @@ class ResourceManager:
             found.append(item)
         return tuple(found)
 
+    def request(self, request_id: RequestId) -> ResourceRequest | None:
+        return self._store.get(ResourceRequest, request_id.value)
+
     def get(self, reservation_id: ReservationId) -> ResourceReservation | None:
         return self._store.get(ResourceReservation, reservation_id.value)
 

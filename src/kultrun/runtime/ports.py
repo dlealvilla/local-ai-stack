@@ -8,11 +8,15 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from kultrun.host.contracts import HostCapabilities
 from kultrun.kernel.ids import Name
 from kultrun.runtime.contracts import (
+    RuntimeCapabilityProfile,
+    RuntimeInstallation,
     RuntimeLaunchRequest,
     RuntimeLaunchSpec,
     RuntimeProfile,
+    RuntimeProvisioningPlan,
 )
 
 
@@ -33,4 +37,38 @@ class InferenceRuntime(Protocol):
         self, request: RuntimeLaunchRequest | None = None
     ) -> RuntimeLaunchSpec:
         """Produce the recipe. Must not start a process."""
+        ...
+
+
+@runtime_checkable
+class RuntimeProvisioner(Protocol):
+    """Places a runtime environment. Does not verify it."""
+
+    @property
+    def identity(self) -> Name:
+        """Adapter identity this provisioner installs."""
+        ...
+
+    def supports(self, plan: RuntimeProvisioningPlan) -> bool:
+        """Whether this provisioner can execute the plan."""
+        ...
+
+    def provision(self, plan: RuntimeProvisioningPlan) -> RuntimeInstallation:
+        """Install or reuse. Status INSTALLED is not VERIFIED."""
+        ...
+
+
+@runtime_checkable
+class RuntimeVerifier(Protocol):
+    """Proves an installation is operational. Does not select models."""
+
+    @property
+    def identity(self) -> Name:
+        """Adapter identity this verifier understands."""
+        ...
+
+    def verify(
+        self, installation: RuntimeInstallation, host: HostCapabilities
+    ) -> RuntimeCapabilityProfile:
+        """Produce a capability profile. May be FAILED."""
         ...

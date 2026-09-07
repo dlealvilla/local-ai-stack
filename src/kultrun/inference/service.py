@@ -43,6 +43,7 @@ from kultrun.resource.contracts import (
     LedgerHealth,
     ReservationId,
     ReservationState,
+    ResourceRequest,
     ResourceReservation,
 )
 from kultrun.resource.manager import ResourceManager
@@ -130,7 +131,7 @@ class InstanceService:
     ) -> InferenceInstance:
         self._require_create(artifact, reservation)
         now = self._clock.now()
-        chosen = runtime or SERVING_RUNTIME
+        chosen = runtime or self._runtime_of(reservation)
         instance = InferenceInstance(
             instance_id=InstanceId.generate(),
             host_id=reservation.host_id,
@@ -190,8 +191,11 @@ class InstanceService:
                 instance.artifact_id.value if instance.artifact_id is not None else ""
             ),
         )
-        launch = self._runtimes.launch(instance.runtime, request)
-        handle = self._executions.start(instance.host_id, _spec_from(launch))
+        try:
+            launch = self._runtimes.launch(instance.runtime, request)
+            handle = self._executions.start(instance.host_id, _spec_from(launch))
+        except (ValidationError, NotFoundError) as error:
+            return self._fail(instance, error.message)
         instance = self._write(instance, execution_id=handle.execution_id)
         if handle.observed_state is ExecutionState.FAILED:
             return self._fail(instance, handle.detail or "executor failed to start")
@@ -472,6 +476,20 @@ class InstanceService:
     def _pid_of(self, execution_id: ExecutionId) -> object:
         handle = self._executions.observe(execution_id)
         return handle.pid
+
+    def _runtime_of(self, reservation: ResourceReservation) -> Name:
+        if reservation.request_id is None:
+            raise PreconditionFailedError(
+                "reservation does not name a runtime",
+                reason="runtime_unspecified",
+            )
+        request = self._store.get(ResourceRequest, reservation.request_id.value)
+        if request is None or not is_resolved(request.runtime):
+            raise PreconditionFailedError(
+                "reservation does not name a runtime",
+                reason="runtime_unspecified",
+            )
+        return Name(str(request.runtime))
 
     def _require(self, instance_id: InstanceId) -> InferenceInstance:
         found = self._store.get(InferenceInstance, instance_id.value)

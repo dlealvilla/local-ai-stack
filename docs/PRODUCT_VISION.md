@@ -1173,11 +1173,13 @@ download bytes may be displayed; they do not decide fit.
 Hard eligibility filtering is separate from soft ranking. Conceptually:
 
 ```text
-ALL CANDIDATES
+HOST → RUNTIME CANDIDATES → PROVISION → VERIFY
+  → VERIFIED RuntimeCapabilityProfile
+ALL DISCOVERED MODELS
   → source / metadata validity
   → license / policy eligibility
-  → architecture / format compatibility
-  → runtime compatibility
+  → host-plausible models
+  → VERIFIED-runtime eligibility (architecture / format / quantization)
   → storage feasibility          (separate hard constraint)
   → memory / deployment feasibility against SAFE capacity
   → upper utilization filter     (> maximum → infeasible)
@@ -1185,7 +1187,15 @@ ALL CANDIDATES
   → PREFERRED FEASIBLE CANDIDATES
   → deterministic ranking
   → SelectionRecommendation
+  → DeploymentPlan
+  → NORMAL acquisition (or explicit STORE_ONLY warehouse)
 ```
+
+Normal guided deployment is **runtime-first**. A production model is
+not acquired for execution until a verified operational runtime path
+declares the candidate eligible and a `DeploymentPlan` exists.
+`STORE_ONLY` may warehouse an artifact without a currently compatible
+runtime.
 
 Compatibility against the current deployment remains
 `COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, or

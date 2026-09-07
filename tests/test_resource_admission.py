@@ -429,12 +429,11 @@ class TestOvercommitAndRestart:
 class TestProductSurfaces:
     def test_api_derives_amounts(self, tmp_path: Path) -> None:
         platform = _platform(tmp_path)
-        acquired = _store(platform, "tinyllama-1.1b-chat-q4")
         refused = _call(
             platform,
             "/resources/reservations",
             method=Method.POST,
-            query={"artifact_id": acquired.artifact_id.value, "vram_bytes": "1"},
+            query={"plan_id": "dplan_placeholder", "vram_bytes": "1"},
         )
         assert refused.status == 400
         empty = _call(platform, "/resources")
@@ -446,11 +445,23 @@ class TestProductSurfaces:
         summary = payload["summary"]
         assert isinstance(summary, dict)
         assert summary["active_count"] == 0
+        from kultrun.runtime.contracts import RuntimePolicy
+
+        platform.runtime_setup.provision_and_verify(
+            platform.hosts.current,
+            RuntimePolicy(allow_fixture_runtime=True, requested_runtime="fixture-vllm"),
+        )
+        result = platform.deployment.recommend(platform.hosts.current, {})
+        plan = result["plan"]
+        assert plan is not None
+        platform.deployment.acquire_normal(
+            str(plan.plan_id), platform.hosts.current, {}
+        )
         reserved = _call(
             platform,
             "/resources/reservations",
             method=Method.POST,
-            query={"artifact_id": acquired.artifact_id.value},
+            query={"plan_id": str(plan.plan_id)},
         )
         assert reserved.status == 200
         decision = reserved.body["payload"]
@@ -483,12 +494,26 @@ class TestProductSurfaces:
         monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
         monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
         monkeypatch.setenv("KULTRUN_MODEL_ACQUISITION_PROVIDER", "fixture")
-        assert main(["models", "acquire", "tinyllama-1.1b-chat-q4"]) == 0
+        assert (
+            main(["models", "acquire", "--store-only", "tinyllama-1.1b-chat-q4"])
+            == 0
+        )
         platform = _platform(tmp_path)
-        artifact_id = platform.inventory.artifacts()[0].artifact_id.value
+        from kultrun.runtime.contracts import RuntimePolicy
+
+        platform.runtime_setup.provision_and_verify(
+            platform.hosts.current,
+            RuntimePolicy(allow_fixture_runtime=True, requested_runtime="fixture-vllm"),
+        )
+        result = platform.deployment.recommend(platform.hosts.current, {})
+        plan = result["plan"]
+        assert plan is not None
+        platform.deployment.acquire_normal(
+            str(plan.plan_id), platform.hosts.current, {}
+        )
         assert main(["resources"]) == 0
         assert "reserved is not running" in capsys.readouterr().out
-        assert main(["resources", "reserve", artifact_id]) == 0
+        assert main(["resources", "reserve", str(plan.plan_id)]) == 0
         assert main(["resources", "reservations"]) == 0
         printed = capsys.readouterr().out
         assert "serving no" in printed

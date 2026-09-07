@@ -14,6 +14,7 @@ from kultrun.model.contracts import (
 )
 from kultrun.model.ports import ModelRequirementEstimator
 from kultrun.planning.contracts import (
+    CapacityCommitments,
     CapacityFitClass,
     CompatibilityVerdict,
     DeploymentPlan,
@@ -26,7 +27,9 @@ from kultrun.planning.evaluate import deployment_capacity, evaluate, rank_key
 
 
 def _request(
-    entry: ModelCatalogEntry, placement: MemoryPlacement
+    entry: ModelCatalogEntry,
+    placement: MemoryPlacement,
+    runtime: Maybe[str] = NOT_PROVIDED,
 ) -> ModelEstimationRequest:
     meta = entry.metadata
     req = entry.requirement
@@ -35,7 +38,11 @@ def _request(
         if is_resolved(req.assumed_context_tokens)
         else meta.context_length_tokens
     )
-    runtime = meta.supported_runtimes[0] if meta.supported_runtimes else NOT_PROVIDED
+    assumed = (
+        runtime
+        if is_resolved(runtime)
+        else (meta.supported_runtimes[0] if meta.supported_runtimes else NOT_PROVIDED)
+    )
     return ModelEstimationRequest(
         model_id=meta.model_id,
         source_ref=meta.source_ref,
@@ -43,7 +50,7 @@ def _request(
         artifact_format=NOT_PROVIDED,
         quantization=meta.quantization,
         context_tokens=context,
-        runtime=runtime,
+        runtime=assumed,
         placement=placement,
         offload_allowed=False,
         tensor_parallel=1,
@@ -78,11 +85,13 @@ class SelectionService:
         envelope: CapacityEnvelope,
         candidates: tuple[ModelCatalogEntry, ...],
         available_runtimes: tuple[str, ...] = (),
+        commitments: CapacityCommitments | None = None,
+        runtime: Maybe[str] = NOT_PROVIDED,
     ) -> SelectionRecommendation:
-        capacity = deployment_capacity(envelope)
+        capacity = deployment_capacity(envelope, commitments)
         evaluations = []
         for entry in candidates:
-            request = _request(entry, capacity.placement)
+            request = _request(entry, capacity.placement, runtime)
             requirement = self._estimator.estimate(request)
             evaluations.append(
                 evaluate(
@@ -194,6 +203,23 @@ def _select(
     when: dt.datetime,
     fingerprint: str,
 ) -> SelectionRecommendation:
+    if not evaluations:
+        provider, version, mode, requested, fallback_used, fallback_reason = (
+            _provenance(None, estimator)
+        )
+        return SelectionRecommendation(
+            outcome=SelectionOutcome.NO_FEASIBLE_CANDIDATE,
+            policy_version=policy.policy_version,
+            estimator_provider=provider,
+            estimator_version=version,
+            recommended_at=when,
+            host_fingerprint=fingerprint,
+            rationale=("No runtime-eligible candidates remain.",),
+            estimator_mode=mode,
+            requested_primary=requested,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
+        )
     ranked = tuple(sorted(evaluations, key=rank_key))
     preferred_ids = {
         item.model_id.value

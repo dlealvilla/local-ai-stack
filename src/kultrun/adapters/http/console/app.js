@@ -27,6 +27,7 @@ const SUBSYSTEMS = [
   { name: 'Capacity', probe: '/capacity' },
   { name: 'Storage sanity', probe: '/storage/sanity' },
   { name: 'Runtime / executor', probe: '/runtime' },
+  { name: 'Runtime setup', probe: '/runtimes' },
   { name: 'Model catalog', probe: '/models' },
   { name: 'Model selection', probe: '/models/selection' },
   { name: 'Model inventory', probe: '/models/inventory' },
@@ -557,6 +558,54 @@ function runtimeControls(executions, controls) {
   return wrap;
 }
 
+async function renderRuntimeSetup() {
+  const panel = document.getElementById('runtime-setup-panel');
+  const summary = document.getElementById('runtime-setup-summary');
+  const target = document.getElementById('runtime-setup');
+  try {
+    const candidates = await get('/runtimes/candidates');
+    const evidence = await get('/runtimes');
+    panel.classList.remove('hidden');
+    const verified = evidence.verified || [];
+    rows(summary, [
+      ['candidates', String((candidates.candidates || []).length)],
+      ['verified profiles', String(verified.length)],
+      ['model required', candidates.model_required ? 'yes' : 'no'],
+    ]);
+    target.replaceChildren();
+    const actions = document.createElement('div');
+    const provision = document.createElement('button');
+    provision.textContent = 'Provision preferred runtime';
+    const status = span('muted', ' host-driven; no model');
+    provision.addEventListener('click', async () => {
+      provision.disabled = true;
+      try {
+        const installed = await post('/runtimes/provision', {});
+        status.textContent = ` ${installed.status} · ${installed.installation_id}`;
+        const profile = await post('/runtimes/verify', {
+          installation_id: installed.installation_id,
+        });
+        status.textContent =
+          ` ${profile.status} · ${profile.runtime_provider} ${profile.runtime_version}`;
+        await refresh();
+      } catch (error) {
+        provision.disabled = false;
+        status.textContent = ` failed: ${error.message}`;
+      }
+    });
+    actions.append(provision, status);
+    target.append(actions);
+    json(document.getElementById('runtime-setup-json'), { candidates, evidence });
+  } catch (error) {
+    if (error.message.startsWith('404')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
 async function renderCatalog() {
   const panel = document.getElementById('catalog-panel');
   const summary = document.getElementById('catalog-summary');
@@ -613,19 +662,22 @@ function catalogCard(entry) {
   const action = document.createElement('div');
   action.style.marginTop = '0.9rem';
   const button = document.createElement('button');
-  button.textContent = 'Acquire';
-  const status = span('muted', ' stores this variant; does not start serving');
+  button.textContent = 'Store Only';
+  const status = span('muted', ' warehouses this variant; does not start serving');
   button.addEventListener('click', async () => {
     button.disabled = true;
-    button.textContent = 'acquiring…';
+    button.textContent = 'storing…';
     try {
-      const result = await post('/models/acquire', { candidate: meta.logical_name });
+      const result = await post('/models/acquire', {
+        candidate: meta.logical_name,
+        mode: 'store_only',
+      });
       status.textContent =
         ` ${result.outcome} · ${String(result.state || '').replace(/_/g, ' ')} · serving no`;
       await refresh();
     } catch (error) {
       button.disabled = false;
-      button.textContent = 'Acquire';
+      button.textContent = 'Store Only';
       status.textContent = ` failed: ${error.message}`;
     }
   });
@@ -687,6 +739,8 @@ async function renderSelection() {
       ['fallback', fallbackLabel(state, rec)],
       ['policy', state.policy_version || rec.policy_version],
       ['outcome', state.outcome || rec.outcome],
+      ['runtime', state.runtime_provider || 'none'],
+      ['runtime version', state.runtime_version || 'none'],
     ]);
     target.replaceChildren();
     if (primary) {
@@ -714,16 +768,50 @@ async function renderSelection() {
       ]);
       card.append(grid);
       target.append(card);
+    } else if ((state.outcome || rec.outcome) === 'runtime_not_verified') {
+      target.append(span('muted', 'Executable recommendation is blocked until a runtime is VERIFIED.'));
     } else {
       target.append(span('muted', 'No preferred candidate for this host and policy.'));
     }
-    if (plan) {
+    if (plan && plan.plan_id) {
       const note = document.createElement('p');
       note.className = 'note';
       note.textContent =
-        `Plan: ${fmt(plan.logical_name)} · placement ${fmt(plan.placement)} · ` +
-        `estimator ${fmt(plan.estimator_provider)}`;
-      target.append(note);
+        `Plan ${fmt(plan.plan_id)} · ${fmt(plan.logical_name)} · ` +
+        `runtime ${fmt(plan.runtime_provider)} ${fmt(plan.runtime_version)}`;
+      const action = document.createElement('div');
+      const button = document.createElement('button');
+      button.textContent = 'Acquire from plan';
+      const status = span('muted', ' normal execution; requires verified runtime');
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          const result = await post('/models/acquire', {
+            mode: 'normal_execution',
+            plan_id: plan.plan_id,
+          });
+          status.textContent = ` ${result.outcome} · ${String(result.state || '').replace(/_/g, ' ')}`;
+          await refresh();
+        } catch (error) {
+          button.disabled = false;
+          status.textContent = ` failed: ${error.message}`;
+        }
+      });
+      const reserve = document.createElement('button');
+      reserve.textContent = 'Reserve from plan';
+      reserve.addEventListener('click', async () => {
+        reserve.disabled = true;
+        try {
+          const result = await post('/resources/reservations', { plan_id: plan.plan_id });
+          status.textContent = ` reserved ${result.verdict}`;
+          await refresh();
+        } catch (error) {
+          reserve.disabled = false;
+          status.textContent = ` failed: ${error.message}`;
+        }
+      });
+      action.append(button, reserve, status);
+      target.append(note, action);
     }
     json(document.getElementById('selection-json'), state);
   } catch (error) {
@@ -794,7 +882,10 @@ function acceptanceAcquire(target) {
     button.disabled = true;
     button.textContent = 'acquiring…';
     try {
-      const result = await post('/models/acquire', { candidate: target.logical_name });
+      const result = await post('/models/acquire', {
+        candidate: target.logical_name,
+        mode: 'store_only',
+      });
       status.textContent =
         ` ${result.outcome} · ${String(result.state || '').replace(/_/g, ' ')} · serving no`;
       await refresh();
@@ -852,24 +943,11 @@ function inventoryCard(artifact) {
     }
   });
   if (artifact.state === 'stored') {
-    const reserve = document.createElement('button');
-    reserve.textContent = 'Reserve';
-    const reserveStatus = span('muted', ' commits capacity; does not start a process');
-    reserve.addEventListener('click', async () => {
-      reserve.disabled = true;
-      try {
-        const result = await post('/resources/reservations', {
-          artifact_id: artifact.artifact_id,
-        });
-        reserveStatus.textContent =
-          ` ${result.verdict} · serving no`;
-        await refresh();
-      } catch (error) {
-        reserve.disabled = false;
-        reserveStatus.textContent = ` failed: ${error.message}`;
-      }
-    });
-    action.append(reserve, reserveStatus);
+    const note = span(
+      'muted',
+      ' reservation requires a DeploymentPlan; use Model selection',
+    );
+    action.append(note);
   }
   action.append(button, status);
   card.append(action);
@@ -1188,6 +1266,7 @@ async function refresh() {
     const envelope = await renderCapacity();
     await renderSanity(envelope);
     await renderRuntime();
+    await renderRuntimeSetup();
     await renderCatalog();
     await renderSelection();
     await renderInventory();

@@ -74,7 +74,9 @@ def main() -> int:
 
         host = run([str(kultrun), "host"], env)
         for name in (TINY, FOURTEEN):
-            acquired = run([str(kultrun), "models", "acquire", name], env)
+            acquired = run(
+                [str(kultrun), "models", "acquire", "--store-only", name], env
+            )
             if acquired.returncode != 0:
                 print(acquired.stderr or acquired.stdout)
                 return 1
@@ -98,11 +100,37 @@ def main() -> int:
             print("FAIL: expected two stored artifacts", ids.stdout)
             return 1
 
-        first = run([str(kultrun), "resources", "reserve", by_name[FOURTEEN]], env)
-        second = run([str(kultrun), "resources", "reserve", by_name[TINY]], env)
-        denied = run(
-            [str(kultrun), "resources", "reserve", by_name[FOURTEEN]], env
+        provisioned = run(
+            [str(kultrun), "runtimes", "provision", "fixture-vllm"], env
         )
+        if provisioned.returncode != 0:
+            print(provisioned.stderr or provisioned.stdout)
+            return 1
+        installation_id = provisioned.stdout.split()[1]
+        verified = run(
+            [str(kultrun), "runtimes", "verify", installation_id], env
+        )
+        if verified.returncode != 0:
+            print(verified.stderr or verified.stdout)
+            return 1
+        recommended = run([str(kultrun), "models", "recommend"], env)
+        if recommended.returncode != 0 or "plan " not in recommended.stdout:
+            print(recommended.stderr or recommended.stdout)
+            return 1
+        plan_id = next(
+            line.split()[1]
+            for line in recommended.stdout.splitlines()
+            if line.startswith("plan ")
+        )
+        planned = run(
+            [str(kultrun), "models", "acquire", "--plan", plan_id], env
+        )
+        if planned.returncode != 0:
+            print(planned.stderr or planned.stdout)
+            return 1
+        first = run([str(kultrun), "resources", "reserve", plan_id], env)
+        second = run([str(kultrun), "resources", "reserve", plan_id], env)
+        denied = run([str(kultrun), "resources", "reserve", plan_id], env)
         listing = run([str(kultrun), "resources", "reservations"], env)
         fourteen_id = run(
             [
@@ -117,11 +145,11 @@ def main() -> int:
         )
         release_id = ""
         for line in fourteen_id.stdout.splitlines():
-            token, name = line.split(None, 1)
-            if FOURTEEN in name:
-                release_id = token
+            token, _name = line.split(None, 1)
+            release_id = token
+            break
         released = run([str(kultrun), "resources", "release", release_id], env)
-        later = run([str(kultrun), "resources", "reserve", by_name[FOURTEEN]], env)
+        later = run([str(kultrun), "resources", "reserve", plan_id], env)
         after = run([str(kultrun), "resources"], env)
         restart = run(
             [

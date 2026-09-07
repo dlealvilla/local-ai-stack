@@ -19,21 +19,19 @@ from kultrun.capacity.envelope import CapacityService
 from kultrun.host.contracts import HostCapabilities
 from kultrun.identity.contracts import SubjectId
 from kultrun.kernel.clock import Clock
-from kultrun.kernel.errors import ConflictError, NotFoundError, ValidationError
+from kultrun.kernel.errors import ConflictError, PreconditionFailedError
 from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import (
-    ArtifactId,
-    ArtifactState,
     MemoryPlacement,
     ModelArtifact,
 )
 from kultrun.model.inventory import ModelInventory
 from kultrun.planning.contracts import DeploymentPlan
 from kultrun.planning.evaluate import deployment_capacity
-from kultrun.planning.service import SelectionService, plan_for_entry
+from kultrun.planning.service import SelectionService
 from kultrun.resource.contracts import (
     AdmissionDecision,
     RequestId,
@@ -60,6 +58,7 @@ class AdmissionService:
         clock: Clock,
         actor_id: SubjectId,
         reservation_in_use: Callable[[ReservationId], bool] | None = None,
+        deployment: object | None = None,
     ) -> None:
         self._manager = manager
         self._inventory = inventory
@@ -70,6 +69,7 @@ class AdmissionService:
         self._clock = clock
         self._actor_id = actor_id
         self._reservation_in_use = reservation_in_use or (lambda _: False)
+        self._deployment = deployment
 
     @property
     def manager(self) -> ResourceManager:
@@ -77,28 +77,27 @@ class AdmissionService:
 
     def reserve(
         self,
-        artifact_id: ArtifactId,
+        plan_id: str,
         host: HostCapabilities,
         sanity: dict[str, StorageSanityEvidence],
-        available_runtimes: tuple[str, ...],
         request_id: RequestId | None = None,
     ) -> AdmissionDecision:
-        artifact = self._inventory.get(artifact_id)
+        if self._deployment is None:
+            raise PreconditionFailedError("deployment service is not wired")
+        plan = self._deployment.require_fresh_plan(plan_id, host)
+        artifact = self._deployment.artifact_for_plan(plan)
         if artifact is None:
-            raise NotFoundError("no such model artifact", artifact_id=artifact_id.value)
+            raise PreconditionFailedError(
+                "deployment plan has no STORED artifact",
+                reason="artifact_not_stored",
+                plan_id=plan_id,
+            )
         envelope = self._capacity.compute(host, sanity)
-        request = request_from_artifact(
-            artifact,
-            envelope,
-            self._models,
-            self._selection,
-            available_runtimes,
-            request_id=request_id,
-        )
+        request = request_from_plan(artifact, plan, envelope, request_id=request_id)
         decision = self._manager.admit(request, envelope, artifact)
         self._audit(
             "resource.reserve",
-            artifact_id.value,
+            artifact.artifact_id.value,
             decision.verdict.value,
             decision.reasons[0] if decision.reasons else None,
             allowed=decision.verdict.value == "admitted",
@@ -146,32 +145,24 @@ class AdmissionService:
         self._store.put(event.audit_id.value, event)
 
 
-def request_from_artifact(
+def request_from_plan(
     artifact: ModelArtifact,
+    plan: DeploymentPlan,
     envelope: CapacityEnvelope,
-    models: ModelCatalogue,
-    selection: SelectionService,
-    available_runtimes: tuple[str, ...],
     request_id: RequestId | None = None,
 ) -> ResourceRequest:
-    """Build a request from server-side evidence. No caller amounts."""
-    if artifact.state is not ArtifactState.STORED:
-        # Still build a request so ResourceManager can reject with the typed reason.
-        pass
-    entry = None
-    if is_resolved(artifact.logical_name):
-        entry = models.acquirable(str(artifact.logical_name))
-    if entry is None:
-        entry = models.for_model(artifact.model_id)
-    if entry is None:
-        raise ValidationError(
-            "no catalog evidence for this artifact",
-            artifact_id=artifact.artifact_id.value,
-        )
-    plan = plan_for_entry(selection, entry, envelope, available_runtimes)
+    """Build a request from a persisted plan. No caller amounts."""
     capacity = deployment_capacity(envelope)
-    fingerprint = _plan_fingerprint(artifact, plan, capacity.accelerator_index)
-    incremental = NOT_PROVIDED
+    fingerprint = (
+        str(plan.plan_fingerprint)
+        if is_resolved(plan.plan_fingerprint)
+        else _plan_fingerprint(artifact, plan, capacity.accelerator_index)
+    )
+    runtime = (
+        plan.runtime_provider
+        if is_resolved(plan.runtime_provider)
+        else plan.runtime
+    )
     return ResourceRequest(
         request_id=request_id or RequestId.generate(),
         host_id=envelope.host_id,
@@ -191,17 +182,19 @@ def request_from_artifact(
             else NOT_PROVIDED
         ),
         logical_name=plan.logical_name.value,
-        runtime=plan.runtime,
+        runtime=runtime,
         accelerator_index=capacity.accelerator_index,
-        incremental_storage_bytes=incremental,
+        incremental_storage_bytes=NOT_PROVIDED,
         estimator_provider=plan.estimator_provider,
         plan_version=plan.policy_version,
         model_revision=artifact.revision,
         quantization=plan.quantization,
-        context_tokens=entry.requirement.assumed_context_tokens,
+        context_tokens=plan.context_tokens,
         capacity_policy_version=envelope.policy_version,
         host_fingerprint=envelope.host_fingerprint,
         workload_type=WorkloadType.INFERENCE,
+        plan_id=plan.plan_id,
+        runtime_profile_id=plan.runtime_profile_id,
     )
 
 

@@ -525,6 +525,13 @@ class ModelAcquisitionRequest(Contract):
     license_id: Maybe[str] = meaning(
         "licence identifier retained from metadata", default=NOT_PROVIDED
     )
+    mode: str = meaning(
+        "store_only warehouse path, or normal_execution which requires a plan",
+        default="store_only",
+    )
+    plan_id: Maybe[str] = meaning(
+        "DeploymentPlan identity for normal_execution", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="model.acquisition_receipt", version=1)

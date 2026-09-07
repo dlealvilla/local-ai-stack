@@ -306,6 +306,12 @@ class ResourceRequest(Contract):
     workload_type: WorkloadType = meaning(
         "generic job type; inference is the v0 case", default=WorkloadType.INFERENCE
     )
+    plan_id: Maybe[str] = meaning(
+        "DeploymentPlan this request was derived from", default=NOT_PROVIDED
+    )
+    runtime_profile_id: Maybe[str] = meaning(
+        "RuntimeCapabilityProfile assumed by the plan", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="resource.admission_decision", version=1)

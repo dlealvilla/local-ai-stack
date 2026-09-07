@@ -45,7 +45,12 @@ _WEIGHT_SUFFIXES = {".bin", ".safetensors", ".gguf", ".pt"}
 _SAFETENSORS_HEADER_LIMIT = 10_000_000
 
 
-def request_from_entry(entry: ModelCatalogEntry) -> ModelAcquisitionRequest:
+def request_from_entry(
+    entry: ModelCatalogEntry,
+    *,
+    mode: str = "store_only",
+    plan_id: object = NOT_PROVIDED,
+) -> ModelAcquisitionRequest:
     """Build a request from a known candidate. No caller destination path."""
     meta = entry.metadata
     req = entry.requirement
@@ -61,6 +66,8 @@ def request_from_entry(entry: ModelCatalogEntry) -> ModelAcquisitionRequest:
         expected_storage_bytes=req.storage_bytes,
         expected_peak_bytes=req.peak_additional_bytes,
         license_id=meta.license_id,
+        mode=mode,
+        plan_id=plan_id,
     )
 
 
@@ -136,6 +143,16 @@ class AcquisitionService:
         host_id: HostId,
     ) -> AcquisitionReceipt:
         """Preflight SAFE storage, fetch into staging, verify, then STORED."""
+        if request.mode not in {"store_only", "normal_execution"}:
+            raise ValidationError(
+                "acquisition mode must be store_only or normal_execution",
+                mode=request.mode,
+            )
+        if request.mode == "normal_execution" and not is_resolved(request.plan_id):
+            raise PreconditionFailedError(
+                "normal execution acquisition requires a deployment plan",
+                reason="deployment_plan_required",
+            )
         now = self._clock.now()
         needed = needed_bytes(request)
         if needed is None:
