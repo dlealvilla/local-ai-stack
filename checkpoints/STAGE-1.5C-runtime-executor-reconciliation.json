@@ -1,0 +1,175 @@
+{
+  "stage": "1.5C",
+  "name": "runtime-executor-reconciliation",
+  "milestone": 1,
+  "output": "ExecutorCapabilityProfile + RuntimeSupportDescriptor + reconciled RuntimeLaunchSpec/ExecutorHandle + recording executor proof",
+  "status": "closed",
+  "gate": "L1",
+  "t3_required": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "620a78be94433a0e8a6624d36147b0e870fafd61",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.5B-inference-instance-lifecycle.json"
+    ],
+    "starting_source_commit": "620a78be94433a0e8a6624d36147b0e870fafd61",
+    "safety_tag": "checkpoint/stage-1.5B-closed-620a78b",
+    "safety_branch": "safety/pre-runtime-reconciliation-620a78b",
+    "feature_branch": "stage/1.5C-runtime-executor-reconciliation"
+  },
+  "migration_review": {
+    "note": "docs/migrations/STAGE-1.5C-runtime-executor-reconciliation.md",
+    "Runtime": "ADJUST",
+    "Executor": "ADJUST",
+    "RuntimeLaunchSpec": "KEEP + additive ADJUST",
+    "ExecutorHandle": "KEEP + additive ADJUST",
+    "InferenceInstance": "KEEP + readiness MOVE",
+    "ResourceManager": "KEEP",
+    "major_KEEP": [
+      "ResourceManager",
+      "InferenceInstance lifecycle",
+      "RuntimeLaunchSpec core",
+      "ExecutorHandle name and ExecutionId",
+      "NativeProcessExecutor implementation",
+      "structured argv"
+    ],
+    "major_ADJUST": [
+      "ExecutorCapabilityProfile",
+      "RuntimeSupportDescriptor",
+      "external_identity on handle",
+      "generic filesystem/network fields",
+      "running_owned no longer requires PID"
+    ],
+    "major_MOVE": [
+      "reference readiness probe from inference to serving adapter"
+    ],
+    "major_SPLIT": [],
+    "major_DEFER": [
+      "ContainerExecutor",
+      "RuntimeResolver",
+      "RuntimeCapabilityProfile",
+      "model eligibility remap",
+      "vLLM"
+    ]
+  },
+  "architecture": {
+    "runtime_owns_what": true,
+    "executor_owns_how": true,
+    "inference_composes": true,
+    "runtime_imports_process_implementation": false,
+    "executor_imports_runtime_adapter": false,
+    "inference_imports_subprocess": false,
+    "cycles": false,
+    "planning_resource_boundaries_preserved": true,
+    "docker_fields_in_generic_contracts": false
+  },
+  "contracts": [
+    "execution.capability_profile@1",
+    "runtime.support_descriptor@1",
+    "runtime.readiness@1",
+    "runtime.launch_spec@1 additive filesystem_mappings network_bindings",
+    "execution.spec@1 additive filesystem_mappings network_bindings",
+    "execution.handle@1 additive external_identity network_bindings"
+  ],
+  "runtime_launch_spec": {
+    "existing_contract_reused": true,
+    "schema_changed": "additive optional fields only",
+    "structured_argv": true,
+    "docker_specific_fields": false,
+    "subprocess_specific_fields": false,
+    "shell": false
+  },
+  "executor_handle": {
+    "existing_contract_reused": true,
+    "generic_execution_id": true,
+    "pid_optional": true,
+    "non_pid_identity_possible": true
+  },
+  "reference_runtime": {
+    "adapter": "reference-serving",
+    "support_tier": "test_only",
+    "production_candidate": false,
+    "installed_implied": false,
+    "operational_implied": false,
+    "verified_implied": false
+  },
+  "local_acceptance": {
+    "source_commit": "c3d0645b1f92871714e69fe5d498a002feb9dd35",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "ca03d0fd333778311aa9f4e5cbd1a23d80e76fe2d1efe66eae8d387b0877c0a0",
+    "build_id": "0.1.0+c3d0645b1f92",
+    "clean_source": true,
+    "source_checkout": false,
+    "native_capability": true,
+    "runtime_descriptor": true,
+    "launch_spec": true,
+    "recording_handle": true,
+    "first_instance": "inst_eddf451ee5d36c1a",
+    "first_pid": 9970,
+    "first_endpoint": "127.0.0.1:53168",
+    "readiness": true,
+    "second_instance": "inst_b9d53cb34fa321d1",
+    "second_pid": 9971,
+    "second_endpoint": "127.0.0.1:53171",
+    "two_concurrent": true,
+    "independent_stop": true,
+    "running_reservation_release_blocked": true,
+    "restart_stopped_instance": "running",
+    "dynamic_mobility": {
+      "safe_bytes": 25769803776,
+      "small_reserved_bytes": 4294967296,
+      "small_available_bytes": 21474836480,
+      "after_small_release_reserved_bytes": 0,
+      "after_small_release_available_bytes": 25769803776,
+      "large_reserved_bytes": 21474836480,
+      "large_available_bytes": 4294967296,
+      "small_again_reserved_bytes": 4294967296,
+      "small_again_available_bytes": 21474836480,
+      "fixed_stored_active_partition": false
+    },
+    "runtime": "reference-serving",
+    "executor": "native-process",
+    "api": 200,
+    "cli": true,
+    "console_assets": true,
+    "real_llm": false,
+    "prompt_inference": false
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-07",
+    "method": "focused contract tests + architecture + full suite + clean wheel T2",
+    "local_tests": 687,
+    "ruff": "clean",
+    "mypy": "strict clean"
+  },
+  "test_modes": {
+    "T0": "executor/runtime contract suites plus architecture seams",
+    "T1": "1.5B lifecycle, alternate executor composition, resource and model regressions; full suite green",
+    "T2": "clean wheel; native capability; TEST_ONLY descriptor; recording handle; two instances; Small→Large→Small; API/CLI/Console",
+    "T3": "not required",
+    "T4": "not required"
+  },
+  "debt": ["K-31", "K-33", "K-50", "K-51", "K-54", "K-55"],
+  "not_begun": [
+    "ContainerExecutor",
+    "RuntimeResolver",
+    "RuntimeProvisioningPlan",
+    "RuntimeProvisioner",
+    "RuntimeVerifier",
+    "RuntimeCapabilityProfile",
+    "model eligibility remap",
+    "acquisition gating remap",
+    "vLLM",
+    "real inference",
+    "Gateway"
+  ],
+  "END_LINK": {
+    "t2_source_commit": "c3d0645b1f92871714e69fe5d498a002feb9dd35",
+    "final_build_id": "0.1.0+c3d0645b1f92",
+    "final_artifact_sha256": "ca03d0fd333778311aa9f4e5cbd1a23d80e76fe2d1efe66eae8d387b0877c0a0",
+    "checkpoint": "checkpoints/STAGE-1.5C-runtime-executor-reconciliation.json",
+    "next": "1.6A — Executor capability reporting + minimal ContainerExecutor, under a separate bounded brief"
+  }
+}

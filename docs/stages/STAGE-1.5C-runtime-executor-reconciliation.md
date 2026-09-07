@@ -2,7 +2,8 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN** until checkpoint close.
+Status: **CLOSED.** `L1`. Checkpoint:
+`checkpoints/STAGE-1.5C-runtime-executor-reconciliation.json`.
 
 This stage answers whether the already-proven InferenceInstance lifecycle
 consumes a clean Runtime / Executor seam. It does not load a real model.
