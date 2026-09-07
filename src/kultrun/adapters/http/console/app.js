@@ -30,7 +30,7 @@ const SUBSYSTEMS = [
   { name: 'Model catalog', probe: '/models' },
   { name: 'Model selection', probe: '/models/selection' },
   { name: 'Model inventory', probe: '/models/inventory' },
-  { name: 'Resource admission', probe: null, stage: '1.5' },
+  { name: 'Resource admission', probe: '/resources' },
   { name: 'Inference', probe: null, stage: '1.6' },
 ];
 
@@ -851,6 +851,119 @@ function inventoryCard(artifact) {
       status.textContent = ` failed: ${error.message}`;
     }
   });
+  if (artifact.state === 'stored') {
+    const reserve = document.createElement('button');
+    reserve.textContent = 'Reserve';
+    const reserveStatus = span('muted', ' commits capacity; does not start a process');
+    reserve.addEventListener('click', async () => {
+      reserve.disabled = true;
+      try {
+        const result = await post('/resources/reservations', {
+          artifact_id: artifact.artifact_id,
+        });
+        reserveStatus.textContent =
+          ` ${result.verdict} · serving no`;
+        await refresh();
+      } catch (error) {
+        reserve.disabled = false;
+        reserveStatus.textContent = ` failed: ${error.message}`;
+      }
+    });
+    action.append(reserve, reserveStatus);
+  }
+  action.append(button, status);
+  card.append(action);
+  return card;
+}
+
+async function renderResources() {
+  const panel = document.getElementById('resources-panel');
+  const summary = document.getElementById('resources-summary');
+  const target = document.getElementById('resources');
+  try {
+    const state = await get('/resources');
+    const listing = await get('/resources/reservations');
+    panel.classList.remove('hidden');
+    const body = state.summary || {};
+    rows(summary, [
+      ['ledger health', body.health],
+      ['active reservations', String(body.active_count || 0)],
+      ['running instances', String(state.running_instances || 0)],
+      ['reserved implies running', state.reserved_implies_running ? 'yes' : 'no'],
+      ['RAM SAFE', bytes(body.safe_ram_bytes)],
+      ['RAM reserved', bytes(body.reserved_ram_bytes)],
+      ['RAM available', bytes(body.available_ram_bytes)],
+    ]);
+    for (const device of body.accelerators || []) {
+      rows(summary, [
+        [`GPU ${device.index} SAFE`, bytes(device.safe_bytes)],
+        [`GPU ${device.index} reserved`, bytes(device.reserved_bytes)],
+        [`GPU ${device.index} available`, bytes(device.available_bytes)],
+      ]);
+    }
+    target.replaceChildren();
+    target.append(span('muted',
+      'Reserved resources are platform commitments. No model process is running yet.'));
+    if (!listing.reservations || listing.reservations.length === 0) {
+      target.append(span('muted', ' No active reservations.'));
+    }
+    for (const item of listing.reservations || []) {
+      target.append(reservationCard(item));
+    }
+    json(document.getElementById('resources-json'), { summary: state, reservations: listing });
+  } catch (error) {
+    if (error.message.startsWith('404')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
+function reservationCard(item) {
+  const card = document.createElement('div');
+  card.className = 'pool';
+  const head = document.createElement('div');
+  head.className = 'pool-head';
+  const title = document.createElement('span');
+  title.className = 'pool-path';
+  title.textContent = fmt(item.logical_name);
+  head.append(title, pill(String(item.state || '').replace(/_/g, ' '),
+    item.state === 'active' ? 'ok' : 'unknown'));
+  card.append(head);
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  rows(grid, [
+    ['reservation id', item.reservation_id],
+    ['artifact', item.artifact_id],
+    ['state', item.state],
+    ['RAM reserved', bytes(item.admitted_ram_bytes)],
+    ['accelerator', item.accelerator_index == null ? 'none' : String(item.accelerator_index)],
+    ['accelerator memory', bytes(item.admitted_vram_bytes)],
+    ['unified memory', bytes(item.admitted_unified_bytes)],
+    ['created', item.created_at],
+    ['estimator', item.estimator_provider],
+    ['serving', 'no'],
+  ]);
+  card.append(grid);
+  const action = document.createElement('div');
+  action.style.marginTop = '0.9rem';
+  const button = document.createElement('button');
+  button.className = 'danger';
+  button.textContent = 'Release';
+  const status = span('muted', ' frees the commitment; does not stop a runtime');
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      await destroy('/resources/reservations?reservation_id=' +
+        encodeURIComponent(item.reservation_id));
+      await refresh();
+    } catch (error) {
+      button.disabled = false;
+      status.textContent = ` failed: ${error.message}`;
+    }
+  });
   action.append(button, status);
   card.append(action);
   return card;
@@ -962,6 +1075,7 @@ async function refresh() {
     await renderCatalog();
     await renderSelection();
     await renderInventory();
+    await renderResources();
     await renderHost();
     await renderProviders();
     await renderProgress();

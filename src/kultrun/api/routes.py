@@ -33,12 +33,15 @@ from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import ArtifactId
 from kultrun.model.inventory import ModelInventory
 from kultrun.planning.service import SelectionService, plan_from
+from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.startup import Startup
 from kultrun.platform.state import PlatformStateStore
+from kultrun.resource.contracts import RequestId, ReservationId
+from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService, summarize
@@ -67,6 +70,8 @@ class ControlPlane:
     selection: SelectionService
     inventory: ModelInventory
     acquisition: AcquisitionService
+    resources: ResourceManager
+    admission: AdmissionService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -465,9 +470,71 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)
     router.get("/models/selection", models_selection)
+    def resources_summary(_: ApiRequest) -> object:
+        """SAFE / RESERVED / AVAILABLE. Reserved is not running."""
+        host = plane.hosts.current
+        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        summary = plane.resources.summary(envelope)
+        return {
+            "summary": summary,
+            "serving": False,
+            "running_instances": 0,
+            "stored_implies_reserved": False,
+            "reserved_implies_running": False,
+        }
+
+    def list_reservations(request: ApiRequest) -> object:
+        include = (request.query.get("include_released") or "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        items = plane.resources.reservations(include_released=include)
+        return {
+            "reservations": items,
+            "count": len(items),
+            "serving": False,
+            "running_instances": 0,
+            "reserved_implies_running": False,
+        }
+
+    def reserve(request: ApiRequest) -> object:
+        """Admit a STORED artifact. Client amounts are not authoritative."""
+        _reject_arbitrary_destination(request)
+        _reject_client_quantities(request)
+        raw = (request.query.get("artifact_id") or "").strip()
+        if not raw:
+            raise ValidationError(
+                "a stored artifact id is required", parameter="artifact_id"
+            )
+        token = (request.query.get("request_id") or "").strip()
+        request_id = RequestId.parse(token) if token else None
+        host = plane.hosts.current
+        return plane.admission.reserve(
+            ArtifactId.parse(raw),
+            host,
+            plane.stored_sanity(host),
+            _inference_runtime_names(plane),
+            request_id=request_id,
+        )
+
+    def release_reservation(request: ApiRequest) -> object:
+        """Release a platform reservation. Not delete-model or stop."""
+        _reject_arbitrary_destination(request)
+        raw = (request.query.get("reservation_id") or "").strip()
+        if not raw:
+            raise ValidationError(
+                "a reservation id is required", parameter="reservation_id"
+            )
+        return plane.admission.release(ReservationId.parse(raw))
+
     router.get("/models/inventory", models_inventory)
     router.post("/models/acquire", acquire_model)
     router.delete("/models/artifact", delete_artifact)
+    router.get("/resources", resources_summary)
+    router.get("/resources/reservations", list_reservations)
+    router.post("/resources/reservations", reserve)
+    router.delete("/resources/reservations", release_reservation)
     router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)
@@ -480,6 +547,33 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/startup", startup)
     router.get("/approvals", approvals)
     return router
+
+
+_CLIENT_QUANTITY_KEYS = frozenset(
+    {
+        "ram_bytes",
+        "vram_bytes",
+        "accelerator_bytes",
+        "unified_bytes",
+        "admitted_ram_bytes",
+        "admitted_vram_bytes",
+        "cpu",
+        "incremental_storage_bytes",
+        "accelerator_index",
+    }
+)
+
+
+def _reject_client_quantities(request: ApiRequest) -> None:
+    """Callers identify a workload. They do not set authoritative amounts."""
+    payload = request.body or {}
+    keys = set(request.query) | {str(key) for key in payload}
+    refused = sorted(keys & _CLIENT_QUANTITY_KEYS)
+    if refused:
+        raise ValidationError(
+            "client resource quantities are not authoritative",
+            refused=refused,
+        )
 
 
 _ARBITRARY_DESTINATION_KEYS = frozenset(
