@@ -812,13 +812,13 @@ conservative state on a persistence error.
 | **Consumes** | `kernel` · `evidence` · `host.contracts` only |
 | **Ports** | `Executor`, with native process execution as the first and reference implementation · `ContainerEngine`, for the optional container path |
 | **Must not** | Contain model semantics or runtime options. Assume a container runtime exists. Import `capacity` — how a workload is launched is a different question from what may safely be launched. Import `runtime` — the executor receives a generic spec. Become a source of host facts. |
-| **Created** | 1.3 · **Reconciled** 1.5C (`ExecutorCapabilityProfile`; generic `ExecutionId`) |
+| **Created** | 1.3 · **Reconciled** 1.5C (`ExecutorCapabilityProfile`; generic `ExecutionId`) · **ContainerExecutor** 1.6A |
 
 ```text
                         Executor  (port)
                              │
           ┌──────────────────┴───────────────────┐
-   NativeProcessExecutor              OCIContainerExecutor
+   NativeProcessExecutor              ContainerExecutor
    first class, the reference          optional
                                              │
                                     ContainerEngine  (port)
@@ -896,18 +896,25 @@ operational, and not verified. A future `RuntimeCapabilityProfile` is a
 different object and is not owned here until a verification stage exists.
 
 ```text
-InferenceInstance
-        ↓
-InferenceRuntimeAdapter
-        ↓
+RuntimeAdapter
+      ↓
 RuntimeLaunchSpec
-        ↓
+      ↓
 Executor
-        ↓
-ExecutorHandle
+     ↙                      ↘
+NativeProcessExecutor    ContainerExecutor
+      ↓                      ↓
+                     ContainerEngine
+                             ↓
+                        Docker CLI
+      ↓                      ↓
+ExecutorHandle            ExecutorHandle
 ```
 
 Runtime = WHAT. Executor = HOW. InferenceInstance composes them.
+Docker Engine is the first `ContainerEngine` implementation. Docker is
+not present on generic contracts. Native process execution remains the
+default live path; container execution is optional and composition-selected.
 
 Future chain, **not implemented in 1.5C**:
 
@@ -1113,8 +1120,8 @@ adapters/persistence/     file · sqlite
 adapters/http/            stdlib_server · asgi
 adapters/host/            hwloc · nvml · native_linux · native_darwin ·
                           amd_smi · level_zero · nfd · captured_fixture
-adapters/execution/       native_process · oci
-adapters/container/       docker · podman · containerd
+adapters/execution/       native_process · recording · container
+adapters/container/       docker · recording  (podman · containerd later)
 adapters/runtime/         reference_process · (vllm · llama_cpp · mlx later)
 adapters/model_source/    huggingface · local_file
 adapters/estimators/      kultrun · llmfit
@@ -1304,6 +1311,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.5A | `resource` admission and reservation | `capacity`, `ModelRequirement` | ✅ crude requirement, already in the ledger |
 | 1.5B | `inference` instance lifecycle (plural, reference serving) | `resource`, `execution`, `runtime`, `model` | ✅ |
 | 1.5C | Runtime / Executor boundary reconciliation | 1.5B | ✅ |
+| 1.6A | Minimal ContainerExecutor + executor portability | 1.5C | ⏳ this stage |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

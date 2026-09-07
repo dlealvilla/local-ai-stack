@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import json
-import os
-import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.ids import Name
@@ -22,9 +19,10 @@ from kultrun.runtime.contracts import (
 
 IDENTITY = Name("reference-serving")
 EXECUTOR_KIND = Name("native-process")
+CONTAINER_EXECUTOR = Name("container-docker")
 WORKLOAD_MODULE = "kultrun.adapters.runtime.serving_workload"
 READY_MARKER = "kultrun-reference-serving:ready"
-_IMPORT_ROOT = str(Path(__file__).resolve().parents[3])
+PYTHON_COMPONENT = "python"
 
 
 class ReferenceServingRuntime:
@@ -50,7 +48,11 @@ class ReferenceServingRuntime:
             production_candidate=False,
             supported_os_families=("linux", "darwin"),
             supported_architectures=("x86_64", "arm64"),
-            compatible_executor_types=(EXECUTOR_KIND, Name("recording")),
+            compatible_executor_types=(
+                EXECUTOR_KIND,
+                Name("recording"),
+                CONTAINER_EXECUTOR,
+            ),
             required_features=(
                 "process_execution",
                 "structured_argv",
@@ -76,14 +78,13 @@ class ReferenceServingRuntime:
         return RuntimeLaunchSpec(
             runtime=self.identity,
             profile=self.identity,
-            executable=sys.executable,
+            executable=PYTHON_COMPONENT,
             arguments=("-m", WORKLOAD_MODULE),
             environment=(
                 "KULTRUN_REFERENCE_SERVING=1",
                 f"KULTRUN_REFERENCE_SERVING_MODE={mode}",
                 f"KULTRUN_INSTANCE_ID={instance_id}",
                 f"KULTRUN_REFERENCE_BIND={bind}",
-                f"PYTHONPATH={_child_pythonpath()}",
             ),
             grace_period_seconds=2.0,
             network_bindings=(f"tcp:{bind}:0",),
@@ -124,16 +125,6 @@ class ReferenceServingRuntime:
             port=port,
             reason="loopback /health ready",
         )
-
-
-def _child_pythonpath() -> str:
-    current = os.environ.get("PYTHONPATH", "")
-    if not current:
-        return _IMPORT_ROOT
-    parts = current.split(os.pathsep)
-    if _IMPORT_ROOT in parts:
-        return current
-    return _IMPORT_ROOT + os.pathsep + current
 
 
 def _ready_from_stdout(stdout: str) -> tuple[str, int] | None:

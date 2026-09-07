@@ -447,8 +447,11 @@ async function renderRuntime() {
       ? profiles.map((profile) => profile.display_name || profile.runtime).join(', ')
       : 'none registered';
 
+    const containerCapability = state.container_executor_capability || {};
     const pairs = [
       ['executor', executor.identity || 'not reported'],
+      ['executor kind', executor.kind || 'not reported'],
+      ['container executor', containerCapability.availability || 'not reported'],
       ['runtime / profile', profileName],
       ['acceptance workload', state.workload || 'none configured'],
       ['process evidence', String(processEvidence).replace(/_/g, ' ')],
@@ -495,12 +498,14 @@ function executionCard(execution) {
 
   const grid = document.createElement('div');
   grid.className = 'grid';
-  rows(grid, [
+    rows(grid, [
     ['desired state', execution.desired_state],
     ['observed state', execution.observed_state],
+    ['executor', execution.executor],
     ['health', execution.health],
     ['ownership', execution.ownership],
     ['pid', execution.pid],
+    ['external identity', execution.external_identity],
     ['started', execution.started_at],
     ['exited', execution.exited_at],
     ['exit code', execution.exit_code],

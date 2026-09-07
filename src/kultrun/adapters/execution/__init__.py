@@ -1,1 +1,1 @@
-"""Native process execution. First-class, the reference implementation."""
+"""Native process and container execution. Native is the default live path."""

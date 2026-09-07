@@ -752,6 +752,7 @@ consequence of a decision, never a substitute for one.
 
 Native execution is the first validated path and the reference
 implementation; container execution is a first-class optional executor.
+Container execution is a replaceable execution option, not a requirement.
 Neither is privileged in perpetuity. Later, Kultrun may recommend or select
 an executor per deployment from host capabilities, runtime support, the
 deployment profile, administrator policy and operational evidence — a

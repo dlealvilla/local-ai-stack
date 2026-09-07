@@ -69,3 +69,18 @@ def test_alternate_executor_consumes_the_same_generic_spec() -> None:
     assert spec.environment == launch.environment
     assert spec.network_bindings == launch.network_bindings
     assert native.identity.value != recording.identity.value
+    from kultrun.adapters.container.recording import RecordingContainerEngine
+    from kultrun.adapters.execution.container import ContainerExecutor
+    from kultrun.execution.contracts import ContainerExecutionConfig
+
+    container = ContainerExecutor(
+        RecordingContainerEngine(),
+        ContainerExecutionConfig(image="kultrun-reference-serving:stage-16a"),
+    )
+    boxed = container.start(host.host_id, spec)
+    try:
+        assert boxed.executor.value == "container-docker"
+        assert not is_resolved(boxed.pid)
+        assert is_resolved(boxed.external_identity)
+    finally:
+        container.stop(boxed)

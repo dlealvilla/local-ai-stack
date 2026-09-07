@@ -1,0 +1,21 @@
+{
+  "stage": "1.6A",
+  "name": "container-executor",
+  "milestone": 1,
+  "output": "ContainerExecutor + Docker CLI ContainerEngine + same reference-serving Runtime through native and container executors",
+  "status": "open",
+  "gate": "L1",
+  "t3_required": true,
+  "START_LINK": {
+    "predecessor_accepted_commit": "8e78dea7a56dcd9cd23faef0a4a45fb08a1141a3",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.5C-runtime-executor-reconciliation.json"
+    ],
+    "starting_source_commit": "8e78dea7a56dcd9cd23faef0a4a45fb08a1141a3",
+    "safety_tag": "checkpoint/stage-1.5C-closed-8e78dea",
+    "safety_branch": "safety/pre-container-executor-8e78dea",
+    "feature_branch": "stage/1.6A-container-executor",
+    "old_experimental_16_branch": "stage/1.6-runtime-first",
+    "old_experimental_16_untouched": true
+  }
+}

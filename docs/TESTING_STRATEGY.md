@@ -335,6 +335,15 @@ restart reconciliation that does not trust a persisted RUNNING label.
 T2 is a clean wheel. T3 is not required: Stage 1.3 already exercised
 generic process lifecycle on hardware.
 
+**Stage 1.6A** is T0/T1/T2 plus a required real-container T3. The
+executor contract suite covers `RecordingExecutor`,
+`NativeProcessExecutor`, and `ContainerExecutor` (fake `ContainerEngine`
+at T1). Architecture tests keep Docker out of generic
+`RuntimeLaunchSpec` / Inference / Runtime adapters. T2 is a clean wheel.
+Closing the stage requires L2: a real Docker Engine on Linux running the
+same reference-serving Runtime through `ContainerExecutor`. Docker
+Desktop is not an architectural dependency.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.

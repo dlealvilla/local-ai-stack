@@ -27,6 +27,7 @@ def test_reference_serving_is_test_only() -> None:
     assert descriptor.production_candidate is False
     assert descriptor.supported_os_families
     assert Name("native-process") in descriptor.compatible_executor_types
+    assert Name("container-docker") in descriptor.compatible_executor_types
     assert "installed" not in descriptor.limitations
     assert "verified" not in " ".join(descriptor.limitations).lower()
 
@@ -54,6 +55,8 @@ def test_launch_spec_is_executor_neutral() -> None:
     assert names.isdisjoint(BANNED_IMPLEMENTATION_FIELDS)
     assert "docker_image" not in names
     assert launch.arguments == ("-m", "kultrun.adapters.runtime.serving_workload")
+    assert launch.executable == "python"
+    assert not any(entry.startswith("PYTHONPATH=") for entry in launch.environment)
     assert all("=" in entry for entry in launch.environment)
     assert "vllm" not in launch.executable.lower()
     for banned in BANNED_IMPLEMENTATION_FIELDS:

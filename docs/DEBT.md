@@ -597,20 +597,23 @@ To make real: A probe appropriate to the workload (later, an inference
 Retire when:  Stage 1.6 introduces a real instance health check.
 Status:       OPEN
 
-### K-33 — ContainerEngine is an unimplemented seam
+### K-33 — ContainerEngine GPU and multi-engine depth
 Label:        DEFERRED
-Owner stage:  1.3
+Owner stage:  1.6A
 Subsystem:    execution
 Authorizes:   NO
-What:         `ContainerEngine` is declared on the executor port and has
-              no adapter. Native process execution is the only path.
-Why now:      Docker/OCI/Kubernetes must not become mandatory by existing.
-              The seam exists so an OCI executor is an adapter later.
-To make real: Stage 1.6A minimal ContainerExecutor behind the same
-              `Executor` port, then a later optional OCI adapter,
-              selected per deployment, never as a default.
-Retire when:  a container executor is an accepted adapter, or the product
-              decides the seam is unused and removes it deliberately.
+What:         `ContainerExecutor` exists behind the generic `Executor`
+              port. Docker CLI is the first `ContainerEngine`. GPU/CDI
+              exposure, bridge/publish networking, additional engines,
+              image management and Kubernetes are not implemented.
+Why now:      Stage 1.6A only needs one second execution mechanism and
+              a truthful capability profile. Claiming NVIDIA container
+              inference would be a lie.
+To make real: implement and verify device attachment separately; add
+              engines as adapters; keep Docker out of generic contracts.
+Retire when:  a later stage accepts GPU-in-container or additional
+              engines with their own evidence, or the product decides
+              those paths unused.
 Status:       OPEN
 
 ### K-34 — the runtime mutation is unauthenticated and unaudited

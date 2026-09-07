@@ -1101,6 +1101,67 @@
     },
     "python": "ExecutorCapabilityProfile"
   },
+  "execution.container_config@1": {
+    "fields": {
+      "engine_executable": {
+        "may_be_unresolved": false,
+        "meaning": "engine CLI name or path; composition-controlled, never caller argv",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "image": {
+        "may_be_unresolved": false,
+        "meaning": "OCI image reference the engine should run",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "managed_label": {
+        "may_be_unresolved": false,
+        "meaning": "identity label that constrains cleanup",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "name_prefix": {
+        "may_be_unresolved": false,
+        "meaning": "prefix for generated container names; must stay Kultrun-owned",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "network_mode": {
+        "may_be_unresolved": false,
+        "meaning": "how generic network bindings are realized",
+        "nullable": false,
+        "optional": true,
+        "type": "ContainerNetworkMode"
+      },
+      "pull_policy": {
+        "may_be_unresolved": false,
+        "meaning": "when an image may be fetched; never during ordinary reads",
+        "nullable": false,
+        "optional": true,
+        "type": "PullPolicy"
+      },
+      "remove_on_stop": {
+        "may_be_unresolved": false,
+        "meaning": "whether this executor removes the container after stop",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "working_directory": {
+        "may_be_unresolved": false,
+        "meaning": "container working directory when the executor maps one",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      }
+    },
+    "python": "ContainerExecutionConfig"
+  },
   "execution.device_request@1": {
     "fields": {
       "index": {
@@ -1112,6 +1173,53 @@
       }
     },
     "python": "DeviceRequest"
+  },
+  "execution.engine_probe@1": {
+    "fields": {
+      "availability": {
+        "may_be_unresolved": false,
+        "meaning": "available only when the engine answered a bounded probe",
+        "nullable": false,
+        "optional": false,
+        "type": "ExecutorAvailability"
+      },
+      "engine": {
+        "may_be_unresolved": false,
+        "meaning": "which engine adapter produced this probe",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "evidence": {
+        "may_be_unresolved": false,
+        "meaning": "short provenance facts; never a vendor object",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "failure_kind": {
+        "may_be_unresolved": true,
+        "meaning": "normalized reason when availability is not available",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "reason": {
+        "may_be_unresolved": true,
+        "meaning": "human-readable normalized detail, never raw CLI stderr",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "version": {
+        "may_be_unresolved": true,
+        "meaning": "engine version when the probe obtained one",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "ContainerEngineProbe"
   },
   "execution.handle@1": {
     "fields": {

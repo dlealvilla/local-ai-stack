@@ -52,9 +52,12 @@ def test_capability_profile_uses_the_current_host(executor: object) -> None:
 def test_unknown_capability_is_not_unsupported() -> None:
     host = host_capabilities()
     profile = RecordingExecutor().capabilities(host)
-    assert profile.accelerator_exposure is FeatureSupport.UNKNOWN
-    assert profile.accelerator_exposure is not FeatureSupport.UNSUPPORTED
-    assert profile.accelerator_exposure is not FeatureSupport.SUPPORTED
+    unknown = profile.accelerator_exposure
+    assert unknown is FeatureSupport.UNKNOWN
+    assert unknown.value not in {
+        FeatureSupport.UNSUPPORTED.value,
+        FeatureSupport.SUPPORTED.value,
+    }
 
 
 def test_start_observe_stop_use_generic_identity(executor: object) -> None:
