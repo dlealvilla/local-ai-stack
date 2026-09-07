@@ -114,12 +114,26 @@
     <section id="resources-panel" class="hidden">
       <h2>Resource reservations</h2>
       <p class="note">
-        Reserved resources are platform commitments. No model process is running yet.
-        This panel does not start, load, or serve a model.
+        Reserved resources are platform commitments, not a running process
+        and not a fixed stored/active capacity partition. SAFE, RESERVED
+        and AVAILABLE stay authoritative. Release is a separate action
+        from stopping an instance.
       </p>
       <div class="grid" id="resources-summary"></div>
       <div id="resources"></div>
       <details><summary>View JSON</summary><pre id="resources-json"></pre></details>
+    </section>
+
+    <section id="instances-panel" class="hidden">
+      <h2>Inference instances</h2>
+      <p class="note">
+        Workloads that exist or run. Stored, reserved and running are
+        lifecycle states, not capacity buckets. Create, start and stop
+        are separate. Stop does not release the reservation.
+      </p>
+      <div class="grid" id="instances-summary"></div>
+      <div id="instances"></div>
+      <details><summary>View JSON</summary><pre id="instances-json"></pre></details>
     </section>
 
     <section id="runtime-panel" class="hidden">

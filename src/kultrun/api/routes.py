@@ -19,6 +19,8 @@ from kultrun.execution.service import ExecutionService
 from kultrun.host.contracts import DeploymentProfile, HostCapabilities
 from kultrun.host.inventory import HostInventory
 from kultrun.host.profile import shape_of
+from kultrun.inference.contracts import InstanceId, ObservedState
+from kultrun.inference.service import InstanceService
 from kultrun.kernel.build import identity as build_identity
 from kultrun.kernel.config import Configuration
 from kultrun.kernel.errors import (
@@ -72,6 +74,7 @@ class ControlPlane:
     acquisition: AcquisitionService
     resources: ResourceManager
     admission: AdmissionService
+    instances: InstanceService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -113,9 +116,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
                 "schema_version": version,
                 "module": contract_type.__module__,
             }
-            for (kind, version), contract_type in sorted(
-                registered_contracts().items()
-            )
+            for (kind, version), contract_type in sorted(registered_contracts().items())
             if contract_type.__module__.startswith("kultrun.")
         ]
 
@@ -210,14 +211,10 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "evidence_mode": plane.evidence_mode,
             "physical_host_connected": not replaying,
             "storage_evidence_kind": (
-                "replayed_test_evidence"
-                if replaying
-                else "live_empirical_verification"
+                "replayed_test_evidence" if replaying else "live_empirical_verification"
             ),
             "process_evidence_kind": "live_local_process",
-            "host_evidence_kind": (
-                "fixture_replay" if replaying else "live_host"
-            ),
+            "host_evidence_kind": ("fixture_replay" if replaying else "live_host"),
             "fixture": dict(plane.fixture_description)
             if plane.fixture_description
             else None,
@@ -260,14 +257,10 @@ def register(router: Router, plane: ControlPlane) -> Router:
         """
         mount_point = request.query.get("mount_point", "").strip()
         if not mount_point:
-            raise ValidationError(
-                "a mount point is required", parameter="mount_point"
-            )
+            raise ValidationError("a mount point is required", parameter="mount_point")
         host = plane.hosts.current
         envelope = plane.capacity.compute(host, plane.stored_sanity(host))
-        pool = next(
-            (p for p in envelope.pools if p.mount_point == mount_point), None
-        )
+        pool = next((p for p in envelope.pools if p.mount_point == mount_point), None)
         if pool is None:
             raise NotFoundError(
                 "no such candidate storage pool",
@@ -355,7 +348,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
         recommendation = plane.selection.recommend(
             envelope=envelope,
             candidates=plane.models.entries(),
-            available_runtimes=_inference_runtime_names(plane),
+            available_runtimes=plane.runtimes.product_identities(),
         )
         planned = plan_from(recommendation)
         return {
@@ -416,7 +409,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
             recommendation = plane.selection.recommend(
                 envelope=envelope,
                 candidates=plane.models.entries(),
-                available_runtimes=_inference_runtime_names(plane),
+                available_runtimes=plane.runtimes.product_identities(),
             )
             if recommendation.primary is None:
                 raise PreconditionFailedError("no recommended candidate to acquire")
@@ -439,9 +432,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
         _reject_arbitrary_destination(request)
         raw = (request.query.get("artifact_id") or "").strip()
         if not raw:
-            raise ValidationError(
-                "an artifact id is required", parameter="artifact_id"
-            )
+            raise ValidationError("an artifact id is required", parameter="artifact_id")
         return plane.acquisition.delete(
             ArtifactId.parse(raw), plane.hosts.current.host_id
         )
@@ -470,17 +461,22 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)
     router.get("/models/selection", models_selection)
+
     def resources_summary(_: ApiRequest) -> object:
         """SAFE / RESERVED / AVAILABLE. Reserved is not running."""
         host = plane.hosts.current
         envelope = plane.capacity.compute(host, plane.stored_sanity(host))
         summary = plane.resources.summary(envelope)
+        items = plane.instances.list()
+        running = _running(items)
         return {
             "summary": summary,
-            "serving": False,
-            "running_instances": 0,
+            "instances": items,
+            "serving": running > 0,
+            "running_instances": running,
             "stored_implies_reserved": False,
             "reserved_implies_running": False,
+            "fixed_stored_active_partition": False,
         }
 
     def list_reservations(request: ApiRequest) -> object:
@@ -490,12 +486,26 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "yes",
         }
         items = plane.resources.reservations(include_released=include)
+        live = {
+            item.reservation_id.value
+            for item in plane.instances.list()
+            if item.reservation_id is not None
+            and item.observed_state
+            in {
+                ObservedState.STARTING,
+                ObservedState.RUNNING,
+                ObservedState.STOPPING,
+                ObservedState.UNKNOWN,
+            }
+        }
         return {
             "reservations": items,
             "count": len(items),
-            "serving": False,
-            "running_instances": 0,
+            "in_use_reservation_ids": sorted(live),
+            "serving": bool(live),
+            "running_instances": _running(plane.instances.list()),
             "reserved_implies_running": False,
+            "fixed_stored_active_partition": False,
         }
 
     def reserve(request: ApiRequest) -> object:
@@ -514,7 +524,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
             ArtifactId.parse(raw),
             host,
             plane.stored_sanity(host),
-            _inference_runtime_names(plane),
+            plane.runtimes.product_identities(),
             request_id=request_id,
         )
 
@@ -528,6 +538,60 @@ def register(router: Router, plane: ControlPlane) -> Router:
             )
         return plane.admission.release(ReservationId.parse(raw))
 
+    def list_instances(_: ApiRequest) -> object:
+        items = plane.instances.list()
+        return {
+            "instances": items,
+            "count": len(items),
+            "fixed_stored_active_partition": False,
+        }
+
+    def create_instance(request: ApiRequest) -> object:
+        """Create from a reservation. Clients do not invent argv or amounts."""
+        _reject_arbitrary_command(request)
+        _reject_arbitrary_destination(request)
+        _reject_client_quantities(request)
+        raw = (request.query.get("reservation_id") or "").strip()
+        if not raw:
+            raise ValidationError(
+                "a reservation id is required", parameter="reservation_id"
+            )
+        reservation = plane.resources.get(ReservationId.parse(raw))
+        if reservation is None:
+            raise NotFoundError("no such reservation", reservation_id=raw)
+        if reservation.artifact_id is None:
+            raise PreconditionFailedError("reservation has no artifact")
+        artifact = plane.inventory.get(reservation.artifact_id)
+        if artifact is None:
+            raise NotFoundError(
+                "reservation artifact is missing",
+                artifact_id=reservation.artifact_id.value,
+            )
+        return plane.instances.create(artifact, reservation)
+
+    def start_instance(request: ApiRequest) -> object:
+        _reject_arbitrary_command(request)
+        _reject_arbitrary_destination(request)
+        _reject_client_quantities(request)
+        raw = (request.query.get("instance_id") or "").strip()
+        if not raw:
+            raise ValidationError("an instance id is required", parameter="instance_id")
+        if request.query.get("serving_mode"):
+            raise ValidationError("serving_mode is not a product parameter")
+        host = plane.hosts.current
+        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        return plane.instances.start(
+            InstanceId.parse(raw),
+            ledger_health=plane.resources.summary(envelope).health,
+        )
+
+    def stop_instance(request: ApiRequest) -> object:
+        _reject_arbitrary_command(request)
+        raw = (request.query.get("instance_id") or "").strip()
+        if not raw:
+            raise ValidationError("an instance id is required", parameter="instance_id")
+        return plane.instances.stop(InstanceId.parse(raw))
+
     router.get("/models/inventory", models_inventory)
     router.post("/models/acquire", acquire_model)
     router.delete("/models/artifact", delete_artifact)
@@ -535,6 +599,10 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/resources/reservations", list_reservations)
     router.post("/resources/reservations", reserve)
     router.delete("/resources/reservations", release_reservation)
+    router.get("/inference/instances", list_instances)
+    router.post("/inference/instances", create_instance)
+    router.post("/inference/instances/start", start_instance)
+    router.post("/inference/instances/stop", stop_instance)
     router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)
@@ -630,10 +698,9 @@ def _reject_arbitrary_command(request: ApiRequest) -> None:
         )
 
 
-def _inference_runtime_names(plane: ControlPlane) -> tuple[str, ...]:
-    """Runtime identities that can serve a model. The Stage 1.3 harness is not one."""
-    return tuple(
-        profile.runtime.value
-        for profile in plane.runtimes.profiles()
-        if profile.runtime.value != "reference-process"
+def _running(items: tuple[object, ...]) -> int:
+    return sum(
+        1
+        for item in items
+        if getattr(item, "observed_state", None) is ObservedState.RUNNING
     )

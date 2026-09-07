@@ -29,6 +29,7 @@ from kultrun.adapters.model_source.candidates import acceptance_candidate
 from kultrun.adapters.model_source.huggingface import HuggingFaceSource
 from kultrun.adapters.persistence import file_store
 from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
+from kultrun.adapters.runtime.serving import ReferenceServingRuntime
 from kultrun.adapters.storage import posix_reservation, replayed
 
 # Contract registration is a side effect of import, so the catalogue the
@@ -55,6 +56,8 @@ from kultrun.host.discovery import HostDiscoveryService
 from kultrun.host.inventory import HostInventory
 from kultrun.host.ports import HostDiscoveryProvider
 from kultrun.inference import contracts as _inference_contracts  # noqa: F401
+from kultrun.inference.contracts import ObservedState
+from kultrun.inference.service import InstanceService
 from kultrun.install.preparation import ComponentProvisioner, Preparation
 from kultrun.kernel.build import identity as build_identity
 from kultrun.kernel.clock import Clock, SystemClock
@@ -90,6 +93,7 @@ from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
 from kultrun.resource import contracts as _resource_contracts  # noqa: F401
+from kultrun.resource.contracts import LedgerHealth
 from kultrun.resource.lock import AdmissionLock
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
@@ -239,6 +243,7 @@ class Platform:
     acquisition: AcquisitionService
     resources: ResourceManager
     admission: AdmissionService
+    instances: InstanceService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -431,9 +436,7 @@ def build(
             requested=shape,
             available=list(fixtures.available()),
         )
-    mode = (
-        EvidenceMode.FIXTURE_REPLAY if shape else EvidenceMode.LIVE_HOST
-    )
+    mode = EvidenceMode.FIXTURE_REPLAY if shape else EvidenceMode.LIVE_HOST
 
     if providers is not None:
         resolved_providers: Sequence[HostDiscoveryProvider] = providers
@@ -480,7 +483,9 @@ def build(
     )
     executor = NativeProcessExecutor(resolved_clock)
     executions = ExecutionService(executor, store)
-    runtimes = RuntimeCatalogue((ReferenceProcessRuntime(hold=True),))
+    runtimes = RuntimeCatalogue(
+        (ReferenceProcessRuntime(hold=True), ReferenceServingRuntime())
+    )
     models = ModelCatalogue(HuggingFaceSource(), extras=(acceptance_candidate(),))
     selection = SelectionService(
         resolve_estimator(settings.model_requirement_estimator),
@@ -489,9 +494,7 @@ def build(
     artifact_store = ModelArtifactStore(state_root)
     inventory = ModelInventory(store, artifact_store)
     acquisition = AcquisitionService(
-        resolve_acquisition(
-            acquisition_adapter or settings.model_acquisition_provider
-        ),
+        resolve_acquisition(acquisition_adapter or settings.model_acquisition_provider),
         inventory,
         artifact_store,
         resolved_clock,
@@ -513,15 +516,17 @@ def build(
     health.register(execution_phase)
 
     report = startup.run(state=state)
-    resources = ResourceManager(
-        store, resolved_clock, AdmissionLock(state_root)
-    )
+    resources = ResourceManager(store, resolved_clock, AdmissionLock(state_root))
     try:
         actor_id = state.current.administrator_id
     except PreconditionFailedError:
         from kultrun.identity.contracts import SubjectId
 
         actor_id = SubjectId.generate()
+    instances = InstanceService(
+        store, resolved_clock, inventory, resources, executions, runtimes
+    )
+    instances.reconcile()
     admission = AdmissionService(
         resources,
         inventory,
@@ -531,6 +536,7 @@ def build(
         store,
         resolved_clock,
         actor_id,
+        reservation_in_use=instances.blocks_release,
     )
 
     plane = ControlPlane(
@@ -550,6 +556,7 @@ def build(
         acquisition=acquisition,
         resources=resources,
         admission=admission,
+        instances=instances,
         executor_identity=executor.identity.value,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
@@ -575,12 +582,11 @@ def build(
         acquisition=acquisition,
         resources=resources,
         admission=admission,
+        instances=instances,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
-        state_root_configured=(
-            settings.state_root != PlatformSettings().state_root
-        ),
+        state_root_configured=(settings.state_root != PlatformSettings().state_root),
     )
 
 
@@ -845,9 +851,7 @@ def check_storage_sanity(arguments: Sequence[str]) -> int:
     _warn_if_state_root_defaulted(platform)
     host = platform.hosts.current
     envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
-    pool = next(
-        (p for p in envelope.pools if p.mount_point == mount_point), None
-    )
+    pool = next((p for p in envelope.pools if p.mount_point == mount_point), None)
     if pool is None:
         known = ", ".join(p.mount_point for p in envelope.pools) or "none"
         print(
@@ -983,9 +987,7 @@ def _runtime_stop(arguments: Sequence[str]) -> int:
     return 0
 
 
-def _wait_until_terminal(
-    platform: Platform, handle: ExecutorHandle
-) -> ExecutorHandle:
+def _wait_until_terminal(platform: Platform, handle: ExecutorHandle) -> ExecutorHandle:
     import time
 
     current = handle
@@ -1028,9 +1030,7 @@ def show_models() -> int:
         meta = entry.metadata
         req = entry.requirement
         display = (
-            meta.display_name
-            if is_resolved(meta.display_name)
-            else meta.logical_name
+            meta.display_name if is_resolved(meta.display_name) else meta.logical_name
         )
         quant = meta.quantization if is_resolved(meta.quantization) else "unknown"
         params = (
@@ -1056,9 +1056,7 @@ def show_models() -> int:
             f"VRAM {_bytes(req.estimated_vram_bytes)}"
         )
         method = (
-            req.estimation_method
-            if is_resolved(req.estimation_method)
-            else "unknown"
+            req.estimation_method if is_resolved(req.estimation_method) else "unknown"
         )
         print(
             f"  runtimes {', '.join(meta.supported_runtimes) or 'unstated'}  "
@@ -1132,11 +1130,7 @@ def acquire_named(arguments: Sequence[str]) -> int:
         recommendation = platform.selection.recommend(
             envelope=envelope,
             candidates=platform.models.entries(),
-            available_runtimes=tuple(
-                profile.runtime.value
-                for profile in platform.runtimes.profiles()
-                if profile.runtime.value != "reference-process"
-            ),
+            available_runtimes=platform.runtimes.product_identities(),
         )
         if recommendation.primary is None:
             print("kultrun: no recommended candidate", file=sys.stderr)
@@ -1205,17 +1199,12 @@ def show_recommendation() -> int:
     recommendation = platform.selection.recommend(
         envelope=envelope,
         candidates=platform.models.entries(),
-        available_runtimes=tuple(
-            profile.runtime.value
-            for profile in platform.runtimes.profiles()
-            if profile.runtime.value != "reference-process"
-        ),
+        available_runtimes=platform.runtimes.product_identities(),
     )
     recommendation_mode = recommendation.estimator_mode
     fallback = (
         f"  fallback {recommendation.fallback_reason}"
-        if recommendation.fallback_used
-        and is_resolved(recommendation.fallback_reason)
+        if recommendation.fallback_used and is_resolved(recommendation.fallback_reason)
         else "  fallback no"
     )
     print(
@@ -1233,15 +1222,11 @@ def show_recommendation() -> int:
         ratio = winner.utilization.ratio
         used = f"{float(ratio):.1%}" if is_resolved(ratio) else "unknown"
         print(
-            f"primary {winner.logical_name.value}  "
-            f"{winner.capacity_fit.value}  {used}"
+            f"primary {winner.logical_name.value}  {winner.capacity_fit.value}  {used}"
         )
     planned = plan_from(recommendation)
     if planned is not None:
-        print(
-            f"plan {planned.logical_name.value}  "
-            f"placement {planned.placement.value}"
-        )
+        print(f"plan {planned.logical_name.value}  placement {planned.placement.value}")
     return 0
 
 
@@ -1269,9 +1254,10 @@ def show_resource_summary() -> int:
     host = platform.hosts.current
     envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
     summary = platform.resources.summary(envelope)
+    running = _running_count(platform)
     print(
         f"health {summary.health.value}  active {summary.active_count}  "
-        f"serving no  running 0"
+        f"serving {'yes' if running else 'no'}  running {running}"
     )
     print("reserved is not running")
     print(
@@ -1321,11 +1307,7 @@ def reserve_named(arguments: Sequence[str]) -> int:
             ArtifactId.parse(arguments[0]),
             host,
             _stored_sanity(platform, host),
-            tuple(
-                profile.runtime.value
-                for profile in platform.runtimes.profiles()
-                if profile.runtime.value != "reference-process"
-            ),
+            platform.runtimes.product_identities(),
         )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)
@@ -1362,11 +1344,170 @@ def release_named(arguments: Sequence[str]) -> int:
     return 0
 
 
+def _running_count(platform: Platform) -> int:
+    return sum(
+        1
+        for item in platform.instances.list()
+        if item.observed_state is ObservedState.RUNNING
+    )
+
+
+def _ledger_health_of(platform: Platform) -> LedgerHealth:
+    host = platform.hosts.current
+    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    return platform.resources.summary(envelope).health
+
+
+def _instances(arguments: Sequence[str]) -> int:
+    if not arguments:
+        return show_instances()
+    command = arguments[0]
+    if command == "create":
+        return create_named_instance(arguments[1:])
+    if command == "start":
+        return start_named_instance(arguments[1:])
+    if command == "stop":
+        return stop_named_instance(arguments[1:])
+    if command == "inspect":
+        return inspect_named_instance(arguments[1:])
+    print(
+        "usage: kultrun instances [create|start|stop|inspect]",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def show_instances() -> int:
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    items = platform.instances.list()
+    print(f"instances {len(items)}  running {_running_count(platform)}")
+    if not items:
+        print("no inference instances")
+        return 0
+    for item in items:
+        endpoint = "-"
+        if item.endpoint is not None:
+            endpoint = f"{item.endpoint.address}:{item.endpoint.port}"
+        pid = item.pid if is_resolved(item.pid) else "-"
+        print(
+            f"{item.instance_id.value}  {item.observed_state.value}  "
+            f"desired {item.desired_state.value}  pid {pid}  {endpoint}"
+        )
+    return 0
+
+
+def create_named_instance(arguments: Sequence[str]) -> int:
+    from kultrun.kernel.errors import KultrunError
+    from kultrun.resource.contracts import ReservationId
+
+    if len(arguments) != 1:
+        print("usage: kultrun instances create <reservation-id>", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    reservation = platform.resources.get(ReservationId.parse(arguments[0]))
+    if reservation is None or reservation.artifact_id is None:
+        print("kultrun: no such reservation", file=sys.stderr)
+        return 1
+    artifact = platform.inventory.get(reservation.artifact_id)
+    if artifact is None:
+        print("kultrun: reservation artifact is missing", file=sys.stderr)
+        return 1
+    try:
+        instance = platform.instances.create(artifact, reservation)
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    print(f"{instance.instance_id.value}  {instance.observed_state.value}")
+    return 0
+
+
+def start_named_instance(arguments: Sequence[str]) -> int:
+    from kultrun.inference.contracts import InstanceId
+    from kultrun.kernel.errors import KultrunError
+
+    if len(arguments) != 1:
+        print("usage: kultrun instances start <instance-id>", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        instance = platform.instances.start(
+            InstanceId.parse(arguments[0]),
+            ledger_health=_ledger_health_of(platform),
+        )
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    endpoint = "-"
+    if instance.endpoint is not None:
+        endpoint = f"{instance.endpoint.address}:{instance.endpoint.port}"
+    pid = instance.pid if is_resolved(instance.pid) else "-"
+    print(
+        f"{instance.instance_id.value}  {instance.observed_state.value}  "
+        f"pid {pid}  {endpoint}"
+    )
+    return 0
+
+
+def stop_named_instance(arguments: Sequence[str]) -> int:
+    from kultrun.inference.contracts import InstanceId
+    from kultrun.kernel.errors import KultrunError
+
+    if len(arguments) != 1:
+        print("usage: kultrun instances stop <instance-id>", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        instance = platform.instances.stop(InstanceId.parse(arguments[0]))
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    print(
+        f"{instance.instance_id.value}  {instance.observed_state.value}  "
+        f"reservation held"
+    )
+    return 0
+
+
+def inspect_named_instance(arguments: Sequence[str]) -> int:
+    from kultrun.inference.contracts import InstanceId
+
+    if len(arguments) != 1:
+        print("usage: kultrun instances inspect <instance-id>", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    instance = platform.instances.get(InstanceId.parse(arguments[0]))
+    if instance is None:
+        print("kultrun: no such instance", file=sys.stderr)
+        return 1
+    endpoint = "-"
+    if instance.endpoint is not None:
+        endpoint = (
+            f"{instance.endpoint.scheme}://{instance.endpoint.address}"
+            f":{instance.endpoint.port}"
+        )
+    print(f"instance {instance.instance_id.value}")
+    print(f"artifact {instance.artifact_id}")
+    print(f"reservation {instance.reservation_id}")
+    print(f"desired {instance.desired_state.value}")
+    print(f"observed {instance.observed_state.value}")
+    print(f"runtime {instance.runtime.value}")
+    print(f"pid {instance.pid if is_resolved(instance.pid) else '-'}")
+    print(f"endpoint {endpoint}")
+    print(f"ready {instance.ready if is_resolved(instance.ready) else 'unknown'}")
+    return 0
+
+
 COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "version": lambda _: show_version(),
     "host": lambda _: show_host(),
     "models": _models,
     "resources": _resources,
+    "instances": _instances,
     "storage": _storage,
     "runtime": _runtime,
     "serve": lambda _: serve(),
@@ -1379,9 +1520,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     Deliberately a small command set and no framework. Each exists because
     the workflow needs it: `version` identifies a deployed build, `host`
     lets a real-host run be observed without shipping a script beside the
-    product, `models` lists the catalog and inventory and can acquire or
-    delete stored artifacts, `storage` and `runtime` are explicit mutations,
-    and `serve` is what the platform does.
+    product,     `models` lists the catalog and inventory and can acquire or
+    delete stored artifacts, `resources` admits capacity, `instances`
+    starts and stops reference serving workloads, `storage` and `runtime`
+    are explicit mutations, and `serve` is what the platform does.
     """
     arguments = list(sys.argv[1:] if argv is None else argv)
     if not arguments or arguments[0] in ("-h", "--help", "help"):

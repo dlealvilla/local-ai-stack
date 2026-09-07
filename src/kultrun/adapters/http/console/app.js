@@ -31,7 +31,7 @@ const SUBSYSTEMS = [
   { name: 'Model selection', probe: '/models/selection' },
   { name: 'Model inventory', probe: '/models/inventory' },
   { name: 'Resource admission', probe: '/resources' },
-  { name: 'Inference', probe: null, stage: '1.6' },
+  { name: 'Inference instances', probe: '/inference/instances' },
 ];
 
 /* ---------- transport ------------------------------------------------- */
@@ -903,12 +903,13 @@ async function renderResources() {
     }
     target.replaceChildren();
     target.append(span('muted',
-      'Reserved resources are platform commitments. No model process is running yet.'));
+      'SAFE / RESERVED / AVAILABLE are the ledger. Stored and active are states, not capacity partitions.'));
     if (!listing.reservations || listing.reservations.length === 0) {
       target.append(span('muted', ' No active reservations.'));
     }
+    const inUse = new Set(listing.in_use_reservation_ids || []);
     for (const item of listing.reservations || []) {
-      target.append(reservationCard(item));
+      target.append(reservationCard(item, inUse.has(item.reservation_id)));
     }
     json(document.getElementById('resources-json'), { summary: state, reservations: listing });
   } catch (error) {
@@ -921,7 +922,7 @@ async function renderResources() {
   }
 }
 
-function reservationCard(item) {
+function reservationCard(item, inUse) {
   const card = document.createElement('div');
   card.className = 'pool';
   const head = document.createElement('div');
@@ -944,7 +945,7 @@ function reservationCard(item) {
     ['unified memory', bytes(item.admitted_unified_bytes)],
     ['created', item.created_at],
     ['estimator', item.estimator_provider],
-    ['serving', 'no'],
+    ['serving', inUse ? 'instance in use' : 'no'],
   ]);
   card.append(grid);
   const action = document.createElement('div');
@@ -952,7 +953,12 @@ function reservationCard(item) {
   const button = document.createElement('button');
   button.className = 'danger';
   button.textContent = 'Release';
-  const status = span('muted', ' frees the commitment; does not stop a runtime');
+  const status = span('muted', inUse
+    ? ' blocked while a live instance uses this reservation'
+    : ' frees the commitment; does not stop a runtime');
+  if (inUse) {
+    button.disabled = true;
+  }
   button.addEventListener('click', async () => {
     button.disabled = true;
     try {
@@ -965,6 +971,116 @@ function reservationCard(item) {
     }
   });
   action.append(button, status);
+  const create = document.createElement('button');
+  create.textContent = 'Create instance';
+  const createStatus = span('muted', ' record only; does not start');
+  create.addEventListener('click', async () => {
+    create.disabled = true;
+    try {
+      await post('/inference/instances', { reservation_id: item.reservation_id });
+      await refresh();
+    } catch (error) {
+      create.disabled = false;
+      createStatus.textContent = ` failed: ${error.message}`;
+    }
+  });
+  action.append(create, createStatus);
+  card.append(action);
+  return card;
+}
+
+async function renderInstances() {
+  const panel = document.getElementById('instances-panel');
+  const summary = document.getElementById('instances-summary');
+  const target = document.getElementById('instances');
+  try {
+    const listing = await get('/inference/instances');
+    panel.classList.remove('hidden');
+    const items = listing.instances || [];
+    rows(summary, [
+      ['instances', String(listing.count || items.length)],
+      ['fixed stored/active partition', listing.fixed_stored_active_partition ? 'yes' : 'no'],
+    ]);
+    target.replaceChildren();
+    if (items.length === 0) {
+      target.append(span('muted', ' No inference instances.'));
+    }
+    for (const item of items) {
+      target.append(instanceCard(item));
+    }
+    json(document.getElementById('instances-json'), listing);
+  } catch (error) {
+    if (error.message.startsWith('404')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
+function instanceCard(item) {
+  const card = document.createElement('div');
+  card.className = 'pool';
+  const head = document.createElement('div');
+  head.className = 'pool-head';
+  const title = document.createElement('span');
+  title.className = 'pool-path';
+  title.textContent = item.instance_id;
+  const observed = String(item.observed_state || '');
+  head.append(title, pill(observed.replace(/_/g, ' '),
+    observed === 'running' ? 'ok' : observed === 'failed' ? 'bad' : 'unknown'));
+  card.append(head);
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  const endpoint = item.endpoint
+    ? `${item.endpoint.address}:${item.endpoint.port}`
+    : null;
+  rows(grid, [
+    ['instance id', item.instance_id],
+    ['artifact', item.artifact_id],
+    ['reservation', item.reservation_id],
+    ['desired', item.desired_state],
+    ['observed', item.observed_state],
+    ['runtime', item.runtime],
+    ['pid', item.pid],
+    ['endpoint', endpoint],
+    ['ready', item.ready],
+    ['created', item.created_at],
+    ['started', item.started_at],
+    ['stopped', item.stopped_at],
+    ['failure', item.failure_reason],
+  ]);
+  card.append(grid);
+  const action = document.createElement('div');
+  action.style.marginTop = '0.9rem';
+  const start = document.createElement('button');
+  start.textContent = 'Start';
+  const stop = document.createElement('button');
+  stop.className = 'danger';
+  stop.textContent = 'Stop';
+  const status = span('muted', ' stop does not release the reservation');
+  start.addEventListener('click', async () => {
+    start.disabled = true;
+    try {
+      await post('/inference/instances/start', { instance_id: item.instance_id });
+      await refresh();
+    } catch (error) {
+      start.disabled = false;
+      status.textContent = ` failed: ${error.message}`;
+    }
+  });
+  stop.addEventListener('click', async () => {
+    stop.disabled = true;
+    try {
+      await post('/inference/instances/stop', { instance_id: item.instance_id });
+      await refresh();
+    } catch (error) {
+      stop.disabled = false;
+      status.textContent = ` failed: ${error.message}`;
+    }
+  });
+  action.append(start, stop, status);
   card.append(action);
   return card;
 }
@@ -1076,6 +1192,7 @@ async function refresh() {
     await renderSelection();
     await renderInventory();
     await renderResources();
+    await renderInstances();
     await renderHost();
     await renderProviders();
     await renderProgress();
