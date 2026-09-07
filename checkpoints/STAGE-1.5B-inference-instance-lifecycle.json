@@ -1,0 +1,138 @@
+{
+  "stage": "1.5B",
+  "name": "inference-instance-lifecycle",
+  "milestone": 1,
+  "output": "InferenceInstance v1 + reference serving lifecycle + dynamic reservation mobility",
+  "status": "closed",
+  "gate": "L1",
+  "t3_required": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "bf8d94d1765db405de15001dc3f14dd7ed561a71",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.5A-resource-admission.json"
+    ],
+    "starting_source_commit": "bf8d94d1765db405de15001dc3f14dd7ed561a71"
+  },
+  "architecture": {
+    "inference_package": "kultrun.inference",
+    "model_artifact_boundary": "STORED required; disk remains counted while running",
+    "resource_reservation_boundary": "ACTIVE required; reservation is control-plane only",
+    "runtime_boundary": "RuntimeLaunchRequest → RuntimeLaunchSpec; no argv in inference",
+    "executor_boundary": "NativeProcessExecutor; inference does not reimplement subprocess",
+    "planning_imported_by_inference": false,
+    "resource_imports_inference": false,
+    "real_llm_introduced": false,
+    "fixed_stored_active_partition": false,
+    "stored_active_are_lifecycle_labels": true,
+    "disk_ram_vram_unified_kept_separate": true
+  },
+  "lifecycle": {
+    "desired": ["running", "stopped"],
+    "observed": ["created", "starting", "running", "stopping", "stopped", "failed", "unknown"],
+    "stop_auto_releases": false,
+    "release_while_live_blocked": true,
+    "stale_running_trusted_after_restart": false
+  },
+  "runtime": {
+    "adapter": "reference-serving",
+    "executor": "native-process",
+    "loopback_only": true,
+    "health_route": "/health",
+    "ai_inference": false
+  },
+  "api": {
+    "GET /v1/inference/instances": "plural InferenceInstances",
+    "POST /v1/inference/instances": "reservation_id; server resolves artifact/runtime",
+    "POST /v1/inference/instances/start": "instance_id",
+    "POST /v1/inference/instances/stop": "instance_id; reservation remains ACTIVE",
+    "cli": "kultrun instances [create|start|stop|inspect]",
+    "prompt_generate_introduced": false,
+    "arbitrary_executable_accepted": false
+  },
+  "console": {
+    "inference_instances_panel": true,
+    "create_start_stop": true,
+    "release_separate": true,
+    "safe_reserved_available_preserved": true,
+    "stored_vs_active_partition_shown": false,
+    "product_logic_in_ui": false
+  },
+  "contracts": [
+    "inference.instance@1",
+    "runtime.launch_request@1"
+  ],
+  "debt": ["K-31", "K-45", "K-46", "K-50", "K-51", "K-52", "K-53"],
+  "local_acceptance": {
+    "source_commit": "0f14cf2c4bb2f184324a272bfdf33dc251cb479a",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "87d57979819b147e5d4ca68a7624447763214be0822f4029b2d4cb6b72ad217a",
+    "build_id": "0.1.0+0f14cf2c4bb2",
+    "clean_source": true,
+    "source_checkout": false,
+    "initial_instances": 0,
+    "first_instance": "inst_746fcae03b832fac",
+    "first_pid": 21844,
+    "first_endpoint": "127.0.0.1:63679",
+    "readiness": true,
+    "second_instance": "inst_b4c512e9e3a03b3b",
+    "second_pid": 21845,
+    "second_endpoint": "127.0.0.1:63682",
+    "two_concurrent": true,
+    "independent_stop": true,
+    "running_reservation_release_blocked": true,
+    "restart_stopped_instance": "running",
+    "dynamic_mobility": {
+      "safe_bytes": 25769803776,
+      "small_reserved_bytes": 4294967296,
+      "small_available_bytes": 21474836480,
+      "after_small_release_reserved_bytes": 0,
+      "after_small_release_available_bytes": 25769803776,
+      "large_reserved_bytes": 21474836480,
+      "large_available_bytes": 4294967296,
+      "small_again_reserved_bytes": 4294967296,
+      "small_again_available_bytes": 21474836480,
+      "fixed_stored_active_partition": false
+    },
+    "runtime": "reference-serving",
+    "executor": "native-process",
+    "api": 200,
+    "cli": true,
+    "console_assets": true,
+    "real_llm": false,
+    "prompt_inference": false
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-07",
+    "method": "focused tests + architecture + full suite + clean wheel T2",
+    "local_tests": 666,
+    "focused_tests": 20,
+    "architecture": 61,
+    "ruff": "clean",
+    "mypy": "strict clean, 164 files"
+  },
+  "test_modes": {
+    "T0": "20 focused instance tests plus architecture",
+    "T1": "lifecycle, failures, multi-instance, mobility, storage truth, shrink, restart; full suite 666",
+    "T2": "clean wheel; two STORED artifacts; two instances; release-while-running blocked; restart; Small→Large→Small; API/CLI/Console",
+    "T3": "not required",
+    "T4": "not required"
+  },
+  "not_begun": [
+    "Stage 1.6 real model runtime + real inference",
+    "vLLM / llama.cpp / MLX integration",
+    "prompt / chat / completions API",
+    "scheduler / automatic model switching",
+    "production port allocator",
+    "shared execution cache"
+  ],
+  "END_LINK": {
+    "t2_source_commit": "0f14cf2c4bb2f184324a272bfdf33dc251cb479a",
+    "final_build_id": "0.1.0+0f14cf2c4bb2",
+    "final_artifact_sha256": "87d57979819b147e5d4ca68a7624447763214be0822f4029b2d4cb6b72ad217a",
+    "checkpoint": "checkpoints/STAGE-1.5B-inference-instance-lifecycle.json",
+    "next": "1.6 — real model runtime + real inference, under a separate bounded brief"
+  }
+}
