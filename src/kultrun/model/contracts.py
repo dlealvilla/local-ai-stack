@@ -48,13 +48,19 @@ class ArtifactId(EntityId):
 
 
 class InventoryState(StrEnum):
-    """Where a model is in its lifecycle on this host."""
+    """Where a model is in its lifecycle on this host.
+
+    ``LOADED`` / ``RUNNING`` / ``STOPPED`` belong to InferenceInstance
+    later. Stage 1.4C never writes them onto an artifact.
+    """
 
     DISCOVERED = "discovered"
     REMOTE = "remote"
     ACQUIRING = "acquiring"
     STORED = "stored"
     VALIDATING = "validating"
+    INVALID = "invalid"
+    DELETED = "deleted"
     LOADED = "loaded"
     RUNNING = "running"
     STOPPED = "stopped"
@@ -62,6 +68,50 @@ class InventoryState(StrEnum):
     DEPRECATED = "deprecated"
     INCOMPATIBLE = "incompatible"
     DERIVED = "derived"
+
+
+class ArtifactState(StrEnum):
+    """Storage lifecycle of one ModelArtifact. Not a serving state."""
+
+    REMOTE = "remote"
+    ACQUIRING = "acquiring"
+    STORED = "stored"
+    INVALID = "invalid"
+    DELETED = "deleted"
+
+
+class VerificationState(StrEnum):
+    """Whether stored bytes were checked before promotion."""
+
+    NOT_VERIFIED = "not_verified"
+    PASSED = "passed"
+    FAILED = "failed"
+
+
+class AcquisitionFailureReason(StrEnum):
+    """Why acquisition did not produce a STORED artifact."""
+
+    INSUFFICIENT_SAFE_STORAGE = "insufficient_safe_storage"
+    UNRESOLVED_STORAGE_REQUIREMENT = "unresolved_storage_requirement"
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
+    PROVIDER_TIMEOUT = "provider_timeout"
+    PROVIDER_EXECUTION_ERROR = "provider_execution_error"
+    AUTHENTICATION_REQUIRED = "authentication_required"
+    ACCESS_DENIED = "access_denied"
+    REVISION_NOT_FOUND = "revision_not_found"
+    MODEL_NOT_FOUND = "model_not_found"
+    NETWORK_FAILURE = "network_failure"
+    VERIFICATION_FAILED = "verification_failed"
+    INTERRUPTED = "interrupted"
+    INVALID_TARGET = "invalid_target"
+    VARIANT_MISMATCH = "variant_mismatch"
+    CONCURRENT_ACQUISITION = "concurrent_acquisition"
+
+
+class AcquisitionId(EntityId):
+    """Identifies one acquisition request."""
+
+    prefix = "acq"
 
 
 class DerivationType(StrEnum):
@@ -147,6 +197,77 @@ class ModelArtifact(Contract):
     )
     checksum: Maybe[str] = meaning(
         "integrity digest; absence means the bytes are unverified, not sound",
+        default=NOT_PROVIDED,
+    )
+    logical_name: Maybe[str] = meaning(
+        "catalog name of the candidate these bytes came from",
+        default=NOT_PROVIDED,
+    )
+    source: Maybe[str] = meaning(
+        "source adapter that identified the candidate", default=NOT_PROVIDED
+    )
+    source_ref: Maybe[str] = meaning(
+        "upstream reference that was acquired", default=NOT_PROVIDED
+    )
+    requested_revision: Maybe[str] = meaning(
+        "revision or tag the caller asked for, before resolution",
+        default=NOT_PROVIDED,
+    )
+    artifact_format: Maybe[str] = meaning(
+        "weight format of these bytes", default=NOT_PROVIDED
+    )
+    quantization: Maybe[str] = meaning(
+        "quantization/variant of these bytes", default=NOT_PROVIDED
+    )
+    state: ArtifactState = meaning(
+        "storage lifecycle; never a serving state", default=ArtifactState.REMOTE
+    )
+    created_at: dt.datetime | None = meaning(
+        "when this record was first written, UTC", default=None
+    )
+    acquired_at: dt.datetime | None = meaning(
+        "when promotion to STORED succeeded, UTC", default=None
+    )
+    updated_at: dt.datetime | None = meaning(
+        "when this record last changed, UTC", default=None
+    )
+    location: Maybe[str] = meaning(
+        "Kultrun-owned path relative to the model store; never a caller path",
+        default=NOT_PROVIDED,
+    )
+    file_count: Maybe[int] = meaning(
+        "number of regular files in the stored tree", default=NOT_PROVIDED
+    )
+    manifest_digest: Maybe[str] = meaning(
+        "digest of the Kultrun artifact manifest", default=NOT_PROVIDED
+    )
+    acquisition_provider: Maybe[str] = meaning(
+        "which ModelAcquisitionProvider fetched the bytes",
+        default=NOT_PROVIDED,
+    )
+    acquisition_provider_version: Maybe[str] = meaning(
+        "that provider's version", default=NOT_PROVIDED
+    )
+    license_id: Maybe[str] = meaning(
+        "licence identifier retained from metadata", default=NOT_PROVIDED
+    )
+    verification_state: VerificationState = meaning(
+        "whether verification passed before STORED",
+        default=VerificationState.NOT_VERIFIED,
+    )
+    verification_method: Maybe[str] = meaning(
+        "how the bytes were checked", default=NOT_PROVIDED
+    )
+    integrity_evidence: tuple[str, ...] = meaning(
+        "checksums, ETags, or structural notes; never credentials",
+        default=(),
+    )
+    failure_reason: Maybe[str] = meaning(
+        "typed reason when state is invalid or deleted after failure",
+        default=NOT_PROVIDED,
+    )
+    storage_mount: Maybe[str] = meaning(
+        "mount point of the Kultrun-managed pool used for the SAFE check",
         default=NOT_PROVIDED,
     )
 
@@ -359,4 +480,112 @@ class ModelEstimationRequest(Contract):
     batch_size: int = meaning(
         "concurrency assumption; v0 is 1",
         default=1,
+    )
+
+
+@contract(kind="model.acquisition_request", version=1)
+@dataclass(frozen=True, slots=True)
+class ModelAcquisitionRequest(Contract):
+    """What to acquire. Destination paths are never accepted from callers."""
+
+    request_id: AcquisitionId = meaning("correlation identity for this mutation")
+    model_id: ModelId = meaning("canonical candidate identity")
+    logical_name: Name = meaning("catalog name of the variant")
+    source: Name = meaning("source adapter that identified the candidate")
+    source_ref: str = meaning("upstream repository or identity")
+    requested_revision: Maybe[str] = meaning(
+        "tag or commit the caller asked for; latest is not durable identity",
+        default=NOT_PROVIDED,
+    )
+    artifact_format: Maybe[str] = meaning(
+        "weight format to obtain", default=NOT_PROVIDED
+    )
+    quantization: Maybe[str] = meaning(
+        "quantization/variant to obtain; silent substitution is forbidden",
+        default=NOT_PROVIDED,
+    )
+    expected_storage_bytes: Maybe[int] = meaning(
+        "steady-state size used in the SAFE preflight", default=NOT_PROVIDED
+    )
+    expected_peak_bytes: Maybe[int] = meaning(
+        "peak staging size used in the SAFE preflight", default=NOT_PROVIDED
+    )
+    pool_id: StoragePoolId | None = meaning(
+        "Kultrun-managed pool; None means the default first SAFE pool",
+        default=None,
+    )
+    file_intent: tuple[str, ...] = meaning(
+        "optional allow-patterns; empty means conservative provider defaults",
+        default=(),
+    )
+    credential_ref: Maybe[str] = meaning(
+        "name of an environment secret, never the secret itself",
+        default=NOT_PROVIDED,
+    )
+    license_id: Maybe[str] = meaning(
+        "licence identifier retained from metadata", default=NOT_PROVIDED
+    )
+
+
+@contract(kind="model.acquisition_receipt", version=1)
+@dataclass(frozen=True, slots=True)
+class AcquisitionReceipt(Contract):
+    """Outcome of one acquire attempt. STORED only after verification."""
+
+    request_id: AcquisitionId = meaning("the request this answers")
+    artifact_id: ArtifactId = meaning("the artifact that was created or reused")
+    outcome: str = meaning("stored, reused, or failed")
+    state: ArtifactState = meaning("lifecycle after the attempt")
+    verification_state: VerificationState = meaning("verification result")
+    reused: bool = meaning(
+        "true when an exact STORED artifact was returned without fetching"
+    )
+    acquired_at: dt.datetime = meaning("when this receipt was issued, UTC")
+    resolved_revision: Maybe[str] = meaning(
+        "immutable revision actually obtained", default=NOT_PROVIDED
+    )
+    stored_bytes: Maybe[int] = meaning(
+        "bytes on the pool after promotion", default=NOT_PROVIDED
+    )
+    file_count: Maybe[int] = meaning(
+        "regular files after promotion", default=NOT_PROVIDED
+    )
+    failure_reason: Maybe[str] = meaning(
+        "typed failure; never a stack trace or token", default=NOT_PROVIDED
+    )
+    serving: bool = meaning(
+        "always false in Stage 1.4C; stored is not running", default=False
+    )
+
+
+@contract(kind="model.artifact_manifest", version=1)
+@dataclass(frozen=True, slots=True)
+class ArtifactManifest(Contract):
+    """Kultrun-owned lifecycle evidence. Not Hugging Face cache metadata."""
+
+    artifact_id: ArtifactId = meaning("the artifact this describes")
+    model_id: ModelId = meaning("canonical candidate")
+    logical_name: Name = meaning("catalog name")
+    source: Name = meaning("source adapter")
+    source_ref: str = meaning("upstream identity")
+    resolved_revision: str = meaning("immutable revision that was stored")
+    acquisition_provider: str = meaning("provider that fetched the bytes")
+    acquisition_provider_version: str = meaning("that provider's version")
+    files: tuple[str, ...] = meaning("relative file paths inside the artifact")
+    sizes_bytes: tuple[int, ...] = meaning("size of each file, same order")
+    total_bytes: int = meaning("sum of regular file sizes")
+    integrity_evidence: tuple[str, ...] = meaning(
+        "checksums or provider notes; never credentials"
+    )
+    verification_state: VerificationState = meaning("verification result")
+    verification_method: str = meaning("how verification was performed")
+    acquired_at: dt.datetime = meaning("when promotion succeeded, UTC")
+    manifest_version: str = meaning("manifest format version", default="1")
+    requested_revision: Maybe[str] = meaning(
+        "what was asked for", default=NOT_PROVIDED
+    )
+    artifact_format: Maybe[str] = meaning("weight format", default=NOT_PROVIDED)
+    quantization: Maybe[str] = meaning("variant", default=NOT_PROVIDED)
+    license_id: Maybe[str] = meaning(
+        "retained licence identifier", default=NOT_PROVIDED
     )

@@ -711,6 +711,13 @@
         "optional": true,
         "type": "bool"
       },
+      "model_acquisition_provider": {
+        "may_be_unresolved": false,
+        "meaning": "acquisition adapter: huggingface (product default) or fixture",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
       "model_requirement_estimator": {
         "may_be_unresolved": false,
         "meaning": "estimator mode: auto (llmfit then Kultrun fallback), or a strict provider id (llmfit, kultrun). Not a reconciler",
@@ -1985,8 +1992,228 @@
     },
     "python": "KnowledgeSource"
   },
+  "model.acquisition_receipt@1": {
+    "fields": {
+      "acquired_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this receipt was issued, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "artifact_id": {
+        "may_be_unresolved": false,
+        "meaning": "the artifact that was created or reused",
+        "nullable": false,
+        "optional": false,
+        "type": "ArtifactId"
+      },
+      "failure_reason": {
+        "may_be_unresolved": true,
+        "meaning": "typed failure; never a stack trace or token",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "file_count": {
+        "may_be_unresolved": true,
+        "meaning": "regular files after promotion",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "stored, reused, or failed",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "request_id": {
+        "may_be_unresolved": false,
+        "meaning": "the request this answers",
+        "nullable": false,
+        "optional": false,
+        "type": "AcquisitionId"
+      },
+      "resolved_revision": {
+        "may_be_unresolved": true,
+        "meaning": "immutable revision actually obtained",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "reused": {
+        "may_be_unresolved": false,
+        "meaning": "true when an exact STORED artifact was returned without fetching",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "serving": {
+        "may_be_unresolved": false,
+        "meaning": "always false in Stage 1.4C; stored is not running",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "state": {
+        "may_be_unresolved": false,
+        "meaning": "lifecycle after the attempt",
+        "nullable": false,
+        "optional": false,
+        "type": "ArtifactState"
+      },
+      "stored_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "bytes on the pool after promotion",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "verification_state": {
+        "may_be_unresolved": false,
+        "meaning": "verification result",
+        "nullable": false,
+        "optional": false,
+        "type": "VerificationState"
+      }
+    },
+    "python": "AcquisitionReceipt"
+  },
+  "model.acquisition_request@1": {
+    "fields": {
+      "artifact_format": {
+        "may_be_unresolved": true,
+        "meaning": "weight format to obtain",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "credential_ref": {
+        "may_be_unresolved": true,
+        "meaning": "name of an environment secret, never the secret itself",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "expected_peak_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "peak staging size used in the SAFE preflight",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "expected_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "steady-state size used in the SAFE preflight",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "file_intent": {
+        "may_be_unresolved": false,
+        "meaning": "optional allow-patterns; empty means conservative provider defaults",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "license_id": {
+        "may_be_unresolved": true,
+        "meaning": "licence identifier retained from metadata",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "catalog name of the variant",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "canonical candidate identity",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "pool_id": {
+        "may_be_unresolved": false,
+        "meaning": "Kultrun-managed pool; None means the default first SAFE pool",
+        "nullable": true,
+        "optional": true,
+        "type": "StoragePoolId | None"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "quantization/variant to obtain; silent substitution is forbidden",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "request_id": {
+        "may_be_unresolved": false,
+        "meaning": "correlation identity for this mutation",
+        "nullable": false,
+        "optional": false,
+        "type": "AcquisitionId"
+      },
+      "requested_revision": {
+        "may_be_unresolved": true,
+        "meaning": "tag or commit the caller asked for; latest is not durable identity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "source": {
+        "may_be_unresolved": false,
+        "meaning": "source adapter that identified the candidate",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "source_ref": {
+        "may_be_unresolved": false,
+        "meaning": "upstream repository or identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "ModelAcquisitionRequest"
+  },
   "model.artifact@1": {
     "fields": {
+      "acquired_at": {
+        "may_be_unresolved": false,
+        "meaning": "when promotion to STORED succeeded, UTC",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "acquisition_provider": {
+        "may_be_unresolved": true,
+        "meaning": "which ModelAcquisitionProvider fetched the bytes",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "acquisition_provider_version": {
+        "may_be_unresolved": true,
+        "meaning": "that provider's version",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "artifact_format": {
+        "may_be_unresolved": true,
+        "meaning": "weight format of these bytes",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "artifact_id": {
         "may_be_unresolved": false,
         "meaning": "platform-minted identity of these bytes",
@@ -2001,9 +2228,30 @@
         "optional": true,
         "type": "str | Unresolved"
       },
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this record was first written, UTC",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
       "download_bytes": {
         "may_be_unresolved": true,
         "meaning": "transfer size as stated upstream; frequently absent",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "failure_reason": {
+        "may_be_unresolved": true,
+        "meaning": "typed reason when state is invalid or deleted after failure",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "file_count": {
+        "may_be_unresolved": true,
+        "meaning": "number of regular files in the stored tree",
         "nullable": false,
         "optional": true,
         "type": "int | Unresolved"
@@ -2014,6 +2262,41 @@
         "nullable": false,
         "optional": true,
         "type": "int | Unresolved"
+      },
+      "integrity_evidence": {
+        "may_be_unresolved": false,
+        "meaning": "checksums, ETags, or structural notes; never credentials",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "license_id": {
+        "may_be_unresolved": true,
+        "meaning": "licence identifier retained from metadata",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "location": {
+        "may_be_unresolved": true,
+        "meaning": "Kultrun-owned path relative to the model store; never a caller path",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": true,
+        "meaning": "catalog name of the candidate these bytes came from",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "manifest_digest": {
+        "may_be_unresolved": true,
+        "meaning": "digest of the Kultrun artifact manifest",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "model_id": {
         "may_be_unresolved": false,
@@ -2029,15 +2312,223 @@
         "optional": true,
         "type": "StoragePoolId | None"
       },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "quantization/variant of these bytes",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "requested_revision": {
+        "may_be_unresolved": true,
+        "meaning": "revision or tag the caller asked for, before resolution",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "revision": {
         "may_be_unresolved": true,
         "meaning": "the immutable revision these bytes came from",
         "nullable": false,
         "optional": false,
         "type": "str | Unresolved"
+      },
+      "source": {
+        "may_be_unresolved": true,
+        "meaning": "source adapter that identified the candidate",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "source_ref": {
+        "may_be_unresolved": true,
+        "meaning": "upstream reference that was acquired",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "state": {
+        "may_be_unresolved": false,
+        "meaning": "storage lifecycle; never a serving state",
+        "nullable": false,
+        "optional": true,
+        "type": "ArtifactState"
+      },
+      "storage_mount": {
+        "may_be_unresolved": true,
+        "meaning": "mount point of the Kultrun-managed pool used for the SAFE check",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "updated_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this record last changed, UTC",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "verification_method": {
+        "may_be_unresolved": true,
+        "meaning": "how the bytes were checked",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "verification_state": {
+        "may_be_unresolved": false,
+        "meaning": "whether verification passed before STORED",
+        "nullable": false,
+        "optional": true,
+        "type": "VerificationState"
       }
     },
     "python": "ModelArtifact"
+  },
+  "model.artifact_manifest@1": {
+    "fields": {
+      "acquired_at": {
+        "may_be_unresolved": false,
+        "meaning": "when promotion succeeded, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "acquisition_provider": {
+        "may_be_unresolved": false,
+        "meaning": "provider that fetched the bytes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "acquisition_provider_version": {
+        "may_be_unresolved": false,
+        "meaning": "that provider's version",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "artifact_format": {
+        "may_be_unresolved": true,
+        "meaning": "weight format",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "artifact_id": {
+        "may_be_unresolved": false,
+        "meaning": "the artifact this describes",
+        "nullable": false,
+        "optional": false,
+        "type": "ArtifactId"
+      },
+      "files": {
+        "may_be_unresolved": false,
+        "meaning": "relative file paths inside the artifact",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "integrity_evidence": {
+        "may_be_unresolved": false,
+        "meaning": "checksums or provider notes; never credentials",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "license_id": {
+        "may_be_unresolved": true,
+        "meaning": "retained licence identifier",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "catalog name",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "manifest_version": {
+        "may_be_unresolved": false,
+        "meaning": "manifest format version",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "canonical candidate",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "variant",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "requested_revision": {
+        "may_be_unresolved": true,
+        "meaning": "what was asked for",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "resolved_revision": {
+        "may_be_unresolved": false,
+        "meaning": "immutable revision that was stored",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "sizes_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "size of each file, same order",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[int, ...]"
+      },
+      "source": {
+        "may_be_unresolved": false,
+        "meaning": "source adapter",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "source_ref": {
+        "may_be_unresolved": false,
+        "meaning": "upstream identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "total_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "sum of regular file sizes",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "verification_method": {
+        "may_be_unresolved": false,
+        "meaning": "how verification was performed",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "verification_state": {
+        "may_be_unresolved": false,
+        "meaning": "verification result",
+        "nullable": false,
+        "optional": false,
+        "type": "VerificationState"
+      }
+    },
+    "python": "ArtifactManifest"
   },
   "model.catalog_entry@1": {
     "fields": {

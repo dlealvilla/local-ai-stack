@@ -755,11 +755,11 @@ ended up with a 48-minute capacity query.
 | | |
 |---|---|
 | **Owns** | `ModelMetadata` and `ModelArtifact` normalized from any source. `ModelInventoryRecord` with explicit artifact states (remote, acquiring, stored, invalid, updating, deleted) and lineage — parent model and revision, derivation type, owner, dataset reference, promotion state. Running is not an inventory state. `ModelRequirement`, host-independent: weight memory, artifact and peak-acquisition storage, estimated RAM / VRAM / unified memory, context, quantization (via the candidate's metadata), supported runtimes, architecture/device needs, runtime overhead, KV/cache, estimation method, confidence and evidence basis. `EstimatorRouter` and typed `EstimatorFailureReason` — ordered provider attempts and failover provenance, not ranking. The acquisition workflow and `AcquisitionReceipt`. |
-| **Consumes** | `kernel` · `evidence` · `policy` · `storage` ports and contracts |
-| **Produces** | `ModelInventoryRecord v1` · `ModelRequirement v1` · `AcquisitionReceipt` |
-| **Ports** | `ModelSource` · `ModelRequirementEstimator` · `ModelMetadataEnricher` |
+| **Consumes** | `kernel` · `evidence` · `policy` · `storage` ports and contracts · `capacity` contracts (SAFE preflight only) |
+| **Produces** | `ModelInventoryRecord v1` · `ModelRequirement v1` · `AcquisitionReceipt` · `ModelArtifact` |
+| **Ports** | `ModelSource` · `ModelRequirementEstimator` · `ModelAcquisitionProvider` · `ModelMetadataEnricher` |
 | **Implements** | `storage.ports.ManagedUsageSource` |
-| **Must not** | Let a model requirement depend on the host — feasibility is where host and requirement meet. Fill a missing metadata field with a guess; absent values stay unresolved and are reported. Treat unknown requirement as zero or as a fit. Let an external source failure mark the local platform unhealthy. Collapse inventory into a single `current_model`. Treat a stored artifact as a running workload. Rank or recommend — that is `planning`. Download — that is acquisition at 1.4C. Expose raw Hugging Face or llmfit objects as domain contracts. Reconcile multiple estimators in the product path. |
+| **Must not** | Let a model requirement depend on the host — feasibility is where host and requirement meet. Fill a missing metadata field with a guess; absent values stay unresolved and are reported. Treat unknown requirement as zero or as a fit. Let an external source failure mark the local platform unhealthy. Collapse inventory into a single `current_model`. Treat a stored artifact as a running workload. Rank or recommend — that is `planning`. Let `ModelSource` download, store or own lifecycle. Collapse acquisition into `HuggingFaceSource`. Expose raw Hugging Face or llmfit objects as domain contracts. Reconcile multiple estimators in the product path. Reserve resources or start an InferenceInstance. |
 | **Created** | 1.4A catalog/metadata · 1.4C acquisition and plural inventory · **Deepened** 2.5 source, 2.6 acquisition, 3.1 requirement |
 
 Model sits above capacity and storage because of an explicit roadmap
@@ -1093,6 +1093,7 @@ adapters/container/       docker · podman · containerd
 adapters/runtime/         reference_process · (vllm · llama_cpp · mlx later)
 adapters/model_source/    huggingface · local_file
 adapters/estimators/      kultrun · llmfit
+adapters/acquisition/     huggingface · fixture · (local_file · object_storage later)
 adapters/capacity/        accelerate · benchmark  (llmfit is a requirement estimator, not capacity authority)
 adapters/usage/           partitioned_local · exporter
 adapters/inference/       local_endpoint · litellm
@@ -1184,22 +1185,23 @@ failure: release the reservation, no orphan process, no orphan port
 stop:    stop the runtime, then release the reservation; artifact remains
 ```
 
-**Trace D — a model is acquired** (1.4C thin; 2.6 deepened)
+**Trace D — a model is acquired** (1.4C thin v0; 2.6 deepened)
 
 ```text
-model source → immutable revision → ModelArtifact
-  → ModelRequirement incl. peak additional bytes
-  → storage pool selection
-  → storage evidence: reuse, else probe, persisting each fact before the next
-  → storage admission, high confidence required
-  → operation lock → staging → resumable transfer
-  → integrity validation → commit
-  → inventory reconciliation
-  → evidence invalidation, storage generation advance
-  → audit event
+ModelSource (identity/metadata only)
+  ≠ ModelRequirementEstimator
+  ≠ Planning / SelectionRecommendation
+  → ModelAcquisitionRequest (known candidate; no caller path)
+  → SAFE storage preflight (not ResourceReservation)
+  → ModelAcquisitionProvider.pin_revision + fetch into staging
+  → verify required files / revision / manifest
+  → promote → ModelArtifact STORED
+  → plural ModelInventory
+  ≠ ResourceReservation
+  ≠ InferenceInstance
 
-cancel: cooperative, lock released without relying on process exit,
-        no orphan artifact, outcome inconclusive rather than failed
+interrupt/failure: staging cleaned, never STORED
+stored is not running
 ```
 
 **Trace E — a model is chosen** (1.4B v0; 3.3–3.5 deepened)

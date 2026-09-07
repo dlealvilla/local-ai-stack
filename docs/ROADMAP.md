@@ -984,7 +984,7 @@ No running model is required. Several stored models may be proven here
 (the first vertical's "3+ stored, 1 running" stored-side). Empirical
 pool characterization remains Stage 2.2.
 
-**Output:** `AcquisitionReceipt v0` + `ModelInventoryRecord v1` (plural) · **Gate:** L2
+**Output:** `AcquisitionReceipt v0` + `ModelInventoryRecord v1` (plural) · **Gate:** L1 (T2 includes bounded real Hugging Face acquisition; T3 not required)
 
 The platform must operate coherently with **no model installed**: an
 absent model is a valid unsatisfied deployment state, the control plane
@@ -1748,6 +1748,49 @@ DEBT ENTRIES                 SelectionPolicy defaults 0.20 / 1.00.
 DEFERRED ITEMS               Learned ranking, portfolio optimizer, live
                              Hub search, offload optimizer, acquisition,
                              admission, inference, production reconciler.
+```
+
+### Stage 1.4C brief
+
+```text
+CURRENT STAGE                Model acquisition + plural Model Inventory.
+                             Stored ≠ running. No reservation, no
+                             InferenceInstance, no inference.
+PREDECESSOR OUTPUTS          Stage 1.4B closed at L1 (selection + plan);
+                             Stage 1.4A catalog; Stage 1.2 SAFE capacity;
+                             Stage 1.2A console.
+THIS STAGE'S REQUIRED OUTPUT ModelAcquisitionProvider port; Hugging Face
+                             and fixture adapters; ModelAcquisitionRequest;
+                             verified staged ModelArtifact; ArtifactManifest;
+                             plural ModelInventory; acquire/delete API,
+                             CLI and Console inventory panel.
+CORE CONTRACTS AFFECTED      model.acquisition_request, model.acquisition_receipt,
+                             model.artifact_manifest (new); model.artifact
+                             and config.platform additive fields;
+                             InventoryState gains invalid/deleted.
+ADAPTERS AFFECTED            adapters/acquisition (huggingface, fixture).
+                             ModelSource remains discovery-only.
+PERSISTED STATE              ModelArtifact + inventory records + files under
+                             {state_root}/models/{staging,artifacts}.
+                             Deleted artifacts remain tombstones.
+MUTATION / FAILURE BOUNDARY  POST acquire / DELETE artifact. No caller path
+                             or arbitrary URL. SAFE storage preflight.
+                             Partial files never STORED. Serving states
+                             never written on artifacts.
+CANCELLATION / CLEANUP       Staging removed on failure. No download
+                             scheduler or pause/cancel orchestration.
+ACCEPTANCE LEVEL             L1. Fixture T0/T1 offline. T2 clean wheel
+                             plus bounded public Hub repo. T3 not required.
+ADMIN SURFACE                GET /v1/models/inventory; POST /v1/models/acquire;
+                             DELETE /v1/models/artifact; kultrun models
+                             inventory|acquire|delete; Console Model Inventory.
+DEBT ENTRIES                 Resumable-download manager, pause/cancel,
+                             throttle, parallel scheduler, warehouse,
+                             conversion/quant, update polling, gated UX,
+                             license engine deferred.
+DEFERRED ITEMS               ResourceReservation (1.5A), InferenceInstance
+                             (1.5B), runtime loading, large production
+                             model download.
 ```
 
 ---

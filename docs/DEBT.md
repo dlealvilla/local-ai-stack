@@ -57,7 +57,7 @@ Status:       OPEN | RETIRED (<stage>, <date>)
 
 ## Open entries
 
-Open entries continue from kernel through Stage 1.4B. Most do not authorize
+Open entries continue from kernel through Stage 1.4C. Most do not authorize
 a mutation. `K-29` and `K-34` start real work (storage reservation; the
 reference process) and are tolerable only because the API is loopback
 (`K-08`).
@@ -638,6 +638,8 @@ Authorizes:   NO
 What:         The first `ModelSource` uses Hugging Face identity
               (`source_ref`) and a packaged curated candidate set. It
               does not call `huggingface_hub` or search the Hub.
+              File acquisition is a separate adapter
+              (`HuggingFaceAcquisitionProvider`).
 Why now:      v0 must be T0/T1/T2 without a network or a GPU. Whole-Hub
               search is explicitly out of scope. Packaged metadata is
               enough to prove normalization and the catalog surface.
@@ -708,6 +710,77 @@ To make real: Use a finer llmfit field if one appears, or ignore ram_gb
               for GPU placement when VRAM is the limiting resource.
 Retire when:  llmfit publishes a host-independent RAM requirement without
               the floor, or Kultrun stops consuming ram_gb for GPU fits.
+Status:       OPEN
+
+### K-39 — acquisition has no download scheduler
+Label:        DEFERRED
+Owner stage:  1.4C
+Subsystem:    model / acquisition
+Authorizes:   NO
+What:         v0 acquires one artifact synchronously. There is no pause,
+              cancel, bandwidth throttle, parallelism, or custom resume
+              engine. Hugging Face may reuse its own cache; Kultrun does
+              not claim byte-range resume.
+Why now:      The first vertical needs stored artifacts, not a download
+              platform. Storage Sonar taught us not to spawn unmanaged
+              work.
+To make real: An acquisition manager with jobs, limits and cooperative
+              cancel, after a mutation/job lifecycle exists.
+Retire when:  a later stage owns scheduled or resumable acquisition.
+Status:       OPEN
+
+### K-40 — no shared model warehouse or content-addressed dedup
+Label:        DEFERRED
+Owner stage:  1.4C
+Subsystem:    model / storage
+Authorizes:   NO
+What:         Each STORED artifact is a directory under the Kultrun
+              model store. Identical files across revisions are not
+              shared. No network warehouse or multi-host replica.
+Why now:      Plural inventory is the required proof. Dedup is
+              optimization.
+To make real: Content-addressed blob store and a warehouse port.
+Retire when:  Stage 2.6 or a later storage-mutation stage requires it.
+Status:       OPEN
+
+### K-41 — no automatic conversion or quantization
+Label:        DEFERRED
+Owner stage:  1.4C
+Subsystem:    model / acquisition
+Authorizes:   NO
+What:         Acquisition stores the selected variant as-is. It does not
+              convert, quantize, or rewrite weights.
+Why now:      Silent format change would falsify artifact identity.
+To make real: An explicit derivation workflow with its own artifact id.
+Retire when:  a stage owns derived artifacts.
+Status:       OPEN
+
+### K-42 — gated/private credential UX and license enforcement
+Label:        DEFERRED
+Owner stage:  1.4C
+Subsystem:    adapters / acquisition
+Authorizes:   NO
+What:         Tokens come from the environment (`HF_TOKEN` or a named
+              ref). They are never persisted. There is no credential UI
+              and no commercial-license policy engine. Inventory retains
+              known license metadata from 1.4A.
+Why now:      Public models and typed auth failures are enough for v0.
+To make real: Secret references plus a license policy owner.
+Retire when:  enterprise/gated acquisition is a product requirement.
+Status:       OPEN
+
+### K-43 — huggingface_hub is an optional acquisition extra
+Label:        DEFERRED (optional extra)
+Owner stage:  1.4C
+Subsystem:    adapters / acquisition
+Authorizes:   NO
+What:         `huggingface_hub>=0.23,<1` (Apache-2.0) is extra
+              `acquisition`. Fixture acquisition does not require it.
+              Product default provider is `huggingface`; missing package
+              is `provider_unavailable`.
+Why now:      Offline T0/T1 must stay installable. T2 installs the extra.
+To make real: Release extra + operator pin, or drop the Hub adapter.
+Retire when:  a release ships the extra with an operator runbook.
 Status:       OPEN
 
 ## Deferred capability register

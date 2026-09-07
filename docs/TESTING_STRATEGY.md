@@ -319,6 +319,15 @@ or is underutilized must not invoke Kultrun. Real model inference is not
 required. Cross-provider comparison is a development tool, not a product
 test of ranking quality.
 
+**Stage 1.4C** is T0/T1 fixture acquisition plus T2 from a clean wheel.
+Normal CI stays offline: the fixture provider writes tiny files through
+the same staging, verification, promotion, inventory and delete path.
+T2 also runs the real `HuggingFaceAcquisitionProvider` against a
+deliberately tiny public Hub repository (`hf-internal-testing/tiny-random-gpt2`)
+with a timeout and recorded bytes. That is not a production-model
+recommendation. T3 is not required. Do not download Qwen 32B / 14B or
+Llama 70B to prove this stage.
+
 Most of Stage 1.2 can be developed against the committed Stage 1.1 fixture
 with no host at all.
 

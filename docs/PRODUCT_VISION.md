@@ -1063,6 +1063,13 @@ Selection is a recommendation. Acquisition is a separate mutation.
 `SELECTED` is not `DOWNLOADED` / `STORED`. Kultrun should reuse an
 existing local artifact rather than downloading it again.
 
+Acquisition sits behind a replaceable `ModelAcquisitionProvider`. Hugging
+Face is the first real adapter; it is not the lifecycle owner. A stored
+`ModelArtifact` is identified by candidate, exact resolved revision,
+format and quantization — never by `latest` and never by filesystem path.
+Several artifacts may be stored while no inference instance is running.
+Stored is not loaded, reserved, or serving.
+
 ---
 
 # 19. STORAGE CAPACITY MODEL

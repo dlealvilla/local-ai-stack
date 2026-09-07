@@ -209,3 +209,7 @@ class PlatformSettings(Contract):
         "strict provider id (llmfit, kultrun). Not a reconciler",
         default="auto",
     )
+    model_acquisition_provider: str = meaning(
+        "acquisition adapter: huggingface (product default) or fixture",
+        default="huggingface",
+    )

@@ -149,6 +149,7 @@ ADAPTER_PORT_DOMAIN: Mapping[str, str] = {
     "runtime": "runtime",
     "model_source": "model",
     "estimators": "model",
+    "acquisition": "model",
     "capacity": "capacity",
     "usage": "analytics",
     "inference": "gateway",
