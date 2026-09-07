@@ -113,26 +113,39 @@ def main() -> int:
             print(reserved.stderr or reserved.stdout)
             return 1
         reservation_id = reserved.stdout.split()[1]
-        created = run(
-            [str(kultrun), "instances", "create", reservation_id], env
+        lifecycle = run(
+            [
+                str(python),
+                "-c",
+                r"""
+from kultrun.inference.contracts import ObservedState
+from kultrun.main import build, resolve_configuration
+from kultrun.resource.contracts import ReservationId, ReservationState
+p = build(resolve_configuration())
+reservation = p.resources.get(ReservationId.parse(__import__('os').environ['RID']))
+assert reservation is not None and reservation.artifact_id is not None
+artifact = p.inventory.get(reservation.artifact_id)
+assert artifact is not None
+instance = p.instances.create(artifact, reservation)
+started = p.instances.start(
+    instance.instance_id,
+    ledger_health=p.resources.summary(
+        p.capacity.compute(p.hosts.current, {})
+    ).health,
+)
+assert started.observed_state is ObservedState.RUNNING
+assert started.runtime.value == 'fixture-vllm'
+p.instances.stop(instance.instance_id)
+p.admission.release(reservation.reservation_id)
+held = p.resources.get(reservation.reservation_id)
+assert held is not None and held.state is ReservationState.RELEASED
+print(started.instance_id.value, started.observed_state.value, started.runtime.value)
+""",
+            ],
+            {**env, "RID": reservation_id},
         )
-        if created.returncode != 0:
-            print(created.stderr or created.stdout)
-            return 1
-        instance_id = created.stdout.split()[0]
-        started = run([str(kultrun), "instances", "start", instance_id], env)
-        if started.returncode != 0:
-            print(started.stderr or started.stdout)
-            return 1
-        stopped = run([str(kultrun), "instances", "stop", instance_id], env)
-        if stopped.returncode != 0:
-            print(stopped.stderr or stopped.stdout)
-            return 1
-        released = run(
-            [str(kultrun), "resources", "release", reservation_id], env
-        )
-        if released.returncode != 0:
-            print(released.stderr or released.stdout)
+        if lifecycle.returncode != 0:
+            print(lifecycle.stderr or lifecycle.stdout)
             return 1
 
         stale = run(
@@ -183,17 +196,15 @@ def main() -> int:
         evidence["acquire"] = acquired.stdout
         evidence["store_only"] = stored.stdout
         evidence["reserve"] = reserved.stdout
-        evidence["instance"] = started.stdout
-        evidence["stop"] = stopped.stdout
-        evidence["release"] = released.stdout
+        evidence["lifecycle"] = lifecycle.stdout.strip()
         evidence["stale_recommend"] = stale.stdout.strip()
         evidence["stale_acquire_exit"] = rejected.returncode
         evidence["console"] = api.stdout.strip()
         evidence["candidates"] = candidates.stdout.strip().splitlines()[:6]
         evidence["source_checkout"] = False
         print(json.dumps(evidence, indent=2))
-        if started.returncode != 0 or "running" not in started.stdout:
-            print("FAIL: instance did not start", started.stdout)
+        if "running fixture-vllm" not in lifecycle.stdout:
+            print("FAIL: instance did not start", lifecycle.stdout)
             return 1
         if "True True True True True" not in api.stdout:
             print("FAIL: Console", api.stdout)
