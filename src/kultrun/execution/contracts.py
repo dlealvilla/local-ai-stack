@@ -14,11 +14,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from kultrun.evidence.contracts import Confidence
 from kultrun.host.contracts import HostId
 from kultrun.kernel.errors import ValidationError
 from kultrun.kernel.ids import EntityId, Name
 from kultrun.kernel.schema import Contract, contract, meaning
-from kultrun.kernel.unresolved import NOT_MEASURED, Maybe
+from kultrun.kernel.unresolved import NOT_MEASURED, NOT_PROVIDED, Maybe
 
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -65,6 +66,26 @@ class ExecutionOwnership(StrEnum):
     ABSENT = "absent"
 
 
+class FeatureSupport(StrEnum):
+    """Whether an executor feature is actually provided.
+
+    ``UNKNOWN`` is a real answer. It is not unsupported and it is not a
+    pass. Callers must not treat it as ``False`` or as zero.
+    """
+
+    SUPPORTED = "supported"
+    UNSUPPORTED = "unsupported"
+    UNKNOWN = "unknown"
+
+
+class ExecutorAvailability(StrEnum):
+    """Whether this executor can be used on the current host."""
+
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+    UNRESOLVED = "unresolved"
+
+
 @contract(kind="execution.device_request", version=1)
 @dataclass(frozen=True, slots=True)
 class DeviceRequest(Contract):
@@ -104,6 +125,15 @@ class ExecutorSpec(Contract):
         "native executor in Stage 1.3",
         default=(),
     )
+    filesystem_mappings: tuple[str, ...] = meaning(
+        "generic filesystem requirements the executor should honour; "
+        "empty when the workload uses the host filesystem as-is",
+        default=(),
+    )
+    network_bindings: tuple[str, ...] = meaning(
+        "generic bind or publish requirements, never a Docker network name",
+        default=(),
+    )
 
     def __post_init__(self) -> None:
         _reject_shell_string(self.executable, what="executable")
@@ -141,6 +171,12 @@ class ExecutorSpec(Contract):
                 "grace period must be positive",
                 grace_period_seconds=self.grace_period_seconds,
             )
+        for mapping in self.filesystem_mappings:
+            if not mapping or "\0" in mapping:
+                raise ValidationError("filesystem mapping is malformed")
+        for binding in self.network_bindings:
+            if not binding or "\0" in binding:
+                raise ValidationError("network binding is malformed")
 
 
 @contract(kind="execution.handle", version=1)
@@ -186,6 +222,81 @@ class ExecutorHandle(Contract):
     )
     detail: str | None = meaning(
         "why a start or stop failed, when it did", default=None
+    )
+    external_identity: Maybe[str] = meaning(
+        "executor-native identity that is not a PID: a container id, "
+        "task id, or fixture token. Unresolved when the executor has none",
+        default=NOT_MEASURED,
+    )
+    network_bindings: tuple[str, ...] = meaning(
+        "observed bind or publish points, when the executor can report them",
+        default=(),
+    )
+
+
+@contract(kind="execution.capability_profile", version=1)
+@dataclass(frozen=True, slots=True)
+class ExecutorCapabilityProfile(Contract):
+    """What this executor can provide on the current host.
+
+    Capability evidence, not runtime logic and not admission. Unknown
+    stays unknown.
+    """
+
+    executor: Name = meaning("which executor adapter produced this profile")
+    executor_type: Name = meaning(
+        "generic execution mechanism: process, recording, later container"
+    )
+    host_id: HostId = meaning("the host these capabilities were judged against")
+    availability: ExecutorAvailability = meaning(
+        "whether this executor can be used here now"
+    )
+    process_execution: FeatureSupport = meaning("can start an isolated workload")
+    structured_argv: FeatureSupport = meaning("accepts argv as a string tuple")
+    environment_variables: FeatureSupport = meaning("can apply NAME=value bindings")
+    working_directory: FeatureSupport = meaning("can set a working directory")
+    filesystem_access: str = meaning(
+        "how files are visible: host_native, mapped, or unknown"
+    )
+    networking: str = meaning(
+        "how the workload reaches the network: host_native, isolated, or unknown"
+    )
+    port_binding: FeatureSupport = meaning("can bind or publish ports")
+    accelerator_exposure: FeatureSupport = meaning(
+        "can expose already-authorized accelerators to the workload"
+    )
+    bounded_stdout: FeatureSupport = meaning("captures bounded stdout")
+    bounded_stderr: FeatureSupport = meaning("captures bounded stderr")
+    lifecycle_observation: FeatureSupport = meaning(
+        "can refresh observed execution state"
+    )
+    graceful_termination: FeatureSupport = meaning("can request a graceful stop")
+    forced_termination: FeatureSupport = meaning(
+        "can force-stop after the grace period"
+    )
+    isolation: FeatureSupport = meaning(
+        "whether the executor isolates the workload from the host"
+    )
+    host_fingerprint: Maybe[str] = meaning(
+        "stable host fingerprint consumed from HostCapabilities",
+        default=NOT_PROVIDED,
+    )
+    reason: Maybe[str] = meaning(
+        "why availability is not available, when it is not", default=NOT_PROVIDED
+    )
+    accelerator_exposure_mode: Maybe[str] = meaning(
+        "how devices are exposed: host_process_inheritance, mapped, unknown",
+        default=NOT_PROVIDED,
+    )
+    limitations: tuple[str, ...] = meaning(
+        "features this implementation does not provide", default=()
+    )
+    evidence: tuple[str, ...] = meaning(
+        "short provenance facts; never a vendor object", default=()
+    )
+    confidence: Confidence = meaning(
+        "how much weight a caller may place on this report",
+        default=Confidence.UNKNOWN,
     )
 
 

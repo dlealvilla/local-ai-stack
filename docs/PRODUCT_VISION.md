@@ -772,6 +772,28 @@ Architecture should allow:
 
 Executor logic must not leak into inference-runtime domain logic.
 
+Runtime defines **what** needs to run. Executor defines **how** that
+workload is realized on the host. `InferenceInstance` composes them and
+does not implement either:
+
+```text
+InferenceInstance
+        ↓
+InferenceRuntimeAdapter
+        ↓
+RuntimeLaunchSpec
+        ↓
+Executor
+        ↓
+ExecutorHandle
+        ↓
+Operating Environment
+```
+
+A later verified operational runtime (`RuntimeCapabilityProfile`) becomes
+an upstream constraint on executable model selection. That verification
+and remap are not implied by the existence of the Runtime / Executor seam.
+
 ---
 
 # 11. INFERENCE RUNTIME ABSTRACTION

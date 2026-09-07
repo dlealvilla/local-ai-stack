@@ -606,7 +606,8 @@ What:         `ContainerEngine` is declared on the executor port and has
               no adapter. Native process execution is the only path.
 Why now:      Docker/OCI/Kubernetes must not become mandatory by existing.
               The seam exists so an OCI executor is an adapter later.
-To make real: An optional OCI adapter behind the same `Executor` port,
+To make real: Stage 1.6A minimal ContainerExecutor behind the same
+              `Executor` port, then a later optional OCI adapter,
               selected per deployment, never as a default.
 Retire when:  a container executor is an accepted adapter, or the product
               decides the seam is unused and removes it deliberately.
@@ -858,14 +859,15 @@ Status:       OPEN
 
 ### K-50 — runtime-specific readiness is reference-only
 Label:        DEFERRED
-Owner stage:  1.5B
-Subsystem:    inference
+Owner stage:  1.5C
+Subsystem:    runtime
 Authorizes:   NO
-What:         RUNNING requires a bounded /health response from the
-              reference server. vLLM, llama.cpp and MLX readiness are
-              not implemented.
-Why now:      Stage 1.5B proves lifecycle, not model load.
-To make real: Stage 1.6 per runtime adapter.
+What:         The reference-serving adapter owns `/health` and the ready
+              marker. Inference composes that verdict with executor
+              liveness. vLLM, llama.cpp and MLX readiness are not
+              implemented.
+Why now:      Stage 1.5C moved ownership; it did not add a real runtime.
+To make real: Stage 1.6 per production runtime adapter.
 Retire when:  a real runtime owns its readiness translation.
 Status:       OPEN
 
@@ -906,6 +908,33 @@ What:         No idle unload, LRU eviction, or automatic active-model
 Why now:      Lifecycle mutations stay explicit.
 To make real: After several concurrent instances and a scheduler owner.
 Retire when:  a stage owns deactivate/switch-model policy.
+Status:       OPEN
+
+### K-54 — no verified RuntimeCapabilityProfile
+Label:        DEFERRED
+Owner stage:  1.5C
+Subsystem:    runtime
+Authorizes:   NO
+What:         Stage 1.5C adds declared `RuntimeSupportDescriptor` and
+              host-scoped `ExecutorCapabilityProfile` only. There is no
+              provisioning plan, no verifier, and no persisted verified
+              operational profile.
+Why now:      Boundary reconciliation must not become a provisioner.
+To make real: Later 1.6 letters under a separate brief.
+Retire when:  a verified `RuntimeCapabilityProfile` is accepted evidence.
+Status:       OPEN
+
+### K-55 — model selection is not yet runtime-first
+Label:        DEFERRED
+Owner stage:  1.5C
+Subsystem:    planning
+Authorizes:   NO
+What:         The 19-model funnel still consumes catalog + host capacity.
+              Acquisition is not gated on a DeploymentPlan plus verified
+              runtime. `STORE` remains the warehouse path as in 1.4C.
+Why now:      1.5C must not remap selection before a verified runtime exists.
+To make real: After runtime verification exists.
+Retire when:  normal executable selection consumes runtime eligibility.
 Status:       OPEN
 
 ## Deferred capability register

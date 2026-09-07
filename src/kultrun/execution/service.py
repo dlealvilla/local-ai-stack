@@ -13,14 +13,14 @@ from kultrun.execution.contracts import (
     ExecutionId,
     ExecutionOwnership,
     ExecutionState,
+    ExecutorCapabilityProfile,
     ExecutorHandle,
     ExecutorSpec,
 )
 from kultrun.execution.ports import Executor
-from kultrun.host.contracts import HostId
+from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.errors import NotFoundError
 from kultrun.kernel.persistence import Store
-from kultrun.kernel.unresolved import is_resolved
 
 
 class ExecutionService:
@@ -29,6 +29,10 @@ class ExecutionService:
     def __init__(self, executor: Executor, store: Store) -> None:
         self._executor = executor
         self._store = store
+
+    def capabilities(self, host: HostCapabilities) -> ExecutorCapabilityProfile:
+        """Current-host capability evidence from the wired executor."""
+        return self._executor.capabilities(host)
 
     def start(self, host_id: HostId, spec: ExecutorSpec) -> ExecutorHandle:
         """Launch and persist. Returns the live owned handle."""
@@ -112,5 +116,4 @@ def running_owned(handles: Sequence[ExecutorHandle]) -> tuple[ExecutorHandle, ..
         for handle in handles
         if handle.ownership is ExecutionOwnership.OWNED
         and handle.observed_state in (ExecutionState.RUNNING, ExecutionState.STARTING)
-        and is_resolved(handle.pid)
     )

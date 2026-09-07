@@ -13,6 +13,8 @@ from kultrun.runtime.contracts import (
     RuntimeLaunchRequest,
     RuntimeLaunchSpec,
     RuntimeProfile,
+    RuntimeReadiness,
+    RuntimeSupportDescriptor,
 )
 
 
@@ -29,8 +31,24 @@ class InferenceRuntime(Protocol):
         """What this adapter can do."""
         ...
 
+    def support(self) -> RuntimeSupportDescriptor:
+        """Declared static support. Not proof that anything is installed."""
+        ...
+
     def launch_spec(
         self, request: RuntimeLaunchRequest | None = None
     ) -> RuntimeLaunchSpec:
         """Produce the recipe. Must not start a process."""
+        ...
+
+    def inspect_readiness(
+        self,
+        *,
+        stdout: str,
+        stderr: str,
+        execution_alive: bool,
+        bound_address: str | None = None,
+        bound_port: int | None = None,
+    ) -> RuntimeReadiness:
+        """Runtime-owned READY probe. Must not signal or kill a process."""
         ...

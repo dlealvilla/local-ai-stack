@@ -199,6 +199,8 @@ class TestCompositionCopiesTheRecipe:
         assert spec.output_limit_bytes == 512
         assert spec.grace_period_seconds == 1.5
         assert spec.device_requests[0].index == 0
+        assert spec.filesystem_mappings == launch.filesystem_mappings
+        assert spec.network_bindings == launch.network_bindings
 
     def test_a_profile_is_not_a_running_process(self) -> None:
         profile = ReferenceProcessRuntime().profile()

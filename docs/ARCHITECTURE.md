@@ -808,11 +808,11 @@ conservative state on a persistence error.
 
 | | |
 |---|---|
-| **Owns** | `ExecutorSpec`, `ExecutorHandle`, `DeviceRequest`, process execution, environment, filesystem mapping, signals, logs, process health, and PID reuse protection. |
-| **Consumes** | `kernel` · `host.contracts` only |
+| **Owns** | `ExecutorSpec`, `ExecutorHandle`, `ExecutorCapabilityProfile`, `DeviceRequest`, process execution, environment, filesystem mapping, signals, logs, process health, and PID reuse protection. Generic identity is `ExecutionId`; a PID is optional native evidence. |
+| **Consumes** | `kernel` · `evidence` · `host.contracts` only |
 | **Ports** | `Executor`, with native process execution as the first and reference implementation · `ContainerEngine`, for the optional container path |
 | **Must not** | Contain model semantics or runtime options. Assume a container runtime exists. Import `capacity` — how a workload is launched is a different question from what may safely be launched. Import `runtime` — the executor receives a generic spec. Become a source of host facts. |
-| **Created** | 1.3 |
+| **Created** | 1.3 · **Reconciled** 1.5C (`ExecutorCapabilityProfile`; generic `ExecutionId`) |
 
 ```text
                         Executor  (port)
@@ -879,17 +879,42 @@ capacity contract.
 
 | | |
 |---|---|
-| **Owns** | `RuntimeProfile`, `RuntimeLaunchSpec`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. |
-| **Consumes** | `kernel` |
+| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. |
+| **Consumes** | `kernel` · `evidence` |
 | **Ports** | `InferenceRuntime` |
 | **Must not** | Import `execution`. Import `capacity`. Own capacity policy. Let a runtime-specific option reach a core signature. |
-| **Created** | 1.3 · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
+| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
 Later deepening may read `host` and `model` contracts. It must never read
 `capacity` or `execution`. Stage 4.3 exists because the previous attempt
 held a platform-level concurrency number that was never mapped to the
 runtime's own control. The mapping belongs here, inside the adapter's
 translation layer, and nowhere else.
+
+`RuntimeSupportDescriptor` is declared support. It is not installed, not
+operational, and not verified. A future `RuntimeCapabilityProfile` is a
+different object and is not owned here until a verification stage exists.
+
+```text
+InferenceInstance
+        ↓
+InferenceRuntimeAdapter
+        ↓
+RuntimeLaunchSpec
+        ↓
+Executor
+        ↓
+ExecutorHandle
+```
+
+Runtime = WHAT. Executor = HOW. InferenceInstance composes them.
+
+Future chain, **not implemented in 1.5C**:
+
+```text
+Host → Executor capabilities → Runtime support → provisioning
+  → verification → RuntimeCapabilityProfile → runtime-aware selection
+```
 
 ## TIER 6 — Serving and the record of it
 
@@ -900,8 +925,8 @@ translation layer, and nowhere else.
 | **Owns** | `InferenceInstance` — instance identity, host, model artifact and revision, runtime, executor, endpoint, reservation, context, runtime concurrency, platform request limit, access-policy reference, lifecycle state, desired vs observed vs health, configuration version. The lifecycle: create, start, observe, stop, restart. `InferenceEndpoint`. The distinction between status and health. Collections are `inference_instances[]`. The same artifact may have many instances; many models may run at once. |
 | **Consumes** | `kernel` · `resource` · `execution` · `runtime` · `model` |
 | **Produces** | A running instance, a healthy endpoint, and reconciliation on restart |
-| **Must not** | Route requests, authenticate, or emit usage events. Confuse a reachable port with a functioning API. Collapse to `current_inference_instance` or `model.running`. Delete a stored artifact on stop. Import `planning`. Import `platform`. Construct runtime argv. Reimplement subprocess management. Auto-release a reservation on stop. Treat stored/active as capacity partitions. |
-| **Created** | 1.5B reference serving lifecycle (plural) · 1.6 real model inference · **Deepened** 4.4 concurrent live instances |
+| **Must not** | Route requests, authenticate, or emit usage events. Confuse a reachable port with a functioning API. Collapse to `current_inference_instance` or `model.running`. Delete a stored artifact on stop. Import `planning`. Import `platform`. Construct runtime argv. Reimplement subprocess management. Import `subprocess`. Auto-release a reservation on stop. Treat stored/active as capacity partitions. Require a PID from every executor. |
+| **Created** | 1.5B reference serving lifecycle (plural) · 1.5C compose Runtime+Executor · 1.6 real model inference · **Deepened** 4.4 concurrent live instances |
 
 ### `analytics`
 
@@ -1184,14 +1209,14 @@ Planning / DeploymentPlan
   → ResourceReservation ACTIVE          ← Stage 1.5A stops here
        reserved is not running
 
-later 1.5B:
+later 1.5B / 1.5C:
   ModelArtifact STORED
     → ResourceReservation ACTIVE
     → InferenceInstance
-    → Runtime (launch spec)
-    → Executor (process)
-    → observe readiness / endpoint
-    → stop process; reservation remains ACTIVE until explicit release
+    → RuntimeAdapter.prepare_launch → RuntimeLaunchSpec
+    → Executor.start → ExecutorHandle
+    → Runtime readiness
+    → stop via Executor; reservation remains ACTIVE until explicit release
 
 Stored / Active / Running are lifecycle states, not capacity partitions.
 Disk, RAM, VRAM and unified memory stay separate. Capacity follows the
@@ -1278,7 +1303,8 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.4C | acquisition v0, plural inventory | `storage` pool, `model` | ✅ via finding 1 |
 | 1.5A | `resource` admission and reservation | `capacity`, `ModelRequirement` | ✅ crude requirement, already in the ledger |
 | 1.5B | `inference` instance lifecycle (plural, reference serving) | `resource`, `execution`, `runtime`, `model` | ✅ |
-| 1.6 | first real-model `InferenceInstance` | 1.5B | ✅ |
+| 1.5C | Runtime / Executor boundary reconciliation | 1.5B | ✅ |
+| 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |
 | 2.1–2.4 | `storage` deepened | `host`, `evidence`, `ManagedUsageSource` | ✅ implemented by `model` at 1.4C |
