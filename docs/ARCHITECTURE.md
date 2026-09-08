@@ -792,7 +792,7 @@ current `DeploymentPlan` from those decisions. ELIGIBLE is not FEASIBLE.
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
 | **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. Treat a recommendation as the selected configuration after a manual choice. Keep stale eligibility, requirement, or plan values after an upstream selection changes. Import a concrete estimator adapter, import `EstimatorRouter`, or branch on provider id. Average, min/max, or otherwise reconcile multiple estimators. Expose dual estimates. Fallback to another estimator because a valid estimate is over-capacity, underutilized, or low-ranked. |
-| **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection · **ModelSelection** 1.6H · **Authoritative DeploymentPlan** 1.6I |
+| **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection · **ModelSelection** 1.6H · **Authoritative DeploymentPlan** 1.6I · **Plan-driven acquire/admit** 1.6J |
 
 Feasibility must be computable for candidates that are not yet acquired.
 The previous attempt could only assess models it already had, which is
@@ -831,7 +831,10 @@ not import `runtime`; the eligibility → verdict copy lives in
 `platform.eligibility`. Requirement derivation lives in
 `platform.requirement`. Bounded model selection persistence lives in
 `platform.model_selection`. Authoritative DeploymentPlan persistence
-lives in `platform.deployment_plan`. None of these is a parallel planner.
+lives in `platform.deployment_plan`. Plan-driven acquire/admit lives in
+`platform.deployment_prepare` and converts plan + artifact into a
+generic `ResourceRequest` before calling ResourceManager. None of
+these is a parallel planner or deployment controller.
 
 ### `resource`
 
@@ -1137,7 +1140,15 @@ AUTO | MANUAL ModelSelection
         ↓
 AUTHORITATIVE DeploymentPlan
         ↓
-[STOP 1.6I]
+exact ModelArtifact (acquire or reuse)
+        ↓
+plan-derived ResourceRequest
+        ↓
+ResourceManager
+        ↓
+ResourceReservation
+        ↓
+[STOP 1.6J]
 ```
 
 `CURRENT` requires current `FoundationSelection`, the selected
@@ -1149,14 +1160,20 @@ persist. POST create/refresh persists. MANUAL uses the selected
 model, never the recommendation. Infeasible or invalid selection
 yields no CURRENT plan. `plan_from` is not authority.
 
-Future, **not implemented in 1.6I**:
+Normal executable acquisition and admission consume that CURRENT
+plan. STORE_ONLY warehouse acquisition remains independent of the
+plan. ResourceManager stays generic: it receives a `ResourceRequest`
+and live host state, never DeploymentPlan internals. Capacity
+feasibility is not live admission.
+
+Future, **not implemented in 1.6J**:
 
 ```text
 CURRENT DeploymentPlan
-        ↓
-Acquisition
-        ↓
-ResourceManager admission
+        +
+exact ModelArtifact
+        +
+matching ResourceReservation
         ↓
 InferenceInstance
         ↓
@@ -1192,6 +1209,9 @@ persisted class.
 | Currently feasible ranking input | `FeasibleModelCandidate` (derived) |
 | Bounded model selection | `ModelSelection` AUTO\|MANUAL; recommended ≠ selected |
 | Authoritative current deployment decision | `DeploymentPlan`; CURRENT vs STALE vs UNAVAILABLE |
+| Plan-driven stored bytes | exact `ModelArtifact` for the CURRENT plan |
+| Plan-driven live admission | `ResourceRequest` from plan resource intent + artifact id |
+| Live physical grant | `ResourceReservation` |
 
 RuntimeResolver answers structural plausibility. RuntimeProvisioner
 installs the **explicitly selected** candidate, never an implicit
@@ -1202,8 +1222,9 @@ It marks downstream derived state stale. Stage 1.6F recomputes
 `EligibleModelView`. Stage 1.6G recomputes `ModelRequirement` and
 capacity-fit. Stage 1.6H recomputes the feasible set, recommendation,
 and `ModelSelection` currentness. Stage 1.6I persists the authoritative
-`DeploymentPlan` and classifies CURRENT vs STALE. Acquisition,
-ResourceManager, and InferenceInstance are not remapped.
+`DeploymentPlan` and classifies CURRENT vs STALE. Stage 1.6J migrates
+normal executable acquisition and ResourceManager admission onto that
+plan. InferenceInstance is not remapped.
 
 ## Recommendation, selection, and safety boundaries
 
@@ -1536,16 +1557,20 @@ client → api → gateway
 STORED ModelArtifact ≠ ResourceReservation ≠ InferenceInstance
 
 Planning / DeploymentPlan
-  ≠ resource admission
-  → platform translates artifact + plan → ResourceRequest
-  → current SAFE − ACTIVE reservations
+  → exact ModelArtifact
+  → platform translates DeploymentPlan.resource_request + artifact_id
+    → ResourceRequest
+  → ResourceManager + live SAFE − ACTIVE reservations
   → AdmissionDecision
-  → ResourceReservation ACTIVE          ← Stage 1.5A stops here
+  → ResourceReservation ACTIVE          ← Stage 1.6J stops here
        reserved is not running
 
-later 1.5B / 1.5C:
-  ModelArtifact STORED
-    → ResourceReservation ACTIVE
+STORE_ONLY warehouse acquisition remains independent of DeploymentPlan.
+
+later:
+  CURRENT DeploymentPlan
+    + ModelArtifact STORED
+    + ResourceReservation ACTIVE
     → InferenceInstance
     → RuntimeAdapter.prepare_launch → RuntimeLaunchSpec
     → Executor.start → ExecutorHandle
@@ -1647,6 +1672,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6G | ModelRequirement + Capacity consume EligibleModelView | 1.6F | ✅ closed L1 |
 | 1.6H | ModelSelector + bounded AUTO/MANUAL ModelSelection | 1.6G | ✅ closed L1 |
 | 1.6I | Authoritative DeploymentPlan | 1.6H | ✅ closed L1 |
+| 1.6J | Plan-driven Acquisition + Resource admission | 1.6I | ✅ closed L1 |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |
