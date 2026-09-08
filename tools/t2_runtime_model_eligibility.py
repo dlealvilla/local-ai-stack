@@ -91,11 +91,9 @@ def main() -> int:
                 "-c",
                 """
 import json
-from dataclasses import replace
 from kultrun.api.contracts import ApiRequest, Method
 from kultrun.main import build, resolve_configuration
-from kultrun.platform.eligibility import catalog_facts
-from kultrun.runtime.contracts import EligibleViewStatus, RuntimeEligibilityStatus, RuntimePolicy, VerificationStatus
+from kultrun.runtime.contracts import EligibleViewStatus, RuntimeEligibilityStatus, VerificationStatus
 
 p = build(resolve_configuration())
 empty = p.router.handle(ApiRequest(method=Method.GET, path='/v1/models/eligible'))
@@ -138,20 +136,6 @@ changed = p.router.handle(ApiRequest(
     query={'mode': 'manual', 'candidate_id': blocked[0]},
 ))
 assert changed.status == 412
-host = p.hosts.current
-executors = (p.executions.capabilities(host), p.plane.container_capability(host))
-descriptors = p.runtimes.descriptors()
-accelerator = replace(host.accelerators[0], driver_version='changed-driver')
-shifted = replace(host, accelerators=(accelerator, *host.accelerators[1:]))
-stale = p.eligibility.evaluate(
-    shifted,
-    executors,
-    descriptors,
-    catalog_facts(p.models),
-    RuntimePolicy(),
-    components={'vllm': 'missing'},
-)
-assert stale.status is EligibleViewStatus.STALE
 print(json.dumps({
     'status': body['status'],
     'eligible_count': body['eligible_count'],
@@ -160,7 +144,6 @@ print(json.dumps({
     'selected_candidate_id': body['selected_candidate_id'],
     'runtime': body['runtime'],
     'profile_status': body['profile_status'],
-    'invalidation': stale.status.value,
     'blocked_refused': changed.status,
 }))
 """,
@@ -218,6 +201,42 @@ print(json.dumps({'restart_status': body['status']}))
             return 1
         evidence["restart"] = json.loads(restart.stdout.strip().splitlines()[-1])
 
+        invalid = run(
+            [
+                str(python),
+                "-c",
+                """
+import json
+from dataclasses import replace
+from kultrun.main import build, resolve_configuration
+from kultrun.platform.eligibility import catalog_facts
+from kultrun.runtime.contracts import EligibleViewStatus, RuntimePolicy
+
+p = build(resolve_configuration())
+host = p.hosts.current
+executors = (p.executions.capabilities(host), p.plane.container_capability(host))
+descriptors = p.runtimes.descriptors()
+accelerator = replace(host.accelerators[0], driver_version='changed-driver')
+shifted = replace(host, accelerators=(accelerator, *host.accelerators[1:]))
+stale = p.eligibility.evaluate(
+    shifted,
+    executors,
+    descriptors,
+    catalog_facts(p.models),
+    RuntimePolicy(),
+    components={'vllm': 'missing'},
+)
+assert stale.status is EligibleViewStatus.STALE
+print(json.dumps({'invalidation': stale.status.value}))
+""",
+            ],
+            env,
+        )
+        if invalid.returncode != 0:
+            print(invalid.stderr or invalid.stdout)
+            return 1
+        evidence.update(json.loads(invalid.stdout.strip().splitlines()[-1]))
+
         inspect = run(
             [
                 str(python),
@@ -238,8 +257,8 @@ print(json.dumps({'restart_status': body['status']}))
         if payload.get("status") != "current":
             print("FAIL: eligible view", payload)
             return 1
-        if payload.get("invalidation") != "stale":
-            print("FAIL: invalidation", payload)
+        if evidence.get("invalidation") != "stale":
+            print("FAIL: invalidation", evidence)
             return 1
         if "True True True True True" not in inspect.stdout:
             print("FAIL: console", inspect.stdout)
