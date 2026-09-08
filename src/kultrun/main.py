@@ -32,6 +32,7 @@ from kultrun.adapters.model_source.huggingface import HuggingFaceSource
 from kultrun.adapters.persistence import file_store
 from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.runtime.serving import ReferenceServingRuntime
+from kultrun.adapters.runtime.vllm import VllmRuntimeSupport
 from kultrun.adapters.storage import posix_reservation, replayed
 
 # Contract registration is a side effect of import, so the catalogue the
@@ -75,7 +76,7 @@ from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.registry import AdapterRegistry
 from kultrun.kernel.schema import validate_registry
-from kultrun.kernel.unresolved import is_resolved
+from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.knowledge import contracts as _knowledge_contracts  # noqa: F401
 from kultrun.model import contracts as _model_contracts  # noqa: F401
 from kultrun.model.acquisition import AcquisitionService
@@ -106,6 +107,8 @@ from kultrun.resource.lock import AdmissionLock
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
 from kultrun.runtime.catalogue import RuntimeCatalogue
+from kultrun.runtime.contracts import RuntimePolicy, RuntimeResolverMode
+from kultrun.runtime.resolve import path_presence, resolve
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService
@@ -527,7 +530,11 @@ def build(
         live_executor = NativeProcessExecutor(resolved_clock)
     executions = ExecutionService(live_executor, store)
     runtimes = RuntimeCatalogue(
-        (ReferenceProcessRuntime(hold=True), ReferenceServingRuntime())
+        (
+            ReferenceProcessRuntime(hold=True),
+            ReferenceServingRuntime(),
+            VllmRuntimeSupport(),
+        )
     )
     models = ModelCatalogue(HuggingFaceSource(), extras=(acceptance_candidate(),))
     selection = SelectionService(
@@ -974,6 +981,107 @@ def _runtime(arguments: Sequence[str]) -> int:
     print(f"kultrun: unknown runtime command {command!r}", file=sys.stderr)
     print("usage: kultrun runtime {start,status,stop}", file=sys.stderr)
     return 2
+
+
+def _runtimes(arguments: Sequence[str]) -> int:
+    """Read-only runtime candidate resolution. Does not install anything."""
+    if not arguments or arguments[0] in ("-h", "--help"):
+        print(
+            "usage: kultrun runtimes candidates [--runtime NAME] "
+            "[--allow-test-only] [--allow-reference]",
+            file=sys.stderr,
+        )
+        return 0 if arguments else 2
+    if arguments[0] != "candidates":
+        print(f"kultrun: unknown runtimes command {arguments[0]!r}", file=sys.stderr)
+        print("usage: kultrun runtimes candidates [--runtime NAME]", file=sys.stderr)
+        return 2
+    return show_runtime_candidates(list(arguments[1:]))
+
+
+def show_runtime_candidates(arguments: Sequence[str]) -> int:
+    """Print AUTO or EXPLICIT resolution from current host and executors."""
+    requested: str | None = None
+    allow_test = False
+    allow_reference = False
+    rest = list(arguments)
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if token == "--runtime":
+            if index + 1 >= len(rest):
+                print("kultrun: --runtime needs a family name", file=sys.stderr)
+                return 2
+            requested = rest[index + 1]
+            index += 2
+            continue
+        if token == "--allow-test-only":
+            allow_test = True
+            index += 1
+            continue
+        if token == "--allow-reference":
+            allow_reference = True
+            index += 1
+            continue
+        print(f"kultrun: unknown argument {token!r}", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    executors = (
+        platform.executions.capabilities(host),
+        platform.plane.container_capability(host),
+    )
+    descriptors = platform.runtimes.descriptors()
+    policy = RuntimePolicy(
+        mode=(
+            RuntimeResolverMode.EXPLICIT
+            if requested
+            else RuntimeResolverMode.AUTO
+        ),
+        requested_runtime=requested if requested else NOT_PROVIDED,
+        allow_test_only=allow_test,
+        allow_reference_runtimes=allow_reference,
+    )
+    required = [
+        component.value
+        for descriptor in descriptors
+        for component in descriptor.required_components
+    ]
+    resolution = resolve(
+        host,
+        executors,
+        descriptors,
+        policy,
+        components=path_presence(required),
+    )
+    preferred = (
+        resolution.preferred_candidate_id
+        if is_resolved(resolution.preferred_candidate_id)
+        else None
+    )
+    print(
+        f"mode {policy.mode.value}  host {host.host_id.value}  "
+        f"preferred {preferred or '-'}"
+    )
+    rows = (
+        *resolution.candidates,
+        *resolution.unresolved,
+        *resolution.unsupported,
+    )
+    if not rows:
+        print("no runtime candidates")
+        for note in resolution.notes:
+            print(f"  note {note}")
+        return 0
+    for item in rows:
+        mark = "*" if preferred == item.candidate_id.value else "-"
+        print(
+            f"{mark} {item.runtime.value:16} {item.executor.value:18} "
+            f"{item.compatibility.value:12} {item.support_tier.value:10} "
+            f"{item.reason}"
+        )
+    return 0
 
 
 def _runtime_start(arguments: Sequence[str]) -> int:
@@ -1578,6 +1686,7 @@ COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "instances": _instances,
     "storage": _storage,
     "runtime": _runtime,
+    "runtimes": _runtimes,
     "serve": lambda _: serve(),
 }
 

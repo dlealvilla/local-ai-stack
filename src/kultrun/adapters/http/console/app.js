@@ -27,6 +27,7 @@ const SUBSYSTEMS = [
   { name: 'Capacity', probe: '/capacity' },
   { name: 'Storage sanity', probe: '/storage/sanity' },
   { name: 'Runtime / executor', probe: '/runtime' },
+  { name: 'Runtime candidates', probe: '/runtimes/candidates' },
   { name: 'Model catalog', probe: '/models' },
   { name: 'Model selection', probe: '/models/selection' },
   { name: 'Model inventory', probe: '/models/inventory' },
@@ -472,6 +473,74 @@ async function renderRuntime() {
       target.append(runtimeControls(executions, controls));
     }
     json(document.getElementById('runtime-json'), state);
+  } catch (error) {
+    if (error.message.startsWith('404')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
+async function renderRuntimeCandidates() {
+  const panel = document.getElementById('candidates-panel');
+  const target = document.getElementById('candidates');
+  const summary = document.getElementById('candidates-summary');
+  try {
+    const state = await get('/runtimes/candidates');
+    panel.classList.remove('hidden');
+    const resolution = state.resolution || {};
+    const policy = state.policy || {};
+    const preferred = resolution.preferred_candidate_id;
+    rows(summary, [
+      ['mode', policy.mode || 'not reported'],
+      ['host', state.host_id || 'not reported'],
+      ['preferred', preferred && typeof preferred === 'string' ? preferred : 'none'],
+      ['mutations', state.mutations === false ? 'none' : 'unexpected'],
+    ]);
+    target.replaceChildren();
+    const groups = [
+      ['candidates', resolution.candidates || []],
+      ['unresolved', resolution.unresolved || []],
+      ['unsupported', resolution.unsupported || []],
+    ];
+    let shown = 0;
+    for (const [label, items] of groups) {
+      for (const item of items) {
+        shown += 1;
+        const card = document.createElement('div');
+        card.className = 'pool';
+        const head = document.createElement('div');
+        head.className = 'pool-head';
+        const title = document.createElement('span');
+        title.className = 'pool-path';
+        title.textContent = `${item.runtime || 'runtime'} / ${item.executor || 'executor'}`;
+        const klass = String(item.compatibility || 'unresolved');
+        head.append(
+          title,
+          pill(klass, klass === 'compatible' ? 'ok' : klass === 'unsupported' ? 'bad' : 'unknown'),
+        );
+        if (preferred && item.candidate_id === preferred) {
+          head.append(pill('preferred', 'ok'));
+        }
+        card.append(head);
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        rows(grid, [
+          ['support tier', item.support_tier],
+          ['reason', item.reason],
+          ['codes', (item.reason_codes || []).join(', ') || 'none'],
+          ['group', label],
+        ]);
+        card.append(grid);
+        target.append(card);
+      }
+    }
+    if (shown === 0) {
+      target.append(span('muted', ' No runtime candidates.'));
+    }
+    json(document.getElementById('candidates-json'), state);
   } catch (error) {
     if (error.message.startsWith('404')) {
       panel.classList.add('hidden');
@@ -1195,6 +1264,7 @@ async function refresh() {
     const envelope = await renderCapacity();
     await renderSanity(envelope);
     await renderRuntime();
+    await renderRuntimeCandidates();
     await renderCatalog();
     await renderSelection();
     await renderInventory();
