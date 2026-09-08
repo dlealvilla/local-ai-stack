@@ -7,7 +7,7 @@
   "gate": "L2",
   "evidence_level": "L1",
   "t3_required": true,
-  "ready_for_t3": false,
+  "ready_for_t3": true,
   "START_LINK": {
     "predecessor_accepted_commit": "0f39753d9d2b2c9e2942ca852983efa2e6203ad3",
     "predecessor_checkpoints": [
@@ -76,9 +76,24 @@
   "deferred": ["K-88", "K-89", "K-90", "K-91", "K-92", "K-93"],
   "existing_debt_preserved": ["K-56", "K-58", "K-60", "K-61", "K-65", "K-66", "K-75", "K-77", "K-80", "K-83", "K-86", "K-87"],
   "t2": {
-    "passed": false,
-    "wheel": null,
-    "sha256": null
+    "passed": true,
+    "source_commit": "40874fa7b17817e4c4d9cd37e57c100e6b287f39",
+    "wheel": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "230b4cce47142a374bc407dd07dcf732a74c69643f5183c6c7af6143f669ddda",
+    "build_id": "0.1.0+40874fa7b178",
+    "clean_install": true,
+    "source_checkout": false,
+    "fixture_installation": true,
+    "fixture_verification": true,
+    "verified_profile": true,
+    "api": true,
+    "cli": true,
+    "console": true,
+    "idempotency": true,
+    "local_tests": 778,
+    "ruff": "clean",
+    "mypy": "clean",
+    "packaging": "clean"
   },
   "t3": {
     "passed": false,
