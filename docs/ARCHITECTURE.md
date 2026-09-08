@@ -1581,6 +1581,8 @@ Planning / DeploymentPlan
   → InferenceInstance CREATED
        reserved is not running
   → vLLM RuntimeAdapter → RuntimeLaunchSpec
+       admitted VRAM ÷ selected device total → `--gpu-memory-utilization`
+       (runtime budget control, not a kernel VRAM cgroup)
   → NativeProcessExecutor.start → real vLLM
   → readiness (alive + health + served-model match)
   → RUNNING

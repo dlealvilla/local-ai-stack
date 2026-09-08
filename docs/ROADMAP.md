@@ -1353,7 +1353,8 @@ CLOSED. T0/T1/T2 fixture. T3 not required. Do not reopen 1.6B–1.6J.
 Evolve the existing vLLM runtime adapter into the first product serving
 path: exact verified `RuntimeInstallation`, exact local `ModelArtifact`,
 plan placement, structured `RuntimeLaunchSpec`, `NativeProcessExecutor`,
-deterministic readiness (alive + health + served-model match), and one
+deterministic readiness (alive + health + served-model match), reservation
+VRAM translated into `--gpu-memory-utilization`, and one
 bounded non-streaming `InferenceRequest` → `InferenceResponse`. Loopback
 bind only. No reference-runtime fallback. No streaming, cancellation,
 container GPU, multi-GPU, or additional runtimes.

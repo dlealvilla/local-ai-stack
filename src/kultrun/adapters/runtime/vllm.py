@@ -6,6 +6,7 @@ Does not import vLLM. Does not download models. Does not exec the process.
 from __future__ import annotations
 
 import json
+import math
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -169,6 +170,8 @@ class VllmRuntimeSupport:
         quantization = _quantization_flag(request.quantization)
         if quantization is not None:
             arguments.extend(["--quantization", quantization])
+        gpu_arguments, gpu_environment = _gpu_memory_bindings(request)
+        arguments.extend(gpu_arguments)
         environment = [
             "PYTHONPATH=",
             "PYTHONUNBUFFERED=1",
@@ -181,7 +184,7 @@ class VllmRuntimeSupport:
             "DO_NOT_TRACK=1",
             "VLLM_NO_USAGE_STATS=1",
             "VLLM_USE_FLASHINFER_SAMPLER=0",
-            "KULTRUN_GPU_MEMORY_SOURCE=runtime_default",
+            *gpu_environment,
             (
                 "KULTRUN_CONTEXT_SOURCE=plan"
                 if is_resolved(request.context_tokens)
@@ -366,6 +369,54 @@ def _quantization_flag(value: object) -> str | None:
     if token not in _QUANTIZATION_FLAGS:
         return None
     return "gptq" if token == "gptq-int4" else token
+
+
+def _gpu_memory_bindings(request: RuntimeLaunchRequest) -> tuple[list[str], list[str]]:
+    """Translate admitted accelerator bytes into vLLM's utilization control."""
+    reserved = request.reserved_accelerator_bytes
+    total = request.accelerator_memory_total_bytes
+    if not is_resolved(reserved):
+        return [], ["KULTRUN_GPU_MEMORY_SOURCE=runtime_default"]
+    if not is_resolved(total):
+        raise ValidationError(
+            "selected accelerator memory total is unresolved",
+            reason="accelerator_memory_unresolved",
+        )
+    reserved_bytes = reserved
+    total_bytes = total
+    if reserved_bytes <= 0:
+        raise ValidationError(
+            "reserved accelerator memory must be greater than zero",
+            reserved_accelerator_bytes=reserved_bytes,
+        )
+    if total_bytes <= 0:
+        raise ValidationError(
+            "accelerator memory total must be greater than zero",
+            accelerator_memory_total_bytes=total_bytes,
+        )
+    if reserved_bytes > total_bytes:
+        raise ValidationError(
+            "reserved accelerator memory exceeds the selected device",
+            reserved_accelerator_bytes=reserved_bytes,
+            accelerator_memory_total_bytes=total_bytes,
+        )
+    ratio = reserved_bytes / total_bytes
+    if not math.isfinite(ratio) or ratio <= 0 or ratio > 1:
+        raise ValidationError(
+            "gpu memory utilization is not a valid fraction",
+            reserved_accelerator_bytes=reserved_bytes,
+            accelerator_memory_total_bytes=total_bytes,
+        )
+    text = format(ratio, ".10f").rstrip("0").rstrip(".")
+    return (
+        ["--gpu-memory-utilization", text],
+        [
+            "KULTRUN_GPU_MEMORY_SOURCE=reservation",
+            f"KULTRUN_GPU_MEMORY_RESERVED_BYTES={reserved_bytes}",
+            f"KULTRUN_GPU_MEMORY_DEVICE_BYTES={total_bytes}",
+            f"KULTRUN_GPU_MEMORY_UTILIZATION={text}",
+        ],
+    )
 
 
 def _health_ok(host: str, port: int) -> bool:

@@ -471,7 +471,8 @@ inference proof.
 **Stage 1.6L** is the first real native vLLM serving vertical. T0/T1
 cover launch-spec authority (exact interpreter, local artifact, plan
 runtime/executor/GPU, structured argv, loopback, served-model identity,
-no PATH python, no Hub redownload, no reference fallback), readiness
+reservation-derived `--gpu-memory-utilization`, no PATH python, no Hub
+redownload, no reference fallback), readiness
 (alive+health+model match, early exit, timeout cleanup, no false
 RUNNING, duplicate start), inference (RUNNING required, CREATED/
 STARTING/STOPPED/FAILED refused, validation, timeout, malformed

@@ -92,6 +92,16 @@ class RuntimeLaunchRequest(Contract):
     runtime_version: Maybe[str] = meaning(
         "plan runtime version this recipe must honour", default=NOT_PROVIDED
     )
+    reserved_accelerator_bytes: Maybe[int] = meaning(
+        "admitted accelerator memory from the ACTIVE reservation; "
+        "unresolved means no reservation-derived GPU budget",
+        default=NOT_PROVIDED,
+    )
+    accelerator_memory_total_bytes: Maybe[int] = meaning(
+        "installed memory of the selected accelerator from host facts; "
+        "never a SAFE layer and never a runtime default",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="runtime.profile", version=1)

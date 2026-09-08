@@ -87,5 +87,8 @@ substitute for product vLLM.
 ## Residual
 
 Streaming, cancellation, automatic crash recovery, request queues,
-VRAM-to-`--gpu-memory-utilization` mapping, and richer observability
-are K-95. T3/T5 on a real GPU host remain required for close.
+harder-than-runtime GPU memory enforcement, and richer observability
+remain K-95. Admitted VRAM is translated into vLLM
+`--gpu-memory-utilization` on the native serving path; that is a runtime
+budget control, not a kernel-enforced VRAM cgroup. T3/T5 on a real GPU
+host remain required for close.

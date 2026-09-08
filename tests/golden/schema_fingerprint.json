@@ -6299,6 +6299,13 @@
         "optional": true,
         "type": "int | None"
       },
+      "accelerator_memory_total_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "installed memory of the selected accelerator from host facts; never a SAFE layer and never a runtime default",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "artifact_id": {
         "may_be_unresolved": true,
         "meaning": "stored artifact identity for provenance only",
@@ -6375,6 +6382,13 @@
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
+      },
+      "reserved_accelerator_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "admitted accelerator memory from the ACTIVE reservation; unresolved means no reservation-derived GPU budget",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
       },
       "runtime_version": {
         "may_be_unresolved": true,

@@ -1623,9 +1623,11 @@ What:         The first native vLLM vertical does not implement
               streaming, request cancellation, automatic crash
               recovery, request queues/backpressure, richer
               concurrency controls, advanced health/reconciliation,
-              exact mapping of admitted VRAM into vLLM
-              `--gpu-memory-utilization`, or richer inference
-              observability. Prompts and responses stay transient.
+              harder-than-runtime GPU memory enforcement, or richer
+              inference observability. Prompts and responses stay
+              transient. Baseline mapping of admitted VRAM into vLLM
+              `--gpu-memory-utilization` is in Stage 1.6L; that flag is
+              a runtime budget control, not a kernel cgroup limit.
 Why now:      One bounded prompt → generated text path is the product
               proof. Those depths are not required to close 1.6L.
 To make real: Later stages that own each concern separately.

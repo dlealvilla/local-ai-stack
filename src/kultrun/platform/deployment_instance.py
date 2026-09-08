@@ -31,7 +31,7 @@ from kultrun.kernel.errors import (
     ValidationError,
 )
 from kultrun.kernel.ids import Name
-from kultrun.kernel.unresolved import NOT_MEASURED, Maybe, is_resolved
+from kultrun.kernel.unresolved import NOT_MEASURED, NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.contracts import ArtifactId, ArtifactState, ModelArtifact
 from kultrun.model.inventory import ModelInventory
 from kultrun.planning.contracts import DeploymentPlan, DeploymentPlanStatus
@@ -368,6 +368,32 @@ class DeploymentInstanceService:
                 reason="accelerator_unresolved",
                 instance_id=instance.instance_id.value,
             )
+        if instance.reservation_id is None:
+            raise PreconditionFailedError(
+                "instance is missing artifact or reservation",
+                instance_id=instance.instance_id.value,
+            )
+        reservation = self._resources.get(instance.reservation_id)
+        if reservation is None or reservation.state is not ReservationState.ACTIVE:
+            raise PreconditionFailedError(
+                "bound reservation is not ACTIVE",
+                reason="reservation_not_active",
+                instance_id=instance.instance_id.value,
+            )
+        reserved = reservation.admitted_vram_bytes
+        if not is_resolved(reserved):
+            raise PreconditionFailedError(
+                "reservation has no admitted accelerator memory",
+                reason="reservation_vram_unresolved",
+                instance_id=instance.instance_id.value,
+            )
+        device_total = _accelerator_memory_total(host, instance.accelerator_index)
+        if not is_resolved(device_total):
+            raise PreconditionFailedError(
+                "selected accelerator memory total is unresolved",
+                reason="accelerator_memory_unresolved",
+                accelerator_index=instance.accelerator_index,
+            )
         port = allocate_loopback_port(self._instances.occupied_ports())
         return (
             RuntimeLaunchRequest(
@@ -392,6 +418,8 @@ class DeploymentInstanceService:
                 quantization=instance.quantization,
                 installation_id=installation.installation_id.value,
                 runtime_version=installation.runtime_version,
+                reserved_accelerator_bytes=reserved,
+                accelerator_memory_total_bytes=device_total,
             ),
             VLLM_STARTUP_TIMEOUT_SECONDS,
         )
@@ -526,6 +554,17 @@ def require_matching_triple(
             reason="reservation_request_mismatch",
             reservation_id=reservation.reservation_id.value,
         )
+
+
+def _accelerator_memory_total(
+    host: HostCapabilities, index: int | None
+) -> Maybe[int]:
+    if index is None:
+        return NOT_PROVIDED
+    for accelerator in host.accelerators:
+        if accelerator.index == index:
+            return accelerator.memory_total_bytes
+    return NOT_PROVIDED
 
 
 def _required_name(value: object, what: str, reason: str) -> Name:

@@ -26,7 +26,7 @@ from kultrun.kernel.schema import to_dict
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.main import main
 from kultrun.runtime.catalogue import RuntimeCatalogue
-from kultrun.runtime.contracts import RuntimeLaunchRequest
+from kultrun.runtime.contracts import RuntimeLaunchRequest, RuntimeLaunchSpec
 from tests.architecture import BANNED_IMPLEMENTATION_FIELDS, _imports_named, scan
 from tests.test_inference_instance import SMALL, _Stack
 from tests.test_runtime_deployment_plan import _call, _product
@@ -35,6 +35,10 @@ from tests.vllm_protocol import ProtocolServer, wrap_launch_with_protocol
 
 SOURCE = Path(__file__).resolve().parent.parent / "src"
 UNIQUE_PROMPT = "UNIQUE_PROMPT_TOKEN_16L_DO_NOT_STORE"
+GIB = 1024**3
+EIGHT_GIB = 8 * GIB
+THIRTY_TWO_GIB = 32 * GIB
+FOUR_GIB = 4 * GIB
 
 
 def _model_dir(tmp_path: Path) -> Path:
@@ -107,6 +111,8 @@ def test_launch_spec_honours_plan_installation_and_artifact(tmp_path: Path) -> N
     assert "--no-enable-log-requests" in spec.arguments
     assert "--disable-log-requests" not in spec.arguments
     assert spec.runtime.value == "vllm"
+    assert "--gpu-memory-utilization" not in spec.arguments
+    assert "KULTRUN_GPU_MEMORY_SOURCE=runtime_default" in spec.environment
 
 
 def test_launch_spec_context_and_concurrency_defaults(tmp_path: Path) -> None:
@@ -135,6 +141,97 @@ def test_launch_spec_refuses_public_bind_and_incomplete_request(
         adapter.launch_spec(replace(_request(tmp_path), bind_address="0.0.0.0"))
     with pytest.raises(ValidationError, match="absolute"):
         adapter.launch_spec(replace(_request(tmp_path), interpreter="python"))
+
+
+def test_launch_spec_maps_reservation_to_gpu_memory_utilization(
+    tmp_path: Path,
+) -> None:
+    adapter = VllmRuntimeSupport()
+    eight = adapter.launch_spec(
+        replace(
+            _request(tmp_path),
+            reserved_accelerator_bytes=EIGHT_GIB,
+            accelerator_memory_total_bytes=THIRTY_TWO_GIB,
+        )
+    )
+    assert "--gpu-memory-utilization" in eight.arguments
+    value = eight.arguments[eight.arguments.index("--gpu-memory-utilization") + 1]
+    assert value == "0.25"
+    assert "KULTRUN_GPU_MEMORY_SOURCE=reservation" in eight.environment
+    assert "KULTRUN_GPU_MEMORY_SOURCE=runtime_default" not in eight.environment
+    assert f"KULTRUN_GPU_MEMORY_RESERVED_BYTES={EIGHT_GIB}" in eight.environment
+    assert f"KULTRUN_GPU_MEMORY_DEVICE_BYTES={THIRTY_TWO_GIB}" in eight.environment
+    assert "KULTRUN_GPU_MEMORY_UTILIZATION=0.25" in eight.environment
+    four = adapter.launch_spec(
+        replace(
+            _request(tmp_path),
+            reserved_accelerator_bytes=FOUR_GIB,
+            accelerator_memory_total_bytes=THIRTY_TWO_GIB,
+        )
+    )
+    other = four.arguments[four.arguments.index("--gpu-memory-utilization") + 1]
+    assert other == "0.125"
+    assert other != value
+    assert eight.arguments[0:2] == ("-m", "vllm.entrypoints.openai.api_server")
+    assert "--host" in eight.arguments
+
+
+def test_launch_spec_refuses_invalid_gpu_memory_inputs(tmp_path: Path) -> None:
+    adapter = VllmRuntimeSupport()
+    with pytest.raises(ValidationError, match="greater than zero"):
+        adapter.launch_spec(
+            replace(
+                _request(tmp_path),
+                reserved_accelerator_bytes=0,
+                accelerator_memory_total_bytes=THIRTY_TWO_GIB,
+            )
+        )
+    with pytest.raises(ValidationError, match="greater than zero"):
+        adapter.launch_spec(
+            replace(
+                _request(tmp_path),
+                reserved_accelerator_bytes=-EIGHT_GIB,
+                accelerator_memory_total_bytes=THIRTY_TWO_GIB,
+            )
+        )
+    with pytest.raises(ValidationError, match="exceeds the selected device"):
+        adapter.launch_spec(
+            replace(
+                _request(tmp_path),
+                reserved_accelerator_bytes=THIRTY_TWO_GIB + 1,
+                accelerator_memory_total_bytes=THIRTY_TWO_GIB,
+            )
+        )
+    with pytest.raises(ValidationError, match="unresolved"):
+        adapter.launch_spec(
+            replace(
+                _request(tmp_path),
+                reserved_accelerator_bytes=EIGHT_GIB,
+                accelerator_memory_total_bytes=NOT_PROVIDED,
+            )
+        )
+
+
+def test_resource_manager_and_executor_do_not_own_vllm_gpu_flag() -> None:
+    root = SOURCE
+    manager = (root / "kultrun" / "resource" / "manager.py").read_text(encoding="utf-8")
+    native = (
+        root / "kultrun" / "adapters" / "execution" / "native_process.py"
+    ).read_text(encoding="utf-8")
+    request_source = (
+        root / "kultrun" / "resource" / "contracts.py"
+    ).read_text(encoding="utf-8")
+    requirement = (root / "kultrun" / "model" / "contracts.py").read_text(
+        encoding="utf-8"
+    )
+    capacity = (root / "kultrun" / "capacity" / "contracts.py").read_text(
+        encoding="utf-8"
+    )
+    assert "gpu-memory-utilization" not in manager
+    assert "gpu-memory-utilization" not in native
+    assert "--gpu-memory-utilization" not in request_source
+    assert "gpu-memory-utilization" not in requirement
+    assert "gpu-memory-utilization" not in capacity
 
 
 def test_launch_spec_has_no_implementation_fields(tmp_path: Path) -> None:
@@ -259,13 +356,19 @@ def _vllm_stack(
     stack.runtimes = RuntimeCatalogue(
         (stack.runtimes.get(Name("reference-serving")), VllmRuntimeSupport())
     )
-    monkeypatch.setattr(
-        VllmRuntimeSupport,
-        "launch_spec",
-        wrap_launch_with_protocol(
-            VllmRuntimeSupport.launch_spec, mode=mode, delay=delay, slow=slow
-        ),
-    )
+    original = VllmRuntimeSupport.launch_spec
+    captured: dict[str, RuntimeLaunchSpec] = {}
+
+    def wrapped(
+        self: VllmRuntimeSupport, request: RuntimeLaunchRequest | None = None
+    ) -> RuntimeLaunchSpec:
+        spec = original(self, request)
+        captured["spec"] = spec
+        return wrap_launch_with_protocol(
+            original, mode=mode, delay=delay, slow=slow
+        )(self, request)
+
+    monkeypatch.setattr(VllmRuntimeSupport, "launch_spec", wrapped)
     stack.instances = InstanceService(
         stack.store,
         stack.clock,
@@ -276,6 +379,7 @@ def _vllm_stack(
         startup_timeout=timeout,
         live_executor="native-process",
     )
+    stack.captured_launch = captured
     return stack
 
 
@@ -296,6 +400,8 @@ def _complete_request(tmp_path: Path, instance: object) -> RuntimeLaunchRequest:
         accelerator_index=0,
         quantization=NOT_PROVIDED,
         runtime_version="0.28.0",
+        reserved_accelerator_bytes=FOUR_GIB,
+        accelerator_memory_total_bytes=THIRTY_TWO_GIB,
     )
 
 
@@ -329,6 +435,12 @@ def test_start_ready_infer_stop_restart(
         if item.observed_state.value == "running"
     ]
     assert len(live) == 1
+    spec = stack.captured_launch["spec"]
+    assert "--gpu-memory-utilization" in spec.arguments
+    assert spec.arguments[spec.arguments.index("--gpu-memory-utilization") + 1] == (
+        "0.125"
+    )
+    assert "KULTRUN_GPU_MEMORY_SOURCE=reservation" in spec.environment
     response = stack.instances.infer(
         instance.instance_id,
         InferenceRequest(prompt="hello world", max_output_tokens=8),
@@ -360,6 +472,68 @@ def test_start_ready_infer_stop_restart(
     )
     assert second.generated_text.startswith("ok:second")
     stack.instances.stop(instance.instance_id)
+
+
+def test_start_memory_fraction_follows_reservation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stack = _vllm_stack(tmp_path, monkeypatch)
+    artifact = stack.stored()
+    reservation = stack.reserve(artifact, vram=SMALL)
+    instance = stack.instances.create(artifact, reservation, runtime=Name("vllm"))
+    first = stack.instances.start(
+        instance.instance_id,
+        ledger_health=stack.health(),
+        launch_request=_complete_request(tmp_path, instance),
+    )
+    assert first.observed_state is ObservedState.RUNNING
+    first_spec = stack.captured_launch["spec"]
+    first_value = first_spec.arguments[
+        first_spec.arguments.index("--gpu-memory-utilization") + 1
+    ]
+    assert first_value == "0.125"
+    stack.instances.stop(instance.instance_id)
+    second = stack.instances.start(
+        instance.instance_id,
+        ledger_health=stack.health(),
+        launch_request=replace(
+            _complete_request(tmp_path, instance),
+            reserved_accelerator_bytes=EIGHT_GIB,
+        ),
+    )
+    assert second.observed_state is ObservedState.RUNNING
+    second_spec = stack.captured_launch["spec"]
+    second_value = second_spec.arguments[
+        second_spec.arguments.index("--gpu-memory-utilization") + 1
+    ]
+    assert second_value == "0.25"
+    assert second_value != first_value
+    stack.instances.stop(instance.instance_id)
+
+
+def test_start_refuses_impossible_gpu_memory_before_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stack = _vllm_stack(tmp_path, monkeypatch)
+    artifact = stack.stored()
+    reservation = stack.reserve(artifact, vram=SMALL)
+    instance = stack.instances.create(artifact, reservation, runtime=Name("vllm"))
+    failed = stack.instances.start(
+        instance.instance_id,
+        ledger_health=stack.health(),
+        launch_request=replace(
+            _complete_request(tmp_path, instance),
+            reserved_accelerator_bytes=0,
+        ),
+    )
+    assert failed.observed_state is ObservedState.FAILED
+    assert "spec" not in stack.captured_launch
+    live = [
+        item
+        for item in stack.executions.list()
+        if item.observed_state.value == "running"
+    ]
+    assert live == []
 
 
 def test_early_exit_timeout_wrong_model(
@@ -490,11 +664,17 @@ def test_product_start_does_not_substitute_reference(tmp_path: Path) -> None:
 def test_product_protocol_infer_and_stale_running(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        VllmRuntimeSupport,
-        "launch_spec",
-        wrap_launch_with_protocol(VllmRuntimeSupport.launch_spec),
-    )
+    original = VllmRuntimeSupport.launch_spec
+    captured: dict[str, RuntimeLaunchSpec] = {}
+
+    def wrapped(
+        self: VllmRuntimeSupport, request: RuntimeLaunchRequest | None = None
+    ) -> RuntimeLaunchSpec:
+        spec = original(self, request)
+        captured["spec"] = spec
+        return wrap_launch_with_protocol(original)(self, request)
+
+    monkeypatch.setattr(VllmRuntimeSupport, "launch_spec", wrapped)
     platform = _product(tmp_path)
     plan = _current_plan(platform)
     prepared = _call(platform, "/deployments/plan/prepare", Method.POST).body["payload"]
@@ -515,6 +695,12 @@ def test_product_protocol_infer_and_stale_running(
     assert payload["observed_state"] == "running"
     assert payload["ready"] is True
     assert payload["runtime"] == "vllm"
+    spec = captured["spec"]
+    assert "--gpu-memory-utilization" in spec.arguments
+    utilization = spec.arguments[spec.arguments.index("--gpu-memory-utilization") + 1]
+    assert utilization
+    assert utilization != "0.9"
+    assert "KULTRUN_GPU_MEMORY_SOURCE=reservation" in spec.environment
     first = _call(
         platform,
         "/inference/instances/infer",
@@ -610,6 +796,8 @@ def test_architecture_and_source_guards() -> None:
             "kultrun.inference",
             "subprocess",
             "kultrun.planning",
+            "kultrun.resource",
+            "kultrun.host",
         )
         == []
     )
