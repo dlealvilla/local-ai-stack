@@ -2,7 +2,7 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN / READY_FOR_T3 — L1.** Checkpoint:
+Status: **CLOSED — L2.** Checkpoint:
 `checkpoints/STAGE-1.6C-runtime-provisioning.json`.
 
 This stage answers whether Kultrun can create an exact reproducible
@@ -152,21 +152,47 @@ flag; `attempt_count` increments. No background retry.
 ## Evidence
 
 T0/T1: `tests/test_runtime_provisioning.py` cases A–M plus architecture
-non-edges. 753 tests passed; ruff and mypy clean.
+non-edges. 753 tests passed after the promoted-path fix; ruff and mypy
+clean.
 
-T2: clean wheel `kultrun-0.1.0-py3-none-any.whl`
-SHA256 `49b385611ed61836851aae10d9881abc6e7a7ea3d64536e84a3229ae1502e875`
-from source `42117a74a3a213ec079fad83095b4030fb862ba1`. Isolated install,
-no source checkout. Fixture provisioner: Host → candidates → plan
-`rplan_98989570ba1d5fb6` → installation `rinst_a6a737019abeb197`
-`INSTALLED` `vllm==0.28.0`, idempotent second provision, API/CLI/Console,
-no verify route. Fixture install is not real vLLM.
+T2 (final accepted artifact): clean wheel
+`kultrun-0.1.0-py3-none-any.whl`
+SHA256 `c7fe5ce723f87519c634f00bf4cd6c048b454253afb17bd21fcc474241a9c621`
+from source `ed8f5099fa478f71a01424afc5e6b7cd3ad2109e` (build
+`0.1.0+ed8f5099fa47`). Isolated install, no source checkout. Fixture
+provisioner: plan `rplan_dfbeb2011f6e208c` → installation
+`rinst_1a0940f0b60e72b4` `INSTALLED` `vllm==0.28.0`, idempotent, no
+verify route. Fixture install is not real vLLM. An earlier T2 wheel
+from `42117a74a3a213ec079fad83095b4030fb862ba1` was invalidated when
+T3 exposed a dangling staging `python_executable` after atomic
+promotion.
 
-T3: required for L2 close. Not run. This workspace is Darwin arm64 with
-Python 3.13 and no Linux x86_64 NVIDIA host. Required host: Linux
-x86_64, NVIDIA GPU, Python 3.12, NativeProcessExecutor, network to
-PyPI, sufficient disk. No `import vllm`. Stage remains OPEN /
-READY_FOR_T3 at L1.
+T3: PASS on a disposable Linux x86_64 NVIDIA host (Ubuntu 24.04.3,
+kernel 6.8.0-124-generic, Intel Xeon Gold 6342, NVIDIA RTX A6000
+48 GiB, driver 580.159.04, Python 3.12.3 at `/usr/bin/python3.12`,
+NativeProcessExecutor available, PyPI reachable). Host
+`host_09da05bd74830e63` fingerprint `d9e665f5d166dbb5449e332f84cee9b9`.
+vLLM/native-process candidate `rcand_5e16a64313b76682` was
+`conditional` solely for `required_component_missing`. AUTO had no
+preferred COMPATIBLE candidate; provisioning consumed the explicitly
+selected candidate. Plan `rplan_3b5942e3244e7b95` `vllm==0.28.0`
+native-process python-venv-pip. `VllmNativeProvisioner` installed
+into Kultrun state
+`runtimes/vllm/0.28.0/rinst_22e540a9eeca0e8d`.
+`importlib.metadata.version("vllm") == "0.28.0"`. Installer report
+SHA256 `9cb70b848ea1771e7be6ac783c5356de8a7663668a4f00d0631c31d0b2093764`.
+Staging emptied after atomic promotion. Receipt
+`python_executable` names the promoted venv, not staging. Second
+provision reused `rinst_22e540a9eeca0e8d` with `attempt_count` 1.
+Global Python had no vllm before or after. No `import vllm`, no
+engine, no CUDA proof through vLLM, no model.
+`INSTALLED` ≠ `VERIFIED`.
+
+Current reference proof: Python 3.12 and a working NVIDIA driver were
+already on the host. Commercial target: Kultrun will provision a
+managed isolated interpreter (K-66) and may later offer privileged
+driver remediation with approval and rediscovery (K-77). Neither is
+implemented here.
 
 ## Deferred enhancements
 

@@ -684,7 +684,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6B Runtime Resolution                   ← CLOSED L1
   ↓
-1.6C Runtime Provisioning                 ← this stage; L2 T3 or READY_FOR_T3
+1.6C Runtime Provisioning                 ← CLOSED L2
   ↓
 1.6D Runtime Verification                 ← not begun
   ↓
@@ -1177,8 +1177,9 @@ isolated environment. `INSTALLED` is not `VERIFIED`. Product pin:
 vLLM `0.28.0`, native-process, Python 3.12, stdlib venv + pip.
 
 **Output:** `RuntimeProvisioningPlan` + `RuntimeProvisioner` +
-`RuntimeInstallation` · **Gate:** L2 on a real Linux x86_64 NVIDIA
-install. T2 fixture evidence is L1 only and does not close the stage.
+`RuntimeInstallation` · **Gate:** L2 **CLOSED** (T3 real
+`vllm==0.28.0` isolated install on Linux x86_64 NVIDIA).
+`INSTALLED` is not `VERIFIED`.
 
 Provisioning consumes an **explicitly identified** `RuntimeCandidate`.
 It does not assume the AUTO recommendation and must not silently
@@ -2181,7 +2182,8 @@ PERSISTED STATE              Plan and Installation. Candidates derived.
 MUTATION / FAILURE BOUNDARY  POST plan / POST provision only.
                              No system Python/driver/CUDA mutation.
 CANCELLATION / CLEANUP       Staging deleted on failure; never promoted.
-ACCEPTANCE LEVEL             L2 to close. T2 is L1. No host → READY_FOR_T3.
+ACCEPTANCE LEVEL             L2 CLOSED. T3 real isolated vLLM 0.28.0
+                             install. INSTALLED is not VERIFIED.
 ADMIN SURFACE                POST /v1/runtimes/provisioning-plans;
                              POST /v1/runtimes/provision;
                              GET plans/installations;

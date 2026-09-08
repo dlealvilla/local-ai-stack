@@ -354,12 +354,14 @@ already-proven Host and Executor evidence and does not install a runtime.
 **Stage 1.6C** is T0/T1/T2 control-plane provisioning plus a required
 real-install T3 for L2 close. Tests cover plan identity, provisionability,
 staging/atomic promotion, installer provenance, idempotency, explicit
-retry, INSTALLING conflict, and architecture non-edges. T2 uses the
-fixture provisioner in a clean wheel; that is not real vLLM. T3 is a
-bounded `vllm==0.28.0` install on Linux x86_64 NVIDIA through
-`VllmNativeProvisioner`. Success is package metadata in an isolated
-venv, never `import vllm` or engine init. Without a suitable host the
-stage stays OPEN / READY_FOR_T3 at L1.
+retry, INSTALLING conflict, architecture non-edges, and that the
+persisted interpreter path is the promoted venv rather than deleted
+staging. T2 uses the fixture provisioner in a clean wheel; that is not
+real vLLM. T3 passed L2: `VllmNativeProvisioner` installed exact
+`vllm==0.28.0` into a Kultrun-owned isolated venv on Linux x86_64 with
+an NVIDIA RTX A6000 (driver 580.159.04) and host Python 3.12.3.
+Success is package metadata plus installer-report provenance, never
+`import vllm` or engine init. `INSTALLED` is not `VERIFIED`.
 
 Bounded administrator selection is a cross-cutting principle
 (`docs/ROADMAP.md` Part II §11). Tests that mutate provisioning must
