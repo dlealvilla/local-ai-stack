@@ -609,7 +609,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6A executor capability + ContainerExecutor  ← CLOSED L2
   ↓
-1.6B Runtime Resolution                   ← not begun from 1.6A
+1.6B Runtime Resolution                   ← this stage
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1082,8 +1082,12 @@ reference-serving Runtime through both executors · **Gate:** L2 **CLOSED**
 
 ### Stage 1.6B — Runtime Resolution
 
-Not begun from 1.6A. RuntimeCandidate generation, provisioning plans,
-and verified runtime profiles belong here or later.
+Given current `HostCapabilities`, current `ExecutorCapabilityProfile`s
+and declared `RuntimeSupportDescriptor`s, emit `RuntimeCandidate`s.
+No install, verify, benchmark, model selection, or vLLM execution.
+
+**Output:** `RuntimePolicy` + `RuntimeCandidate` + `RuntimeResolver` ·
+**Gate:** L1 (T0/T1/T2; T3 not required)
 
 ### Stage 1.6 — Real inference vertical
 
@@ -1994,6 +1998,33 @@ DEBT ENTRIES                 GPU/device exposure in containers;
                              used; multiple engines; image management;
                              Kubernetes.
 DEFERRED ITEMS               1.6B Runtime Resolution and later 1.6
+                             letters. Do not begin them from this stage.
+```
+
+### Stage 1.6B brief
+
+```text
+CURRENT STAGE                Runtime resolution. No install, verify,
+                             vLLM execution, or model-selection remap.
+PREDECESSOR OUTPUTS          Stage 1.6A CLOSED L2
+                             (f3d4baf3d255ca944ffd626aaf1f3505f3b20b27).
+THIS STAGE'S REQUIRED OUTPUT RuntimePolicy; RuntimeCandidate;
+                             RuntimeResolution; RuntimeResolver;
+                             conservative vLLM declared-support
+                             descriptor; read-only candidates API/CLI.
+CORE CONTRACTS AFFECTED      runtime.policy; runtime.candidate;
+                             runtime.resolution (new);
+                             support_descriptor additive preferred_version.
+ADAPTERS AFFECTED            adapters/runtime/vllm (declared support only).
+PERSISTED STATE              None. Candidates are derived per read.
+MUTATION / FAILURE BOUNDARY  Read-only.
+CANCELLATION / CLEANUP       None.
+ACCEPTANCE LEVEL             L1. T3 not required.
+ADMIN SURFACE                GET /v1/runtimes/candidates;
+                             kultrun runtimes candidates;
+                             read-only Console panel.
+DEBT ENTRIES                 K-56…K-65.
+DEFERRED ITEMS               1.6C Runtime Provisioning and later 1.6
                              letters. Do not begin them from this stage.
 ```
 

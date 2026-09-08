@@ -879,11 +879,11 @@ capacity contract.
 
 | | |
 |---|---|
-| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. |
-| **Consumes** | `kernel` · `evidence` |
+| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts; it does not install or verify. |
+| **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) |
 | **Ports** | `InferenceRuntime` |
-| **Must not** | Import `execution`. Import `capacity`. Own capacity policy. Let a runtime-specific option reach a core signature. |
-| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
+| **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. |
+| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
 Later deepening may read `host` and `model` contracts. It must never read
 `capacity` or `execution`. Stage 4.3 exists because the previous attempt
@@ -919,11 +919,34 @@ Stage 1.6A closed L2 against a real Linux Docker Engine using host
 networking v0. GPU device attachment, bridge networking, and
 vLLM-in-container remain unproven.
 
-Future chain, **not implemented in 1.5C**:
+Stage 1.6B resolution (composition feeds executor profiles; runtime
+does not import `execution`):
 
 ```text
-Host → Executor capabilities → Runtime support → provisioning
-  → verification → RuntimeCapabilityProfile → runtime-aware selection
+HostCapabilities
+        +
+ExecutorCapabilityProfile[]
+        +
+RuntimeSupportDescriptor[]
+        +
+RuntimePolicy
+        ↓
+RuntimeResolver
+        ↓
+RuntimeCandidate[]
+```
+
+`platform` copies executor capability evidence into the resolver call
+the same way it copies a launch spec into an executor spec. Ranking is
+deterministic and static (K-56). A candidate is not a
+`RuntimeCapabilityProfile`.
+
+Future chain, **not implemented in 1.6B**:
+
+```text
+Host → Executor capabilities → Runtime support → resolution
+  → provisioning → verification → RuntimeCapabilityProfile
+  → runtime-aware selection
 ```
 
 ## TIER 6 — Serving and the record of it
@@ -1315,6 +1338,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.5B | `inference` instance lifecycle (plural, reference serving) | `resource`, `execution`, `runtime`, `model` | ✅ |
 | 1.5C | Runtime / Executor boundary reconciliation | 1.5B | ✅ |
 | 1.6A | Minimal ContainerExecutor + executor portability | 1.5C | ✅ closed L2 |
+| 1.6B | RuntimeResolver + RuntimeCandidate | 1.6A, 1.5C descriptors | ⏳ this stage |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

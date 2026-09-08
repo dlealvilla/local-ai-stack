@@ -345,6 +345,12 @@ Runtime ran through `ContainerExecutor` with host-network v0. Docker
 Desktop is not an architectural dependency. GPU exposure, bridge
 networking, and vLLM-in-container were not part of this proof.
 
+**Stage 1.6B** is T0/T1/T2 control-plane resolution. Tests cover AUTO and
+EXPLICIT modes, compatibility classes, reason codes, reference exclusion,
+deterministic ranking, and a declared vLLM support descriptor that is
+never imported or executed. T3 is not required: the stage consumes
+already-proven Host and Executor evidence and does not install a runtime.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.
