@@ -141,16 +141,21 @@ flag; `attempt_count` increments. No background retry.
 ## Evidence
 
 T0/T1: `tests/test_runtime_provisioning.py` cases A–M plus architecture
-non-edges.
+non-edges. 753 tests passed; ruff and mypy clean.
 
-T2: clean wheel, fixture provisioner, Host → resolve → candidate → plan
-→ install, API/CLI/Console, persistence, idempotency, retry, no verify
-route. Fixture install is not real vLLM.
+T2: clean wheel `kultrun-0.1.0-py3-none-any.whl`
+SHA256 `49b385611ed61836851aae10d9881abc6e7a7ea3d64536e84a3229ae1502e875`
+from source `42117a74a3a213ec079fad83095b4030fb862ba1`. Isolated install,
+no source checkout. Fixture provisioner: Host → candidates → plan
+`rplan_98989570ba1d5fb6` → installation `rinst_a6a737019abeb197`
+`INSTALLED` `vllm==0.28.0`, idempotent second provision, API/CLI/Console,
+no verify route. Fixture install is not real vLLM.
 
-T3: required for L2 close. Fresh Linux x86_64 NVIDIA host, Python 3.12,
-NativeProcessExecutor, network to PyPI, exact wheel, Kultrun
-`VllmNativeProvisioner` only. No `import vllm`. If no such host is
-available, this stage stays OPEN / READY_FOR_T3 at L1.
+T3: required for L2 close. Not run. This workspace is Darwin arm64 with
+Python 3.13 and no Linux x86_64 NVIDIA host. Required host: Linux
+x86_64, NVIDIA GPU, Python 3.12, NativeProcessExecutor, network to
+PyPI, sufficient disk. No `import vllm`. Stage remains OPEN /
+READY_FOR_T3 at L1.
 
 ## Deferred enhancements
 
