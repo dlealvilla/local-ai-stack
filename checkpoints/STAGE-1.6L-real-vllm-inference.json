@@ -59,10 +59,10 @@
     "clean_source": true,
     "acceptance_evidence": true,
     "script": "tools/t2_vllm_inference.py",
-    "source_commit": "e13adeb969725a64ae1364843d0a8a5b67681222",
+    "source_commit": "8e241132c2d597f9e70e1e0faca6f1522f53589e",
     "wheel": "kultrun-0.1.0-py3-none-any.whl",
-    "sha256": "a84e1615417f9a1a014e82bb2e1a7bdde9414dba7643736e34deac4c91dff6b0",
-    "build_id": "0.1.0+e13adeb96972",
+    "sha256": "e7c4111e76d1473e82a40c3ed591850bc0d5214b183fc34c2839aab574b4e070",
+    "build_id": "0.1.0+8e241132c2d5",
     "source_checkout": false,
     "editable": false,
     "dirty_wip_wheel_used": false,
@@ -110,8 +110,8 @@
     "performed": false
   },
   "END_LINK": {
-    "acceptance_source_commit": "e13adeb969725a64ae1364843d0a8a5b67681222",
-    "t2_artifact_sha256": "a84e1615417f9a1a014e82bb2e1a7bdde9414dba7643736e34deac4c91dff6b0",
+    "acceptance_source_commit": "8e241132c2d597f9e70e1e0faca6f1522f53589e",
+    "t2_artifact_sha256": "e7c4111e76d1473e82a40c3ed591850bc0d5214b183fc34c2839aab574b4e070",
     "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
     "next": "Complete T3/T5 on a real GPU host using this exact wheel. Do not begin streaming or additional runtimes."
   }
