@@ -1,0 +1,126 @@
+{
+  "stage": "1.6I",
+  "name": "deployment-plan",
+  "milestone": 1,
+  "output": "authoritative host-scoped DeploymentPlan with CURRENT vs STALE classification",
+  "status": "closed",
+  "gate": "L1",
+  "evidence_level": "L1",
+  "t3_required": false,
+  "ready_for_t3": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "3fd3d8c1806f0994fc26b8613b5deed96258cfa7",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.6H-model-selection.json"
+    ],
+    "starting_source_commit": "3fd3d8c1806f0994fc26b8613b5deed96258cfa7",
+    "safety_tag": "checkpoint/stage-1.6H-closed-3fd3d8c18",
+    "safety_branch": "safety/pre-deployment-plan-3fd3d8c18",
+    "feature_branch": "stage/1.6I-deployment-plan",
+    "predecessor_closed": true,
+    "do_not_reopen": ["1.6B", "1.6C", "1.6D", "1.6E", "1.6F", "1.6G", "1.6H"]
+  },
+  "contracts": {
+    "planning.deployment_plan": "planning.deployment_plan@1",
+    "deployment_plan_v2": false,
+    "generic_plan_framework": false,
+    "selected_deployment_candidate": false,
+    "plan_from_authoritative": false
+  },
+  "plan": {
+    "one_authoritative_object": true,
+    "status_computed_not_stored": true,
+    "deterministic_plan_basis": true,
+    "get_does_not_persist": true,
+    "manual_uses_selected_model": true,
+    "silent_fallback": false,
+    "resource_request_submitted": false,
+    "acquisition_called": false,
+    "admission_called": false,
+    "inference_launched": false
+  },
+  "k86": {
+    "status": "RETIRED",
+    "removed": [
+      "recommendation artifact as executable DeploymentPlan",
+      "missing CURRENT vs STALE overlay"
+    ],
+    "plan_from_demoted": true
+  },
+  "k66": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k77": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91"],
+  "t2": {
+    "passed": true,
+    "clean_source": true,
+    "acceptance_evidence": true,
+    "script": "tools/t2_deployment_plan.py",
+    "source_commit": "e560385d5961196f55c19c5cddb8284504ad848e",
+    "wheel": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "ed45bd989bd5512121346018da284a99a92de96ee1523899ae0532dbea66559d",
+    "build_id": "0.1.0+e560385d5961",
+    "source_checkout": false,
+    "editable": false,
+    "fixture_plan": true,
+    "verified_profile": true,
+    "view_status": "current",
+    "selected_runtime": "vllm",
+    "auto_model": "qwen2.5-14b-instruct-awq",
+    "manual_model": "qwen2.5-7b-instruct-awq",
+    "recommendation_preserved": true,
+    "plan_status": "current",
+    "plan_id": "dplan_8001b75c2d95e134",
+    "plan_basis": "f81881ae9cf4ccd2",
+    "restart_status": "current",
+    "invalidation": "stale",
+    "artifacts": 0,
+    "reservations": 0,
+    "instances": 0,
+    "plan_from_authoritative": false,
+    "api": true,
+    "cli": true,
+    "console": true,
+    "dirty_wip_wheel_used": false,
+    "deployment_plan_v2": false,
+    "local_tests": 885,
+    "ruff": "clean",
+    "mypy_src": "clean",
+    "mypy_tools": "clean"
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-08",
+    "method": "T0/T1 plus T2 clean wheel. T3 not required."
+  },
+  "test_modes": {
+    "T0": "CURRENT from verified chain; AUTO; MANUAL selected not recommendation; INVALID/STALE upstream; foundation/runtime/selection/requirement/capacity/revision invalidation; infeasible selected; deterministic fingerprint; GET no mutation; no acquire/admit/launch",
+    "T1": "fixture host; AUTO plan; MANUAL plan; restart; capacity/foundation/runtime/requirement invalidation; AUTO transition; plan_from not authority",
+    "T2": "clean wheel; fixture chain foundation → view → requirement → capacity → ModelSelection → DeploymentPlan CURRENT; MANUAL B; restart; invalidation STALE; no execution",
+    "T3": "not required"
+  },
+  "not_begun": [
+    "plan-gated Acquisition",
+    "ResourceManager remap",
+    "InferenceInstance remap",
+    "real inference",
+    "K-66 Managed Python",
+    "K-77 driver remediation"
+  ],
+  "merge": {
+    "performed": false
+  },
+  "END_LINK": {
+    "acceptance_source_commit": "e560385d5961196f55c19c5cddb8284504ad848e",
+    "t2_artifact_sha256": "ed45bd989bd5512121346018da284a99a92de96ee1523899ae0532dbea66559d",
+    "checkpoint": "checkpoints/STAGE-1.6I-deployment-plan.json",
+    "next": "Plan-driven Acquisition + Resource Admission. Present depth options before implementation. Do not begin from this package."
+  }
+}
