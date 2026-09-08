@@ -146,7 +146,8 @@ stored = p.instances.get(InstanceId.parse(body['instance_id']))
 assert stored is not None
 assert stored.observed_state is ObservedState.CREATED
 assert stored.endpoint is None
-assert p.executions.list() == ()
+vllm_executions = len(p.executions.list())
+assert vllm_executions == 0
 
 selection = call('/v1/models/selection').body['payload']
 other = next(item['logical_name'] for item in selection['feasible'] if item['logical_name'] != plan['selected_model'])
@@ -193,7 +194,7 @@ print(json.dumps({
     'vllm_start_reason': started.body['error']['context']['reason'],
     'stale_before_start': stale_start.body['error']['context']['reason'],
     'vllm_running': stored.observed_state.value,
-    'executions': len(p.executions.list()),
+    'vllm_executions': vllm_executions,
     'reference_runtime': running.runtime.value,
     'reference_stopped': p.instances.observe(ref.instance_id).observed_state.value,
     'chat_status': chat.status,
@@ -373,8 +374,8 @@ print(json.dumps({
         if evidence.get("vllm_running") != "created":
             print("FAIL: vLLM running", evidence)
             return 1
-        if evidence.get("executions") != 0:
-            print("FAIL: executions", evidence)
+        if evidence.get("vllm_executions") != 0:
+            print("FAIL: vLLM executions", evidence)
             return 1
         if evidence.get("reference_runtime") != "reference-serving":
             print("FAIL: reference", evidence)

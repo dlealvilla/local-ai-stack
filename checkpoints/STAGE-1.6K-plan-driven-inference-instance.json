@@ -1,0 +1,129 @@
+{
+  "stage": "1.6K",
+  "name": "plan-driven-inference-instance",
+  "milestone": 1,
+  "output": "plan-driven InferenceInstance from CURRENT DeploymentPlan + matching ModelArtifact + matching ACTIVE ResourceReservation",
+  "status": "closed",
+  "gate": "L1",
+  "evidence_level": "L1",
+  "t3_required": false,
+  "ready_for_t3": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "92be1c7796060e3add08bc6790b77bee134b708c",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.6J-deployment-prepare.json"
+    ],
+    "starting_source_commit": "92be1c7796060e3add08bc6790b77bee134b708c",
+    "safety_tag": "checkpoint/stage-1.6J-closed-92be1c779",
+    "safety_branch": "safety/pre-plan-driven-instance-92be1c779",
+    "feature_branch": "stage/1.6K-plan-driven-inference-instance",
+    "predecessor_closed": true,
+    "do_not_reopen": ["1.6B", "1.6C", "1.6D", "1.6E", "1.6F", "1.6G", "1.6H", "1.6I", "1.6J"]
+  },
+  "contracts": {
+    "inference.instance": "inference.instance@1",
+    "planning.deployment_plan": "planning.deployment_plan@1",
+    "model.artifact": "model.artifact@1",
+    "resource.reservation": "resource.reservation@1",
+    "inference_instance_v2": false,
+    "plan_inference_instance": false,
+    "runtime_instance_v2": false
+  },
+  "instance": {
+    "current_required": true,
+    "artifact_required": true,
+    "active_reservation_required": true,
+    "three_way_validation": true,
+    "plan_provenance": true,
+    "settings_from_plan": true,
+    "plan_from_used": false,
+    "plan_for_entry_used": false,
+    "catalog_reconstruction": false,
+    "lifecycle_preserved": true,
+    "release_protection": true,
+    "one_live_instance": true,
+    "stale_before_start_refused": true,
+    "stale_while_running_not_killed": true,
+    "configuration_currentness": true,
+    "vllm_start_refused": true,
+    "reference_not_substituted": true,
+    "real_vllm_serving": false,
+    "prompt": false
+  },
+  "k66": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k77": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91"],
+  "t2": {
+    "passed": true,
+    "clean_source": true,
+    "acceptance_evidence": true,
+    "script": "tools/t2_inference_instance.py",
+    "source_commit": "9cc1a6c468b96c7121d8f5fc18b5aaf214742687",
+    "wheel": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "4aba01e55d8aa7354063b7a95129197b620288ad04dc83de71614dcb7cb2bf45",
+    "build_id": "0.1.0+9cc1a6c468b9",
+    "source_checkout": false,
+    "editable": false,
+    "fixture_plan": true,
+    "plan_status": "current",
+    "selected_model": "qwen2.5-14b-instruct-awq",
+    "instance_id": "inst_c3768fbc57f8978d",
+    "plan_id": "dplan_1c46f53f5c3e3b68",
+    "plan_basis": "be87a048f2fa660b",
+    "artifact_id": "artifact_6a3fed8b6ced4187",
+    "reservation_id": "resv_c51ef7a8d0692b99",
+    "runtime": "vllm",
+    "executor": "native-process",
+    "manual_model": "qwen2.5-7b-instruct-awq",
+    "vllm_start_reason": "runtime_launch_unsupported",
+    "stale_before_start": "plan_stale",
+    "vllm_running": "created",
+    "vllm_executions": 0,
+    "reference_runtime": "reference-serving",
+    "chat_status": 404,
+    "api": true,
+    "cli": true,
+    "console": true,
+    "dirty_wip_wheel_used": false,
+    "local_tests": 912,
+    "ruff": "clean",
+    "mypy_src": "clean",
+    "mypy_tools": "clean"
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-08",
+    "method": "T0/T1 plus T2 clean wheel. T3 not required."
+  },
+  "test_modes": {
+    "T0": "CURRENT triple create; STALE/UNAVAILABLE refuse; mismatch matrix; MANUAL selected; plan runtime/executor/settings; no reconstruction; lifecycle; stale-before-start; stale-while-running; restart; release; reference/vLLM separation",
+    "T1": "full fixture chain through CREATED; MANUAL B; mismatch; stale after create; stale while running; reference start/stop; restart; release; plan_for_entry bypass",
+    "T2": "clean wheel; CURRENT plan → prepare → InferenceInstance CREATED; MANUAL model; stale-before-start; vLLM START refused; no reference substitute; no prompt",
+    "T3": "not required"
+  },
+  "not_begun": [
+    "real vLLM serving",
+    "real inference",
+    "production endpoint",
+    "prompt/response",
+    "K-66 Managed Python",
+    "K-77 driver remediation"
+  ],
+  "merge": {
+    "performed": false
+  },
+  "END_LINK": {
+    "acceptance_source_commit": "9cc1a6c468b96c7121d8f5fc18b5aaf214742687",
+    "t2_artifact_sha256": "4aba01e55d8aa7354063b7a95129197b620288ad04dc83de71614dcb7cb2bf45",
+    "checkpoint": "checkpoints/STAGE-1.6K-plan-driven-inference-instance.json",
+    "next": "First real vLLM inference vertical. Present three depths of that same feature before implementation. Do not begin from this package."
+  }
+}
