@@ -39,7 +39,10 @@
     "reference_fallback": false,
     "streaming": false,
     "cancellation": false,
-    "auto_restart": false
+    "auto_restart": false,
+    "gpu_memory_source": "reservation",
+    "gpu_memory_control": "--gpu-memory-utilization",
+    "hard_vram_cgroup": false
   },
   "k66": {
     "status": "OPEN",
@@ -59,14 +62,14 @@
     "clean_source": true,
     "acceptance_evidence": true,
     "script": "tools/t2_vllm_inference.py",
-    "source_commit": "8e241132c2d597f9e70e1e0faca6f1522f53589e",
+    "source_commit": "68d99540c835a52d86dc9921507e5455a7462283",
     "wheel": "kultrun-0.1.0-py3-none-any.whl",
-    "sha256": "e7c4111e76d1473e82a40c3ed591850bc0d5214b183fc34c2839aab574b4e070",
-    "build_id": "0.1.0+8e241132c2d5",
+    "sha256": "baa96b0cfb8ca5ebaa60daaa7787deec8c24635e6b06099d3598d21ef480b303",
+    "build_id": "0.1.0+68d99540c835",
     "source_checkout": false,
     "editable": false,
     "dirty_wip_wheel_used": false,
-    "local_tests": 926,
+    "local_tests": 932,
     "wheel_suite_excludes": [
       "test_the_live_source_tree_reports_itself_as_source",
       "test_version_identifies_the_running_build"
@@ -84,12 +87,12 @@
     "level": "T2 local",
     "required": "L3",
     "real_host": false,
-    "date": "2026-09-08",
+    "date": "2026-09-09",
     "method": "T0/T1 plus T2 clean wheel. T3/T5 required for close."
   },
   "test_modes": {
-    "T0": "launch spec authority; readiness matrix; inference contract; lifecycle; no reference fallback",
-    "T1": "vLLM HTTP protocol fixture; delayed readiness; wrong model; crash; duplicate start; stop; restart",
+    "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; readiness matrix; inference contract; lifecycle; no reference fallback",
+    "T1": "vLLM HTTP protocol fixture; reservation memory fraction; delayed readiness; wrong model; crash; duplicate start; stop; restart",
     "T2": "clean wheel; isolated install; full suite against wheel; product start fails without real vLLM; infer refused; no chat frontend",
     "T3": "required; not yet performed",
     "T5": "required; Kultrun prompt to generated response; not yet performed"
@@ -110,8 +113,8 @@
     "performed": false
   },
   "END_LINK": {
-    "acceptance_source_commit": "8e241132c2d597f9e70e1e0faca6f1522f53589e",
-    "t2_artifact_sha256": "e7c4111e76d1473e82a40c3ed591850bc0d5214b183fc34c2839aab574b4e070",
+    "acceptance_source_commit": "68d99540c835a52d86dc9921507e5455a7462283",
+    "t2_artifact_sha256": "baa96b0cfb8ca5ebaa60daaa7787deec8c24635e6b06099d3598d21ef480b303",
     "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
     "next": "Complete T3/T5 on a real GPU host using this exact wheel. Do not begin streaming or additional runtimes."
   }
