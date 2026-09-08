@@ -180,6 +180,7 @@ class VllmRuntimeSupport:
             "HUGGING_FACE_HUB_TOKEN=",
             "DO_NOT_TRACK=1",
             "VLLM_NO_USAGE_STATS=1",
+            "VLLM_USE_FLASHINFER_SAMPLER=0",
             "KULTRUN_GPU_MEMORY_SOURCE=runtime_default",
             (
                 "KULTRUN_CONTEXT_SOURCE=plan"
