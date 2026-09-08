@@ -689,7 +689,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6D Runtime Verification                 ← CLOSED L2
   ↓
-1.6E Foundation Selection                 ← in progress; two-phase provisionable ≠ executable
+1.6E Foundation Selection                 ← CLOSED L1; two-phase provisionable ≠ executable
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1224,7 +1224,7 @@ generic SelectionFramework.
 
 **Output:** `FoundationSelection` + classified candidate view +
 selected path through existing provision/verify + invalidation seam
-· **Gate:** L1 (T0/T1/T2 fixture). T3 not required; this stage does
+· **Gate:** L1 CLOSED. T0/T1/T2 fixture. T3 not required; this stage does
 not add a hardware path. Do not reopen 1.6B–1.6D.
 
 ### Stage 1.6 — Real inference vertical
@@ -1234,7 +1234,8 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6D** is verification. **1.6E** is bounded foundation selection.
 Later letters cover `RuntimeCapabilityProfile` consumption in
 eligibility remap, acquisition, admission, and real inference.
-**1.6D is CLOSED L2.** 1.6E is the current implementation stage.
+**1.6D is CLOSED L2.** **1.6E is CLOSED L1.** Next is runtime-aware
+eligible model view (K-87); do not begin it from 1.6E.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2270,8 +2271,8 @@ MUTATION / FAILURE BOUNDARY  POST select / realize / verify-selected.
 CANCELLATION / CLEANUP       Selection lock (runtimes/select.lock).
                              Failed verify does not change selection
                              or delete the installation.
-ACCEPTANCE LEVEL             L1. T0/T1 plus T2 clean-wheel fixture
-                             chain. T3 not required.
+ACCEPTANCE LEVEL             L1 CLOSED. T0/T1 plus T2 clean-wheel
+                             fixture chain. T3 not required.
 ADMIN SURFACE                GET /v1/runtimes/foundation;
                              POST /v1/runtimes/foundation/select;
                              POST /v1/runtimes/foundation/realize;

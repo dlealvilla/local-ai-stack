@@ -1522,7 +1522,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6B | RuntimeResolver + RuntimeCandidate | 1.6A, 1.5C descriptors | ✅ closed L1 |
 | 1.6C | RuntimeProvisioningPlan + RuntimeProvisioner + RuntimeInstallation | 1.6B | ✅ closed L2 |
 | 1.6D | RuntimeVerifier + RuntimeCapabilityProfile | 1.6C | ✅ closed L2 |
-| 1.6E | FoundationSelection + two-phase provisionable/executable + invalidation seam | 1.6D | in progress |
+| 1.6E | FoundationSelection + two-phase provisionable/executable + invalidation seam | 1.6D | ✅ closed L1 |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

@@ -2,7 +2,7 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **IN PROGRESS — L1 target.** Checkpoint:
+Status: **CLOSED — L1.** Checkpoint:
 `checkpoints/STAGE-1.6E-foundation-selection.json`.
 
 This stage records a bounded foundation choice and drives the already
@@ -30,7 +30,8 @@ MUTATION / FAILURE BOUNDARY  POST select / realize / verify-selected.
                              GET never persists, provisions, or probes.
 CANCELLATION / CLEANUP       Selection lock. Failed verify keeps the
                              installation and the selected identity.
-ACCEPTANCE LEVEL             L1. T3 not required.
+ACCEPTANCE LEVEL             L1 CLOSED. T0/T1 plus T2 clean-wheel
+                             fixture chain. T3 not required.
 ADMIN SURFACE                /v1/runtimes/foundation*;
                              kultrun runtimes foundation|select|realize;
                              Console Select foundation / Use AUTO.

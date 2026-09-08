@@ -181,10 +181,11 @@ installation to `RuntimeCapabilityProfile`. `INSTALLED` is not
 `VERIFIED`. `VERIFIED` is not model-compatible. Checkpoint:
 `checkpoints/STAGE-1.6D-runtime-verification.json`.
 
-**Stage 1.6E is in progress.** Foundation selection: two-phase
+**Stage 1.6E is closed** at `L1`. Foundation selection: two-phase
 provisionable ≠ executable. `FoundationSelection` AUTO|MANUAL.
 Do not reopen 1.6B–1.6D. Checkpoint:
 `checkpoints/STAGE-1.6E-foundation-selection.json`.
 
-**Next after 1.6E close:** runtime-aware eligible model view and later
-1.6 letters. Do not begin those from this package.
+**Next after 1.6E close:** runtime-aware eligible model view (K-87).
+Do not begin it from this package. Present depth options before
+implementation.

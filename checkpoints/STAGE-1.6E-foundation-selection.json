@@ -3,7 +3,7 @@
   "name": "foundation-selection",
   "milestone": 1,
   "output": "FoundationSelection + two-phase provisionable/executable classification + selected path through existing provision/verify + downstream stale seam",
-  "status": "in_progress",
+  "status": "closed",
   "gate": "L1",
   "evidence_level": "L1",
   "t3_required": false,
@@ -15,9 +15,13 @@
     ],
     "starting_source_commit": "fb67e7d6bcaf011cc39951472ae1ebf692e7fd88",
     "safety_tag": "checkpoint/stage-1.6D-closed-fb67e7d",
+    "safety_branch": "safety/pre-foundation-selection-fb67e7d",
     "feature_branch": "stage/1.6E-foundation-selection",
     "predecessor_closed": true,
-    "do_not_reopen": ["1.6B", "1.6C", "1.6D"]
+    "do_not_reopen": ["1.6B", "1.6C", "1.6D"],
+    "old_experimental_16_branch": "stage/1.6-runtime-first",
+    "old_experimental_16_commit": "68c29390b3aaffcda2b1afc9490ec3e58acefce8",
+    "old_experimental_16_untouched": true
   },
   "contracts": {
     "runtime.foundation_selection": "runtime.foundation_selection@1",
@@ -42,10 +46,18 @@
     "provisionable",
     "verified_executable"
   ],
+  "roles": [
+    "recommended_to_provision",
+    "other_provisionable",
+    "blocked"
+  ],
   "provisionable_implies_executable": false,
   "recommended_implies_verified": false,
   "compatible_implies_verified": false,
   "silent_fallback": false,
+  "selected_only_realization": true,
+  "selected_only_verification": true,
+  "return_to_auto": true,
   "get_persists": false,
   "get_probes": false,
   "get_provisions": false,
@@ -69,6 +81,11 @@
     "status": "OPEN",
     "implemented": false
   },
+  "k82": {
+    "status": "CLOSED",
+    "baseline_return_to_auto": true,
+    "richer_governance": "K-81"
+  },
   "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-86", "K-87", "K-91"],
   "no_duplicate_debt": [
     "FoundationCandidate",
@@ -81,38 +98,59 @@
   ],
   "t2": {
     "passed": true,
-    "clean_source": false,
-    "acceptance_evidence": false,
+    "clean_source": true,
+    "acceptance_evidence": true,
     "script": "tools/t2_runtime_foundation_selection.py",
+    "source_commit": "f780eb6f91b94c06a9d8fbd38524cc9a6c7d995f",
     "wheel": "kultrun-0.1.0-py3-none-any.whl",
-    "sha256": "691f415cfab6f2f12fafae76069d3968708e2cce8e0a07dbc74f58b7d143c06a",
-    "build_id": "0.1.0+fb67e7d6bcaf.wip",
+    "sha256": "3db9aaebefa8002823a6b9f2c0f8b854dab2f013ff290df40698f12ac1632507",
+    "build_id": "0.1.0+f780eb6f91b9",
     "source_checkout": false,
+    "editable": false,
     "fixture_selection": true,
     "verified_executable": true,
     "blocked_refused": 412,
+    "manual_then_auto": true,
+    "restart_mode": "auto",
+    "foundation_stale": true,
     "api": true,
     "cli": true,
     "console": true,
-    "note": "WIP dirty-tree wheel. Rebuild from a clean commit before L1 close."
+    "dirty_wip_wheel_used": false,
+    "local_tests": 798,
+    "ruff": "clean",
+    "mypy_src": "clean",
+    "mypy_tools": "clean"
   },
   "acceptance": {
     "level": "L1",
     "required": "L1",
-    "real_host": false
+    "real_host": false,
+    "date": "2026-09-08",
+    "method": "T0/T1 plus T2 clean wheel. T3 not required."
   },
   "test_modes": {
-    "T0": "schema, AUTO≠resolver AUTO, GET no persist, MANUAL only provisionable, no silent fallback, stale seam",
-    "T1": "fixture host; AUTO realize+verify VERIFIED; blocked refused; return-to-AUTO; API/CLI/Console",
-    "T2": "clean wheel; fixture provisioner+verifier; no real vLLM",
+    "T0": "schema, AUTO≠resolver AUTO, GET no persist, MANUAL only provisionable, determinism, no silent fallback, stale seam, architecture ownership",
+    "T1": "fixture host; AUTO realize+verify VERIFIED; blocked refused; return-to-AUTO; persistence reload; API/CLI/Console",
+    "T2": "clean wheel f780eb6; fixture provisioner+verifier; AUTO/MANUAL/return-to-AUTO; no real vLLM",
     "T3": "not required"
   },
   "not_begun": [
     "runtime-aware eligible model view",
+    "K-87",
     "authoritative selected DeploymentPlan",
     "real inference",
     "K-66 Managed Python",
     "K-77 driver remediation",
     "weighted scoring"
-  ]
+  ],
+  "merge": {
+    "performed": false
+  },
+  "END_LINK": {
+    "acceptance_source_commit": "f780eb6f91b94c06a9d8fbd38524cc9a6c7d995f",
+    "t2_artifact_sha256": "3db9aaebefa8002823a6b9f2c0f8b854dab2f013ff290df40698f12ac1632507",
+    "checkpoint": "checkpoints/STAGE-1.6E-foundation-selection.json",
+    "next": "Runtime-aware Eligible Model View (K-87). Present depth options before implementation. Do not begin K-87 from this package."
+  }
 }
