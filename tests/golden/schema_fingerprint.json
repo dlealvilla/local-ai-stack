@@ -4971,6 +4971,151 @@
     },
     "python": "Result"
   },
+  "runtime.candidate@1": {
+    "fields": {
+      "candidate_id": {
+        "may_be_unresolved": false,
+        "meaning": "deterministic fingerprint of this path on this host",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeCandidateId"
+      },
+      "compatibility": {
+        "may_be_unresolved": false,
+        "meaning": "normalized plausibility class",
+        "nullable": false,
+        "optional": false,
+        "type": "CompatibilityClass"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "how much weight a later planner may place on this classification",
+        "nullable": false,
+        "optional": true,
+        "type": "Confidence"
+      },
+      "evidence": {
+        "may_be_unresolved": false,
+        "meaning": "short provenance; never a vendor object",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "executor": {
+        "may_be_unresolved": false,
+        "meaning": "executor identity, e.g. native-process",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "executor_type": {
+        "may_be_unresolved": false,
+        "meaning": "generic executor type, e.g. process or container",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "host fingerprint consumed from HostCapabilities",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host these facts were judged against",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "matched_executor_capabilities": {
+        "may_be_unresolved": false,
+        "meaning": "requested features the executor currently reports as supported",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "missing_prerequisites": {
+        "may_be_unresolved": false,
+        "meaning": "components or capabilities not yet satisfied",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "policy_mode": {
+        "may_be_unresolved": false,
+        "meaning": "resolver mode that produced this evaluation",
+        "nullable": false,
+        "optional": true,
+        "type": "RuntimeResolverMode"
+      },
+      "rank": {
+        "may_be_unresolved": false,
+        "meaning": "0 is most preferred among this resolution's ordered candidates",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "reason": {
+        "may_be_unresolved": false,
+        "meaning": "human-readable summary of the classification",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "reason_codes": {
+        "may_be_unresolved": false,
+        "meaning": "normalized reasons; empty when the path is cleanly compatible",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ResolutionReasonCode, ...]"
+      },
+      "required_executor_capabilities": {
+        "may_be_unresolved": false,
+        "meaning": "executor features the descriptor asked for",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family/provider identity, e.g. vllm",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family; v0 matches runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "runtime provider; v0 matches runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "support_tier": {
+        "may_be_unresolved": false,
+        "meaning": "declared support tier from the descriptor",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeSupportTier"
+      },
+      "version": {
+        "may_be_unresolved": true,
+        "meaning": "preferred/provisional version token; unresolved when unset",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "RuntimeCandidate"
+  },
   "runtime.launch_request@1": {
     "fields": {
       "artifact_id": {
@@ -5086,6 +5231,74 @@
     },
     "python": "RuntimeLaunchSpec"
   },
+  "runtime.policy@1": {
+    "fields": {
+      "allow_future": {
+        "may_be_unresolved": false,
+        "meaning": "whether FUTURE/unimplemented families appear in AUTO",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "allow_reference_runtimes": {
+        "may_be_unresolved": false,
+        "meaning": "whether REFERENCE-tier families appear in AUTO",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "allow_test_only": {
+        "may_be_unresolved": false,
+        "meaning": "whether TEST_ONLY families appear in AUTO",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "allowed_executor_providers": {
+        "may_be_unresolved": false,
+        "meaning": "executor identities permitted; empty means no extra filter",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "mode": {
+        "may_be_unresolved": false,
+        "meaning": "AUTO evaluates registered families; EXPLICIT evaluates one request",
+        "nullable": false,
+        "optional": true,
+        "type": "RuntimeResolverMode"
+      },
+      "prefer_conditional": {
+        "may_be_unresolved": false,
+        "meaning": "whether a CONDITIONAL path may be the preferred candidate",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "preferred_executor_order": {
+        "may_be_unresolved": false,
+        "meaning": "stable preference among otherwise equal executor paths",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "preferred_runtime_order": {
+        "may_be_unresolved": false,
+        "meaning": "stable preference among otherwise equal runtime families",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "requested_runtime": {
+        "may_be_unresolved": true,
+        "meaning": "runtime family/provider name in EXPLICIT mode",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "RuntimePolicy"
+  },
   "runtime.profile@1": {
     "fields": {
       "capabilities": {
@@ -5159,6 +5372,74 @@
     },
     "python": "RuntimeReadiness"
   },
+  "runtime.resolution@1": {
+    "fields": {
+      "candidates": {
+        "may_be_unresolved": false,
+        "meaning": "COMPATIBLE and CONDITIONAL paths, deterministically ranked",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[RuntimeCandidate, ...]"
+      },
+      "excluded_runtimes": {
+        "may_be_unresolved": false,
+        "meaning": "families omitted by AUTO policy (reference/test/future)",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "host fingerprint consumed from HostCapabilities",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this resolution was computed for",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "notes": {
+        "may_be_unresolved": false,
+        "meaning": "resolver-level notes, e.g. unknown explicit request",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "policy": {
+        "may_be_unresolved": false,
+        "meaning": "policy that governed this pass",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimePolicy"
+      },
+      "preferred_candidate_id": {
+        "may_be_unresolved": true,
+        "meaning": "id of the preferred candidate; unresolved when none qualifies",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "unresolved": {
+        "may_be_unresolved": false,
+        "meaning": "paths that could not be classified because a fact is unknown",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[RuntimeCandidate, ...]"
+      },
+      "unsupported": {
+        "may_be_unresolved": false,
+        "meaning": "hard mismatches, including EXPLICIT failures",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[RuntimeCandidate, ...]"
+      }
+    },
+    "python": "RuntimeResolution"
+  },
   "runtime.support_descriptor@1": {
     "fields": {
       "compatible_executor_types": {
@@ -5230,6 +5511,13 @@
         "nullable": false,
         "optional": true,
         "type": "tuple[str, ...]"
+      },
+      "preferred_version": {
+        "may_be_unresolved": true,
+        "meaning": "provisional version token to carry into a candidate; not a solved or verified pin. Unresolved until a provisioning stage sets one",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "production_candidate": {
         "may_be_unresolved": false,

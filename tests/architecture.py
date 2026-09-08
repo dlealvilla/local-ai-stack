@@ -629,6 +629,9 @@ GENERIC_SEAM_KINDS = frozenset(
         "runtime.profile",
         "runtime.support_descriptor",
         "runtime.readiness",
+        "runtime.policy",
+        "runtime.candidate",
+        "runtime.resolution",
         "execution.spec",
         "execution.handle",
         "execution.capability_profile",
@@ -688,6 +691,18 @@ def seam_import_leaks(source_root: Path) -> list[str]:
                 "subprocess",
                 "kultrun.adapters.execution",
                 "kultrun.adapters.container",
+            )
+        )
+    for path in (source_root / "kultrun" / "runtime").rglob("*.py"):
+        problems.extend(
+            _imports_named(
+                path,
+                "kultrun.execution",
+                "kultrun.resource",
+                "kultrun.model",
+                "kultrun.planning",
+                "kultrun.inference",
+                "kultrun.adapters",
             )
         )
     for path in (source_root / "kultrun" / "execution").rglob("*.py"):
