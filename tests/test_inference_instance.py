@@ -597,17 +597,34 @@ class TestSurfaces:
         monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
         monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
         monkeypatch.setenv("KULTRUN_MODEL_ACQUISITION_PROVIDER", "fixture")
-        assert main(["models", "acquire", "tinyllama-1.1b-chat-q4"]) == 0
+        monkeypatch.setenv("KULTRUN_RUNTIME_PROVISIONER", "fixture")
+        monkeypatch.setenv("KULTRUN_RUNTIME_VERIFIER", "fixture")
         platform = _platform(tmp_path)
-        artifact = platform.inventory.artifacts()[0]
-        reserved = _call(
-            platform,
-            "/resources/reservations",
-            method=Method.POST,
-            query={"artifact_id": artifact.artifact_id.value},
+        assert (
+            _call(
+                platform,
+                "/runtimes/foundation/select",
+                method=Method.POST,
+                query={"mode": "auto"},
+            ).status
+            == 200
         )
-        assert reserved.status == 200
-        reservation = _obj(_obj(reserved.body["payload"])["reservation"])
+        assert (
+            _call(
+                platform, "/runtimes/foundation/realize", method=Method.POST
+            ).status
+            == 200
+        )
+        assert (
+            _call(
+                platform, "/runtimes/foundation/verify", method=Method.POST
+            ).status
+            == 200
+        )
+        assert _call(platform, "/deployments/plan", method=Method.POST).status == 200
+        prepared = _call(platform, "/deployments/plan/prepare", method=Method.POST)
+        assert prepared.status == 200
+        reservation = _obj(_obj(prepared.body["payload"])["reservation"])
         reservation_id = str(reservation["reservation_id"])
         refused = _call(
             platform,
@@ -623,43 +640,39 @@ class TestSurfaces:
             query={"reservation_id": reservation_id},
         )
         assert created.status == 200
-        instance_id = str(_obj(created.body["payload"])["instance_id"])
-        started = None
-        try:
-            started = _call(
-                platform,
-                "/inference/instances/start",
-                method=Method.POST,
-                query={"instance_id": instance_id},
-            )
-            assert started.status == 200
-            assert _obj(started.body["payload"])["observed_state"] == "running"
-            blocked = _call(
-                platform,
-                "/resources/reservations",
-                method=Method.DELETE,
-                query={"reservation_id": reservation_id},
-            )
-            assert blocked.status == 409
-            assert (
-                _obj(_obj(blocked.body["error"])["context"])["reason"]
-                == "reservation_in_use"
-            )
-            listing = _call(platform, "/inference/instances")
-            listed = _obj(listing.body["payload"])
-            assert listed["count"] == 1
-            assert listed["fixed_stored_active_partition"] is False
-            assert _call(platform, "/chat/completions").status == 404
-            assert _call(platform, "/generate").status == 404
-            assert main(["instances"]) == 0
-            assert main(["instances", "inspect", instance_id]) == 0
-        finally:
-            _call(
-                platform,
-                "/inference/instances/stop",
-                method=Method.POST,
-                query={"instance_id": instance_id},
-            )
+        payload = _obj(created.body["payload"])
+        instance_id = str(payload["instance_id"])
+        assert payload["observed_state"] == "created"
+        assert payload["runtime"] == "vllm"
+        assert payload["configuration_current"] is True
+        started = _call(
+            platform,
+            "/inference/instances/start",
+            method=Method.POST,
+            query={"instance_id": instance_id},
+        )
+        assert started.status == 412
+        assert (
+            _obj(_obj(started.body["error"])["context"])["reason"]
+            == "runtime_launch_unsupported"
+        )
+        observed = platform.instances.get(InstanceId.parse(instance_id))
+        assert observed is not None
+        assert observed.observed_state is ObservedState.CREATED
+        listing = _call(platform, "/inference/instances")
+        listed = _obj(listing.body["payload"])
+        assert listed["count"] == 1
+        assert listed["fixed_stored_active_partition"] is False
+        assert _call(platform, "/chat/completions").status == 404
+        assert _call(platform, "/generate").status == 404
+        assert main(["instances"]) == 0
+        assert main(["instances", "inspect", instance_id]) == 0
+        _call(
+            platform,
+            "/inference/instances/stop",
+            method=Method.POST,
+            query={"instance_id": instance_id},
+        )
         assert main(["instances", "stop", instance_id]) == 0
         released = _call(
             platform,

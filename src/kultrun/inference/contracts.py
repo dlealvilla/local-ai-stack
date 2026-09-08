@@ -28,7 +28,7 @@ from kultrun.execution.contracts import ExecutionId
 from kultrun.host.contracts import HostId
 from kultrun.kernel.ids import EntityId, Name
 from kultrun.kernel.schema import Contract, contract, meaning
-from kultrun.kernel.unresolved import NOT_MEASURED, Maybe
+from kultrun.kernel.unresolved import NOT_MEASURED, NOT_PROVIDED, Maybe
 from kultrun.model.contracts import ArtifactId, ModelId
 from kultrun.resource.contracts import ReservationId
 
@@ -184,4 +184,24 @@ class InferenceInstance(Contract):
     serving_runtime: Maybe[str] = meaning(
         "reference-serving identity; never an LLM engine in 1.5B",
         default=NOT_MEASURED,
+    )
+    plan_id: Maybe[str] = meaning(
+        "DeploymentPlan identity this instance was created from",
+        default=NOT_PROVIDED,
+    )
+    plan_basis: Maybe[str] = meaning(
+        "DeploymentPlan basis consumed at create; not rewritten in place",
+        default=NOT_PROVIDED,
+    )
+    runtime_version: Maybe[str] = meaning(
+        "runtime version taken from the bound DeploymentPlan",
+        default=NOT_PROVIDED,
+    )
+    placement: Maybe[str] = meaning(
+        "device strategy taken from the bound DeploymentPlan",
+        default=NOT_PROVIDED,
+    )
+    accelerator_index: int | None = meaning(
+        "assigned accelerator taken from the bound DeploymentPlan",
+        default=None,
     )

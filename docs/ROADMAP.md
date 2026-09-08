@@ -503,7 +503,9 @@ Introduce the pattern incrementally at existing domain seams:
       ModelSelection, requirement, and feasible capacity; CURRENT vs STALE
 1.6J  CURRENT DeploymentPlan drives exact acquisition and ResourceManager
       admission; STORE_ONLY remains independent; no InferenceInstance
-later InferenceInstance remap, real inference
+1.6K  CURRENT DeploymentPlan + matching artifact + ACTIVE reservation
+      create InferenceInstance; no real vLLM serving
+later real vLLM inference
 ```
 
 ---
@@ -711,7 +713,9 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6J Plan-driven Acquisition + Admission  ← CLOSED L1; artifact + reservation; no instance
   ↓
-1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; InferenceInstance remap next
+1.6K Plan-driven InferenceInstance        ← CLOSED L1; create from plan triple; no real serving
+  ↓
+1.6 REAL INFERENCE VERTICAL               ← first real vLLM inference next
   ↓
 post-inference breadth review, then 1.7 onward
 ```
@@ -1329,6 +1333,19 @@ InferenceInstance. Do not launch.
 **Gate:** L1 CLOSED. T0/T1/T2 fixture. T3 not required. Do not
 reopen 1.6B–1.6I.
 
+### Stage 1.6K — Plan-Driven InferenceInstance
+
+Migrate the already-built `InferenceInstance` onto the CURRENT
+`DeploymentPlan` plus the matching `ModelArtifact` and ACTIVE
+`ResourceReservation`. Instance identity, runtime, executor, and
+placement/context come from the plan. Preserve create/start/stop,
+release protection, and one-live-instance-per-reservation. Do not
+implement real vLLM serving. Do not launch reference-serving as a
+vLLM substitute. `plan_for_entry` is not instance authority.
+
+**Output:** plan-driven `InferenceInstance` CREATED · **Gate:** L1
+CLOSED. T0/T1/T2 fixture. T3 not required. Do not reopen 1.6B–1.6J.
+
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
@@ -1339,12 +1356,13 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6H** is ModelSelector + bounded model selection.
 **1.6I** is the authoritative DeploymentPlan.
 **1.6J** is plan-driven acquisition and resource admission.
-Later letters cover InferenceInstance remap and real inference.
+**1.6K** is plan-driven InferenceInstance create.
+Later letters cover real vLLM inference.
 **1.6D is CLOSED L2.** **1.6E is CLOSED L1.** **1.6F is CLOSED L1.**
 **1.6G is CLOSED L1.** **1.6H is CLOSED L1.** **1.6I is CLOSED L1.**
-**1.6J is CLOSED L1.**
-Next is plan-driven InferenceInstance; do not begin it from 1.6J.
-Present depth options before implementation.
+**1.6J is CLOSED L1.** **1.6K is CLOSED L1.**
+Next is the first real vLLM inference vertical; do not begin it from 1.6K.
+Present three depths of that same feature before implementation.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2622,11 +2640,51 @@ DEBT ENTRIES                 K-66, K-77 remain OPEN.
                              plan_from remains non-authoritative
                              recommendation display.
                              plan_for_entry residual on artifact-id
-                             reservation until InferenceInstance remap.
+                             reservation only. Not instance authority.
 MUST NOT                     Reopen 1.6B–1.6I; migrate InferenceInstance;
                              launch runtime; create V2 services;
                              force STORE_ONLY through DeploymentPlan;
                              silent fallback; GenericPlanFramework.
+DEPTH                        Accepted: minimum + a little depth.
+```
+
+### Stage 1.6K brief
+
+```text
+CURRENT STAGE                Plan-driven InferenceInstance. CURRENT
+                             DeploymentPlan + matching artifact +
+                             matching ACTIVE reservation create one
+                             instance. Stop before real vLLM serving.
+PREDECESSOR OUTPUTS          Stage 1.6J CLOSED L1
+                             (`92be1c7796060e3add08bc6790b77bee134b708c`).
+THIS STAGE'S REQUIRED OUTPUT Plan-driven InferenceInstance create;
+                             three-way match; plan provenance;
+                             configuration currentness; START of a
+                             vLLM plan refused; reference lifecycle
+                             preserved for explicit reference runtime.
+CORE CONTRACTS AFFECTED      inference.instance@1 optional provenance
+                             fields. No InferenceInstanceV2.
+ADAPTERS AFFECTED            None.
+PERSISTED STATE              Existing InferenceInstance plus plan
+                             provenance fields.
+MUTATION / FAILURE BOUNDARY  POST /inference/instances. STALE and
+                             UNAVAILABLE refuse create. START refuses
+                             stale plan and unsupported vLLM launch.
+CANCELLATION / CLEANUP       Existing stop and reservation release.
+                             Release still blocked while live.
+ACCEPTANCE LEVEL             L1 CLOSED. T0/T1 plus T2 clean-wheel
+                             fixture chain. T3 not required.
+ADMIN SURFACE                POST /v1/inference/instances;
+                             kultrun instances create;
+                             Console Create instance.
+DEBT ENTRIES                 K-66, K-77 remain OPEN.
+                             plan_from remains non-authoritative.
+                             plan_for_entry residual on artifact-id
+                             reservation only; not instance authority.
+MUST NOT                     Reopen 1.6B–1.6J; real vLLM launch;
+                             prompt/response; fake vLLM via
+                             reference-serving; InferenceInstanceV2;
+                             auto-kill RUNNING on later plan staleness.
 DEPTH                        Accepted: minimum + a little depth.
 ```
 

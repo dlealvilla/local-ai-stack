@@ -1474,7 +1474,7 @@ function reservationCard(item, inUse) {
   action.append(button, status);
   const create = document.createElement('button');
   create.textContent = 'Create instance';
-  const createStatus = span('muted', ' record only; does not start');
+  const createStatus = span('muted', ' CURRENT plan + matching reservation');
   create.addEventListener('click', async () => {
     create.disabled = true;
     try {
@@ -1537,14 +1537,24 @@ function instanceCard(item) {
   const endpoint = item.endpoint
     ? `${item.endpoint.address}:${item.endpoint.port}`
     : null;
+  const currentness = item.configuration_current === true
+    ? 'current'
+    : item.plan_status || (item.plan_id ? 'unknown' : 'unbound');
   rows(grid, [
     ['instance id', item.instance_id],
+    ['plan', item.plan_id],
+    ['plan basis', item.plan_basis],
+    ['configuration', currentness],
+    ['model', item.logical_name || item.model_id],
     ['artifact', item.artifact_id],
     ['reservation', item.reservation_id],
     ['desired', item.desired_state],
     ['observed', item.observed_state],
     ['runtime', item.runtime],
+    ['runtime version', item.runtime_version],
     ['executor', item.executor],
+    ['placement', item.placement],
+    ['context tokens', item.context_length_tokens],
     ['execution id', item.execution_id],
     ['pid', item.pid],
     ['endpoint', endpoint],
@@ -1562,7 +1572,9 @@ function instanceCard(item) {
   const stop = document.createElement('button');
   stop.className = 'danger';
   stop.textContent = 'Stop';
-  const status = span('muted', ' stop does not release the reservation');
+  const status = span('muted', item.runtime === 'vllm'
+    ? ' start waits for real vLLM serving; not a reference substitute'
+    : ' stop does not release the reservation');
   start.addEventListener('click', async () => {
     start.disabled = true;
     try {

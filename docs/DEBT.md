@@ -1595,11 +1595,13 @@ Retire when:  no product path defaults missing eligibility to COMPATIBLE,
 Status:       RETIRED (1.6G, 2026-09-08)
 Note:         `plan_for_entry` still estimates numeric ResourceRequest
               amounts for the residual artifact-id reservation path
-              used by 1.5A/1.5B and InferenceInstance tests. Normal
-              deployment admission uses `request_from_plan`. Removal
-              trigger: InferenceInstance remap.
+              (`POST /resources/reservations?artifact_id=`). That path
+              is not InferenceInstance authority and is not normal
+              deployment execution. Normal deployment admission uses
+              `request_from_plan`. Removal trigger: retire the
+              artifact-id reservation API.
 
-## Runtime-first migration ledger (after 1.6J)
+## Runtime-first migration ledger (after 1.6K)
 
 Not a second architecture. Existing components still to migrate, in
 order. Do not begin automatically.
@@ -1613,9 +1615,10 @@ order. Do not begin automatically.
 | Bounded model selection | host-scoped `ModelSelection` AUTO\|MANUAL; recommended ≠ selected | same | done in 1.6H | none | ✅ |
 | Authoritative DeploymentPlan | current foundation + VERIFIED runtime + ModelSelection + READY requirement + feasible capacity | same | done in 1.6I; CURRENT vs STALE from `plan_basis` | `plan_from` demoted (`plan_authoritative: false`) for recommendation display | ✅ |
 | Acquisition | CURRENT DeploymentPlan identity for normal executable acquire; STORE_ONLY catalog path preserved | same | done in 1.6J | STORE_ONLY remains plan-independent | ✅ |
-| ResourceManager | `ResourceRequest` from `DeploymentPlan.resource_request` + exact artifact_id | same | done in 1.6J; ResourceManager stays generic | `plan_for_entry` residual on artifact-id reserve until InferenceInstance remap | ✅ |
-| InferenceInstance | ModelArtifact + ResourceReservation + reconstructed runtime settings | `DeploymentPlan` + exact `ModelArtifact` + matching `ResourceReservation` | next | none | NEXT |
-| Real inference | reference serving | selected foundation + acquired artifact + reservation | later 1.6 letter | none | pending |
+| ResourceManager | `ResourceRequest` from `DeploymentPlan.resource_request` + exact artifact_id | same | done in 1.6J; ResourceManager stays generic | `plan_for_entry` residual on artifact-id reserve only; not instance authority | ✅ |
+| InferenceInstance | `DeploymentPlan` + exact `ModelArtifact` + matching `ResourceReservation` | same | done in 1.6K; settings from plan; vLLM START refused | low-level `InstanceService.create` remains a test helper | ✅ |
+| Real vLLM serving | declared vLLM support; launch refused | selected foundation + acquired artifact + reservation + real `RuntimeLaunchSpec` | next | none | NEXT |
+| Real inference | reference serving | real vLLM endpoint + prompt + response | later 1.6 letter | none | pending |
 
 ## Deferred capability register
 
