@@ -153,9 +153,10 @@
     <section id="instances-panel" class="hidden">
       <h2>Inference instances</h2>
       <p class="note">
-        Workloads that exist or run. Stored, reserved and running are
-        lifecycle states, not capacity buckets. Create, start and stop
-        are separate. Stop does not release the reservation.
+        Workloads that exist or run. A CURRENT DeploymentPlan, matching
+        artifact and ACTIVE reservation create the instance. Start of a
+        vLLM plan is refused until real serving exists; that is not a
+        reference-serving substitute. Stop does not release the reservation.
       </p>
       <div class="grid" id="instances-summary"></div>
       <div id="instances"></div>

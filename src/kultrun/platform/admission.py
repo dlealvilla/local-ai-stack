@@ -284,8 +284,10 @@ def request_from_artifact(
 ) -> ResourceRequest:
     """Legacy artifact-id reservation path. Not plan-driven admission.
 
-    Amounts still come from ``plan_for_entry`` for STORE_ONLY / InferenceInstance
-    callers that have not migrated. Normal deployment uses ``request_from_plan``.
+    Amounts still come from ``plan_for_entry`` for the residual artifact-id
+    reservation API (``POST /resources/reservations?artifact_id=``). That path
+    is not InferenceInstance authority and is not normal deployment execution.
+    Normal deployment uses ``request_from_plan``.
     """
     if artifact.state is not ArtifactState.STORED:
         # Still build a request so ResourceManager can reject with the typed reason.

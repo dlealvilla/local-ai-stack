@@ -33,7 +33,7 @@ from kultrun.kernel.errors import (
 )
 from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
-from kultrun.kernel.unresolved import NOT_MEASURED, is_resolved
+from kultrun.kernel.unresolved import NOT_MEASURED, NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.contracts import ArtifactState, ModelArtifact
 from kultrun.model.inventory import ModelInventory
 from kultrun.resource.contracts import (
@@ -44,7 +44,11 @@ from kultrun.resource.contracts import (
 )
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.catalogue import RuntimeCatalogue
-from kultrun.runtime.contracts import RuntimeLaunchRequest, RuntimeLaunchSpec
+from kultrun.runtime.contracts import (
+    RuntimeLaunchRequest,
+    RuntimeLaunchSpec,
+    RuntimeSupportTier,
+)
 
 SERVING_RUNTIME = Name("reference-serving")
 STARTUP_TIMEOUT_SECONDS = 5.0
@@ -61,6 +65,9 @@ _LIFECYCLE = {
     ObservedState.FAILED: LifecycleState.FAILED,
     ObservedState.UNKNOWN: LifecycleState.UNKNOWN,
 }
+_LAUNCHABLE_TIERS = frozenset(
+    {RuntimeSupportTier.REFERENCE, RuntimeSupportTier.TEST_ONLY}
+)
 
 
 class InstanceService:
@@ -75,6 +82,7 @@ class InstanceService:
         executions: ExecutionService,
         runtimes: RuntimeCatalogue,
         startup_timeout: float = STARTUP_TIMEOUT_SECONDS,
+        live_executor: str | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
@@ -83,6 +91,7 @@ class InstanceService:
         self._executions = executions
         self._runtimes = runtimes
         self._startup_timeout = startup_timeout
+        self._live_executor = live_executor
 
     def list(self) -> tuple[InferenceInstance, ...]:
         return tuple(
@@ -123,16 +132,36 @@ class InstanceService:
         reservation: ResourceReservation,
         runtime: Name | None = None,
         executor: Name | None = None,
+        *,
+        plan_id: Maybe[str] = NOT_PROVIDED,
+        plan_basis: Maybe[str] = NOT_PROVIDED,
+        runtime_version: Maybe[str] = NOT_PROVIDED,
+        placement: Maybe[str] = NOT_PROVIDED,
+        accelerator_index: int | None = None,
+        context_tokens: Maybe[int] = NOT_MEASURED,
     ) -> InferenceInstance:
+        """Bind an artifact and reservation. Isolated tests may omit plan fields.
+
+        Product create always supplies plan provenance and explicit runtime
+        and executor names. A missing runtime is reference-serving only when
+        there is no plan identity, so a plan-driven call cannot silently
+        reconstruct a test harness.
+        """
         self._require_create(artifact, reservation)
+        if is_resolved(plan_id) and runtime is None:
+            raise ValidationError(
+                "plan-driven create requires an explicit runtime",
+                plan_id=plan_id,
+            )
         now = self._clock.now()
         chosen = runtime or SERVING_RUNTIME
+        chosen_executor = executor or Name("native-process")
         instance = InferenceInstance(
             instance_id=InstanceId.generate(),
             host_id=reservation.host_id,
             model_id=artifact.model_id,
             runtime=chosen,
-            executor=executor or Name("native-process"),
+            executor=chosen_executor,
             lifecycle_state=LifecycleState.PENDING,
             health=HealthState.UNKNOWN,
             configuration_version=1,
@@ -145,7 +174,15 @@ class InstanceService:
             last_observed_at=now,
             logical_name=artifact.logical_name,
             quantization=artifact.quantization,
-            serving_runtime=chosen.value,
+            serving_runtime=(
+                chosen.value if chosen == SERVING_RUNTIME else NOT_MEASURED
+            ),
+            plan_id=plan_id,
+            plan_basis=plan_basis,
+            runtime_version=runtime_version,
+            placement=placement,
+            accelerator_index=accelerator_index,
+            context_length_tokens=context_tokens,
         )
         self._store.put(instance.instance_id.value, instance)
         return instance
@@ -169,6 +206,7 @@ class InstanceService:
                 "instance process identity is unverified; resolve it before start"
             )
         self._require_start(instance, ledger_health)
+        self._require_launch_path(instance)
         now = self._clock.now()
         instance = self._write(
             instance,
@@ -411,6 +449,33 @@ class InstanceService:
                 in {ExecutionState.RUNNING, ExecutionState.STARTING}
             ):
                 raise ConflictError("instance already has a live process")
+
+    def _require_launch_path(self, instance: InferenceInstance) -> None:
+        """Refuse missing or product runtimes. Do not substitute reference-serving."""
+        if (
+            self._live_executor is not None
+            and instance.executor.value != self._live_executor
+        ):
+            raise PreconditionFailedError(
+                "selected executor is not available",
+                reason="executor_unavailable",
+                required=instance.executor.value,
+                available=self._live_executor,
+            )
+        try:
+            adapter = self._runtimes.get(instance.runtime)
+        except NotFoundError as error:
+            raise PreconditionFailedError(
+                "selected runtime is not available",
+                reason="runtime_unavailable",
+                runtime=instance.runtime.value,
+            ) from error
+        if adapter.support().support_tier not in _LAUNCHABLE_TIERS:
+            raise PreconditionFailedError(
+                "selected runtime cannot launch this instance yet",
+                reason="runtime_launch_unsupported",
+                runtime=instance.runtime.value,
+            )
 
     def _wait_ready(
         self, instance: InferenceInstance, execution_id: ExecutionId

@@ -2036,6 +2036,13 @@
   },
   "inference.instance@1": {
     "fields": {
+      "accelerator_index": {
+        "may_be_unresolved": false,
+        "meaning": "assigned accelerator taken from the bound DeploymentPlan",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
       "access_policy_ref": {
         "may_be_unresolved": false,
         "meaning": "the policy governing who may use it, by identifier",
@@ -2183,6 +2190,27 @@
         "optional": true,
         "type": "int | Unresolved"
       },
+      "placement": {
+        "may_be_unresolved": true,
+        "meaning": "device strategy taken from the bound DeploymentPlan",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "plan_basis": {
+        "may_be_unresolved": true,
+        "meaning": "DeploymentPlan basis consumed at create; not rewritten in place",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "plan_id": {
+        "may_be_unresolved": true,
+        "meaning": "DeploymentPlan identity this instance was created from",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "platform_max_concurrent_requests": {
         "may_be_unresolved": true,
         "meaning": "the gateway's limit for this instance, a different dimension from runtime concurrency",
@@ -2231,6 +2259,13 @@
         "nullable": false,
         "optional": true,
         "type": "int | Unresolved"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "runtime version taken from the bound DeploymentPlan",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "serving_runtime": {
         "may_be_unresolved": true,

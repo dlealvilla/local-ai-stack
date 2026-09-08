@@ -833,8 +833,10 @@ not import `runtime`; the eligibility → verdict copy lives in
 `platform.model_selection`. Authoritative DeploymentPlan persistence
 lives in `platform.deployment_plan`. Plan-driven acquire/admit lives in
 `platform.deployment_prepare` and converts plan + artifact into a
-generic `ResourceRequest` before calling ResourceManager. None of
-these is a parallel planner or deployment controller.
+generic `ResourceRequest` before calling ResourceManager. Plan-driven
+InferenceInstance create lives in `platform.deployment_instance` so
+`inference` does not import `planning`. None of these is a parallel
+planner or deployment controller.
 
 ### `resource`
 
@@ -1148,7 +1150,9 @@ ResourceManager
         ↓
 ResourceReservation
         ↓
-[STOP 1.6J]
+InferenceInstance
+        ↓
+[STOP 1.6K]
 ```
 
 `CURRENT` requires current `FoundationSelection`, the selected
@@ -1166,18 +1170,27 @@ plan. ResourceManager stays generic: it receives a `ResourceRequest`
 and live host state, never DeploymentPlan internals. Capacity
 feasibility is not live admission.
 
-Future, **not implemented in 1.6J**:
+Normal instance create consumes that CURRENT plan plus the matching
+artifact and ACTIVE reservation. Settings come from the plan. START of
+a product vLLM plan is refused until real serving exists; the
+reference-serving adapter is test infrastructure only.
+
+Future, **not implemented in 1.6K**:
 
 ```text
-CURRENT DeploymentPlan
-        +
-exact ModelArtifact
-        +
-matching ResourceReservation
-        ↓
 InferenceInstance
         ↓
-Real inference
+real vLLM RuntimeLaunchSpec
+        ↓
+Executor
+        ↓
+model load
+        ↓
+readiness
+        ↓
+inference endpoint
+        ↓
+prompt / response
 ```
 
 `RuntimePolicy.mode` AUTO|EXPLICIT is resolver coverage. It is not
@@ -1280,7 +1293,7 @@ install Python, drivers, or CUDA toolkits.
 | **Consumes** | `kernel` · `resource` · `execution` · `runtime` · `model` |
 | **Produces** | A running instance, a healthy endpoint, and reconciliation on restart |
 | **Must not** | Route requests, authenticate, or emit usage events. Confuse a reachable port with a functioning API. Collapse to `current_inference_instance` or `model.running`. Delete a stored artifact on stop. Import `planning`. Import `platform`. Construct runtime argv. Reimplement subprocess management. Import `subprocess`. Auto-release a reservation on stop. Treat stored/active as capacity partitions. Require a PID from every executor. |
-| **Created** | 1.5B reference serving lifecycle (plural) · 1.5C compose Runtime+Executor · 1.6 real model inference · **Deepened** 4.4 concurrent live instances |
+| **Created** | 1.5B reference serving lifecycle (plural) · 1.5C compose Runtime+Executor · 1.6K plan-driven create · 1.6 real model inference · **Deepened** 4.4 concurrent live instances |
 
 ### `analytics`
 
@@ -1562,19 +1575,20 @@ Planning / DeploymentPlan
     → ResourceRequest
   → ResourceManager + live SAFE − ACTIVE reservations
   → AdmissionDecision
-  → ResourceReservation ACTIVE          ← Stage 1.6J stops here
+  → ResourceReservation ACTIVE
+  → InferenceInstance CREATED           ← Stage 1.6K stops here
        reserved is not running
+       a vLLM plan does not start a reference server
 
 STORE_ONLY warehouse acquisition remains independent of DeploymentPlan.
 
 later:
-  CURRENT DeploymentPlan
-    + ModelArtifact STORED
-    + ResourceReservation ACTIVE
-    → InferenceInstance
-    → RuntimeAdapter.prepare_launch → RuntimeLaunchSpec
+  InferenceInstance
+    → real vLLM RuntimeLaunchSpec
     → Executor.start → ExecutorHandle
     → Runtime readiness
+    → inference endpoint
+    → prompt / response
     → stop via Executor; reservation remains ACTIVE until explicit release
 
 Stored / Active / Running are lifecycle states, not capacity partitions.

@@ -106,6 +106,7 @@ from kultrun.platform.contracts import (
     PlatformSettings,
     StartupReport,
 )
+from kultrun.platform.deployment_instance import DeploymentInstanceService
 from kultrun.platform.deployment_plan import (
     DeploymentPlanLock,
     DeploymentPlanningService,
@@ -303,6 +304,7 @@ class Platform:
     model_selection: ModelSelectionService
     deployment_plan: DeploymentPlanningService
     deployment_prepare: DeploymentPreparationService
+    deployment_instance: DeploymentInstanceService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -662,7 +664,13 @@ def build(
 
         actor_id = SubjectId.generate()
     instances = InstanceService(
-        store, resolved_clock, inventory, resources, executions, runtimes
+        store,
+        resolved_clock,
+        inventory,
+        resources,
+        executions,
+        runtimes,
+        live_executor=live_executor.identity.value,
     )
     instances.reconcile()
     runtime_installer = resolve_runtime_provisioner(
@@ -778,6 +786,12 @@ def build(
         lambda host: _stored_sanity_with(sanity, host),
         resolved_clock,
     )
+    deployment_instance = DeploymentInstanceService(
+        _plan_overview_live,
+        inventory,
+        resources,
+        instances,
+    )
 
     plane = ControlPlane(
         state=state,
@@ -804,6 +818,7 @@ def build(
         model_selection=model_selection,
         deployment_plan=deployment_plan,
         deployment_prepare=deployment_prepare,
+        deployment_instance=deployment_instance,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
@@ -838,6 +853,7 @@ def build(
         model_selection=model_selection,
         deployment_plan=deployment_plan,
         deployment_prepare=deployment_prepare,
+        deployment_instance=deployment_instance,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -2420,19 +2436,26 @@ def _instances(arguments: Sequence[str]) -> int:
 def show_instances() -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
-    items = platform.instances.list()
-    print(f"instances {len(items)}  running {_running_count(platform)}")
-    if not items:
+    views = platform.deployment_instance.list(platform.hosts.current)
+    print(f"instances {len(views)}  running {_running_count(platform)}")
+    if not views:
         print("no inference instances")
         return 0
-    for item in items:
+    for view in views:
+        item = view.instance
         endpoint = "-"
         if item.endpoint is not None:
             endpoint = f"{item.endpoint.address}:{item.endpoint.port}"
         pid = item.pid if is_resolved(item.pid) else "-"
+        current = (
+            "CURRENT"
+            if view.configuration_current
+            else ("STALE" if view.plan_status else "-")
+        )
         print(
             f"{item.instance_id.value}  {item.observed_state.value}  "
-            f"desired {item.desired_state.value}  pid {pid}  {endpoint}"
+            f"desired {item.desired_state.value}  pid {pid}  {endpoint}  "
+            f"configuration {current}"
         )
     return 0
 
@@ -2446,20 +2469,24 @@ def create_named_instance(arguments: Sequence[str]) -> int:
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
-    reservation = platform.resources.get(ReservationId.parse(arguments[0]))
-    if reservation is None or reservation.artifact_id is None:
-        print("kultrun: no such reservation", file=sys.stderr)
-        return 1
-    artifact = platform.inventory.get(reservation.artifact_id)
-    if artifact is None:
-        print("kultrun: reservation artifact is missing", file=sys.stderr)
-        return 1
     try:
-        instance = platform.instances.create(artifact, reservation)
+        view = platform.deployment_instance.create(
+            platform.hosts.current,
+            reservation_id=ReservationId.parse(arguments[0]),
+        )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)
         return 1
-    print(f"{instance.instance_id.value}  {instance.observed_state.value}")
+    item = view.instance
+    print(f"Plan: {_token_or_dash(item.plan_id)}")
+    print(f"Model: {_token_or_dash(item.logical_name)}")
+    print(f"Artifact: {_id_or_dash(item.artifact_id)}")
+    print(f"Reservation: {_id_or_dash(item.reservation_id)}")
+    print(f"Runtime: {item.runtime.value}")
+    print(f"Executor: {item.executor.value}")
+    print(f"Instance: {item.instance_id.value}  {item.observed_state.value.upper()}")
+    current = "CURRENT" if view.configuration_current else (view.plan_status or "-")
+    print(f"Configuration: {current.upper() if current != '-' else current}")
     return 0
 
 
@@ -2473,13 +2500,15 @@ def start_named_instance(arguments: Sequence[str]) -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     try:
-        instance = platform.instances.start(
+        view = platform.deployment_instance.start(
             InstanceId.parse(arguments[0]),
+            platform.hosts.current,
             ledger_health=_ledger_health_of(platform),
         )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)
         return 1
+    instance = view.instance
     endpoint = "-"
     if instance.endpoint is not None:
         endpoint = f"{instance.endpoint.address}:{instance.endpoint.port}"
@@ -2501,12 +2530,14 @@ def stop_named_instance(arguments: Sequence[str]) -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     try:
-        instance = platform.instances.stop(InstanceId.parse(arguments[0]))
+        view = platform.deployment_instance.stop(
+            InstanceId.parse(arguments[0]), platform.hosts.current
+        )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)
         return 1
     print(
-        f"{instance.instance_id.value}  {instance.observed_state.value}  "
+        f"{view.instance.instance_id.value}  {view.instance.observed_state.value}  "
         f"reservation held"
     )
     return 0
@@ -2514,23 +2545,37 @@ def stop_named_instance(arguments: Sequence[str]) -> int:
 
 def inspect_named_instance(arguments: Sequence[str]) -> int:
     from kultrun.inference.contracts import InstanceId
+    from kultrun.kernel.errors import KultrunError
 
     if len(arguments) != 1:
         print("usage: kultrun instances inspect <instance-id>", file=sys.stderr)
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
-    instance = platform.instances.get(InstanceId.parse(arguments[0]))
-    if instance is None:
+    try:
+        view = platform.deployment_instance.get(
+            InstanceId.parse(arguments[0]), platform.hosts.current
+        )
+    except KultrunError:
         print("kultrun: no such instance", file=sys.stderr)
         return 1
+    instance = view.instance
     endpoint = "-"
     if instance.endpoint is not None:
         endpoint = (
             f"{instance.endpoint.scheme}://{instance.endpoint.address}"
             f":{instance.endpoint.port}"
         )
+    current = (
+        "CURRENT"
+        if view.configuration_current
+        else (view.plan_status or "-")
+    )
     print(f"instance {instance.instance_id.value}")
+    print(f"plan {_token_or_dash(instance.plan_id)}")
+    print(f"plan basis {_token_or_dash(instance.plan_basis)}")
+    print(f"configuration {current}")
+    print(f"model {_token_or_dash(instance.logical_name)}")
     print(f"artifact {instance.artifact_id}")
     print(f"reservation {instance.reservation_id}")
     print(f"desired {instance.desired_state.value}")
@@ -2545,6 +2590,20 @@ def inspect_named_instance(arguments: Sequence[str]) -> int:
     print(f"endpoint {endpoint}")
     print(f"ready {instance.ready if is_resolved(instance.ready) else 'unknown'}")
     return 0
+
+
+def _token_or_dash(value: object) -> str:
+    if not is_resolved(value) or value is None:
+        return "-"
+    text = value.value if hasattr(value, "value") else value
+    return str(text) if text else "-"
+
+
+def _id_or_dash(value: object) -> str:
+    if value is None:
+        return "-"
+    ident = getattr(value, "value", value)
+    return str(ident)
 
 
 COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
@@ -2571,7 +2630,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     delete stored artifacts, `deployments plan` shows the current
     deployment decision, `deployments acquire|admit|prepare` consume
     that plan, `resources` admits capacity, `instances`
-    starts and stops reference serving workloads, `storage` and `runtime`
+    binds a CURRENT plan to a matching reservation and starts only
+    launchable reference runtimes, `storage` and `runtime`
     are explicit mutations, and `serve` is what the platform does.
     """
     arguments = list(sys.argv[1:] if argv is None else argv)

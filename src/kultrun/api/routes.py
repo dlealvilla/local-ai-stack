@@ -40,6 +40,7 @@ from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
+from kultrun.platform.deployment_instance import DeploymentInstanceService
 from kultrun.platform.deployment_plan import (
     DeploymentPlanningService,
     DeploymentPlanOverview,
@@ -108,6 +109,7 @@ class ControlPlane:
     model_selection: ModelSelectionService
     deployment_plan: DeploymentPlanningService
     deployment_prepare: DeploymentPreparationService
+    deployment_instance: DeploymentInstanceService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -1018,35 +1020,29 @@ def register(router: Router, plane: ControlPlane) -> Router:
         return plane.admission.release(ReservationId.parse(raw))
 
     def list_instances(_: ApiRequest) -> object:
-        items = plane.instances.list()
+        views = plane.deployment_instance.list(plane.hosts.current)
         return {
-            "instances": items,
-            "count": len(items),
+            "instances": [item.payload() for item in views],
+            "count": len(views),
             "fixed_stored_active_partition": False,
         }
 
     def create_instance(request: ApiRequest) -> object:
-        """Create from a reservation. Clients do not invent argv or amounts."""
+        """Create from CURRENT plan + matching artifact + ACTIVE reservation."""
         _reject_arbitrary_command(request)
         _reject_arbitrary_destination(request)
         _reject_client_quantities(request)
-        raw = (request.query.get("reservation_id") or "").strip()
-        if not raw:
-            raise ValidationError(
-                "a reservation id is required", parameter="reservation_id"
-            )
-        reservation = plane.resources.get(ReservationId.parse(raw))
-        if reservation is None:
-            raise NotFoundError("no such reservation", reservation_id=raw)
-        if reservation.artifact_id is None:
-            raise PreconditionFailedError("reservation has no artifact")
-        artifact = plane.inventory.get(reservation.artifact_id)
-        if artifact is None:
-            raise NotFoundError(
-                "reservation artifact is missing",
-                artifact_id=reservation.artifact_id.value,
-            )
-        return plane.instances.create(artifact, reservation)
+        reservation_raw = (request.query.get("reservation_id") or "").strip()
+        artifact_raw = (request.query.get("artifact_id") or "").strip()
+        plan_raw = (request.query.get("plan_id") or "").strip()
+        return plane.deployment_instance.create(
+            plane.hosts.current,
+            reservation_id=(
+                ReservationId.parse(reservation_raw) if reservation_raw else None
+            ),
+            artifact_id=ArtifactId.parse(artifact_raw) if artifact_raw else None,
+            plan_id=plan_raw or None,
+        ).payload()
 
     def start_instance(request: ApiRequest) -> object:
         _reject_arbitrary_command(request)
@@ -1059,17 +1055,20 @@ def register(router: Router, plane: ControlPlane) -> Router:
             raise ValidationError("serving_mode is not a product parameter")
         host = plane.hosts.current
         envelope = plane.capacity.compute(host, plane.stored_sanity(host))
-        return plane.instances.start(
+        return plane.deployment_instance.start(
             InstanceId.parse(raw),
+            host,
             ledger_health=plane.resources.summary(envelope).health,
-        )
+        ).payload()
 
     def stop_instance(request: ApiRequest) -> object:
         _reject_arbitrary_command(request)
         raw = (request.query.get("instance_id") or "").strip()
         if not raw:
             raise ValidationError("an instance id is required", parameter="instance_id")
-        return plane.instances.stop(InstanceId.parse(raw))
+        return plane.deployment_instance.stop(
+            InstanceId.parse(raw), plane.hosts.current
+        ).payload()
 
     router.get("/models/inventory", models_inventory)
     router.post("/models/acquire", acquire_model)

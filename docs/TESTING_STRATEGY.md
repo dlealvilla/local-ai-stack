@@ -457,6 +457,17 @@ ResourceReservation, plus STORE_ONLY, contention refusal, stale
 admission, and zero InferenceInstance. T3 is not required. Do not
 reopen 1.6I. Do not treat L1 prepare evidence as inference proof.
 
+**Stage 1.6K** is T0/T1/T2 plan-driven InferenceInstance create. Tests
+cover CURRENT plan + matching artifact + ACTIVE reservation, STALE
+and UNAVAILABLE refuse, mismatch matrix, MANUAL selected model, plan
+runtime/executor/settings, no `plan_for_entry` / `plan_from`, stale
+before START, stale while RUNNING without auto-kill, restart,
+release protection, vLLM START refusal without reference substitute,
+and explicit reference-runtime lifecycle. T2 is a clean-wheel
+fixture chain through 1.6J prepare → InferenceInstance CREATED.
+T3 is not required. Do not treat L1 instance evidence as real
+inference proof.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.

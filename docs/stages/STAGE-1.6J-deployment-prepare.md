@@ -109,5 +109,5 @@ GET `/v1/deployments/plan` remains read-only. STORE_ONLY remains
 
 `plan_from` remains a non-authoritative recommendation projection.
 `plan_for_entry` remains on the artifact-id reservation path used by
-existing 1.5A/1.5B and InferenceInstance tests. Removal trigger:
-InferenceInstance remap.
+the residual `POST /resources/reservations?artifact_id=` API. That
+path is not InferenceInstance authority after Stage 1.6K.
