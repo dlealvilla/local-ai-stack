@@ -38,6 +38,32 @@ def _call(platform: Platform, path: str) -> dict[str, object]:
     return payload
 
 
+def _ready_platform(
+    tmp_path: Path, settings: dict[str, object] | None = None
+) -> Platform:
+    platform_settings = {"state_root": str(tmp_path / "state")}
+    if settings:
+        platform_settings.update(settings)
+    configuration = config_schema().load({"platform": platform_settings})
+    platform = build(
+        configuration,
+        fixture=fixtures.DEFAULT_SHAPE,
+        acquisition_adapter="fixture",
+        runtime_provisioner="fixture",
+        runtime_verifier="fixture",
+    )
+    for path, query in (
+        ("/runtimes/foundation/select", {"mode": "auto"}),
+        ("/runtimes/foundation/realize", {}),
+        ("/runtimes/foundation/verify", {}),
+    ):
+        response = platform.router.handle(
+            ApiRequest(method=Method.POST, path=f"/v1{path}", query=query)
+        )
+        assert response.status == 200, response.body
+    return platform
+
+
 class TestTheSourceIsBoundedAndHonest:
     def test_the_adapter_does_not_search_or_download(self) -> None:
         source = HuggingFaceSource()
@@ -179,15 +205,7 @@ class TestSelectionSurface:
     def test_the_selection_api_exposes_only_the_active_estimator(
         self, tmp_path: Path
     ) -> None:
-        configuration = config_schema().load(
-            {
-                "platform": {
-                    "state_root": str(tmp_path / "state"),
-                    "model_requirement_estimator": "kultrun",
-                }
-            }
-        )
-        platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
+        platform = _ready_platform(tmp_path, {"model_requirement_estimator": "kultrun"})
         payload = _call(platform, "/models/selection")
         assert payload["estimator_provider"] == "kultrun"
         assert "kultrun_estimate" not in payload
@@ -213,10 +231,7 @@ class TestSelectionSurface:
             "kultrun.adapters.estimators.llmfit._subprocess_plan",
             fixture_plan(fixture_root),
         )
-        configuration = config_schema().load(
-            {"platform": {"state_root": str(tmp_path / "state")}}
-        )
-        platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
+        platform = _ready_platform(tmp_path)
         payload = _call(platform, "/models/selection")
         assert payload["estimator_mode"] == "auto"
         assert payload["estimator_provider"] == "llmfit"
@@ -231,10 +246,7 @@ class TestSelectionSurface:
     ) -> None:
         monkeypatch.delenv("KULTRUN_MODEL_REQUIREMENT_ESTIMATOR", raising=False)
         monkeypatch.setenv("PATH", "/nonexistent")
-        configuration = config_schema().load(
-            {"platform": {"state_root": str(tmp_path / "state")}}
-        )
-        platform = build(configuration, fixture=fixtures.DEFAULT_SHAPE)
+        platform = _ready_platform(tmp_path)
         payload = _call(platform, "/models/selection")
         assert payload["estimator_mode"] == "auto"
         assert payload["estimator_provider"] == "kultrun"
@@ -251,9 +263,13 @@ class TestSelectionSurface:
     ) -> None:
         from kultrun.main import main
 
+        _ready_platform(tmp_path, {"model_requirement_estimator": "kultrun"})
         monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
         monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
         monkeypatch.setenv("KULTRUN_MODEL_REQUIREMENT_ESTIMATOR", "kultrun")
+        monkeypatch.setenv("KULTRUN_RUNTIME_PROVISIONER", "fixture")
+        monkeypatch.setenv("KULTRUN_RUNTIME_VERIFIER", "fixture")
+        monkeypatch.setenv("KULTRUN_MODEL_ACQUISITION_PROVIDER", "fixture")
         assert main(["models", "recommend"]) == 0
         printed = capsys.readouterr().out
         assert "mode kultrun" in printed
@@ -271,9 +287,13 @@ class TestSelectionSurface:
         from kultrun.main import main
 
         monkeypatch.delenv("KULTRUN_MODEL_REQUIREMENT_ESTIMATOR", raising=False)
+        monkeypatch.setenv("PATH", "/nonexistent")
+        _ready_platform(tmp_path)
         monkeypatch.setenv("KULTRUN_STATE_ROOT", str(tmp_path / "state"))
         monkeypatch.setenv("KULTRUN_FIXTURE", fixtures.DEFAULT_SHAPE)
-        monkeypatch.setenv("PATH", "/nonexistent")
+        monkeypatch.setenv("KULTRUN_RUNTIME_PROVISIONER", "fixture")
+        monkeypatch.setenv("KULTRUN_RUNTIME_VERIFIER", "fixture")
+        monkeypatch.setenv("KULTRUN_MODEL_ACQUISITION_PROVIDER", "fixture")
         assert main(["models", "recommend"]) == 0
         printed = capsys.readouterr().out
         assert "mode auto" in printed

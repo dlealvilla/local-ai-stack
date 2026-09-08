@@ -91,6 +91,7 @@ from kultrun.api.contracts import ApiRequest, Method
 from kultrun.inference.contracts import ObservedState
 from kultrun.kernel.errors import ConflictError, PreconditionFailedError
 from kultrun.main import build, resolve_configuration
+from kultrun.planning.contracts import CompatibilityVerdict
 from kultrun.resource.contracts import LedgerHealth, ReservationState
 
 p = build(resolve_configuration())
@@ -101,8 +102,26 @@ assert len(p.instances.list()) == 0
 
 host = p.hosts.current
 envl = p.capacity.compute(host, {})
-d1 = p.admission.reserve(tiny.artifact_id, host, {})
-d2 = p.admission.reserve(large.artifact_id, host, {})
+d1 = p.admission.reserve(
+    tiny.artifact_id,
+    host,
+    {},
+    {
+        tiny.model_id.value: CompatibilityVerdict.UNRESOLVED,
+        large.model_id.value: CompatibilityVerdict.UNRESOLVED,
+    },
+    runtime="vllm",
+)
+d2 = p.admission.reserve(
+    large.artifact_id,
+    host,
+    {},
+    {
+        tiny.model_id.value: CompatibilityVerdict.UNRESOLVED,
+        large.model_id.value: CompatibilityVerdict.UNRESOLVED,
+    },
+    runtime="vllm",
+)
 assert d1.reservation and d2.reservation
 a = p.instances.create(tiny, d1.reservation)
 b = p.instances.create(large, d2.reservation)

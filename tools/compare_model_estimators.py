@@ -67,8 +67,9 @@ def estimation_request(
     entry: ModelCatalogEntry,
     *,
     placement: MemoryPlacement = MemoryPlacement.DISCRETE_GPU,
+    runtime: str = "vllm",
 ) -> ModelEstimationRequest:
-    """The same request Planning would send. No silent substitution."""
+    """A comparison-tool request. Product planning supplies the selected runtime."""
     meta = entry.metadata
     req = entry.requirement
     context = (
@@ -76,7 +77,6 @@ def estimation_request(
         if is_resolved(req.assumed_context_tokens)
         else meta.context_length_tokens
     )
-    runtime = meta.supported_runtimes[0] if meta.supported_runtimes else NOT_PROVIDED
     return ModelEstimationRequest(
         model_id=meta.model_id,
         source_ref=meta.source_ref,

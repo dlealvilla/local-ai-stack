@@ -23,7 +23,11 @@ from kultrun.model.contracts import (
 )
 from kultrun.model.estimator_router import EstimatorRouter
 from kultrun.model.ports import ModelRequirementEstimator
-from kultrun.planning.contracts import CapacityFitClass, SelectionPolicy
+from kultrun.planning.contracts import (
+    CapacityFitClass,
+    CompatibilityVerdict,
+    SelectionPolicy,
+)
 from kultrun.planning.evaluate import evaluate
 from kultrun.planning.service import SelectionService
 from kultrun.platform.contracts import PlatformSettings
@@ -409,6 +413,7 @@ class TestNoEstimateShopping:
             requirement,
             deployment_capacity(envelope),
             SelectionPolicy(),
+            runtime_compatibility=CompatibilityVerdict.COMPATIBLE,
         )
         assert evaluation.capacity_fit is CapacityFitClass.EXCEEDS_SAFE
         assert requirement.estimator_provider == "llmfit"
@@ -436,6 +441,7 @@ class TestNoEstimateShopping:
             requirement,
             deployment_capacity(envelope),
             SelectionPolicy(),
+            runtime_compatibility=CompatibilityVerdict.COMPATIBLE,
         )
         assert evaluation.capacity_fit is CapacityFitClass.UNDERUTILIZED
         assert requirement.fallback_used is False
@@ -458,6 +464,11 @@ class TestNoEstimateShopping:
         recommendation = service.recommend(
             envelope=envelope,
             candidates=packaged_candidates()[:6],
+            runtime="vllm",
+            runtime_compatibility={
+                item.metadata.model_id.value: CompatibilityVerdict.COMPATIBLE
+                for item in packaged_candidates()[:6]
+            },
         )
         assert recommendation.estimator_provider == "llmfit"
         assert recommendation.fallback_used is False

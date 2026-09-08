@@ -774,10 +774,11 @@ compatibility as `EligibleModelView` from the selected foundation, a
 matching `RuntimeInstallation`, a fresh VERIFIED
 `RuntimeCapabilityProfile`, `RuntimeSupportDescriptor`, and global
 catalog facts. That view is contextual: the same `ModelMetadata` may be
-ELIGIBLE under one foundation and BLOCKED under another. Ranking, memory
-fit, and AUTO/MANUAL model selection remain `planning` work (K-55).
-Resource-fit eligibility is not this view (next: ModelRequirement +
-Capacity).
+ELIGIBLE under one foundation and BLOCKED under another. Stage 1.6G
+derives `ModelRequirement` from an ELIGIBLE candidate plus the selected
+fresh VERIFIED profile, then capacity-fit against SAFE. Ranking and
+bounded AUTO/MANUAL model selection remain `planning` work (K-55).
+ELIGIBLE is not FEASIBLE.
 
 ## TIER 4 — Recommend and authorize
 
@@ -805,14 +806,18 @@ recompute the recommendation when an upstream runtime, executor, host,
 or policy input changes. The global model catalog is not the eligible
 view; Stage 1.6F derives runtime compatibility and composition supplies
 `CompatibilityVerdict` tokens. Planning does not re-intersect catalog
-`supported_runtimes` with a local runtime list. Capacity fit remains
-planning-owned until the next migration.
+`supported_runtimes` with a local runtime list. Stage 1.6G remaps
+`ModelRequirement` and capacity-fit onto that view: the selected
+verified runtime is the estimator identity, never
+`supported_runtimes[0]`. BLOCKED models are refused. UNRESOLVED models
+are not estimated as compatible. Capacity math is unchanged.
 
 The composition root / control plane coordinates invalidation. `planning`
 owns how feasibility and selection are computed. Do not introduce a
 generic selection or dependency-graph engine here (K-83). Planning must
 not import `runtime`; the eligibility → verdict copy lives in
-`platform.eligibility` (K-94).
+`platform.eligibility`. Requirement derivation lives in
+`platform.requirement`. Neither is a parallel planner.
 
 ### `resource`
 
@@ -910,7 +915,7 @@ capacity contract.
 | **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) |
 | **Ports** | `InferenceRuntime` · `RuntimeProvisioner` |
 | **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Treat `PROVISIONABLE` as `VERIFIED EXECUTABLE`. Silently substitute a different RuntimeCandidate than the one selected or supplied for provisioning. Rank or recommend during provisioning or verification. Overload `RuntimePolicy.mode` as product selection. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
-| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Eligibility** 1.6F (`EligibleModelView`) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
+| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Eligibility** 1.6F (`EligibleModelView`) · **Requirement/Capacity** 1.6G · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
 Stage 1.6F consumes catalog facts copied by composition
 (`ModelEligibilityFacts`). Runtime still must not import `model`. It
@@ -1078,6 +1083,23 @@ RuntimeEligibleModelCandidate[]
 EligibleModelView
         ↓
 [STOP 1.6F]
+
+Stage 1.6G ModelRequirement + Capacity migration consumes that view.
+It does not introduce `ModelRequirementV2`, `CapacityPlannerV2`, or
+`DeploymentPlan` authority.
+
+```text
+RuntimeEligibleModelCandidate
+        +
+fresh VERIFIED RuntimeCapabilityProfile
+        +
+requested deployment assumptions
+        ↓
+ModelRequirement
+        ↓
+CapacityAssessment
+        ↓
+[STOP 1.6G]
 ```
 
 `CURRENT` requires current `FoundationSelection`, the selected
@@ -1087,20 +1109,17 @@ VERIFIED profile. `foundation_stale` on the view copies
 the view out of CURRENT when that verified path still matches.
 MANUAL uses `selected_candidate_id`, never the recommendation.
 UNKNOWN is never ELIGIBLE. RAM, VRAM, disk, reservations, and model
-size are not this view.
+size are not the eligibility view. They enter at ModelRequirement
+and CapacityAssessment. ELIGIBLE does not mean FEASIBLE.
 
-Future, **not implemented in 1.6F**:
+Future, **not implemented in 1.6G**:
 
 ```text
-RuntimeEligibleModelCandidate
-        +
-fresh VERIFIED RuntimeCapabilityProfile
-        +
-deployment assumptions
+FeasibleModelCandidate[]
         ↓
-ModelRequirement
+ModelSelector
         ↓
-CapacityAssessment
+selected model
 ```
 
 `RuntimePolicy.mode` AUTO|EXPLICIT is resolver coverage. It is not
@@ -1127,6 +1146,8 @@ persisted class.
 | Deployment Foundation | conceptual composition, not a new object |
 | Bounded selected foundation | `FoundationSelection` |
 | Runtime-aware model eligibility | `EligibleModelView` / `RuntimeEligibleModelCandidate` |
+| Runtime-aware model requirement | `ModelRequirement` from an ELIGIBLE candidate + selected VERIFIED profile |
+| Runtime-aware capacity fit | existing `ModelEvaluation` / `CapacityFitClass` via composition |
 
 RuntimeResolver answers structural plausibility. RuntimeProvisioner
 installs the **explicitly selected** candidate, never an implicit
@@ -1134,7 +1155,8 @@ fallback. RuntimeVerifier produces evidence, not ranking.
 FoundationSelection is the first bounded administrator foundation
 override. A foundation change is not a field swap on the previous plan.
 It marks downstream derived state stale. Stage 1.6F recomputes
-`EligibleModelView`. Later stages recompute `ModelRequirement` and
+`EligibleModelView`. Stage 1.6G recomputes `ModelRequirement` and
+capacity-fit. Later stages recompute ModelSelector and
 `DeploymentPlan`.
 
 ## Recommendation, selection, and safety boundaries
@@ -1576,6 +1598,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6D | RuntimeVerifier + RuntimeCapabilityProfile | 1.6C | ✅ closed L2 |
 | 1.6E | FoundationSelection + two-phase provisionable/executable + invalidation seam | 1.6D | ✅ closed L1 |
 | 1.6F | EligibleModelView + runtime/model compatibility authority | 1.6E | ✅ closed L1 |
+| 1.6G | ModelRequirement + Capacity consume EligibleModelView | 1.6F | ✅ closed L1 |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

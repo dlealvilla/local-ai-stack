@@ -495,8 +495,9 @@ Introduce the pattern incrementally at existing domain seams:
 1.6F  runtime-aware eligible model view from the selected verified
       foundation; authoritative runtime/model compatibility; no
       capacity remap
-later ModelRequirement + Capacity migration, bounded model selection,
-      authoritative selected DeploymentPlan
+1.6G  ModelRequirement + Capacity consume EligibleModelView and the
+      selected verified runtime; no ModelSelector redesign
+later bounded model selection, authoritative selected DeploymentPlan
 ```
 
 ---
@@ -695,6 +696,8 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
 1.6E Foundation Selection                 ← CLOSED L1; two-phase provisionable ≠ executable
   ↓
 1.6F Eligible Model View                  ← CLOSED L1; runtime-aware compatibility
+  ↓
+1.6G ModelRequirement + Capacity          ← CLOSED L1; remapped onto eligible view
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1253,17 +1256,34 @@ authoritative runtime/model compatibility seam · **Gate:** L1 CLOSED.
 T0/T1/T2 fixture. T3 not required; this stage adds no hardware path.
 Do not reopen 1.6B–1.6E.
 
+### Stage 1.6G — ModelRequirement + Capacity Migration
+
+Migrate existing `ModelRequirement` derivation and capacity evaluation
+onto `RuntimeEligibleModelCandidate` plus the selected fresh VERIFIED
+`RuntimeCapabilityProfile`. The selected runtime is the estimator
+identity; catalog `supported_runtimes[0]` is not. BLOCKED models do
+not enter normal capacity. UNRESOLVED models are not falsely feasible.
+Preserve estimator AUTO, capacity SAFE math, and existing ranking.
+Do not redesign ModelSelector. Do not create DeploymentPlan authority.
+Do not remap ResourceManager or InferenceInstance. Retire K-94.
+
+**Output:** remapped `ModelRequirement` + `CapacityAssessment` from the
+eligible view · **Gate:** L1 CLOSED. T0/T1/T2 fixture. T3 not required;
+this stage adds no hardware path. Do not reopen 1.6B–1.6F.
+
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6B** is resolution. **1.6C** is isolated installation.
 **1.6D** is verification. **1.6E** is bounded foundation selection.
 **1.6F** is runtime-aware eligible models.
-Later letters cover `ModelRequirement` and capacity remap, acquisition,
-admission, and real inference.
+**1.6G** is ModelRequirement + Capacity migration.
+Later letters cover ModelSelector, acquisition gating, admission
+remap, and real inference.
 **1.6D is CLOSED L2.** **1.6E is CLOSED L1.** **1.6F is CLOSED L1.**
-Next is ModelRequirement + Capacity migration; do not begin it from
-1.6F.
+**1.6G is CLOSED L1.**
+Next is ModelSelector + bounded model selection; do not begin it from
+1.6G.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2378,6 +2398,44 @@ MUST NOT                     Reopen 1.6B–1.6E; remap ModelRequirement
                              consult RAM/VRAM/reservations.
 DEPTH                        Accepted: minimum + a little depth.
                              First concrete interpreter: vLLM 0.28.0.
+```
+
+### Stage 1.6G brief
+
+```text
+CURRENT STAGE                ModelRequirement + Capacity migration.
+                             Eligible view + selected VERIFIED runtime
+                             → ModelRequirement → CapacityAssessment.
+PREDECESSOR OUTPUTS          Stage 1.6F CLOSED L1
+                             (`804c2bd3761918b802683c7fe83718fe6acfcc97`).
+THIS STAGE'S REQUIRED OUTPUT ModelRequirement from ELIGIBLE candidate;
+                             selected runtime as estimator identity;
+                             CapacityAssessment from remapped
+                             requirement; GET /v1/models/requirements;
+                             kultrun models requirements;
+                             Console capacity verdict; K-94 RETIRED.
+CORE CONTRACTS AFFECTED      model.requirement@1 optional provenance
+                             fields. No ModelRequirementV2.
+                             No CapacityPlannerV2. No DeploymentPlan.
+ADAPTERS AFFECTED            None. Estimator ports unchanged.
+PERSISTED STATE              None. Requirement/capacity are derived.
+MUTATION / FAILURE BOUNDARY  GET /models/requirements never admits
+                             or acquires.
+CANCELLATION / CLEANUP       None. Read-only recomputation.
+ACCEPTANCE LEVEL             L1 CLOSED. T0/T1 plus T2 clean-wheel
+                             fixture chain. T3 not required.
+ADMIN SURFACE                GET /v1/models/requirements;
+                             kultrun models requirements;
+                             Console selection capacity labels.
+DEBT ENTRIES                 K-94 RETIRED. K-55, K-66, K-77, K-80,
+                             K-86 remain.
+MUST NOT                     Reopen 1.6B–1.6F; redesign ModelSelector;
+                             create DeploymentPlan authority; remap
+                             ResourceManager or InferenceInstance;
+                             estimate BLOCKED as compatible; treat
+                             UNRESOLVED as FEASIBLE; use
+                             supported_runtimes[0] as identity.
+DEPTH                        Accepted: minimum + a little depth.
 ```
 
 ---

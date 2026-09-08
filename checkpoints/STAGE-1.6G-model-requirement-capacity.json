@@ -1,0 +1,110 @@
+{
+  "stage": "1.6G",
+  "name": "model-requirement-capacity",
+  "milestone": 1,
+  "output": "ModelRequirement + CapacityAssessment from EligibleModelView and selected VERIFIED runtime",
+  "status": "closed",
+  "gate": "L1",
+  "evidence_level": "L1",
+  "t3_required": false,
+  "ready_for_t3": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "804c2bd3761918b802683c7fe83718fe6acfcc97",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.6F-eligible-model-view.json"
+    ],
+    "starting_source_commit": "804c2bd3761918b802683c7fe83718fe6acfcc97",
+    "safety_tag": "checkpoint/stage-1.6F-closed-804c2bd37",
+    "safety_branch": "safety/pre-model-requirement-capacity-804c2bd",
+    "feature_branch": "stage/1.6G-model-requirement-capacity",
+    "predecessor_closed": true,
+    "do_not_reopen": ["1.6B", "1.6C", "1.6D", "1.6E", "1.6F"]
+  },
+  "contracts": {
+    "model.requirement": "model.requirement@1",
+    "model_requirement_v2": false,
+    "capacity_planner_v2": false,
+    "deployment_plan_authority": false,
+    "model_selector_redesign": false
+  },
+  "requirement_identity": {
+    "runtime_source": "selected RuntimeCapabilityProfile",
+    "catalog_supported_runtimes_0": false,
+    "blocked_estimated": false,
+    "unresolved_falsely_feasible": false
+  },
+  "capacity": {
+    "safe_authorizes": true,
+    "eligible_means_feasible": false,
+    "unknown_is_feasible": false,
+    "math_rewritten": false
+  },
+  "k94": {
+    "status": "RETIRED",
+    "removed": [
+      "omit-mapping defaults COMPATIBLE",
+      "supported_runtimes[0] estimator identity"
+    ],
+    "composition_copy_retained": "platform.eligibility copies EligibleModelView into CompatibilityVerdict because planning cannot import runtime"
+  },
+  "k55": {
+    "status": "OPEN",
+    "next": "ModelSelector migration"
+  },
+  "k66": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k77": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k86": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "deferred": ["K-55", "K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-86", "K-88", "K-91"],
+  "t2": {
+    "passed": false,
+    "clean_source": true,
+    "acceptance_evidence": false,
+    "script": "tools/t2_requirement_capacity.py",
+    "source_checkout": false,
+    "editable": false,
+    "dirty_wip_wheel_used": false,
+    "model_selector_redesigned": false,
+    "deployment_plan_created": false
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-08",
+    "method": "T0/T1 plus T2 clean wheel. T3 not required."
+  },
+  "test_modes": {
+    "T0": "ELIGIBLE requirement, BLOCKED refused, UNRESOLVED not-ready, selected runtime identity, MANUAL, stale profile, provenance, FEASIBLE/INFEASIBLE/UNRESOLVED, eligibility/capacity separation, no metadata mutation",
+    "T1": "fixture host; small feasible; large infeasible; blocked; unresolved; MANUAL; foundation change; stale profile; capacity-only; reservations; restart; K-94 migrated; old runtime hint absent",
+    "T2": "clean wheel; fixture chain foundation → view → requirement → capacity; invalidation; no real vLLM",
+    "T3": "not required"
+  },
+  "not_begun": [
+    "ModelSelector redesign",
+    "bounded model AUTO/MANUAL",
+    "SelectedDeploymentCandidate",
+    "authoritative selected DeploymentPlan",
+    "plan-gated Acquisition",
+    "ResourceManager remap",
+    "InferenceInstance remap",
+    "real inference",
+    "K-66 Managed Python",
+    "K-77 driver remediation"
+  ],
+  "merge": {
+    "performed": false
+  },
+  "END_LINK": {
+    "checkpoint": "checkpoints/STAGE-1.6G-model-requirement-capacity.json",
+    "next": "ModelSelector + bounded model selection. Present depth options before implementation. Do not begin from this package."
+  }
+}

@@ -941,8 +941,8 @@ What:         The 19-model funnel still ranks from catalog + host
               on a DeploymentPlan plus verified runtime. `STORE` remains
               the warehouse path as in 1.4C.
 Why now:      1.5C must not remap selection before a verified runtime exists.
-To make real: After 1.6F; migrate ModelRequirement and Capacity onto
-              the eligible view, then bounded selection.
+To make real: After 1.6G; migrate ModelSelector onto eligible +
+              remapped requirement + capacity, then bounded selection.
 Retire when:  normal executable selection consumes runtime eligibility
               and capacity against the selected verified foundation.
 Status:       OPEN
@@ -1463,8 +1463,10 @@ To make real: Implemented in Stage 1.6F.
 Retire when:  the eligible view is the only runtime/model compatibility
               authority (planning no longer intersects catalog runtimes).
 Status:       RETIRED (1.6F, 2026-09-08)
-Note:         Resource-fit / ModelRequirement / Capacity remain NEXT.
-              Planning consumes CompatibilityVerdict tokens via K-94.
+Note:         Resource-fit / ModelRequirement / Capacity migrated in
+              1.6G. Planning still receives CompatibilityVerdict
+              tokens through composition because it cannot import
+              runtime. ModelSelector remains NEXT.
 
 ### K-88 — Runtime verification scheduling / background revalidation
 Label:        DEFERRED
@@ -1558,45 +1560,49 @@ To make real: After multi-host runtime resolution (K-60) is in play.
 Retire when:  fleet verification is an accepted control-plane path.
 Status:       OPEN
 
-### K-94 — Planning CompatibilityVerdict composition shim
-Label:        PROVISIONAL
-Owner stage:  1.6F / next ModelRequirement + Capacity migration
+### K-94 — Planning CompatibilityVerdict composition shim  ·  RETIRED
+Label:        PROVISIONAL → RETIRED
+Owner stage:  1.6G
 Subsystem:    platform / planning
 Authorizes:   NO
-Current seam: `planning` cannot import `runtime`. Composition
-              (`platform.eligibility.runtime_compatibility`) copies
-              EligibleModelView statuses into planning
-              `CompatibilityVerdict` tokens. Product API, CLI, and
-              admission pass that mapping. Unit tests and the 1.5B
-              inference T2 that omit the mapping still default to
-              COMPATIBLE so capacity-only proofs keep running.
-What:         Remove the default-COMPATIBLE omission path. Planning
-              and admission always receive eligibility tokens.
-              ModelRequirement estimation still uses
-              `supported_runtimes[0]` as a runtime hint.
-Why now:      1.6F migrates compatibility without remapping capacity.
-To make real: Next stage feeds EligibleModelView + verified profile
-              into ModelRequirement and CapacityAssessment.
-Retire when:  ModelRequirement + Capacity consume the eligible view
-              directly through composition, and no caller may omit
-              runtime compatibility.
-Status:       OPEN
+Current seam: Product ranking, admission, and isolated `evaluate()`
+              always receive an explicit `CompatibilityVerdict`.
+              Missing mapping is `UNRESOLVED`, never `COMPATIBLE`.
+              Estimator runtime identity is the selected verified
+              foundation, never `supported_runtimes[0]`.
+              `platform.eligibility` still copies EligibleModelView
+              statuses into planning tokens because `planning` cannot
+              import `runtime`. That copy is the composition root, not
+              a compatibility default.
+What:         Remove omit-mapping COMPATIBLE defaults and the catalog
+              runtime-hint estimator path.
+Why now:      1.6G remaps ModelRequirement and Capacity.
+To make real: Implemented in Stage 1.6G.
+Retire when:  no product path defaults missing eligibility to COMPATIBLE,
+              and estimator identity is the selected runtime.
+Status:       RETIRED (1.6G, 2026-09-08)
+Note:         `plan_for_entry` still estimates numeric ResourceRequest
+              amounts for BLOCKED/UNRESOLVED so 1.5A/1.5B reservation
+              arithmetic keeps working. That is ResourceManager remap
+              remaining work, not a compatibility default.
 
-## Runtime-first migration ledger (after 1.6F)
+## Runtime-first migration ledger (after 1.6G)
 
 Not a second architecture. Existing components still to migrate, in
 order. Do not begin automatically.
 
 | Component | CURRENT INPUT | TARGET INPUT | WHAT MUST MIGRATE | SHIM | ORDER |
 |---|---|---|---|---|---|
-| ModelRequirement | catalog metadata + estimator request; runtime hint = `supported_runtimes[0]` | `RuntimeEligibleModelCandidate` + fresh VERIFIED `RuntimeCapabilityProfile` + deployment assumptions | estimator request/runtime identity; stop guessing runtime from catalog | `_request()` still uses catalog runtime[0] | 1 — next |
-| CapacityAssessment / Capacity Planner | `ModelRequirement` + host SAFE envelope | same, but only after requirement is remapped to the selected foundation | requirement identity and invalidation; not RAM/VRAM in eligibility | none in 1.6F; capacity unchanged | 2 — with 1 |
-| ModelSelector | catalog entries + capacity fit + eligibility tokens | eligible candidates + remapped requirement + capacity | ranking still capacity-band; do not redesign here | K-94 tokens; ranking unchanged | 3 |
+| Runtime/model compatibility | `EligibleModelView` / `RuntimeEligibleModelCandidate` | same | done in 1.6F | composition copy of eligibility → `CompatibilityVerdict` (planning ⟂ runtime) | ✅ |
+| ModelRequirement | `RuntimeEligibleModelCandidate` + fresh VERIFIED profile + selected runtime | same | done in 1.6G | none | ✅ |
+| CapacityAssessment | remapped `ModelRequirement` + host SAFE envelope | same | done in 1.6G; existing SAFE math | none | ✅ |
+| ModelSelector | catalog entries + remapped requirement + capacity + eligibility tokens | feasible eligible candidates + remapped requirement + capacity; bounded AUTO/MANUAL | ranking still capacity-band; do not redesign until next stage | composition tokens; ranking unchanged | 3 — next |
 | SelectedDeploymentCandidate | not a persisted identity; recommendation primary | selected vs recommended after bounded model selection | keep recommended ≠ selected | none | 4 |
 | DeploymentPlan | recommendation artifact from 1.4B | authoritative selected plan; stale when foundation/eligibility/requirement/capacity change | K-86 freshness | K-86 OPEN | 5 |
-| Acquisition | catalog identity + storage envelope; `--recommended` uses eligibility tokens for ranking only | gate on eligible + feasible selected plan | still warehouse STORE path (K-55) | `--recommended` already reads eligibility | 6 |
-| ResourceManager | `ModelRequirement` + SAFE envelope; product reserve passes eligibility tokens into plan_for_entry | ResourceRequest derived from remapped requirement against selected foundation | admission already consumes tokens; request amounts still requirement-based | omit-mapping → COMPATIBLE (K-94) | 7 |
-| InferenceInstance | admitted reservation + stored artifact | instance against selected verified foundation + eligible model | not remapped; T2 inference omits eligibility mapping | K-94 | 8 |
+| Acquisition | catalog identity + storage envelope; `--recommended` uses remapped ranking | gate on eligible + feasible selected plan | still warehouse STORE path (K-55) | `--recommended` already reads remapped ranking | 6 |
+| ResourceManager | `ModelRequirement` + SAFE envelope; product reserve passes eligibility tokens into `plan_for_entry` | ResourceRequest derived from remapped requirement against selected foundation; skip BLOCKED amounts | admission already consumes tokens; request amounts still estimated for blocked/unresolved artifacts | estimate-for-admission until remap | 7 |
+| InferenceInstance | admitted reservation + stored artifact | instance against selected verified foundation + eligible model | not remapped; T2 inference passes explicit mapping | none as compatibility default | 8 |
+| Real inference | reference serving | selected foundation + acquired artifact + reservation | later 1.6 letter | none | 9 |
 
 ## Deferred capability register
 

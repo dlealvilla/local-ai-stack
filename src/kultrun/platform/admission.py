@@ -22,7 +22,7 @@ from kultrun.kernel.clock import Clock
 from kultrun.kernel.errors import ConflictError, NotFoundError, ValidationError
 from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
-from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import (
     ArtifactId,
@@ -80,7 +80,10 @@ class AdmissionService:
         artifact_id: ArtifactId,
         host: HostCapabilities,
         sanity: dict[str, StorageSanityEvidence],
-        runtime_compatibility: Mapping[str, CompatibilityVerdict] | None = None,
+        runtime_compatibility: Mapping[str, CompatibilityVerdict],
+        *,
+        runtime: str,
+        runtime_version: Maybe[str] = NOT_PROVIDED,
         request_id: RequestId | None = None,
     ) -> AdmissionDecision:
         artifact = self._inventory.get(artifact_id)
@@ -93,6 +96,8 @@ class AdmissionService:
             self._models,
             self._selection,
             runtime_compatibility,
+            runtime=runtime,
+            runtime_version=runtime_version,
             request_id=request_id,
         )
         decision = self._manager.admit(request, envelope, artifact)
@@ -151,7 +156,10 @@ def request_from_artifact(
     envelope: CapacityEnvelope,
     models: ModelCatalogue,
     selection: SelectionService,
-    runtime_compatibility: Mapping[str, CompatibilityVerdict] | None = None,
+    runtime_compatibility: Mapping[str, CompatibilityVerdict],
+    *,
+    runtime: str,
+    runtime_version: Maybe[str] = NOT_PROVIDED,
     request_id: RequestId | None = None,
 ) -> ResourceRequest:
     """Build a request from server-side evidence. No caller amounts."""
@@ -169,11 +177,15 @@ def request_from_artifact(
             artifact_id=artifact.artifact_id.value,
         )
     ident = entry.metadata.model_id.value
-    if runtime_compatibility is None:
-        verdict = CompatibilityVerdict.COMPATIBLE
-    else:
-        verdict = runtime_compatibility.get(ident, CompatibilityVerdict.UNRESOLVED)
-    plan = plan_for_entry(selection, entry, envelope, verdict)
+    verdict = runtime_compatibility.get(ident, CompatibilityVerdict.UNRESOLVED)
+    plan = plan_for_entry(
+        selection,
+        entry,
+        envelope,
+        verdict,
+        runtime=runtime,
+        runtime_version=runtime_version,
+    )
     capacity = deployment_capacity(envelope)
     fingerprint = _plan_fingerprint(artifact, plan, capacity.accelerator_index)
     incremental = NOT_PROVIDED

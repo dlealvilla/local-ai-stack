@@ -53,6 +53,7 @@ from kultrun.api.router import Router
 from kultrun.api.routes import ControlPlane, register
 from kultrun.audit import contracts as _audit_contracts  # noqa: F401
 from kultrun.capacity import contracts as _capacity_contracts  # noqa: F401
+from kultrun.capacity.contracts import CapacityEnvelope
 from kultrun.capacity.envelope import CapacityService
 from kultrun.components.contracts import ComponentNecessity, ComponentRequirement
 from kultrun.entitlement import contracts as _entitlement_contracts  # noqa: F401
@@ -109,6 +110,11 @@ from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.probe_run import ExecutorProbeRunner
+from kultrun.platform.requirement import (
+    RequirementAssessment,
+    assess_catalog,
+    recommend_from_view,
+)
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
@@ -1184,11 +1190,7 @@ def show_runtime_candidates(arguments: Sequence[str]) -> int:
     )
     descriptors = platform.runtimes.descriptors()
     policy = RuntimePolicy(
-        mode=(
-            RuntimeResolverMode.EXPLICIT
-            if requested
-            else RuntimeResolverMode.AUTO
-        ),
+        mode=(RuntimeResolverMode.EXPLICIT if requested else RuntimeResolverMode.AUTO),
         requested_runtime=requested if requested else NOT_PROVIDED,
         allow_test_only=allow_test,
         allow_reference_runtimes=allow_reference,
@@ -1275,6 +1277,27 @@ def _runtime_compat(platform: Platform) -> Mapping[str, CompatibilityVerdict]:
         view,
         [entry.metadata.model_id.value for entry in platform.models.entries()],
     )
+
+
+def _assessments(
+    platform: Platform,
+) -> tuple[EligibleModelView, CapacityEnvelope, tuple[RequirementAssessment, ...]]:
+    view = _eligible_view(platform)
+    host = platform.hosts.current
+    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    rows = assess_catalog(
+        view,
+        platform.models,
+        envelope,
+        platform.selection.estimator,
+        platform.selection.policy,
+    )
+    return view, envelope, rows
+
+
+def _selected_runtime(view: EligibleModelView) -> str:
+    token = view.runtime
+    return token if isinstance(token, str) and token.strip() else ""
 
 
 def show_foundation(arguments: Sequence[str]) -> int:
@@ -1591,16 +1614,10 @@ def _runtime_status() -> int:
     host = platform.hosts.current
     live = platform.executions.capabilities(host)
     container = platform.plane.container_capability(host)
-    print(
-        f"executor {live.executor.value} {live.availability.value}"
-    )
+    print(f"executor {live.executor.value} {live.availability.value}")
     print(
         f"container-docker {container.availability.value}"
-        + (
-            f" {container.reason}"
-            if is_resolved(container.reason)
-            else ""
-        )
+        + (f" {container.reason}" if is_resolved(container.reason) else "")
     )
     handles = platform.executions.list()
     if not handles:
@@ -1718,6 +1735,8 @@ def _models(arguments: Sequence[str]) -> int:
         return show_recommendation()
     if command == "eligible":
         return show_eligible_models()
+    if command == "requirements":
+        return show_requirements()
     if command == "inventory":
         return show_inventory()
     if command == "acquire":
@@ -1725,7 +1744,8 @@ def _models(arguments: Sequence[str]) -> int:
     if command == "delete":
         return delete_named(arguments[1:])
     print(
-        "usage: kultrun models [recommend|eligible|inventory|acquire|delete]",
+        "usage: kultrun models ["
+        "recommend|eligible|requirements|inventory|acquire|delete]",
         file=sys.stderr,
     )
     return 2
@@ -1772,12 +1792,13 @@ def acquire_named(arguments: Sequence[str]) -> int:
     if recommended and not names:
         platform = build()
         _warn_if_state_root_defaulted(platform)
-        host = platform.hosts.current
-        envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
-        recommendation = platform.selection.recommend(
-            envelope=envelope,
-            candidates=platform.models.entries(),
-            runtime_compatibility=_runtime_compat(platform),
+        view, envelope, rows = _assessments(platform)
+        recommendation = recommend_from_view(
+            platform.selection,
+            view,
+            envelope,
+            platform.models.entries(),
+            rows,
         )
         if recommendation.primary is None:
             print("kultrun: no recommended candidate", file=sys.stderr)
@@ -1841,12 +1862,13 @@ def show_recommendation() -> int:
 
     platform = build()
     _warn_if_state_root_defaulted(platform)
-    host = platform.hosts.current
-    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
-    recommendation = platform.selection.recommend(
-        envelope=envelope,
-        candidates=platform.models.entries(),
-        runtime_compatibility=_runtime_compat(platform),
+    view, envelope, rows = _assessments(platform)
+    recommendation = recommend_from_view(
+        platform.selection,
+        view,
+        envelope,
+        platform.models.entries(),
+        rows,
     )
     recommendation_mode = recommendation.estimator_mode
     fallback = (
@@ -1854,12 +1876,17 @@ def show_recommendation() -> int:
         if recommendation.fallback_used and is_resolved(recommendation.fallback_reason)
         else "  fallback no"
     )
+    runtime = _selected_runtime(view) or "-"
+    version = view.runtime_version if isinstance(view.runtime_version, str) else "-"
     print(
         f"mode {recommendation_mode}  "
         f"effective {recommendation.estimator_provider}  "
         f"version {recommendation.estimator_version}  "
         f"outcome {recommendation.outcome.value}"
         f"{fallback}"
+    )
+    print(
+        f"runtime {runtime}  runtime-version {version}  eligibility {view.status.value}"
     )
     print(f"policy {recommendation.policy_version}")
     for line in recommendation.rationale:
@@ -1871,9 +1898,47 @@ def show_recommendation() -> int:
         print(
             f"primary {winner.logical_name.value}  {winner.capacity_fit.value}  {used}"
         )
+        assessed = next(
+            (item for item in rows if item.model_id == winner.model_id.value),
+            None,
+        )
+        if assessed is not None:
+            print(
+                f"requirement {assessed.requirement_status.value}  "
+                f"capacity {assessed.capacity_verdict}"
+            )
     planned = plan_from(recommendation)
     if planned is not None:
-        print(f"plan {planned.logical_name.value}  placement {planned.placement.value}")
+        print(
+            f"plan {planned.logical_name.value}  "
+            f"placement {planned.placement.value}  "
+            f"runtime {planned.runtime if is_resolved(planned.runtime) else '-'}"
+        )
+    return 0
+
+
+def show_requirements() -> int:
+    """Derived requirements and capacity for the selected foundation."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    view, _envelope, rows = _assessments(platform)
+    runtime = _selected_runtime(view) or "-"
+    version = view.runtime_version if isinstance(view.runtime_version, str) else "-"
+    print(
+        f"runtime {runtime}  version {version}  "
+        f"view {view.status.value}  profile "
+        f"{view.profile_status if isinstance(view.profile_status, str) else '-'}"
+    )
+    if not rows:
+        print("no requirement assessments")
+        return 0
+    for item in rows:
+        eligibility = item.eligibility_status or "-"
+        vram = _bytes(item.required_vram_bytes)
+        print(
+            f"{item.requirement_status.value:12} {item.capacity_verdict:12} "
+            f"{item.logical_name:32} eligibility {eligibility}  vram {vram}"
+        )
     return 0
 
 
@@ -1883,9 +1948,7 @@ def show_eligible_models() -> int:
     _warn_if_state_root_defaulted(platform)
     view = _eligible_view(platform)
     runtime = view.runtime if isinstance(view.runtime, str) else "-"
-    version = (
-        view.runtime_version if isinstance(view.runtime_version, str) else "-"
-    )
+    version = view.runtime_version if isinstance(view.runtime_version, str) else "-"
     selected = (
         view.selected_candidate_id
         if isinstance(view.selected_candidate_id, str)
@@ -1984,12 +2047,19 @@ def reserve_named(arguments: Sequence[str]) -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     host = platform.hosts.current
+    view = _eligible_view(platform)
     try:
         decision = platform.admission.reserve(
             ArtifactId.parse(arguments[0]),
             host,
             _stored_sanity(platform, host),
             _runtime_compat(platform),
+            runtime=_selected_runtime(view) or "unresolved",
+            runtime_version=(
+                view.runtime_version
+                if isinstance(view.runtime_version, str)
+                else NOT_PROVIDED
+            ),
         )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)

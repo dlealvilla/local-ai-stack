@@ -402,6 +402,19 @@ with at least one of each status, then profile-basis STALE. T3 is not
 required. Do not reopen 1.6E. Do not treat L1 eligibility as capacity
 or inference proof.
 
+**Stage 1.6G** is T0/T1/T2 ModelRequirement + Capacity migration.
+Tests cover ELIGIBLE → requirement, BLOCKED refused, UNRESOLVED not
+ready, selected runtime identity (not `supported_runtimes[0]`), MANUAL
+foundation, stale/failed profile, provenance, FEASIBLE / INFEASIBLE /
+UNRESOLVED capacity, eligibility unchanged by free VRAM, no
+ModelMetadata mutation, no runtime flags on generic requirement, K-94
+omit-mapping removed, and architecture non-edges. T2 is a clean-wheel
+fixture chain: selected foundation → VERIFIED profile → CURRENT view →
+requirement → capacity for feasible, infeasible, unresolved, and
+blocked models, then foundation/profile invalidation. T3 is not
+required. Do not reopen 1.6F. Do not treat L1 requirement evidence as
+ModelSelector or inference proof.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.
