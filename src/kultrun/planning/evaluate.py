@@ -7,6 +7,7 @@ import an estimator adapter.
 from __future__ import annotations
 
 from kultrun.capacity.contracts import CapacityEnvelope
+from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.unresolved import (
     NOT_PROVIDED,
     Maybe,
@@ -168,13 +169,14 @@ def evaluate(
     capacity: DeploymentCapacity,
     policy: SelectionPolicy,
     *,
-    runtime_compatibility: CompatibilityVerdict = CompatibilityVerdict.COMPATIBLE,
+    runtime_compatibility: CompatibilityVerdict,
 ) -> ModelEvaluation:
     """One candidate, one envelope, one policy. Deterministic.
 
     Runtime/model compatibility is supplied by the eligible-model view.
-    This function still owns capacity fit. It does not re-derive runtime
-    support from catalog ``supported_runtimes``.
+    Callers always pass that token. There is no omit-mapping COMPATIBLE
+    default. This function still owns capacity fit. It does not re-derive
+    runtime support from catalog ``supported_runtimes``.
     """
     reasons: list[str] = []
     unresolved: list[str] = []
@@ -224,9 +226,7 @@ def evaluate(
         ratio = used.ratio
         if ratio > policy.maximum_capacity_utilization:
             fit = CapacityFitClass.EXCEEDS_SAFE
-            reasons.append(
-                "estimated deployment requirement exceeds safe capacity"
-            )
+            reasons.append("estimated deployment requirement exceeds safe capacity")
         elif ratio < policy.minimum_capacity_utilization:
             fit = CapacityFitClass.UNDERUTILIZED
             reasons.append("underutilizes available deployment capacity")
@@ -263,6 +263,46 @@ def evaluate(
         parameter_count=metadata.parameter_count,
         quantization=metadata.quantization,
         context_length_tokens=metadata.context_length_tokens,
+        supported_runtimes=(
+            requirement.supported_runtimes or metadata.supported_runtimes
+        ),
+    )
+
+
+def not_assessed(
+    metadata: ModelMetadata,
+    *,
+    compatibility: CompatibilityVerdict,
+    reasons: tuple[str, ...],
+) -> ModelEvaluation:
+    """Blocked or unresolved eligibility: no estimator, no SAFE comparison."""
+    return ModelEvaluation(
+        model_id=metadata.model_id,
+        logical_name=metadata.logical_name,
+        source_ref=metadata.source_ref,
+        compatibility=compatibility,
+        capacity_fit=CapacityFitClass.UNRESOLVED,
+        storage_feasible=NOT_PROVIDED,
+        required_ram_bytes=NOT_PROVIDED,
+        required_vram_bytes=NOT_PROVIDED,
+        required_unified_bytes=NOT_PROVIDED,
+        required_storage_bytes=NOT_PROVIDED,
+        safe_ram_bytes=NOT_PROVIDED,
+        safe_vram_bytes=NOT_PROVIDED,
+        safe_unified_bytes=NOT_PROVIDED,
+        utilization=CapacityUtilization(
+            ratio=NOT_PROVIDED,
+            limiting_resource=NOT_PROVIDED,
+            ram_ratio=NOT_PROVIDED,
+        ),
+        preferred=False,
+        reasons=reasons,
+        unresolved=("runtime_eligibility",),
+        confidence=Confidence.UNKNOWN,
+        estimator_provider=NOT_PROVIDED,
+        parameter_count=metadata.parameter_count,
+        quantization=metadata.quantization,
+        context_length_tokens=metadata.context_length_tokens,
         supported_runtimes=metadata.supported_runtimes,
     )
 
@@ -278,9 +318,11 @@ def rank_key(evaluation: ModelEvaluation) -> tuple[object, ...]:
     params = (
         evaluation.parameter_count if is_resolved(evaluation.parameter_count) else -1
     )
-    ratio = evaluation.utilization.ratio if is_resolved(
+    ratio = (
         evaluation.utilization.ratio
-    ) else 10.0
+        if is_resolved(evaluation.utilization.ratio)
+        else 10.0
+    )
     quant = "unknown"
     if is_resolved(evaluation.quantization):
         quant = evaluation.quantization.lower()

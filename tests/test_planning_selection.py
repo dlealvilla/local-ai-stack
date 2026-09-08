@@ -20,6 +20,7 @@ from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.contracts import (
     MemoryPlacement,
+    ModelCatalogEntry,
     ModelEstimationRequest,
     ModelId,
     ModelMetadata,
@@ -42,6 +43,28 @@ INSTANT = dt.datetime(2026, 9, 6, 10, 0, tzinfo=dt.UTC)
 GIB = 1024**3
 SAFE_VRAM = 10_000_000_000
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "estimators" / "llmfit"
+
+
+def _compat(
+    candidates: tuple[ModelCatalogEntry, ...],
+) -> dict[str, CompatibilityVerdict]:
+    return {
+        item.metadata.model_id.value: CompatibilityVerdict.COMPATIBLE
+        for item in candidates
+    }
+
+
+def _recommend(
+    service: SelectionService,
+    envelope: object,
+    candidates: tuple[ModelCatalogEntry, ...],
+):
+    return service.recommend(
+        envelope=envelope,  # type: ignore[arg-type]
+        candidates=candidates,
+        runtime="vllm",
+        runtime_compatibility=_compat(candidates),
+    )
 
 
 def _capacity(
@@ -130,6 +153,7 @@ def _evaluate(
         req,
         _capacity(vram=safe_vram, storage=safe_storage, placement=placement),
         policy or SelectionPolicy(),
+        runtime_compatibility=CompatibilityVerdict.COMPATIBLE,
     )
 
 
@@ -236,8 +260,20 @@ class TestProviderIndependence:
         )
         capacity = _capacity(vram=24 * GIB)
         policy = SelectionPolicy()
-        left = evaluate(entry.metadata, kultrun, capacity, policy)
-        right = evaluate(entry.metadata, llmfit, capacity, policy)
+        left = evaluate(
+            entry.metadata,
+            kultrun,
+            capacity,
+            policy,
+            runtime_compatibility=CompatibilityVerdict.COMPATIBLE,
+        )
+        right = evaluate(
+            entry.metadata,
+            llmfit,
+            capacity,
+            policy,
+            runtime_compatibility=CompatibilityVerdict.COMPATIBLE,
+        )
         assert left.estimator_provider == "kultrun"
         assert right.estimator_provider == "llmfit"
         assert left.required_vram_bytes == kultrun.estimated_vram_bytes
@@ -264,10 +300,7 @@ class TestProviderIndependence:
             )
         )
         service = SelectionService(EstimatorC(), FixedClock(INSTANT))
-        recommendation = service.recommend(
-            envelope=envelope,
-            candidates=packaged_candidates()[:3],
-        )
+        recommendation = _recommend(service, envelope, packaged_candidates()[:3])
         assert recommendation.estimator_provider == "estimator-c"
         assert recommendation.outcome is SelectionOutcome.RECOMMENDED
         planned = plan_from(recommendation)
@@ -285,10 +318,7 @@ class TestGpuAndCpuShapes:
             )
         )
         service = SelectionService(KultrunRequirementEstimator(), FixedClock(INSTANT))
-        recommendation = service.recommend(
-            envelope=envelope,
-            candidates=packaged_candidates(),
-        )
+        recommendation = _recommend(service, envelope, packaged_candidates())
         if recommendation.primary is not None:
             assert recommendation.primary.capacity_fit is CapacityFitClass.PREFERRED
 
@@ -301,10 +331,7 @@ class TestGpuAndCpuShapes:
             )
         )
         service = SelectionService(KultrunRequirementEstimator(), FixedClock(INSTANT))
-        recommendation = service.recommend(
-            envelope=envelope,
-            candidates=packaged_candidates(),
-        )
+        recommendation = _recommend(service, envelope, packaged_candidates())
         assert recommendation.outcome is SelectionOutcome.RECOMMENDED
         assert recommendation.primary is not None
         planned = plan_from(recommendation)
@@ -323,10 +350,7 @@ class TestGpuAndCpuShapes:
             LlmfitRequirementEstimator(plan=fixture_plan(FIXTURE_ROOT)),
             FixedClock(INSTANT),
         )
-        recommendation = service.recommend(
-            envelope=envelope,
-            candidates=packaged_candidates(),
-        )
+        recommendation = _recommend(service, envelope, packaged_candidates())
         assert recommendation.estimator_provider == "llmfit"
 
 

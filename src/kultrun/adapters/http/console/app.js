@@ -33,6 +33,7 @@ const SUBSYSTEMS = [
   { name: 'Runtime capability profiles', probe: '/runtimes/capability-profiles' },
   { name: 'Model catalog', probe: '/models' },
   { name: 'Eligible models', probe: '/models/eligible' },
+  { name: 'Model requirements', probe: '/models/requirements' },
   { name: 'Model selection', probe: '/models/selection' },
   { name: 'Model inventory', probe: '/models/inventory' },
   { name: 'Resource admission', probe: '/resources' },
@@ -1013,6 +1014,13 @@ function fitTone(value) {
   return 'unknown';
 }
 
+function capacityLabel(state, primary) {
+  const rows = state.assessments || [];
+  const match = rows.find((item) => item.logical_name === (primary.logical_name || ''));
+  if (match && match.capacity_verdict) return match.capacity_verdict;
+  return 'not assessed';
+}
+
 async function renderSelection() {
   const panel = document.getElementById('selection-panel');
   const summary = document.getElementById('selection-summary');
@@ -1032,6 +1040,8 @@ async function renderSelection() {
       ['outcome', state.outcome || rec.outcome],
       ['runtime eligibility', state.runtime_eligibility_status || 'not reported'],
       ['eligibility authoritative', state.runtime_eligibility_authoritative ? 'yes' : 'no'],
+      ['selected runtime', state.selected_runtime || 'none'],
+      ['runtime version', state.selected_runtime_version || 'none'],
     ]);
     target.replaceChildren();
     if (primary) {
@@ -1055,6 +1065,7 @@ async function renderSelection() {
         ['utilization', percent(util.ratio)],
         ['limiting resource', util.limiting_resource],
         ['fit class', primary.capacity_fit],
+        ['capacity', capacityLabel(state, primary)],
         ['quantization', primary.quantization],
       ]);
       card.append(grid);

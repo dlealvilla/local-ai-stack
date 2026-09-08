@@ -30,7 +30,7 @@ from kultrun.kernel.errors import (
 )
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import registered_contracts
-from kultrun.kernel.unresolved import NOT_PROVIDED
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
 from kultrun.model.acquisition import AcquisitionService, request_from_entry
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import ArtifactId
@@ -43,6 +43,12 @@ from kultrun.platform.contracts import HealthReport, PlatformState, StartupRepor
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
+from kultrun.platform.requirement import (
+    RequirementAssessment,
+    assess_catalog,
+    assessment_payload,
+    recommend_from_view,
+)
 from kultrun.platform.startup import Startup
 from kultrun.platform.state import PlatformStateStore
 from kultrun.resource.contracts import RequestId, ReservationId
@@ -334,9 +340,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
                     else "native_process"
                 ),
             },
-            "executor_capability": plane.executions.capabilities(
-                plane.hosts.current
-            ),
+            "executor_capability": plane.executions.capabilities(plane.hosts.current),
             "container_executor_capability": plane.container_capability(
                 plane.hosts.current
             ),
@@ -375,9 +379,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
         }
         policy = RuntimePolicy(
             mode=(
-                RuntimeResolverMode.EXPLICIT
-                if requested
-                else RuntimeResolverMode.AUTO
+                RuntimeResolverMode.EXPLICIT if requested else RuntimeResolverMode.AUTO
             ),
             requested_runtime=requested if requested else NOT_PROVIDED,
             allow_test_only=allow_test,
@@ -470,6 +472,28 @@ def register(router: Router, plane: ControlPlane) -> Router:
             [entry.metadata.model_id.value for entry in plane.models.entries()],
         )
         return view, mapping
+
+    def _assessments(
+        host: HostCapabilities,
+    ) -> tuple[EligibleModelView, CapacityEnvelope, tuple[RequirementAssessment, ...]]:
+        view = _eligible_view(host)
+        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        rows = assess_catalog(
+            view,
+            plane.models,
+            envelope,
+            plane.selection.estimator,
+            plane.selection.policy,
+        )
+        return view, envelope, rows
+
+    def _selected_runtime(view: EligibleModelView) -> str:
+        token = view.runtime
+        return token if isinstance(token, str) and token.strip() else ""
+
+    def _selected_version(view: EligibleModelView) -> Maybe[str]:
+        token = view.runtime_version
+        return token if isinstance(token, str) else NOT_PROVIDED
 
     def create_provisioning_plan(request: ApiRequest) -> object:
         """Create an exact install plan. Does not install."""
@@ -579,9 +603,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
         }
         return RuntimePolicy(
             mode=(
-                RuntimeResolverMode.EXPLICIT
-                if requested
-                else RuntimeResolverMode.AUTO
+                RuntimeResolverMode.EXPLICIT if requested else RuntimeResolverMode.AUTO
             ),
             requested_runtime=requested if requested else NOT_PROVIDED,
             allow_test_only=allow_test,
@@ -616,17 +638,13 @@ def register(router: Router, plane: ControlPlane) -> Router:
             policy,
         )
         if mode == "auto":
-            overview = plane.foundation.select_auto(
-                *args, components=_components()
-            )
+            overview = plane.foundation.select_auto(*args, components=_components())
         elif mode == "manual":
             overview = plane.foundation.select_manual(
                 candidate_id, *args, components=_components()
             )
         else:
-            raise ValidationError(
-                "mode must be auto or manual", parameter="mode"
-            )
+            raise ValidationError("mode must be auto or manual", parameter="mode")
         payload = overview.payload()
         payload["host_id"] = host.host_id.value
         payload["mutations"] = True
@@ -673,12 +691,13 @@ def register(router: Router, plane: ControlPlane) -> Router:
     def models_selection(_: ApiRequest) -> dict[str, object]:
         """Active-estimator selection. No dual estimates. No download."""
         host = plane.hosts.current
-        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
-        view, compat = _runtime_compat(host)
-        recommendation = plane.selection.recommend(
-            envelope=envelope,
-            candidates=plane.models.entries(),
-            runtime_compatibility=compat,
+        view, envelope, rows = _assessments(host)
+        recommendation = recommend_from_view(
+            plane.selection,
+            view,
+            envelope,
+            plane.models.entries(),
+            rows,
         )
         planned = plan_from(recommendation)
         stored = plane.foundation.stored(host)
@@ -702,6 +721,54 @@ def register(router: Router, plane: ControlPlane) -> Router:
             ),
             "runtime_eligibility_status": view.status.value,
             "runtime_eligibility_authoritative": view.status.value == "current",
+            "selected_runtime": _selected_runtime(view) or None,
+            "selected_runtime_version": (
+                view.runtime_version if isinstance(view.runtime_version, str) else None
+            ),
+            "assessments": [assessment_payload(item) for item in rows],
+        }
+
+    def models_requirements(_: ApiRequest) -> dict[str, object]:
+        """Derived requirements and capacity. GET does not admit or acquire."""
+        host = plane.hosts.current
+        view, _envelope, rows = _assessments(host)
+        return {
+            "mutations": False,
+            "acquire": False,
+            "admit": False,
+            "view_status": view.status.value,
+            "selected_runtime": _selected_runtime(view) or None,
+            "selected_runtime_version": (
+                view.runtime_version if isinstance(view.runtime_version, str) else None
+            ),
+            "profile_id": view.profile_id if isinstance(view.profile_id, str) else None,
+            "counts": {
+                "ready": sum(
+                    1 for item in rows if item.requirement_status.value == "ready"
+                ),
+                "refused": sum(
+                    1 for item in rows if item.requirement_status.value == "refused"
+                ),
+                "unresolved": sum(
+                    1 for item in rows if item.requirement_status.value == "unresolved"
+                ),
+                "stale": sum(
+                    1 for item in rows if item.requirement_status.value == "stale"
+                ),
+                "unavailable": sum(
+                    1 for item in rows if item.requirement_status.value == "unavailable"
+                ),
+                "feasible": sum(
+                    1 for item in rows if item.capacity_verdict == "feasible"
+                ),
+                "infeasible": sum(
+                    1 for item in rows if item.capacity_verdict == "infeasible"
+                ),
+                "not_assessed": sum(
+                    1 for item in rows if item.capacity_verdict == "not_assessed"
+                ),
+            },
+            "assessments": [assessment_payload(item) for item in rows],
         }
 
     def models_eligible(_: ApiRequest) -> dict[str, object]:
@@ -751,11 +818,13 @@ def register(router: Router, plane: ControlPlane) -> Router:
         }
         if recommended and not candidate:
             host = plane.hosts.current
-            envelope = plane.capacity.compute(host, plane.stored_sanity(host))
-            recommendation = plane.selection.recommend(
-                envelope=envelope,
-                candidates=plane.models.entries(),
-                runtime_compatibility=_runtime_compat(host)[1],
+            view, envelope, rows = _assessments(host)
+            recommendation = recommend_from_view(
+                plane.selection,
+                view,
+                envelope,
+                plane.models.entries(),
+                rows,
             )
             if recommendation.primary is None:
                 raise PreconditionFailedError("no recommended candidate to acquire")
@@ -820,6 +889,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/models", models)
     router.get("/models/selection", models_selection)
     router.get("/models/eligible", models_eligible)
+    router.get("/models/requirements", models_requirements)
 
     def resources_summary(_: ApiRequest) -> object:
         """SAFE / RESERVED / AVAILABLE. Reserved is not running."""
@@ -879,11 +949,14 @@ def register(router: Router, plane: ControlPlane) -> Router:
         token = (request.query.get("request_id") or "").strip()
         request_id = RequestId.parse(token) if token else None
         host = plane.hosts.current
+        view, mapping = _runtime_compat(host)
         return plane.admission.reserve(
             ArtifactId.parse(raw),
             host,
             plane.stored_sanity(host),
-            _runtime_compat(host)[1],
+            mapping,
+            runtime=_selected_runtime(view) or "unresolved",
+            runtime_version=_selected_version(view),
             request_id=request_id,
         )
 

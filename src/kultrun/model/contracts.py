@@ -366,6 +366,19 @@ class ModelRequirement(Contract):
         "typed provider failure when this result is not usable evidence",
         default=NOT_PROVIDED,
     )
+    assumed_runtime: Maybe[str] = meaning(
+        "runtime identity these figures assume; selected verified foundation, "
+        "never catalog supported_runtimes[0]",
+        default=NOT_PROVIDED,
+    )
+    assumed_runtime_version: Maybe[str] = meaning(
+        "runtime version these figures assume, when known",
+        default=NOT_PROVIDED,
+    )
+    requirement_basis: Maybe[str] = meaning(
+        "fingerprint of eligibility view, profile, model, and estimator",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="model.inventory_record", version=1)
@@ -481,6 +494,10 @@ class ModelEstimationRequest(Contract):
         "concurrency assumption; v0 is 1",
         default=1,
     )
+    runtime_version: Maybe[str] = meaning(
+        "exact runtime version the estimate must assume, when known",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="model.acquisition_request", version=1)
@@ -581,9 +598,7 @@ class ArtifactManifest(Contract):
     verification_method: str = meaning("how verification was performed")
     acquired_at: dt.datetime = meaning("when promotion succeeded, UTC")
     manifest_version: str = meaning("manifest format version", default="1")
-    requested_revision: Maybe[str] = meaning(
-        "what was asked for", default=NOT_PROVIDED
-    )
+    requested_revision: Maybe[str] = meaning("what was asked for", default=NOT_PROVIDED)
     artifact_format: Maybe[str] = meaning("weight format", default=NOT_PROVIDED)
     quantization: Maybe[str] = meaning("variant", default=NOT_PROVIDED)
     license_id: Maybe[str] = meaning(

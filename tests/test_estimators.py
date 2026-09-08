@@ -61,7 +61,7 @@ def _request(
         artifact_format=NOT_PROVIDED,
         quantization=meta.quantization if quantization is None else quantization,
         context_tokens=(req.assumed_context_tokens if context is None else context),
-        runtime=meta.supported_runtimes[0],
+        runtime="vllm",
         placement=placement,
         offload_allowed=offload,
         tensor_parallel=tensor_parallel,
@@ -89,9 +89,7 @@ class TestThePort:
         settings = config_schema().load({}).section(PlatformSettings)
         assert settings.model_requirement_estimator == "auto"
 
-    def test_an_unknown_provider_is_a_configuration_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_unknown_provider_is_a_configuration_error(self, tmp_path: Path) -> None:
         configuration = config_schema().load(
             {
                 "platform": {

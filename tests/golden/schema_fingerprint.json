@@ -3014,6 +3014,13 @@
         "optional": false,
         "type": "str | Unresolved"
       },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "exact runtime version the estimate must assume, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "source_ref": {
         "may_be_unresolved": false,
         "meaning": "upstream identity the provider must look up",
@@ -3232,6 +3239,20 @@
         "optional": true,
         "type": "int | Unresolved"
       },
+      "assumed_runtime": {
+        "may_be_unresolved": true,
+        "meaning": "runtime identity these figures assume; selected verified foundation, never catalog supported_runtimes[0]",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "assumed_runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "runtime version these figures assume, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "assumptions": {
         "may_be_unresolved": false,
         "meaning": "what the estimator assumed; substitution of quant, context, model or offload is forbidden",
@@ -3343,6 +3364,13 @@
         "nullable": false,
         "optional": true,
         "type": "tuple[str, ...]"
+      },
+      "requirement_basis": {
+        "may_be_unresolved": true,
+        "meaning": "fingerprint of eligibility view, profile, model, and estimator",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "storage_bytes": {
         "may_be_unresolved": true,
