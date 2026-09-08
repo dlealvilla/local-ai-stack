@@ -10,6 +10,7 @@ launch spec into an `ExecutorSpec`.
 
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -428,4 +429,137 @@ class RuntimeResolution(Contract):
     notes: tuple[str, ...] = meaning(
         "resolver-level notes, e.g. unknown explicit request",
         default=(),
+    )
+
+
+class RuntimeProvisioningPlanId(EntityId):
+    """Deterministic identity of one exact intended install."""
+
+    prefix = "rplan"
+
+
+class RuntimeInstallationId(EntityId):
+    """Deterministic identity of the installation produced by one plan."""
+
+    prefix = "rinst"
+
+
+class InstallationStatus(StrEnum):
+    """Package lifecycle only. Not verified, ready, or running."""
+
+    INSTALLING = "installing"
+    INSTALLED = "installed"
+    FAILED = "failed"
+
+
+@contract(kind="runtime.provisioning_component", version=1)
+@dataclass(frozen=True, slots=True)
+class ProvisioningComponent(Contract):
+    """One package Kultrun intends to install. Not a pip command line."""
+
+    category: str = meaning("component category, e.g. python-package")
+    name: Name = meaning("package or binary name, e.g. vllm")
+    version: str = meaning("exact version pin")
+    source: str = meaning("package source identity, e.g. pypi")
+    installer: str = meaning("installer mechanism name, e.g. pip")
+
+
+@contract(kind="runtime.provisioning_plan", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeProvisioningPlan(Contract):
+    """Exact intended install. Immutable once persisted. Not verified."""
+
+    plan_id: RuntimeProvisioningPlanId = meaning(
+        "fingerprint of this exact intended install"
+    )
+    candidate_id: RuntimeCandidateId = meaning("RuntimeCandidate this plan came from")
+    runtime: Name = meaning("runtime family/provider identity")
+    runtime_family: Name = meaning("runtime family; v0 matches runtime")
+    runtime_provider: Name = meaning("runtime provider; v0 matches runtime")
+    runtime_version: str = meaning("exact version pin, never latest")
+    executor: Name = meaning("executor identity this install is for")
+    host_id: HostId = meaning("host this plan was made for")
+    host_fingerprint: str = meaning("host fingerprint at plan creation")
+    python_version: str = meaning("required Python version, e.g. 3.12")
+    installation_root: str = meaning(
+        "destination relative to the Kultrun state root"
+    )
+    installer: str = meaning("installer name, e.g. pip")
+    installer_mechanism: str = meaning(
+        "how isolation is realized, e.g. python-venv-pip"
+    )
+    plan_fingerprint: str = meaning("full SHA-256 of the identity material")
+    created_at: dt.datetime = meaning("when the plan was first persisted, UTC")
+    python_executable: Maybe[str] = meaning(
+        "host interpreter used to create the venv, when known",
+        default=NOT_PROVIDED,
+    )
+    components: tuple[ProvisioningComponent, ...] = meaning(
+        "packages this plan will install", default=()
+    )
+    required_prerequisites: tuple[str, ...] = meaning(
+        "facts that must hold before install", default=()
+    )
+    unresolved_prerequisites: tuple[str, ...] = meaning(
+        "required facts that were unknown at plan time", default=()
+    )
+    provenance: tuple[str, ...] = meaning(
+        "short lineage; never a vendor object", default=()
+    )
+
+
+@contract(kind="runtime.installation", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeInstallation(Contract):
+    """Receipt that packages were installed. Not a capability profile."""
+
+    installation_id: RuntimeInstallationId = meaning(
+        "fingerprint of the install produced by one plan"
+    )
+    plan_id: RuntimeProvisioningPlanId = meaning("plan that produced this install")
+    candidate_id: RuntimeCandidateId = meaning("candidate the plan was made from")
+    runtime: Name = meaning("runtime family/provider identity")
+    runtime_family: Name = meaning("runtime family; v0 matches runtime")
+    runtime_provider: Name = meaning("runtime provider; v0 matches runtime")
+    runtime_version: str = meaning("exact version that was requested")
+    executor: Name = meaning("executor identity this install is for")
+    host_id: HostId = meaning("host the install was performed on")
+    host_fingerprint: str = meaning("host fingerprint recorded on the plan")
+    status: InstallationStatus = meaning("installing, installed, or failed")
+    installation_root: str = meaning(
+        "final destination relative to the Kultrun state root"
+    )
+    installer: str = meaning("installer name, e.g. pip")
+    package_source: str = meaning("package source identity, e.g. pypi")
+    created_at: dt.datetime = meaning("when the install record was created, UTC")
+    attempt_count: int = meaning("how many explicit provision attempts", default=1)
+    python_executable: Maybe[str] = meaning(
+        "python inside the isolated environment", default=NOT_PROVIDED
+    )
+    python_version: Maybe[str] = meaning(
+        "python version inside the isolated environment", default=NOT_PROVIDED
+    )
+    installer_version: Maybe[str] = meaning(
+        "installer version string when captured", default=NOT_PROVIDED
+    )
+    provenance_manifest_path: Maybe[str] = meaning(
+        "installer report path relative to the state root", default=NOT_PROVIDED
+    )
+    provenance_manifest_sha256: Maybe[str] = meaning(
+        "SHA-256 of the installer report", default=NOT_PROVIDED
+    )
+    resolved_runtime_version: Maybe[str] = meaning(
+        "top-level package metadata version after install", default=NOT_PROVIDED
+    )
+    started_at: dt.datetime | None = meaning(
+        "when the current attempt began", default=None
+    )
+    completed_at: dt.datetime | None = meaning(
+        "when the current attempt finished", default=None
+    )
+    last_failure_code: Maybe[str] = meaning(
+        "normalized failure code when status is failed", default=NOT_PROVIDED
+    )
+    last_failure_message: Maybe[str] = meaning(
+        "short failure detail; not a traceback dump", default=NOT_PROVIDED
     )

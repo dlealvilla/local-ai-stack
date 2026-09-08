@@ -351,6 +351,24 @@ deterministic ranking, and a declared vLLM support descriptor that is
 never imported or executed. T3 is not required: the stage consumes
 already-proven Host and Executor evidence and does not install a runtime.
 
+**Stage 1.6C** is T0/T1/T2 control-plane provisioning plus a required
+real-install T3 for L2 close. Tests cover plan identity, provisionability,
+staging/atomic promotion, installer provenance, idempotency, explicit
+retry, INSTALLING conflict, architecture non-edges, and that the
+persisted interpreter path is the promoted venv rather than deleted
+staging. T2 uses the fixture provisioner in a clean wheel; that is not
+real vLLM. T3 passed L2: `VllmNativeProvisioner` installed exact
+`vllm==0.28.0` into a Kultrun-owned isolated venv on Linux x86_64 with
+an NVIDIA RTX A6000 (driver 580.159.04) and host Python 3.12.3.
+Success is package metadata plus installer-report provenance, never
+`import vllm` or engine init. `INSTALLED` is not `VERIFIED`.
+
+Bounded administrator selection is a cross-cutting principle
+(`docs/ROADMAP.md` Part II §11). Tests that mutate provisioning must
+prove the explicit candidate is the one installed: no silent
+substitution of the AUTO recommendation. Ranking, alternatives UI, and
+verify endpoints are out of this stage.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.

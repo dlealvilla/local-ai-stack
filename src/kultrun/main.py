@@ -30,6 +30,8 @@ from kultrun.adapters.install import apt
 from kultrun.adapters.model_source.candidates import acceptance_candidate
 from kultrun.adapters.model_source.huggingface import HuggingFaceSource
 from kultrun.adapters.persistence import file_store
+from kultrun.adapters.provisioning.fixture import FixtureRuntimeProvisioner
+from kultrun.adapters.provisioning.vllm_native import VllmNativeProvisioner
 from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.runtime.serving import ReferenceServingRuntime
 from kultrun.adapters.runtime.vllm import VllmRuntimeSupport
@@ -107,7 +109,14 @@ from kultrun.resource.lock import AdmissionLock
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
 from kultrun.runtime.catalogue import RuntimeCatalogue
-from kultrun.runtime.contracts import RuntimePolicy, RuntimeResolverMode
+from kultrun.runtime.contracts import (
+    RuntimePolicy,
+    RuntimeProvisioningPlanId,
+    RuntimeResolverMode,
+)
+from kultrun.runtime.lock import ProvisioningLock
+from kultrun.runtime.ports import RuntimeProvisioner
+from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import path_presence, resolve
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
 from kultrun.storage.contracts import StorageSanityEvidence
@@ -255,6 +264,7 @@ class Platform:
     resources: ResourceManager
     admission: AdmissionService
     instances: InstanceService
+    provisioning: ProvisioningService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -293,6 +303,7 @@ ESTIMATOR_MODES = ("auto", "llmfit", "kultrun")
 ACQUISITION_VARIABLE = "KULTRUN_MODEL_ACQUISITION_PROVIDER"
 ACQUISITION_MODES = ("huggingface", "fixture")
 EXECUTOR_VARIABLE = "KULTRUN_EXECUTOR"
+PROVISIONER_VARIABLE = "KULTRUN_RUNTIME_PROVISIONER"
 CONTAINER_IMAGE_VARIABLE = "KULTRUN_CONTAINER_IMAGE"
 LIVE_EXECUTORS = ("native-process", "container-docker")
 REFERENCE_CONTAINER_IMAGE = "kultrun-reference-serving:stage-16a"
@@ -405,6 +416,24 @@ def resolve_acquisition(name: str) -> ModelAcquisitionProvider:
     return acquisition_registry().create(name)
 
 
+def resolve_runtime_provisioner(
+    name: str | None, *, fixture_host: bool
+) -> RuntimeProvisioner:
+    """Fixture on captured hosts; native vLLM on live hosts unless overridden."""
+    chosen = (name or os.environ.get(PROVISIONER_VARIABLE) or "").strip()
+    if not chosen:
+        chosen = "fixture" if fixture_host else "vllm-native"
+    if chosen == "fixture":
+        return FixtureRuntimeProvisioner()
+    if chosen in {"vllm-native", "vllm"}:
+        return VllmNativeProvisioner()
+    raise ConfigError(
+        "unknown runtime provisioner",
+        requested=chosen,
+        registered=["fixture", "vllm-native"],
+    )
+
+
 def resolve_estimator(mode: str) -> ModelRequirementEstimator:
     """auto → llmfit then Kultrun; llmfit/kultrun stay strict."""
     if mode not in ESTIMATOR_MODES:
@@ -444,6 +473,7 @@ def build(
     provisioners: Sequence[ComponentProvisioner] | None = None,
     fixture: str | None = None,
     acquisition_adapter: str | None = None,
+    runtime_provisioner: str | None = None,
 ) -> Platform:
     """Assemble the platform and run its startup path.
 
@@ -577,6 +607,17 @@ def build(
         store, resolved_clock, inventory, resources, executions, runtimes
     )
     instances.reconcile()
+    runtime_installer = resolve_runtime_provisioner(
+        runtime_provisioner, fixture_host=shape is not None
+    )
+    provisioning = ProvisioningService(
+        store,
+        resolved_clock,
+        runtime_installer,
+        state_root,
+        ProvisioningLock(state_root),
+    )
+    provisioning.reconcile()
     admission = AdmissionService(
         resources,
         inventory,
@@ -607,6 +648,7 @@ def build(
         resources=resources,
         admission=admission,
         instances=instances,
+        provisioning=provisioning,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
@@ -634,6 +676,7 @@ def build(
         resources=resources,
         admission=admission,
         instances=instances,
+        provisioning=provisioning,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -984,19 +1027,30 @@ def _runtime(arguments: Sequence[str]) -> int:
 
 
 def _runtimes(arguments: Sequence[str]) -> int:
-    """Read-only runtime candidate resolution. Does not install anything."""
+    """Runtime candidates and provisioning. GET candidates never install."""
     if not arguments or arguments[0] in ("-h", "--help"):
         print(
-            "usage: kultrun runtimes candidates [--runtime NAME] "
-            "[--allow-test-only] [--allow-reference]",
+            "usage: kultrun runtimes {candidates,plan,provision,installations} "
+            "[...]",
             file=sys.stderr,
         )
         return 0 if arguments else 2
-    if arguments[0] != "candidates":
-        print(f"kultrun: unknown runtimes command {arguments[0]!r}", file=sys.stderr)
-        print("usage: kultrun runtimes candidates [--runtime NAME]", file=sys.stderr)
-        return 2
-    return show_runtime_candidates(list(arguments[1:]))
+    command = arguments[0]
+    rest = list(arguments[1:])
+    if command == "candidates":
+        return show_runtime_candidates(rest)
+    if command == "plan":
+        return plan_runtime(rest)
+    if command == "provision":
+        return provision_runtime(rest)
+    if command == "installations":
+        return show_runtime_installations()
+    print(f"kultrun: unknown runtimes command {command!r}", file=sys.stderr)
+    print(
+        "usage: kultrun runtimes {candidates,plan,provision,installations}",
+        file=sys.stderr,
+    )
+    return 2
 
 
 def show_runtime_candidates(arguments: Sequence[str]) -> int:
@@ -1077,9 +1131,107 @@ def show_runtime_candidates(arguments: Sequence[str]) -> int:
     for item in rows:
         mark = "*" if preferred == item.candidate_id.value else "-"
         print(
-            f"{mark} {item.runtime.value:16} {item.executor.value:18} "
-            f"{item.compatibility.value:12} {item.support_tier.value:10} "
-            f"{item.reason}"
+            f"{mark} {item.candidate_id.value} {item.runtime.value:16} "
+            f"{item.executor.value:18} {item.compatibility.value:12} "
+            f"{item.support_tier.value:10} {item.reason}"
+        )
+    return 0
+
+
+def plan_runtime(arguments: Sequence[str]) -> int:
+    """Persist an exact provisioning plan for one candidate."""
+    if not arguments:
+        print("usage: kultrun runtimes plan <candidate-id>", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    plan = platform.provisioning.create_plan(
+        arguments[0],
+        host,
+        (
+            platform.executions.capabilities(host),
+            platform.plane.container_capability(host),
+        ),
+        platform.runtimes.descriptors(),
+        RuntimePolicy(),
+        components=path_presence(
+            [
+                component.value
+                for descriptor in platform.runtimes.descriptors()
+                for component in descriptor.required_components
+            ]
+        ),
+    )
+    print(
+        f"plan {plan.plan_id.value}  {plan.runtime.value}=={plan.runtime_version}  "
+        f"{plan.executor.value}  {plan.installation_root}"
+    )
+    return 0
+
+
+def provision_runtime(arguments: Sequence[str]) -> int:
+    """Install a plan into an isolated environment. Not verification."""
+    retry = False
+    rest = [token for token in arguments if token != "--retry"]
+    if "--retry" in arguments:
+        retry = True
+    if not rest:
+        print(
+            "usage: kultrun runtimes provision <plan-id> [--retry]",
+            file=sys.stderr,
+        )
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    installation = platform.provisioning.provision(
+        RuntimeProvisioningPlanId.parse(rest[0]),
+        host,
+        (
+            platform.executions.capabilities(host),
+            platform.plane.container_capability(host),
+        ),
+        platform.runtimes.descriptors(),
+        components=path_presence(
+            [
+                component.value
+                for descriptor in platform.runtimes.descriptors()
+                for component in descriptor.required_components
+            ]
+        ),
+        retry=retry,
+    )
+    print(
+        f"installation {installation.installation_id.value}  "
+        f"{installation.status.value}  "
+        f"{installation.runtime.value}=={installation.runtime_version}  "
+        f"attempts {installation.attempt_count}"
+    )
+    if installation.status.value == "failed":
+        code = (
+            installation.last_failure_code
+            if isinstance(installation.last_failure_code, str)
+            else "-"
+        )
+        print(f"failure {code}")
+        return 1
+    return 0
+
+
+def show_runtime_installations() -> int:
+    """List persisted installations. Installed is not verified."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    items = platform.provisioning.installations()
+    if not items:
+        print("no runtime installations")
+        return 0
+    for item in items:
+        print(
+            f"{item.installation_id.value}  {item.status.value}  "
+            f"{item.runtime.value}=={item.runtime_version}  "
+            f"{item.executor.value}  verified false"
         )
     return 0
 

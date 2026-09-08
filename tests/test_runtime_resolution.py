@@ -386,7 +386,7 @@ def test_runtime_resolver_class_delegates_to_resolve() -> None:
 
 def test_vllm_adapter_does_not_launch_or_import_vllm() -> None:
     adapter = VllmRuntimeSupport()
-    with pytest.raises(ValidationError, match="not installed"):
+    with pytest.raises(ValidationError, match="not part of provisioning"):
         adapter.launch_spec()
     source = (
         SOURCE / "kultrun" / "adapters" / "runtime" / "vllm.py"
@@ -450,7 +450,7 @@ def test_api_candidates_are_read_only(tmp_path: Path) -> None:
     assert body["policy"]["requested_runtime"] == "vllm"
 
 
-def test_console_candidates_panel_has_no_mutations() -> None:
+def test_console_candidates_panel_has_no_verify_or_launch() -> None:
     html = (
         SOURCE
         / "kultrun"
@@ -463,10 +463,9 @@ def test_console_candidates_panel_has_no_mutations() -> None:
         SOURCE / "kultrun" / "adapters" / "http" / "console" / "app.js"
     ).read_text(encoding="utf-8")
     assert "Runtime candidates" in html
-    panel = html.split("Runtime candidates", 1)[1].split("<section", 1)[0]
-    assert "Install" not in panel
     assert "Start Runtime" not in html
+    assert "Launch Model" not in html
     candidates = html.split("candidates-panel", 1)[1].split("<section", 1)[0]
     assert "Verify" not in candidates
     assert "/runtimes/candidates" in script
-    assert "post('/runtimes" not in script
+    assert "post('/runtimes/verify" not in script

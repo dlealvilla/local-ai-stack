@@ -159,5 +159,27 @@ follows the active reservation; stored/active are states, not
 partitions. Checkpoint:
 `checkpoints/STAGE-1.5B-inference-instance-lifecycle.json`.
 
-**Next:** Stage 1.6 — real model runtime + real inference, under a
-separate bounded brief. Do not begin it from 1.5B.
+**Stage 1.5C is closed** at `L1`. Runtime / Executor boundary
+reconciliation. Checkpoint:
+`checkpoints/STAGE-1.5C-runtime-executor-reconciliation.json`.
+
+**Stage 1.6A is closed** at `L2`. Minimal ContainerExecutor and
+executor portability. Checkpoint:
+`checkpoints/STAGE-1.6A-container-executor.json`.
+
+**Stage 1.6B is closed** at `L1`. RuntimeResolver and RuntimeCandidate.
+Checkpoint: `checkpoints/STAGE-1.6B-runtime-resolution.json`.
+
+**Stage 1.6C is closed** at `L2`. Runtime provisioning: exact plan and
+isolated `vllm==0.28.0` install. `INSTALLED` is not `VERIFIED`.
+Provisioning consumes the explicitly selected candidate and does not
+silently substitute another path. Checkpoint:
+`checkpoints/STAGE-1.6C-runtime-provisioning.json`.
+
+Bounded administrator selection and dependency recalculation are
+recorded in `docs/PRODUCT_VISION.md` §5.11 / §82 and
+`docs/ROADMAP.md` Part II §11. They become executable at 1.6E after
+verification. Do not begin 1.6D or 1.6E from this package.
+
+**Next:** Stage 1.6D Runtime Verification. Present depth options before
+implementation. Do not begin it from this package.

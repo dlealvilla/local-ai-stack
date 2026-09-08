@@ -46,7 +46,12 @@ from kultrun.platform.state import PlatformStateStore
 from kultrun.resource.contracts import RequestId, ReservationId
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.catalogue import RuntimeCatalogue
-from kultrun.runtime.contracts import RuntimePolicy, RuntimeResolverMode
+from kultrun.runtime.contracts import (
+    RuntimePolicy,
+    RuntimeProvisioningPlanId,
+    RuntimeResolverMode,
+)
+from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import path_presence, resolve
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService, summarize
@@ -78,6 +83,7 @@ class ControlPlane:
     resources: ResourceManager
     admission: AdmissionService
     instances: InstanceService
+    provisioning: ProvisioningService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -397,6 +403,73 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "install": False,
         }
 
+    def _executors(
+        host: HostCapabilities,
+    ) -> tuple[ExecutorCapabilityProfile, ExecutorCapabilityProfile]:
+        return (
+            plane.executions.capabilities(host),
+            plane.container_capability(host),
+        )
+
+    def _components() -> dict[str, str]:
+        required = [
+            component.value
+            for descriptor in plane.runtimes.descriptors()
+            for component in descriptor.required_components
+        ]
+        return path_presence(required)
+
+    def create_provisioning_plan(request: ApiRequest) -> object:
+        """Create an exact install plan. Does not install."""
+        candidate_id = (request.query.get("candidate_id") or "").strip()
+        if not candidate_id:
+            raise ValidationError(
+                "a candidate id is required", parameter="candidate_id"
+            )
+        host = plane.hosts.current
+        return plane.provisioning.create_plan(
+            candidate_id,
+            host,
+            _executors(host),
+            plane.runtimes.descriptors(),
+            RuntimePolicy(),
+            components=_components(),
+        )
+
+    def provision_runtime(request: ApiRequest) -> object:
+        """Install a persisted plan. Does not verify the engine."""
+        plan_id = (request.query.get("plan_id") or "").strip()
+        if not plan_id:
+            raise ValidationError("a plan id is required", parameter="plan_id")
+        retry = (request.query.get("retry") or "").lower() in {"1", "true", "yes"}
+        host = plane.hosts.current
+        return plane.provisioning.provision(
+            RuntimeProvisioningPlanId.parse(plan_id),
+            host,
+            _executors(host),
+            plane.runtimes.descriptors(),
+            components=_components(),
+            retry=retry,
+        )
+
+    def list_provisioning_plans(_: ApiRequest) -> dict[str, object]:
+        items = plane.provisioning.plans()
+        return {
+            "plans": list(items),
+            "count": len(items),
+            "mutations": False,
+            "verify": False,
+        }
+
+    def list_installations(_: ApiRequest) -> dict[str, object]:
+        items = plane.provisioning.installations()
+        return {
+            "installations": list(items),
+            "count": len(items),
+            "verified": False,
+            "mutations": False,
+        }
+
     def models(_: ApiRequest) -> dict[str, object]:
         """The curated candidate catalog. Read-only. No ranking, no download."""
         return {
@@ -528,6 +601,10 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/capacity/policy", capacity_policy)
     router.get("/runtime", runtime)
     router.get("/runtimes/candidates", runtime_candidates)
+    router.post("/runtimes/provisioning-plans", create_provisioning_plan)
+    router.post("/runtimes/provision", provision_runtime)
+    router.get("/runtimes/provisioning-plans", list_provisioning_plans)
+    router.get("/runtimes/installations", list_installations)
     router.post("/runtime/execution", start_reference)
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)

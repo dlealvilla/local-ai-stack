@@ -1077,6 +1077,381 @@ To make real: After RuntimeVerifier and real inference produce evidence.
 Retire when:  benchmark evidence is a ranking input with tests.
 Status:       OPEN
 
+### K-66 — Managed Python / Interpreter Provisioning
+Label:        DEFERRED — REQUIRED PRE-COMMERCIAL DEPLOYMENT CAPABILITY
+Owner stage:  later runtime / onboarding (after first runtime path is
+              provisioned, verified, and exercised end-to-end)
+Subsystem:    runtime / components
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: `kultrun.runtime.python.locate_python`
+What:         Stage 1.6C locates an already-present host Python 3.12 and
+              never installs one. Missing Python is a prerequisite
+              failure for this reference proof. The commercial product
+              must not require the customer to preinstall a specific
+              Python version. Future: determine the required interpreter
+              from the selected runtime path; reuse a compatible existing
+              interpreter where appropriate; otherwise acquire a trusted
+              Kultrun-managed interpreter; verify provenance/integrity;
+              install beneath Kultrun-managed state; never modify system
+              Python; hand the exact interpreter identity to
+              RuntimeProvisioner; persist and remain idempotent; integrate
+              with onboarding/bootstrapper.
+Why now:      The first physical vLLM install must complete before
+              interpreter acquisition is designed. Implementing K-66
+              inside 1.6C would expand the stage into OS/package
+              management.
+To make real: A dedicated interpreter provisioner port. Never apt, brew,
+              or pyenv inside VllmNativeProvisioner.
+Retire when:  managed Python is an accepted pre-commercial capability
+              with tests, and a commercial install no longer requires a
+              customer-supplied interpreter.
+Status:       OPEN
+
+### K-67 — Alternative installer backend (uv)
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: `VllmNativeProvisioner` / `python -m pip`
+What:         The first product installer is stdlib venv + pip. `uv` is
+              not an architectural requirement.
+Why now:      Keep the provisioning mechanism explicit and replaceable.
+To make real: A second RuntimeProvisioner adapter using uv, selected by
+              composition, with the same plan contract.
+Retire when:  an alternative installer adapter is an accepted stage output.
+Status:       OPEN
+
+### K-68 — Offline / air-gapped runtime bundles
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: PyPI as package source on RuntimeProvisioningPlan
+What:         Provisioning expects network access to the package index.
+              Pre-resolved offline bundles are not produced.
+Why now:      First proof is an exact online pin, not air-gap logistics.
+To make real: Vendor-prepared wheels/bundles with the same plan schema.
+Retire when:  offline runtime install is an accepted capability.
+Status:       OPEN
+
+### K-69 — Fully locked runtime dependency manifests
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: pip install report hashes captured when present; never
+              fabricated; not enforced against a lockfile
+What:         Transitive dependency hashes are recorded when the installer
+              reports them. There is no maintained lock of every vLLM
+              dependency.
+Why now:      A manual hash list would be stale the day it shipped.
+To make real: A generated lockfile/hash policy that fails closed.
+Retire when:  locked/offline bundles (K-68) need hash enforcement.
+Status:       OPEN
+
+### K-70 — Runtime package cache / mirror
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: installer uses the default package index
+What:         No customer-local or vendor-managed artifact cache.
+Why now:      One PyPI install is enough to prove isolated provisioning.
+To make real: A configured index/cache that the provisioner can consume.
+Retire when:  a cache/mirror is required for air-gap or repeat installs.
+Status:       OPEN
+
+### K-71 — Runtime upgrade
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: one pin per plan; older installations may remain stored
+What:         Installing a newer runtime version and deliberately promoting
+              it is not implemented. Version *selection* remains K-57.
+Why now:      This stage proves one exact install, not version management.
+To make real: An explicit upgrade workflow that creates a new plan and
+              installation without mutating the old receipt.
+Retire when:  upgrade is an accepted mutating workflow with tests.
+Status:       OPEN
+
+### K-72 — Runtime rollback
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: RuntimeInstallation remains INSTALLED regardless of later
+              verification
+What:         Returning to a prior installed version is not implemented.
+Why now:      Rollback without a verified second install is theatre.
+To make real: After side-by-side installs exist (K-74) and verification
+              can name which installation to serve.
+Retire when:  rollback is an accepted mutating workflow with tests.
+Status:       OPEN
+
+### K-73 — Runtime uninstall / garbage collection
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: failed staging is deleted; successful installs stay
+What:         Safe removal and disk reclamation of INSTALLED runtimes
+              is not implemented.
+Why now:      Cleanup of success would look like rollback and is easy
+              to get wrong around later verification.
+To make real: An explicit uninstall path constrained to Kultrun state.
+Retire when:  uninstall/GC is an accepted mutating workflow with tests.
+Status:       OPEN
+
+### K-74 — Side-by-side version management
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: path `runtimes/<family>/<version>/<installation-id>/`
+What:         Multiple versions of the same family may already occupy
+              disk, but there is no product policy for serving, listing
+              as current, or choosing among them.
+Why now:      One pin is the 1.6C proof.
+To make real: A current-installation marker that is not verification.
+Retire when:  side-by-side serving is an accepted capability.
+Status:       OPEN
+
+### K-75 — Containerized runtime provisioning
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime / execution
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: is_provisionable rejects non-native-process candidates
+What:         vLLM images through ContainerExecutor are not provisioned.
+              Container candidates remain resolution-only (K-33 GPU
+              exposure still unknown).
+Why now:      Native isolated venv is the first product installer.
+To make real: A container provisioner adapter that does not put Docker
+              fields on generic plans.
+Retire when:  containerized vLLM install is an accepted stage output.
+Status:       OPEN
+
+### K-76 — CUDA / toolkit dependency management
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime / components
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: unresolved driver/toolkit facts are non-provisionable
+What:         The runtime provisioner does not install CUDA toolkit or
+              matching userspace libraries.
+Why now:      That is system administration, not isolated package install.
+To make real: A separate prerequisite manager, if ever needed, outside
+              VllmNativeProvisioner.
+Retire when:  toolkit management is an explicit product decision with tests.
+Status:       OPEN
+
+### K-77 — Privileged Accelerator Driver Remediation
+Label:        DEFERRED — REQUIRED PRE-COMMERCIAL DRIVER BEHAVIOR
+Owner stage:  later host / onboarding
+Subsystem:    host / components
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: NVIDIA driver facts come from Host Discovery; the provisioner
+              never mutates them. A working driver is a Stage 1.6C host
+              prerequisite.
+What:         Prefer an existing adequate driver. Do not upgrade merely
+              because a newer version exists. Detect and explain
+              missing/insufficient drivers. Affected runtime candidates
+              remain BLOCKED until remediation succeeds; a theoretically
+              installable driver is not a selectable override.
+              Future validated behavior, only on specifically supported
+              host/distribution combinations, may: offer remediation →
+              require explicit administrator approval → install a
+              vendor-supported driver → reboot if required → rerun Host
+              Discovery → rerun Runtime Resolution → recompute
+              compatibility/feasibility. Silent AUTO driver mutation is
+              forbidden. Unsupported platforms may initially get guided
+              vendor-approved operator remediation rather than automation.
+              No promise to install every driver on every OS.
+Why now:      Isolated package install is not kernel/driver administration.
+              Commercial/non-technical readiness still needs a deliberate
+              missing-driver behavior (validated automatic remediation
+              and/or clear guided remediation).
+To make real: An explicit privileged-remediation workflow outside
+              VllmNativeProvisioner, with mandatory rediscovery after
+              any host-wide change.
+Retire when:  missing/insufficient driver behavior is an accepted
+              pre-commercial product path with tests.
+Status:       OPEN
+
+### K-78 — Concurrent / background provisioning jobs
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime / platform
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: `ProvisioningLock` serializes one control plane; INSTALLING
+              returns conflict
+What:         No job queue, progress, pause, or resume. Provision is
+              synchronous. Duplicate INSTALLING is a conflict, not a
+              second worker.
+Why now:      A scheduler would hide failure and retry semantics.
+To make real: A job contract that cannot authorize a different plan.
+Retire when:  background provisioning is an accepted control-plane feature.
+Status:       OPEN
+
+### K-79 — Signed runtime artifacts / supply-chain verification
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: installer report path + SHA-256 of the report bytes
+What:         Provenance is the pip install report and package metadata.
+              There is no signature verification of wheels or indexes.
+Why now:      First proof is isolated install + metadata version.
+To make real: Signed artifacts and index policy as commercialization
+              hardening, without making PyPI the semantic owner.
+Retire when:  signed runtime artifacts are an accepted security control.
+Status:       OPEN
+
+### K-80 — Richer recommendation scoring
+Label:        DEFERRED
+Owner stage:  1.6E / later planning
+Subsystem:    runtime / planning
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: RuntimeResolver ranking is static (K-56); ModelSelector
+              is not yet runtime-first (K-55)
+What:         Bounded selection needs a recommendation, not a scoring
+              DSL. Explainability, confidence, evidence fusion, and
+              workload-specific scores are not implemented.
+Why now:      1.6C provisions an explicit candidate. Scoring would
+              collapse verification into ranking.
+To make real: After verified feasible sets exist (1.6D/1.6E). Link K-56
+              and K-62 rather than duplicating them.
+Retire when:  a later stage accepts scored recommendations with tests.
+Status:       OPEN
+
+### K-81 — Override governance
+Label:        DEFERRED
+Owner stage:  later platform / identity
+Subsystem:    platform / audit
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: Approval exists from 0.3; override reason, expiry, and
+              two-person approval do not
+What:         Operator-supplied override reason, mandatory reasons for
+              sensitive changes, approval workflows beyond existing
+              meaningful-action approval, override expiry, richer audit.
+Why now:      Bounded selection is not yet executable. Governance UX
+              would be theatre.
+To make real: After AUTO/MANUAL exists on a verified feasible set.
+Retire when:  override governance is an accepted mutating workflow.
+Status:       OPEN
+
+### K-82 — Return-to-AUTO selection mode
+Label:        DEFERRED
+Owner stage:  1.6E / later planning
+Subsystem:    planning / runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: Preserve `selection_mode` AUTO|MANUAL when 1.6E lands
+What:         Removing a manual constraint, re-running recommendation,
+              and invalidating downstream state is not implemented.
+Why now:      No bounded runtime selection yet.
+To make real: After selected vs recommended identities exist.
+Retire when:  return-to-AUTO is tested for at least one domain.
+Status:       OPEN
+
+### K-83 — Generic selection / dependency-graph engine
+Label:        DEFERRED
+Owner stage:  later
+Subsystem:    planning / platform
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: Control plane coordinates when; domains own how
+What:         No `SelectionFramework<T>`, reactive dependency engine,
+              scoring DSL, or configuration optimizer. Incremental
+              recomputation, impact previews, and automatic plan-repair
+              are also out.
+Why now:      Generalizing before two concrete domains share behavior
+              would erase domain validation semantics.
+To make real: After runtime selection and runtime-aware model selection
+              both exist and duplication is measured.
+Retire when:  a shared value object is justified by implemented domains.
+Status:       OPEN
+
+### K-84 — Override and recommendation analytics
+Label:        DEFERRED
+Owner stage:  later analytics
+Subsystem:    analytics
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: UsageEvent / AuditEvent exist; recommendation-vs-selection
+              telemetry does not
+What:         Acceptance rate, override frequency, override outcomes,
+              headroom-risk analytics, team/org override patterns.
+Why now:      Nothing is selected from a verified feasible set yet.
+To make real: After bounded selection exists and privacy boundaries for
+              this telemetry are explicit.
+Retire when:  recommendation-versus-selection telemetry is accepted.
+Status:       OPEN
+
+### K-85 — Organisational preference policies
+Label:        DEFERRED
+Owner stage:  later policy
+Subsystem:    policy / planning
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: SelectionPolicy is utilization-band bounds, not org taste
+What:         Organisation, team, application, or department defaults
+              and configurable recommendation priorities.
+Why now:      Milestone 1 must not grow a preference hierarchy.
+To make real: After bounded AUTO/MANUAL exists on verified paths.
+Retire when:  preference policy is an accepted, non-authorizing input.
+Status:       OPEN
+
+### K-86 — DeploymentPlan freshness / stale-plan seam
+Label:        DEFERRED
+Owner stage:  later planning
+Subsystem:    planning
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: DeploymentPlan v0 is a recommendation artifact, not an
+              executable selected configuration with revision
+What:         VALID vs STALE/REQUIRES REPLAN when host, runtime, model,
+              capacity, or policy inputs change after plan generation.
+              Recommendation vs selected provenance on the plan.
+Why now:      Executable selected plans come after 1.6E and model remap.
+To make real: Preserve selected vs recommended identity when the plan
+              becomes authoritative for execution.
+Retire when:  plan invalidation/versioning has tests.
+Status:       OPEN
+
+### K-87 — Eligible-model view vs global catalog
+Label:        DEFERRED
+Owner stage:  runtime-aware model selection
+Subsystem:    model / planning
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: Catalog is curated discoverable entries; eligibility is
+              not yet runtime-first (K-55)
+What:         Host/runtime/executor/policy/resource-specific eligible
+              and blocked model views, recomputed when those inputs
+              change. Current selected model must be rechecked.
+Why now:      1.6C does not remap selection.
+To make real: After 1.6D/1.6E produce a selected verified runtime path.
+Retire when:  executable selection consumes a derived eligible view.
+Status:       OPEN
+
 ## Deferred capability register
 
 Distinct from the debt entries above. A debt entry records an approximation

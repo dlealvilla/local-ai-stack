@@ -5116,6 +5116,193 @@
     },
     "python": "RuntimeCandidate"
   },
+  "runtime.installation@1": {
+    "fields": {
+      "attempt_count": {
+        "may_be_unresolved": false,
+        "meaning": "how many explicit provision attempts",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "candidate_id": {
+        "may_be_unresolved": false,
+        "meaning": "candidate the plan was made from",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeCandidateId"
+      },
+      "completed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the current attempt finished",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the install record was created, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "executor": {
+        "may_be_unresolved": false,
+        "meaning": "executor identity this install is for",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "host fingerprint recorded on the plan",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host the install was performed on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "installation_id": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of the install produced by one plan",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeInstallationId"
+      },
+      "installation_root": {
+        "may_be_unresolved": false,
+        "meaning": "final destination relative to the Kultrun state root",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "installer": {
+        "may_be_unresolved": false,
+        "meaning": "installer name, e.g. pip",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "installer_version": {
+        "may_be_unresolved": true,
+        "meaning": "installer version string when captured",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "last_failure_code": {
+        "may_be_unresolved": true,
+        "meaning": "normalized failure code when status is failed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "last_failure_message": {
+        "may_be_unresolved": true,
+        "meaning": "short failure detail; not a traceback dump",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "package_source": {
+        "may_be_unresolved": false,
+        "meaning": "package source identity, e.g. pypi",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "plan_id": {
+        "may_be_unresolved": false,
+        "meaning": "plan that produced this install",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeProvisioningPlanId"
+      },
+      "provenance_manifest_path": {
+        "may_be_unresolved": true,
+        "meaning": "installer report path relative to the state root",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "provenance_manifest_sha256": {
+        "may_be_unresolved": true,
+        "meaning": "SHA-256 of the installer report",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "python_executable": {
+        "may_be_unresolved": true,
+        "meaning": "python inside the isolated environment",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "python_version": {
+        "may_be_unresolved": true,
+        "meaning": "python version inside the isolated environment",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "resolved_runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "top-level package metadata version after install",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family/provider identity",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family; v0 matches runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "runtime provider; v0 matches runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact version that was requested",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "started_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the current attempt began",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "installing, installed, or failed",
+        "nullable": false,
+        "optional": false,
+        "type": "InstallationStatus"
+      }
+    },
+    "python": "RuntimeInstallation"
+  },
   "runtime.launch_request@1": {
     "fields": {
       "artifact_id": {
@@ -5338,6 +5525,191 @@
       }
     },
     "python": "RuntimeProfile"
+  },
+  "runtime.provisioning_component@1": {
+    "fields": {
+      "category": {
+        "may_be_unresolved": false,
+        "meaning": "component category, e.g. python-package",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "installer": {
+        "may_be_unresolved": false,
+        "meaning": "installer mechanism name, e.g. pip",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "name": {
+        "may_be_unresolved": false,
+        "meaning": "package or binary name, e.g. vllm",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "source": {
+        "may_be_unresolved": false,
+        "meaning": "package source identity, e.g. pypi",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "version": {
+        "may_be_unresolved": false,
+        "meaning": "exact version pin",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "ProvisioningComponent"
+  },
+  "runtime.provisioning_plan@1": {
+    "fields": {
+      "candidate_id": {
+        "may_be_unresolved": false,
+        "meaning": "RuntimeCandidate this plan came from",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeCandidateId"
+      },
+      "components": {
+        "may_be_unresolved": false,
+        "meaning": "packages this plan will install",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ProvisioningComponent, ...]"
+      },
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the plan was first persisted, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "executor": {
+        "may_be_unresolved": false,
+        "meaning": "executor identity this install is for",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "host fingerprint at plan creation",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this plan was made for",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "installation_root": {
+        "may_be_unresolved": false,
+        "meaning": "destination relative to the Kultrun state root",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "installer": {
+        "may_be_unresolved": false,
+        "meaning": "installer name, e.g. pip",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "installer_mechanism": {
+        "may_be_unresolved": false,
+        "meaning": "how isolation is realized, e.g. python-venv-pip",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "plan_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "full SHA-256 of the identity material",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "plan_id": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of this exact intended install",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeProvisioningPlanId"
+      },
+      "provenance": {
+        "may_be_unresolved": false,
+        "meaning": "short lineage; never a vendor object",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "python_executable": {
+        "may_be_unresolved": true,
+        "meaning": "host interpreter used to create the venv, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "python_version": {
+        "may_be_unresolved": false,
+        "meaning": "required Python version, e.g. 3.12",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "required_prerequisites": {
+        "may_be_unresolved": false,
+        "meaning": "facts that must hold before install",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family/provider identity",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family; v0 matches runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "runtime provider; v0 matches runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact version pin, never latest",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "unresolved_prerequisites": {
+        "may_be_unresolved": false,
+        "meaning": "required facts that were unknown at plan time",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      }
+    },
+    "python": "RuntimeProvisioningPlan"
   },
   "runtime.readiness@1": {
     "fields": {

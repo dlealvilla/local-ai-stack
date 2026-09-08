@@ -217,7 +217,7 @@ adapter = VllmRuntimeSupport()
 try:
     adapter.launch_spec()
 except ValidationError as error:
-    assert 'not installed' in str(error)
+    assert 'not part of provisioning' in str(error)
 else:
     raise SystemExit('vLLM launch_spec must refuse')
 try:
