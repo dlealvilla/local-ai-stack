@@ -13,6 +13,7 @@ from kultrun.runtime.contracts import (
     RuntimeSupportDescriptor,
     RuntimeSupportTier,
 )
+from kultrun.runtime.pins import VLLM_VERSION
 
 IDENTITY = Name("vllm")
 NATIVE = Name("native-process")
@@ -20,7 +21,7 @@ CONTAINER = Name("container-docker")
 
 
 class VllmRuntimeSupport:
-    """Product family descriptor. Launch is refused until Stage 1.6C."""
+    """Product family descriptor. Launch is refused until verification."""
 
     @property
     def identity(self) -> Name:
@@ -50,14 +51,15 @@ class VllmRuntimeSupport:
                 "environment_variables",
             ),
             required_components=(Name("vllm"),),
+            preferred_version=VLLM_VERSION,
             known_formats=("safetensors",),
             limitations=(
-                "declared support only; not installed or verified",
+                "declared support plus exact provisioning pin; not verified",
                 "NVIDIA/CUDA-oriented product path",
                 "container GPU exposure is unknown (K-33)",
-                "version is not pinned until provisioning/verification",
+                f"provisioning pin vllm=={VLLM_VERSION} is not engine proof",
             ),
-            evidence=("stage-1.6B-declared-support",),
+            evidence=("stage-1.6C-provisioning-pin",),
             confidence=Confidence.MEDIUM,
         )
 
@@ -66,7 +68,7 @@ class VllmRuntimeSupport:
     ) -> RuntimeLaunchSpec:
         del request
         raise ValidationError(
-            "vLLM is not installed; provisioning is not part of runtime resolution",
+            "vLLM launch is not part of provisioning; verification is later",
             runtime=IDENTITY.value,
         )
 
@@ -82,5 +84,5 @@ class VllmRuntimeSupport:
         del stdout, stderr, execution_alive, bound_address, bound_port
         return RuntimeReadiness(
             ready=False,
-            reason="vLLM has not been provisioned or verified",
+            reason="vLLM has not been verified",
         )

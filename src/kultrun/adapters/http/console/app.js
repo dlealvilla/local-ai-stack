@@ -28,6 +28,7 @@ const SUBSYSTEMS = [
   { name: 'Storage sanity', probe: '/storage/sanity' },
   { name: 'Runtime / executor', probe: '/runtime' },
   { name: 'Runtime candidates', probe: '/runtimes/candidates' },
+  { name: 'Runtime installations', probe: '/runtimes/installations' },
   { name: 'Model catalog', probe: '/models' },
   { name: 'Model selection', probe: '/models/selection' },
   { name: 'Model inventory', probe: '/models/inventory' },
@@ -529,11 +530,15 @@ async function renderRuntimeCandidates() {
         grid.className = 'grid';
         rows(grid, [
           ['support tier', item.support_tier],
+          ['version', item.version || 'unspecified'],
           ['reason', item.reason],
           ['codes', (item.reason_codes || []).join(', ') || 'none'],
           ['group', label],
         ]);
         card.append(grid);
+        if (label === 'candidates') {
+          card.append(candidateActions(item));
+        }
         target.append(card);
       }
     }
@@ -541,12 +546,99 @@ async function renderRuntimeCandidates() {
       target.append(span('muted', ' No runtime candidates.'));
     }
     json(document.getElementById('candidates-json'), state);
+    await renderInstallations();
   } catch (error) {
     if (error.message.startsWith('404')) {
       panel.classList.add('hidden');
       return;
     }
     panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
+function candidateActions(item) {
+  const action = document.createElement('div');
+  action.className = 'action';
+  const plan = document.createElement('button');
+  plan.textContent = 'Create plan';
+  const provision = document.createElement('button');
+  provision.textContent = 'Provision';
+  provision.disabled = true;
+  const status = span('muted', '');
+  plan.addEventListener('click', async () => {
+    plan.disabled = true;
+    status.textContent = ' planning…';
+    try {
+      const created = await post('/runtimes/provisioning-plans', {
+        candidate_id: item.candidate_id,
+      });
+      status.textContent = ` plan ${created.plan_id}`;
+      provision.disabled = false;
+      provision.dataset.planId = created.plan_id;
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      plan.disabled = false;
+    }
+  });
+  provision.addEventListener('click', async () => {
+    const planId = provision.dataset.planId;
+    if (!planId) return;
+    provision.disabled = true;
+    status.textContent = ' provisioning…';
+    try {
+      const installed = await post('/runtimes/provision', { plan_id: planId });
+      status.textContent = ` ${installed.status} ${installed.installation_id}`;
+      await renderInstallations();
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      provision.disabled = false;
+    }
+  });
+  action.append(plan, provision, status);
+  return action;
+}
+
+async function renderInstallations() {
+  const target = document.getElementById('installations');
+  if (!target) return;
+  try {
+    const state = await get('/runtimes/installations');
+    target.replaceChildren();
+    const items = state.installations || [];
+    if (!items.length) {
+      target.append(span('muted', ' No runtime installations.'));
+      return;
+    }
+    for (const item of items) {
+      const card = document.createElement('div');
+      card.className = 'pool';
+      const head = document.createElement('div');
+      head.className = 'pool-head';
+      const title = document.createElement('span');
+      title.className = 'pool-path';
+      title.textContent = `${item.runtime || 'runtime'} ${item.runtime_version || ''}`;
+      head.append(
+        title,
+        pill(String(item.status || 'unknown'), item.status === 'installed' ? 'ok' : 'unknown'),
+      );
+      card.append(head);
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      rows(grid, [
+        ['installation', item.installation_id],
+        ['plan', item.plan_id],
+        ['executor', item.executor],
+        ['path', item.installation_root],
+        ['provenance', item.provenance_manifest_sha256 || 'none'],
+        ['verified', 'false'],
+      ]);
+      card.append(grid);
+      target.append(card);
+    }
+  } catch (error) {
     failure(target, error);
   }
 }

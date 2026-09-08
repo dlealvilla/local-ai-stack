@@ -160,6 +160,7 @@ ADAPTER_PORT_DOMAIN: Mapping[str, str] = {
     "entitlement": "entitlement",
     "adaptation": "training",
     "install": "install",
+    "provisioning": "runtime",
 }
 
 #: Part II §4. Nothing may import this package; it is strictly additive.
@@ -632,6 +633,9 @@ GENERIC_SEAM_KINDS = frozenset(
         "runtime.policy",
         "runtime.candidate",
         "runtime.resolution",
+        "runtime.provisioning_component",
+        "runtime.provisioning_plan",
+        "runtime.installation",
         "execution.spec",
         "execution.handle",
         "execution.capability_profile",
