@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping
 
 from kultrun.capacity.contracts import CapacityEnvelope
 from kultrun.kernel.clock import Clock
@@ -77,20 +78,27 @@ class SelectionService:
         *,
         envelope: CapacityEnvelope,
         candidates: tuple[ModelCatalogEntry, ...],
-        available_runtimes: tuple[str, ...] = (),
+        runtime_compatibility: Mapping[str, CompatibilityVerdict] | None = None,
     ) -> SelectionRecommendation:
         capacity = deployment_capacity(envelope)
         evaluations = []
         for entry in candidates:
             request = _request(entry, capacity.placement)
             requirement = self._estimator.estimate(request)
+            ident = entry.metadata.model_id.value
+            if runtime_compatibility is None:
+                verdict = CompatibilityVerdict.COMPATIBLE
+            else:
+                verdict = runtime_compatibility.get(
+                    ident, CompatibilityVerdict.UNRESOLVED
+                )
             evaluations.append(
                 evaluate(
                     entry.metadata,
                     requirement,
                     capacity,
-                    available_runtimes,
                     self._policy,
+                    runtime_compatibility=verdict,
                 )
             )
         return _select(
@@ -106,7 +114,7 @@ def plan_for_entry(
     service: SelectionService,
     entry: ModelCatalogEntry,
     envelope: CapacityEnvelope,
-    available_runtimes: tuple[str, ...] = (),
+    runtime_compatibility: CompatibilityVerdict | None = None,
 ) -> DeploymentPlan:
     """A plan for one known stored candidate. Does not change ranking."""
     capacity = deployment_capacity(envelope)
@@ -115,8 +123,9 @@ def plan_for_entry(
         entry.metadata,
         requirement,
         capacity,
-        available_runtimes,
         service.policy,
+        runtime_compatibility=runtime_compatibility
+        or CompatibilityVerdict.COMPATIBLE,
     )
     runtime = (
         evaluation.supported_runtimes[0] if evaluation.supported_runtimes else None

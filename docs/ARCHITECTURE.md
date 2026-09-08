@@ -769,10 +769,15 @@ candidate model cannot influence storage characterization because storage
 cannot see it.
 
 The catalog Kultrun knows about is not the set of models currently
-eligible to deploy. Eligibility is derived from host, selected
-runtime+executor, policy, and resources. That view is invalidated when
-those inputs change. Ranking and AUTO/MANUAL selection remain `planning`
-work, after a verified runtime exists (K-55, K-87).
+eligible to deploy. Stage 1.6F derives runtime/model technical
+compatibility as `EligibleModelView` from the selected foundation, a
+matching `RuntimeInstallation`, a fresh VERIFIED
+`RuntimeCapabilityProfile`, `RuntimeSupportDescriptor`, and global
+catalog facts. That view is contextual: the same `ModelMetadata` may be
+ELIGIBLE under one foundation and BLOCKED under another. Ranking, memory
+fit, and AUTO/MANUAL model selection remain `planning` work (K-55).
+Resource-fit eligibility is not this view (next: ModelRequirement +
+Capacity).
 
 ## TIER 4 — Recommend and authorize
 
@@ -798,11 +803,16 @@ and underutilized alternatives and rejected candidates. Later bounded
 selection must keep **recommended** distinct from **selected**, and must
 recompute the recommendation when an upstream runtime, executor, host,
 or policy input changes. The global model catalog is not the eligible
-view; eligibility is derived and stale after those inputs change.
+view; Stage 1.6F derives runtime compatibility and composition supplies
+`CompatibilityVerdict` tokens. Planning does not re-intersect catalog
+`supported_runtimes` with a local runtime list. Capacity fit remains
+planning-owned until the next migration.
 
 The composition root / control plane coordinates invalidation. `planning`
 owns how feasibility and selection are computed. Do not introduce a
-generic selection or dependency-graph engine here (K-83).
+generic selection or dependency-graph engine here (K-83). Planning must
+not import `runtime`; the eligibility → verdict copy lives in
+`platform.eligibility` (K-94).
 
 ### `resource`
 
@@ -896,14 +906,17 @@ capacity contract.
 
 | | |
 |---|---|
-| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, `FoundationSelection`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible. `FoundationSelection` records AUTO versus MANUAL choice; recommendation is not selection; provisionable is not executable. |
+| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, `FoundationSelection`, `RuntimeEligibleModelCandidate`, `EligibleModelView`, `ModelEligibilityService`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible by itself. `FoundationSelection` records AUTO versus MANUAL choice; recommendation is not selection; provisionable is not executable. `EligibleModelView` is the authoritative runtime/model compatibility path for the currently selected verified foundation. It does not acquire, rank, or admit. |
 | **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) |
 | **Ports** | `InferenceRuntime` · `RuntimeProvisioner` |
 | **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Treat `PROVISIONABLE` as `VERIFIED EXECUTABLE`. Silently substitute a different RuntimeCandidate than the one selected or supplied for provisioning. Rank or recommend during provisioning or verification. Overload `RuntimePolicy.mode` as product selection. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
-| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
+| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Eligibility** 1.6F (`EligibleModelView`) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
-Later deepening may read `host` and `model` contracts. It must never read
-`capacity` or `execution`. Stage 4.3 exists because the previous attempt
+Stage 1.6F consumes catalog facts copied by composition
+(`ModelEligibilityFacts`). Runtime still must not import `model`. It
+must never read `capacity` or `execution`. Runtime-specific
+compatibility interpretation is an adapter (`VllmModelCompatibility`),
+not a new domain port. Stage 4.3 exists because the previous attempt
 held a platform-level concurrency number that was never mapped to the
 runtime's own control. The mapping belongs here, inside the adapter's
 translation layer, and nowhere else.
@@ -1041,16 +1054,53 @@ VERIFIED EXECUTABLE FOUNDATION
         ↓
 [STOP 1.6E]
 
-Future, **not implemented in 1.6E** (K-87):
+Stage 1.6F runtime-aware eligible models consumes the selected
+verified foundation. It does not introduce `DeploymentFoundation`,
+`CompatibilityFramework`, or `ModelMetadataV2`.
 
 ```text
+FoundationSelection
+        ↓
+selected RuntimeCandidate
+        ↓
+matching RuntimeInstallation
+        ↓
 fresh VERIFIED RuntimeCapabilityProfile
         +
-Global Model Catalog
+RuntimeSupportDescriptor
         +
-policy
+Global Model Catalog / ModelMetadata facts
         ↓
-Runtime-aware Eligible Model View
+RuntimeEligibilityEvaluator (ModelEligibilityService)
+        ↓
+RuntimeEligibleModelCandidate[]
+        ↓
+EligibleModelView
+        ↓
+[STOP 1.6F]
+```
+
+`CURRENT` requires current `FoundationSelection`, the selected
+candidate, a matching INSTALLED installation, and a matching fresh
+VERIFIED profile. `foundation_stale` on the view copies
+`FoundationSelection.downstream_stale` and does not by itself force
+the view out of CURRENT when that verified path still matches.
+MANUAL uses `selected_candidate_id`, never the recommendation.
+UNKNOWN is never ELIGIBLE. RAM, VRAM, disk, reservations, and model
+size are not this view.
+
+Future, **not implemented in 1.6F**:
+
+```text
+RuntimeEligibleModelCandidate
+        +
+fresh VERIFIED RuntimeCapabilityProfile
+        +
+deployment assumptions
+        ↓
+ModelRequirement
+        ↓
+CapacityAssessment
 ```
 
 `RuntimePolicy.mode` AUTO|EXPLICIT is resolver coverage. It is not
@@ -1076,14 +1126,16 @@ persisted class.
 | Verified runtime upper capability | fresh VERIFIED `RuntimeCapabilityProfile` |
 | Deployment Foundation | conceptual composition, not a new object |
 | Bounded selected foundation | `FoundationSelection` |
+| Runtime-aware model eligibility | `EligibleModelView` / `RuntimeEligibleModelCandidate` |
 
 RuntimeResolver answers structural plausibility. RuntimeProvisioner
 installs the **explicitly selected** candidate, never an implicit
 fallback. RuntimeVerifier produces evidence, not ranking.
 FoundationSelection is the first bounded administrator foundation
 override. A foundation change is not a field swap on the previous plan.
-It marks downstream derived state stale; later stages recompute
-eligibility and `DeploymentPlan`.
+It marks downstream derived state stale. Stage 1.6F recomputes
+`EligibleModelView`. Later stages recompute `ModelRequirement` and
+`DeploymentPlan`.
 
 ## Recommendation, selection, and safety boundaries
 
@@ -1523,6 +1575,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6C | RuntimeProvisioningPlan + RuntimeProvisioner + RuntimeInstallation | 1.6B | ✅ closed L2 |
 | 1.6D | RuntimeVerifier + RuntimeCapabilityProfile | 1.6C | ✅ closed L2 |
 | 1.6E | FoundationSelection + two-phase provisionable/executable + invalidation seam | 1.6D | ✅ closed L1 |
+| 1.6F | EligibleModelView + runtime/model compatibility authority | 1.6E | ✅ closed L1 |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

@@ -34,7 +34,7 @@ from kultrun.adapters.provisioning.fixture import FixtureRuntimeProvisioner
 from kultrun.adapters.provisioning.vllm_native import VllmNativeProvisioner
 from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.runtime.serving import ReferenceServingRuntime
-from kultrun.adapters.runtime.vllm import VllmRuntimeSupport
+from kultrun.adapters.runtime.vllm import VllmModelCompatibility, VllmRuntimeSupport
 from kultrun.adapters.storage import posix_reservation, replayed
 from kultrun.adapters.verification.fixture import (
     FixtureProbeRunner,
@@ -94,6 +94,7 @@ from kultrun.model.inventory import ModelInventory
 from kultrun.model.ports import ModelAcquisitionProvider, ModelRequirementEstimator
 from kultrun.model.store import ModelArtifactStore
 from kultrun.planning import contracts as _planning_contracts  # noqa: F401
+from kultrun.planning.contracts import CompatibilityVerdict
 from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
@@ -104,6 +105,7 @@ from kultrun.platform.contracts import (
     PlatformSettings,
     StartupReport,
 )
+from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.probe_run import ExecutorProbeRunner
@@ -117,6 +119,7 @@ from kultrun.resource.manager import ResourceManager
 from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
 from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.runtime.contracts import (
+    EligibleModelView,
     RuntimeInstallationId,
     RuntimePolicy,
     RuntimeProvisioningPlanId,
@@ -124,6 +127,7 @@ from kultrun.runtime.contracts import (
     RuntimeSupportDescriptor,
     VerificationStatus,
 )
+from kultrun.runtime.eligibility import ModelEligibilityService
 from kultrun.runtime.lock import ProvisioningLock, SelectionLock, VerificationLock
 from kultrun.runtime.ports import RuntimeProvisioner, RuntimeVerifier
 from kultrun.runtime.provision import ProvisioningService
@@ -279,6 +283,7 @@ class Platform:
     provisioning: ProvisioningService
     verification: VerificationService
     foundation: FoundationSelectionService
+    eligibility: ModelEligibilityService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -683,6 +688,13 @@ def build(
         verification,
         SelectionLock(state_root),
     )
+    eligibility = ModelEligibilityService(
+        resolved_clock,
+        foundation,
+        provisioning,
+        verification,
+        interpreters=(VllmModelCompatibility(),),
+    )
     admission = AdmissionService(
         resources,
         inventory,
@@ -716,6 +728,7 @@ def build(
         provisioning=provisioning,
         verification=verification,
         foundation=foundation,
+        eligibility=eligibility,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
@@ -746,6 +759,7 @@ def build(
         provisioning=provisioning,
         verification=verification,
         foundation=foundation,
+        eligibility=eligibility,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -1244,6 +1258,25 @@ def _runtime_inputs(
     return host, executors, descriptors, components
 
 
+def _eligible_view(platform: Platform) -> EligibleModelView:
+    host, executors, descriptors, components = _runtime_inputs(platform)
+    return platform.eligibility.evaluate(
+        host,
+        executors,
+        descriptors,
+        catalog_facts(platform.models),
+        components=components,
+    )
+
+
+def _runtime_compat(platform: Platform) -> Mapping[str, CompatibilityVerdict]:
+    view = _eligible_view(platform)
+    return runtime_compatibility(
+        view,
+        [entry.metadata.model_id.value for entry in platform.models.entries()],
+    )
+
+
 def show_foundation(arguments: Sequence[str]) -> int:
     """Print recommended versus selected foundation. Does not realize."""
     del arguments
@@ -1683,6 +1716,8 @@ def _models(arguments: Sequence[str]) -> int:
     command = arguments[0]
     if command == "recommend":
         return show_recommendation()
+    if command == "eligible":
+        return show_eligible_models()
     if command == "inventory":
         return show_inventory()
     if command == "acquire":
@@ -1690,7 +1725,7 @@ def _models(arguments: Sequence[str]) -> int:
     if command == "delete":
         return delete_named(arguments[1:])
     print(
-        "usage: kultrun models [recommend|inventory|acquire|delete]",
+        "usage: kultrun models [recommend|eligible|inventory|acquire|delete]",
         file=sys.stderr,
     )
     return 2
@@ -1742,7 +1777,7 @@ def acquire_named(arguments: Sequence[str]) -> int:
         recommendation = platform.selection.recommend(
             envelope=envelope,
             candidates=platform.models.entries(),
-            available_runtimes=platform.runtimes.product_identities(),
+            runtime_compatibility=_runtime_compat(platform),
         )
         if recommendation.primary is None:
             print("kultrun: no recommended candidate", file=sys.stderr)
@@ -1811,7 +1846,7 @@ def show_recommendation() -> int:
     recommendation = platform.selection.recommend(
         envelope=envelope,
         candidates=platform.models.entries(),
-        available_runtimes=platform.runtimes.product_identities(),
+        runtime_compatibility=_runtime_compat(platform),
     )
     recommendation_mode = recommendation.estimator_mode
     fallback = (
@@ -1839,6 +1874,41 @@ def show_recommendation() -> int:
     planned = plan_from(recommendation)
     if planned is not None:
         print(f"plan {planned.logical_name.value}  placement {planned.placement.value}")
+    return 0
+
+
+def show_eligible_models() -> int:
+    """Runtime-aware eligible models for the selected verified foundation."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    view = _eligible_view(platform)
+    runtime = view.runtime if isinstance(view.runtime, str) else "-"
+    version = (
+        view.runtime_version if isinstance(view.runtime_version, str) else "-"
+    )
+    selected = (
+        view.selected_candidate_id
+        if isinstance(view.selected_candidate_id, str)
+        else "-"
+    )
+    profile = view.profile_status if isinstance(view.profile_status, str) else "-"
+    print(
+        f"selected {selected}  runtime {runtime}  version {version}  "
+        f"profile {profile}  view {view.status.value}"
+    )
+    print(
+        f"eligible {view.eligible_count}  blocked {view.blocked_count}  "
+        f"unresolved {view.unresolved_count}  "
+        f"authoritative {str(view.status.value == 'current').lower()}"
+    )
+    if view.reason_codes:
+        print("reasons " + ",".join(item.value for item in view.reason_codes))
+    if not view.candidates:
+        print("no eligible-model candidates")
+        return 0
+    for item in view.candidates:
+        extra = ",".join(code.value for code in item.reason_codes) or "-"
+        print(f"{item.status.value:10} {item.logical_name:32} {extra}")
     return 0
 
 
@@ -1919,7 +1989,7 @@ def reserve_named(arguments: Sequence[str]) -> int:
             ArtifactId.parse(arguments[0]),
             host,
             _stored_sanity(platform, host),
-            platform.runtimes.product_identities(),
+            _runtime_compat(platform),
         )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)

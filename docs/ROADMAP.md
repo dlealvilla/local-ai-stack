@@ -492,7 +492,10 @@ Introduce the pattern incrementally at existing domain seams:
 1.6E  first executable bounded foundation selection: provisionable
       recommendation + AUTO|MANUAL + realize/verify selected path;
       invalidate downstream derived-state seams; no silent fallback
-later runtime-aware model selection, capacity recommended-vs-selected,
+1.6F  runtime-aware eligible model view from the selected verified
+      foundation; authoritative runtime/model compatibility; no
+      capacity remap
+later ModelRequirement + Capacity migration, bounded model selection,
       authoritative selected DeploymentPlan
 ```
 
@@ -690,6 +693,8 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
 1.6D Runtime Verification                 ← CLOSED L2
   ↓
 1.6E Foundation Selection                 ← CLOSED L1; two-phase provisionable ≠ executable
+  ↓
+1.6F Eligible Model View                  ← CLOSED L1; runtime-aware compatibility
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1227,15 +1232,38 @@ selected path through existing provision/verify + invalidation seam
 · **Gate:** L1 CLOSED. T0/T1/T2 fixture. T3 not required; this stage does
 not add a hardware path. Do not reopen 1.6B–1.6D.
 
+### Stage 1.6F — Runtime-aware Eligible Model View
+
+First concrete migration of live runtime/model compatibility onto the
+selected verified foundation. Consume closed 1.6B–1.6E objects. A
+merely provisionable `RuntimeCandidate` is not eligibility authority.
+Evaluate the global catalog against the selected
+`RuntimeCandidate` + matching `RuntimeInstallation` + fresh VERIFIED
+`RuntimeCapabilityProfile` + `RuntimeSupportDescriptor`. Statuses are
+ELIGIBLE / BLOCKED / UNRESOLVED; the view is CURRENT / STALE /
+UNAVAILABLE. UNKNOWN is never ELIGIBLE. MANUAL uses the selected
+candidate, never the recommendation. Do not stamp compatibility onto
+`ModelMetadata`. Do not mutate inventory. Do not remap
+`ModelRequirement` or capacity. Migrate existing runtime/model
+compatibility callers onto this path; keep a composition shim where
+planning cannot import runtime.
+
+**Output:** `EligibleModelView` + `RuntimeEligibleModelCandidate[]` +
+authoritative runtime/model compatibility seam · **Gate:** L1 CLOSED.
+T0/T1/T2 fixture. T3 not required; this stage adds no hardware path.
+Do not reopen 1.6B–1.6E.
+
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6B** is resolution. **1.6C** is isolated installation.
 **1.6D** is verification. **1.6E** is bounded foundation selection.
-Later letters cover `RuntimeCapabilityProfile` consumption in
-eligibility remap, acquisition, admission, and real inference.
-**1.6D is CLOSED L2.** **1.6E is CLOSED L1.** Next is runtime-aware
-eligible model view (K-87); do not begin it from 1.6E.
+**1.6F** is runtime-aware eligible models.
+Later letters cover `ModelRequirement` and capacity remap, acquisition,
+admission, and real inference.
+**1.6D is CLOSED L2.** **1.6E is CLOSED L1.** **1.6F is CLOSED L1.**
+Next is ModelRequirement + Capacity migration; do not begin it from
+1.6F.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2303,6 +2331,53 @@ DEPTH                        Accepted: minimum + architectural seams.
                              1.6B lexicographic rank + reuse of the
                              same fresh VERIFIED candidate identity.
                              No speculative scores.
+```
+
+### Stage 1.6F brief
+
+```text
+CURRENT STAGE                Runtime-aware eligible model view.
+                             Migrate runtime/model compatibility
+                             onto the selected verified foundation.
+PREDECESSOR OUTPUTS          Stage 1.6E CLOSED L1
+                             (`bd9cdee29f385e3f284f5782443c31cf85d21438`).
+THIS STAGE'S REQUIRED OUTPUT EligibleModelView CURRENT|STALE|UNAVAILABLE;
+                             RuntimeEligibleModelCandidate
+                             ELIGIBLE|BLOCKED|UNRESOLVED;
+                             ModelEligibilityService;
+                             vLLM 0.28.0 interpreter;
+                             GET /v1/models/eligible;
+                             kultrun models eligible;
+                             Console Eligible models panel;
+                             planning/admission consume eligibility
+                             tokens instead of catalog∩runtime lists.
+CORE CONTRACTS AFFECTED      runtime.eligible_model_view@1;
+                             runtime.eligible_model_candidate@1.
+                             No DeploymentFoundation class.
+                             No CompatibilityFramework.
+                             No ModelMetadataV2.
+ADAPTERS AFFECTED            adapters/runtime/vllm
+                             (VllmModelCompatibility).
+PERSISTED STATE              None. View is derived. Catalog and
+                             inventory are not mutated.
+MUTATION / FAILURE BOUNDARY  GET /models/eligible never persists,
+                             acquires, or admits.
+CANCELLATION / CLEANUP       None. Read-only recomputation.
+ACCEPTANCE LEVEL             L1 CLOSED. T0/T1 plus T2 clean-wheel
+                             fixture chain. T3 not required.
+ADMIN SURFACE                GET /v1/models/eligible;
+                             kultrun models eligible;
+                             Console Eligible models.
+DEBT ENTRIES                 K-87 RETIRED. K-94 planning composition
+                             shim. K-55, K-66, K-77, K-80, K-86 remain.
+MUST NOT                     Reopen 1.6B–1.6E; remap ModelRequirement
+                             or Capacity; redesign ModelSelector;
+                             acquire/delete artifacts; score
+                             foundations; write eligibility into
+                             ModelMetadata; treat UNKNOWN as ELIGIBLE;
+                             consult RAM/VRAM/reservations.
+DEPTH                        Accepted: minimum + a little depth.
+                             First concrete interpreter: vLLM 0.28.0.
 ```
 
 ---

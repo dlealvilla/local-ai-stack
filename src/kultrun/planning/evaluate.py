@@ -166,26 +166,30 @@ def evaluate(
     metadata: ModelMetadata,
     requirement: ModelRequirement,
     capacity: DeploymentCapacity,
-    available_runtimes: tuple[str, ...],
     policy: SelectionPolicy,
+    *,
+    runtime_compatibility: CompatibilityVerdict = CompatibilityVerdict.COMPATIBLE,
 ) -> ModelEvaluation:
-    """One candidate, one envelope, one policy. Deterministic."""
+    """One candidate, one envelope, one policy. Deterministic.
+
+    Runtime/model compatibility is supplied by the eligible-model view.
+    This function still owns capacity fit. It does not re-derive runtime
+    support from catalog ``supported_runtimes``.
+    """
     reasons: list[str] = []
     unresolved: list[str] = []
-    compatibility = CompatibilityVerdict.COMPATIBLE
-    available = set(available_runtimes)
-    if metadata.supported_runtimes and available and not any(
-        name in available for name in metadata.supported_runtimes
-    ):
-        compatibility = CompatibilityVerdict.UNSUPPORTED
-        reasons.append("no overlapping runtime with this host")
+    compatibility = runtime_compatibility
+    if runtime_compatibility is CompatibilityVerdict.UNSUPPORTED:
+        reasons.append("runtime eligibility blocked")
+    elif runtime_compatibility is CompatibilityVerdict.UNRESOLVED:
+        unresolved.append("runtime_eligibility")
+        reasons.append("runtime eligibility unresolved")
     method = requirement.estimation_method
     if is_resolved(method) and method in {"unsupported", "provider-unavailable"}:
-        compatibility = (
-            CompatibilityVerdict.UNSUPPORTED
-            if method == "unsupported"
-            else CompatibilityVerdict.UNRESOLVED
-        )
+        if method == "unsupported":
+            compatibility = CompatibilityVerdict.UNSUPPORTED
+        elif compatibility is not CompatibilityVerdict.UNSUPPORTED:
+            compatibility = CompatibilityVerdict.UNRESOLVED
         reasons.extend(requirement.assumptions or (str(method),))
 
     storage_ok: object = NOT_PROVIDED

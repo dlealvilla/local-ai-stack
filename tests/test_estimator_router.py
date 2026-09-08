@@ -408,7 +408,6 @@ class TestNoEstimateShopping:
             _tiny().metadata,
             requirement,
             deployment_capacity(envelope),
-            ("llama.cpp",),
             SelectionPolicy(),
         )
         assert evaluation.capacity_fit is CapacityFitClass.EXCEEDS_SAFE
@@ -436,7 +435,6 @@ class TestNoEstimateShopping:
             _tiny().metadata,
             requirement,
             deployment_capacity(envelope),
-            ("llama.cpp",),
             SelectionPolicy(),
         )
         assert evaluation.capacity_fit is CapacityFitClass.UNDERUTILIZED
@@ -460,7 +458,6 @@ class TestNoEstimateShopping:
         recommendation = service.recommend(
             envelope=envelope,
             candidates=packaged_candidates()[:6],
-            available_runtimes=("vllm", "llama.cpp"),
         )
         assert recommendation.estimator_provider == "llmfit"
         assert recommendation.fallback_used is False

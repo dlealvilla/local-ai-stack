@@ -101,9 +101,8 @@ assert len(p.instances.list()) == 0
 
 host = p.hosts.current
 envl = p.capacity.compute(host, {})
-runtimes = p.runtimes.product_identities()
-d1 = p.admission.reserve(tiny.artifact_id, host, {}, runtimes)
-d2 = p.admission.reserve(large.artifact_id, host, {}, runtimes)
+d1 = p.admission.reserve(tiny.artifact_id, host, {})
+d2 = p.admission.reserve(large.artifact_id, host, {})
 assert d1.reservation and d2.reservation
 a = p.instances.create(tiny, d1.reservation)
 b = p.instances.create(large, d2.reservation)

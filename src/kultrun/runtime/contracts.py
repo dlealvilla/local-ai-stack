@@ -832,3 +832,138 @@ class FoundationSelection(Contract):
         "derived domains that must not be trusted after a selection change",
         default=(),
     )
+
+
+class EligibleModelViewId(EntityId):
+    """Deterministic identity of one derived eligible-model view."""
+
+    prefix = "emv"
+
+
+class RuntimeEligibilityStatus(StrEnum):
+    """Per-model runtime compatibility. Unknown is never eligible."""
+
+    ELIGIBLE = "eligible"
+    BLOCKED = "blocked"
+    UNRESOLVED = "unresolved"
+
+
+class EligibleViewStatus(StrEnum):
+    """Whether this derived view may be treated as current authority."""
+
+    CURRENT = "current"
+    STALE = "stale"
+    UNAVAILABLE = "unavailable"
+
+
+class EligibilityReasonCode(StrEnum):
+    """Factual eligibility reasons. Free text is secondary."""
+
+    UNSUPPORTED_ARCHITECTURE = "unsupported_architecture"
+    UNSUPPORTED_ARTIFACT_FORMAT = "unsupported_artifact_format"
+    UNSUPPORTED_QUANTIZATION = "unsupported_quantization"
+    UNSUPPORTED_PRECISION = "unsupported_precision"
+    UNSUPPORTED_MODALITY = "unsupported_modality"
+    UNSUPPORTED_RUNTIME = "unsupported_runtime"
+    RUNTIME_VERSION_UNSUPPORTED = "runtime_version_unsupported"
+    BACKEND_MISMATCH = "backend_mismatch"
+    REQUIRED_MODEL_METADATA_MISSING = "required_model_metadata_missing"
+    COMPATIBILITY_UNRESOLVED = "compatibility_unresolved"
+    FOUNDATION_STALE = "foundation_stale"
+    RUNTIME_CAPABILITY_STALE = "runtime_capability_stale"
+    RUNTIME_CAPABILITY_UNVERIFIED = "runtime_capability_unverified"
+    SELECTED_FOUNDATION_MISSING = "selected_foundation_missing"
+    PROFILE_INSTALLATION_MISMATCH = "profile_installation_mismatch"
+
+
+@contract(kind="runtime.eligible_model_candidate", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeEligibleModelCandidate(Contract):
+    """One catalog model judged against the selected verified foundation.
+
+    Derived. Not catalog metadata and not an inventory mutation.
+    """
+
+    model_id: str = meaning("catalog model identity this judgement applies to")
+    logical_name: str = meaning("catalog logical name; not an eligibility stamp")
+    status: RuntimeEligibilityStatus = meaning(
+        "eligible, blocked, or unresolved for this foundation"
+    )
+    reason_codes: tuple[EligibilityReasonCode, ...] = meaning(
+        "typed reasons; empty only when eligible", default=()
+    )
+    reasons: tuple[str, ...] = meaning(
+        "short factual notes; never a traceback", default=()
+    )
+    architecture: Maybe[str] = meaning(
+        "architecture copied from catalog facts", default=NOT_PROVIDED
+    )
+    quantization: Maybe[str] = meaning(
+        "quantization copied from catalog facts", default=NOT_PROVIDED
+    )
+    family: Maybe[str] = meaning(
+        "family copied from catalog facts", default=NOT_PROVIDED
+    )
+
+
+@contract(kind="runtime.eligible_model_view", version=1)
+@dataclass(frozen=True, slots=True)
+class EligibleModelView(Contract):
+    """Derived runtime/model compatibility for the selected foundation.
+
+    Not persisted. Recomputed. Does not mutate ModelMetadata or inventory.
+    """
+
+    view_id: EligibleModelViewId = meaning(
+        "fingerprint of this derived view for one host and foundation basis"
+    )
+    host_id: HostId = meaning("host this view was computed for")
+    status: EligibleViewStatus = meaning(
+        "current, stale, or unavailable; only current is authoritative"
+    )
+    evaluated_at: dt.datetime = meaning("when this derived view was computed, UTC")
+    selection_mode: Maybe[str] = meaning(
+        "AUTO or MANUAL from FoundationSelection; unresolved when none",
+        default=NOT_PROVIDED,
+    )
+    recommended_candidate_id: Maybe[str] = meaning(
+        "current recommendation; never used in place of selected",
+        default=NOT_PROVIDED,
+    )
+    selected_candidate_id: Maybe[str] = meaning(
+        "selected foundation this view is bound to", default=NOT_PROVIDED
+    )
+    runtime: Maybe[str] = meaning(
+        "selected runtime family identity", default=NOT_PROVIDED
+    )
+    runtime_version: Maybe[str] = meaning(
+        "selected runtime version pin or observed version", default=NOT_PROVIDED
+    )
+    executor: Maybe[str] = meaning(
+        "executor identity of the selected installation", default=NOT_PROVIDED
+    )
+    installation_id: Maybe[str] = meaning(
+        "matching RuntimeInstallation identity", default=NOT_PROVIDED
+    )
+    profile_id: Maybe[str] = meaning(
+        "matching RuntimeCapabilityProfile identity", default=NOT_PROVIDED
+    )
+    profile_status: Maybe[str] = meaning(
+        "effective verification status of that profile", default=NOT_PROVIDED
+    )
+    foundation_stale: bool = meaning(
+        "FoundationSelection.downstream_stale at computation time",
+        default=False,
+    )
+    reason_codes: tuple[EligibilityReasonCode, ...] = meaning(
+        "why this view is not current, when it is not", default=()
+    )
+    eligible_count: int = meaning("how many catalog models are ELIGIBLE", default=0)
+    blocked_count: int = meaning("how many catalog models are BLOCKED", default=0)
+    unresolved_count: int = meaning(
+        "how many catalog models are UNRESOLVED", default=0
+    )
+    candidates: tuple[RuntimeEligibleModelCandidate, ...] = meaning(
+        "per-model judgements; empty when the view is unavailable",
+        default=(),
+    )
