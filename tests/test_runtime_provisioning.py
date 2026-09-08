@@ -414,6 +414,11 @@ def test_case_m_installed_is_not_verified(tmp_path: Path) -> None:
     assert final.is_dir()
     assert (final / "manifest" / "installer-report.json").is_file()
     assert is_resolved(installed.provenance_manifest_sha256)
+    assert is_resolved(installed.python_executable)
+    python = Path(str(installed.python_executable))
+    assert python.is_file()
+    assert python.is_relative_to(final)
+    assert ".staging" not in str(python)
 
 
 def test_plan_identity_is_stable(tmp_path: Path) -> None:

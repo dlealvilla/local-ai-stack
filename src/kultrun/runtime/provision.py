@@ -231,12 +231,18 @@ class ProvisioningService:
                     code="installer_failed",
                     message=str(error),
                 )
+            python_executable = _relocated_after_promote(
+                outcome.python_executable, staging, final
+            )
+            installer_version = _relocated_after_promote(
+                outcome.installer_version, staging, final
+            )
             finished = replace(
                 record,
                 status=InstallationStatus.INSTALLED,
-                python_executable=outcome.python_executable or NOT_PROVIDED,
+                python_executable=python_executable or NOT_PROVIDED,
                 python_version=outcome.python_version or NOT_PROVIDED,
-                installer_version=outcome.installer_version or NOT_PROVIDED,
+                installer_version=installer_version or NOT_PROVIDED,
                 provenance_manifest_path=report_path or NOT_PROVIDED,
                 provenance_manifest_sha256=report_sha or NOT_PROVIDED,
                 resolved_runtime_version=(
@@ -424,6 +430,23 @@ class ProvisioningService:
                 path=str(path),
             ) from error
         shutil.rmtree(path, ignore_errors=True)
+
+
+def _relocated_after_promote(
+    value: str | None, staging: Path, final: Path
+) -> str | None:
+    """Rewrite staging paths onto the promoted installation root.
+
+    The provisioner runs against the staging directory. After atomic
+    promotion the staging path no longer exists; the receipt must name
+    the surviving interpreter, not the deleted one.
+    """
+    if value is None:
+        return None
+    prefix = str(staging)
+    if value == prefix or value.startswith(prefix + "/"):
+        return str(final) + value[len(prefix) :]
+    return value.replace(prefix, str(final))
 
 
 def _executor_available(
