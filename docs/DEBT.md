@@ -943,6 +943,140 @@ To make real: After runtime verification exists.
 Retire when:  normal executable selection consumes runtime eligibility.
 Status:       OPEN
 
+### K-56 — Runtime performance-aware ranking
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         Stage 1.6B ranking is deterministic/static: compatibility,
+              support tier, executor availability, policy order, then
+              name. It does not consume latency, throughput, tokens/sec,
+              startup time, or memory efficiency.
+Why now:      Resolution only establishes technical plausibility.
+To make real: A future RuntimeRankingPolicy behind verified operational
+              evidence after inference exists.
+Retire when:  multiple verified runtime choices exist for the same workload
+              and ranking consumes measured evidence.
+Status:       OPEN
+
+### K-57 — Runtime version optimization
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         Candidates carry at most one provisional version token.
+              There is no version-range solving, index lookup, or
+              multi-version ranking.
+Why now:      Pinning and verification belong to provisioning stages.
+To make real: Compare available versions after an index/provisioner exists.
+Retire when:  a later stage accepts version selection with evidence.
+Status:       OPEN
+
+### K-58 — Native vs container performance/cost comparison
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         Native-process is preferred over container-docker only by
+              configured name order, not measured cost or performance.
+Why now:      Neither path is a verified serving runtime yet.
+To make real: Compare verified native and container serving of the same
+              workload.
+Retire when:  cost/performance evidence is an accepted ranking input.
+Status:       OPEN
+
+### K-59 — Runtime fallback policy
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         Ranking is not automatic fallback. A later provisioning or
+              verification failure must re-resolve/re-plan explicitly.
+Why now:      Silent try-next would hide why the preferred path failed.
+To make real: An explicit post-verification fallback policy.
+Retire when:  failed provision/verify has a declared, tested fallback rule.
+Status:       OPEN
+
+### K-60 — Multi-host runtime resolution
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         Resolution is current-host only.
+Why now:      Fleet placement is Milestone 14-shaped work.
+To make real: Host-scoped candidates across a FleetState.
+Retire when:  multi-host resolution is an accepted stage output.
+Status:       OPEN
+
+### K-61 — Rich accelerator/backend ranking
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         Accelerator matching is family presence (e.g. nvidia) vs
+              declared support. No CUDA/ROCm/Metal scoring.
+Why now:      Compatibility, not backend optimization.
+To make real: Backend-specific evidence after real inference.
+Retire when:  backend ranking has measured inputs and tests.
+Status:       OPEN
+
+### K-62 — Learned runtime recommendations
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    runtime / intelligence
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         No telemetry- or cohort-driven runtime recommendation.
+Why now:      Intelligence must not start early.
+To make real: After analytics and verified runtimes exist.
+Retire when:  a learned recommender is an additive, non-authorizing input.
+Status:       OPEN
+
+### K-63 — Runtime marketplace/plugin discovery
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         Descriptors are registered in-process. No third-party runtime
+              plugin discovery.
+Why now:      One product family descriptor is enough to prove resolution.
+To make real: A discovery port that cannot own runtime semantics.
+Retire when:  plugin/runtime marketplace is an accepted capability.
+Status:       OPEN
+
+### K-64 — Multi-container-engine resolution
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    execution / runtime
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         Container paths assume Docker CLI as the first engine.
+              Podman/containerd are not distinct resolution axes.
+Why now:      Stage 1.6A implemented one engine. Resolution reuses that.
+To make real: Additional ContainerEngine adapters with truthful profiles.
+Retire when:  multi-engine candidates are tested.
+Status:       OPEN
+
+### K-65 — Runtime benchmark evidence integration
+Label:        DEFERRED
+Owner stage:  1.6B
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6B:  No
+What:         Verified operational/benchmark evidence is not an input to
+              RuntimeCandidate ranking.
+Why now:      Nothing is installed or verified in 1.6B.
+To make real: After RuntimeVerifier and real inference produce evidence.
+Retire when:  benchmark evidence is a ranking input with tests.
+Status:       OPEN
+
 ## Deferred capability register
 
 Distinct from the debt entries above. A debt entry records an approximation

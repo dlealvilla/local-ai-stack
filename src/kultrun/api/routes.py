@@ -30,6 +30,7 @@ from kultrun.kernel.errors import (
 )
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import registered_contracts
+from kultrun.kernel.unresolved import NOT_PROVIDED
 from kultrun.model.acquisition import AcquisitionService, request_from_entry
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import ArtifactId
@@ -45,6 +46,8 @@ from kultrun.platform.state import PlatformStateStore
 from kultrun.resource.contracts import RequestId, ReservationId
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.catalogue import RuntimeCatalogue
+from kultrun.runtime.contracts import RuntimePolicy, RuntimeResolverMode
+from kultrun.runtime.resolve import path_presence, resolve
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService, summarize
 
@@ -340,6 +343,60 @@ def register(router: Router, plane: ControlPlane) -> Router:
             },
         }
 
+    def runtime_candidates(request: ApiRequest) -> dict[str, object]:
+        """Declared support, current host, and current executors. Read-only."""
+        host = plane.hosts.current
+        requested = (request.query.get("runtime") or "").strip()
+        allow_test = (request.query.get("allow_test_only") or "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        allow_reference = (request.query.get("allow_reference") or "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        policy = RuntimePolicy(
+            mode=(
+                RuntimeResolverMode.EXPLICIT
+                if requested
+                else RuntimeResolverMode.AUTO
+            ),
+            requested_runtime=requested if requested else NOT_PROVIDED,
+            allow_test_only=allow_test,
+            allow_reference_runtimes=allow_reference,
+        )
+        descriptors = plane.runtimes.descriptors()
+        required = [
+            component.value
+            for descriptor in descriptors
+            for component in descriptor.required_components
+        ]
+        resolution = resolve(
+            host,
+            (
+                plane.executions.capabilities(host),
+                plane.container_capability(host),
+            ),
+            descriptors,
+            policy,
+            components=path_presence(required),
+        )
+        return {
+            "host_id": host.host_id.value,
+            "host_fingerprint": host.fingerprint,
+            "policy": {
+                "mode": policy.mode.value,
+                "requested_runtime": requested or None,
+            },
+            "resolution": resolution,
+            "mutations": False,
+            "provision": False,
+            "verify": False,
+            "install": False,
+        }
+
     def models(_: ApiRequest) -> dict[str, object]:
         """The curated candidate catalog. Read-only. No ranking, no download."""
         return {
@@ -470,6 +527,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/storage/sanity-check", run_storage_sanity)
     router.get("/capacity/policy", capacity_policy)
     router.get("/runtime", runtime)
+    router.get("/runtimes/candidates", runtime_candidates)
     router.post("/runtime/execution", start_reference)
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)
