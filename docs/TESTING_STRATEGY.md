@@ -351,6 +351,16 @@ deterministic ranking, and a declared vLLM support descriptor that is
 never imported or executed. T3 is not required: the stage consumes
 already-proven Host and Executor evidence and does not install a runtime.
 
+**Stage 1.6C** is T0/T1/T2 control-plane provisioning plus a required
+real-install T3 for L2 close. Tests cover plan identity, provisionability,
+staging/atomic promotion, installer provenance, idempotency, explicit
+retry, INSTALLING conflict, and architecture non-edges. T2 uses the
+fixture provisioner in a clean wheel; that is not real vLLM. T3 is a
+bounded `vllm==0.28.0` install on Linux x86_64 NVIDIA through
+`VllmNativeProvisioner`. Success is package metadata in an isolated
+venv, never `import vllm` or engine init. Without a suitable host the
+stage stays OPEN / READY_FOR_T3 at L1.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.

@@ -611,6 +611,10 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6B Runtime Resolution                   ← CLOSED L1
   ↓
+1.6C Runtime Provisioning                 ← this stage; L2 T3 or READY_FOR_T3
+  ↓
+1.6D Runtime Verification                 ← not begun
+  ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
 post-inference breadth review, then 1.7 onward
@@ -1089,12 +1093,28 @@ No install, verify, benchmark, model selection, or vLLM execution.
 **Output:** `RuntimePolicy` + `RuntimeCandidate` + `RuntimeResolver` ·
 **Gate:** L1 **CLOSED** (T0/T1/T2; T3 not required)
 
+### Stage 1.6C — Runtime Provisioning
+
+Given a current `RuntimeCandidate`, create an exact
+`RuntimeProvisioningPlan` and install that pin into a Kultrun-owned
+isolated environment. `INSTALLED` is not `VERIFIED`. Product pin:
+vLLM `0.28.0`, native-process, Python 3.12, stdlib venv + pip.
+
+**Output:** `RuntimeProvisioningPlan` + `RuntimeProvisioner` +
+`RuntimeInstallation` · **Gate:** L2 on a real Linux x86_64 NVIDIA
+install. T2 fixture evidence is L1 only and does not close the stage.
+
+### Stage 1.6D — Runtime Verification
+
+Not begun. Do not start from 1.6C.
+
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
-Later letters cover provisioning, verification,
+**1.6B** is resolution. **1.6C** is isolated installation.
+Later letters cover verification,
 `RuntimeCapabilityProfile`, eligibility remap, acquisition, admission,
-and real inference. Those stages are **not begun** here.
+and real inference. **1.6D and later are not begun** here.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2025,6 +2045,41 @@ ADMIN SURFACE                GET /v1/runtimes/candidates;
                              read-only Console panel.
 DEBT ENTRIES                 K-56…K-65.
 DEFERRED ITEMS               1.6C Runtime Provisioning and later 1.6
+                             letters. Do not begin them from this stage.
+```
+
+### Stage 1.6C brief
+
+```text
+CURRENT STAGE                Runtime provisioning. Exact plan + isolated
+                             install. INSTALLED is not VERIFIED.
+PREDECESSOR OUTPUTS          Stage 1.6B CLOSED L1
+                             (cfbfc2f5d488e73cb94642c643f095355964f083).
+THIS STAGE'S REQUIRED OUTPUT RuntimeProvisioningPlan;
+                             RuntimeProvisioner; RuntimeInstallation;
+                             vLLM 0.28.0 pin; venv+pip; persistence;
+                             idempotency; explicit retry; T2 fixture;
+                             T3 real install for L2.
+CORE CONTRACTS AFFECTED      runtime.provisioning_component@1;
+                             runtime.provisioning_plan@1;
+                             runtime.installation@1;
+                             support_descriptor preferred_version 0.28.0.
+ADAPTERS AFFECTED            adapters/provisioning/fixture;
+                             adapters/provisioning/vllm_native;
+                             adapters/runtime/vllm pin only.
+PERSISTED STATE              Plan and Installation. Candidates derived.
+                             Interrupted INSTALLING → FAILED.
+MUTATION / FAILURE BOUNDARY  POST plan / POST provision only.
+                             No system Python/driver/CUDA mutation.
+CANCELLATION / CLEANUP       Staging deleted on failure; never promoted.
+ACCEPTANCE LEVEL             L2 to close. T2 is L1. No host → READY_FOR_T3.
+ADMIN SURFACE                POST /v1/runtimes/provisioning-plans;
+                             POST /v1/runtimes/provision;
+                             GET plans/installations;
+                             kultrun runtimes plan|provision|installations;
+                             Console Create plan / Provision. No Verify.
+DEBT ENTRIES                 K-66…K-79. K-56…K-65 preserved.
+DEFERRED ITEMS               1.6D Runtime Verification and later 1.6
                              letters. Do not begin them from this stage.
 ```
 
