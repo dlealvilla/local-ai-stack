@@ -381,6 +381,16 @@ native-process, `import vllm`, backend import, CUDA available, GPU
 visible, tiny CUDA operation PASS. No model was downloaded or loaded.
 Stage 1.6D T3 is not real model inference.
 
+**Stage 1.6E** is T0/T1/T2 foundation selection. Tests cover
+`FoundationSelection` schema, resolver AUTO ≠ selection AUTO,
+GET never persists or probes, MANUAL only of provisionable
+candidates, BLOCKED refusal, return-to-AUTO, realize/verify of the
+selected path through existing 1.6C/1.6D services, FAILED verify
+without silent fallback, and the downstream_stale seam on
+`GET /models/selection`. T2 is a clean-wheel fixture chain. T3 is
+not required: this stage adds no hardware path. Do not reopen 1.6D
+T3. Do not treat L1 selection evidence as runtime-engine proof.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.

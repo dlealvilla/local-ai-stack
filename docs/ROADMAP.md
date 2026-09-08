@@ -489,8 +489,9 @@ Introduce the pattern incrementally at existing domain seams:
 1.6C  provision the explicitly selected RuntimeCandidate; never
       silently substitute another path; INSTALLED ≠ VERIFIED
 1.6D  verify that exact installation; structured evidence; no ranking
-1.6E  first executable bounded runtime selection over verified paths
-      (not begun); then invalidate runtime-dependent model eligibility
+1.6E  first executable bounded foundation selection: provisionable
+      recommendation + AUTO|MANUAL + realize/verify selected path;
+      invalidate downstream derived-state seams; no silent fallback
 later runtime-aware model selection, capacity recommended-vs-selected,
       authoritative selected DeploymentPlan
 ```
@@ -688,7 +689,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6D Runtime Verification                 ← CLOSED L2
   ↓
-1.6E Runtime Evaluation / Selection       ← not begun / NEXT; first bounded runtime override
+1.6E Foundation Selection                 ← in progress; two-phase provisionable ≠ executable
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1205,28 +1206,35 @@ model-compatible.
 installation · **Gate:** L2 required. T2 is fixture L1. Real NVIDIA T3
 required to close.
 
-### Stage 1.6E — Runtime Evaluation & Selection
+### Stage 1.6E — Foundation Selection
 
-First fully executable bounded runtime override. Consume verified
-runtime+executor paths. Classify Recommended / Selectable / Blocked.
-AUTO selects the recommendation; MANUAL may select another
-verified feasible path. After selection, invalidate and recompute
-runtime-dependent state (eligible models, current model validity,
-requirements, capacity, `DeploymentPlan` inputs) before planning
-proceeds. Do not build a generic selection framework.
+First concrete bounded foundation-selection stage. Compose closed
+1.6B–1.6D objects. Distinguish `ELIGIBLE TO PROVISION` from
+`VERIFIED EXECUTABLE`. Classify recommended-to-provision, other
+provisionable alternatives, and BLOCKED. Persist
+`FoundationSelection` AUTO|MANUAL with recommended ≠ selected.
+AUTO follows the current pre-provision recommendation. MANUAL may
+select another **provisionable** candidate — that is an attempt
+instruction, not proof of executability. Realize and verify only the
+selected candidate through the existing provisioner and verifier.
+Failure keeps truthful evidence and never silently executes another
+foundation. Mark downstream derived state stale. Do not introduce a
+Foundation domain, EnvironmentProvider port, weighted scorer, or
+generic SelectionFramework.
 
-**Output:** verified feasible set + recommendation + selected path +
-invalidation of dependent derived state · **Gate:** not begun. Do not
-start from 1.6C or 1.6D.
+**Output:** `FoundationSelection` + classified candidate view +
+selected path through existing provision/verify + invalidation seam
+· **Gate:** L1 (T0/T1/T2 fixture). T3 not required; this stage does
+not add a hardware path. Do not reopen 1.6B–1.6D.
 
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6B** is resolution. **1.6C** is isolated installation.
-**1.6D** is verification. **1.6E** is bounded runtime selection.
+**1.6D** is verification. **1.6E** is bounded foundation selection.
 Later letters cover `RuntimeCapabilityProfile` consumption in
 eligibility remap, acquisition, admission, and real inference.
-**1.6D is CLOSED L2.** 1.6E is next and not begun.
+**1.6D is CLOSED L2.** 1.6E is the current implementation stage.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2225,26 +2233,75 @@ ACCEPTANCE LEVEL             L2 CLOSED. Real NVIDIA T3: import vllm,
 DEFERRED ITEMS               1.6E bounded runtime selection. K-88…K-93.
 ```
 
-### Stage 1.6E brief (not begun)
+### Stage 1.6E brief
 
 ```text
-CURRENT STAGE                Runtime evaluation and bounded selection
-                             over verified paths. First executable
-                             administrator runtime override.
-THIS STAGE'S REQUIRED OUTPUT Recommended / selectable / blocked
-                             classification; AUTO|MANUAL; selected path;
-                             invalidation and recomputation of
-                             runtime-dependent model eligibility and
-                             planning inputs.
-MUST NOT                     Generic SelectionFramework; scoring DSL;
-                             silent fallback; proceed with a model
-                             eligible only for the previous runtime.
-DEPTH                        Present three options before writing the
-                             implementation brief. Recommended later
-                             depth is minimum + architectural seams
-                             (selected vs recommended, blocked reasons,
-                             selection mode, plan-freshness seam),
-                             not a rabbit-hole engine.
+CURRENT STAGE                Foundation selection. Two-phase
+                             provisionable ≠ executable. Compose
+                             closed 1.6B–1.6D objects.
+PREDECESSOR OUTPUTS          Stage 1.6D CLOSED L2
+                             (`fb67e7d6bcaf011cc39951472ae1ebf692e7fd88`).
+THIS STAGE'S REQUIRED OUTPUT FoundationSelection (AUTO|MANUAL;
+                             recommended_candidate_id ≠
+                             selected_candidate_id);
+                             pre-provision classification
+                             (recommended / other provisionable /
+                             blocked);
+                             selected candidate flows through existing
+                             RuntimeProvisioningPlan →
+                             RuntimeProvisioner → RuntimeInstallation
+                             and RuntimeVerifier →
+                             RuntimeCapabilityProfile;
+                             truthful FAILED without silent fallback;
+                             downstream_stale + stale_domains seam.
+CORE CONTRACTS AFFECTED      runtime.foundation_selection@1 (new).
+                             No FoundationCandidate.
+                             No DeploymentFoundation class.
+                             No EnvironmentProvider port.
+                             No recipe DSL.
+ADAPTERS AFFECTED            None. Existing fixture/vLLM provisioner
+                             and verifier are reused.
+PERSISTED STATE              One current FoundationSelection per host
+                             (fsel_<16 hex> from
+                             runtime.foundation_selection@1|{host_id}).
+MUTATION / FAILURE BOUNDARY  POST select / realize / verify-selected.
+                             GET /runtimes/foundation never persists,
+                             provisions, or probes.
+CANCELLATION / CLEANUP       Selection lock (runtimes/select.lock).
+                             Failed verify does not change selection
+                             or delete the installation.
+ACCEPTANCE LEVEL             L1. T0/T1 plus T2 clean-wheel fixture
+                             chain. T3 not required.
+ADMIN SURFACE                GET /v1/runtimes/foundation;
+                             POST /v1/runtimes/foundation/select;
+                             POST /v1/runtimes/foundation/realize;
+                             POST /v1/runtimes/foundation/verify;
+                             kultrun runtimes foundation|select|realize
+                             |verify --selected;
+                             Console Select foundation / Use AUTO /
+                             Realize selected.
+DEBT ENTRIES                 No new IDs for FoundationCandidate,
+                             HostCapabilityProfile,
+                             EnvironmentRealization,
+                             VerifiedRuntimeCapabilityProfile,
+                             EnvironmentProvider, recipe DSL, or
+                             SelectionFramework.
+                             K-66, K-77, K-33/K-75/K-91, K-56/K-80,
+                             K-87, K-86 remain authoritative.
+MUST NOT                     Reopen 1.6B/1.6C/1.6D; generic
+                             SelectionFramework; new Foundation
+                             domain; EnvironmentProvider hierarchy;
+                             weighted optimizer; model-selection
+                             rewrite; ResourceManager changes;
+                             managed Python; container GPU;
+                             silent fallback; collapse COMPATIBLE
+                             with VERIFIED; overload RuntimePolicy.mode
+                             as FoundationSelection.mode.
+DEPTH                        Accepted: minimum + architectural seams.
+                             Recommendation = hard gates + existing
+                             1.6B lexicographic rank + reuse of the
+                             same fresh VERIFIED candidate identity.
+                             No speculative scores.
 ```
 
 ---

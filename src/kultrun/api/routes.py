@@ -54,6 +54,7 @@ from kultrun.runtime.contracts import (
 )
 from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import path_presence, resolve
+from kultrun.runtime.selection import FoundationSelectionService
 from kultrun.runtime.verify import VerificationService
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService, summarize
@@ -87,6 +88,7 @@ class ControlPlane:
     instances: InstanceService
     provisioning: ProvisioningService
     verification: VerificationService
+    foundation: FoundationSelectionService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -392,6 +394,13 @@ def register(router: Router, plane: ControlPlane) -> Router:
             policy,
             components=path_presence(required),
         )
+        foundation = plane.foundation.view(
+            host,
+            _executors(host),
+            descriptors,
+            policy,
+            components=path_presence(required),
+        )
         return {
             "host_id": host.host_id.value,
             "host_fingerprint": host.fingerprint,
@@ -400,6 +409,21 @@ def register(router: Router, plane: ControlPlane) -> Router:
                 "requested_runtime": requested or None,
             },
             "resolution": resolution,
+            "foundation": {
+                "selection_mode": foundation.selection.selection_mode.value,
+                "resolver_mode": policy.mode.value,
+                "recommended_candidate_id": (
+                    foundation.selection.recommended_candidate_id
+                    if isinstance(foundation.selection.recommended_candidate_id, str)
+                    else None
+                ),
+                "selected_candidate_id": (
+                    foundation.selection.selected_candidate_id
+                    if isinstance(foundation.selection.selected_candidate_id, str)
+                    else None
+                ),
+                "downstream_stale": foundation.selection.downstream_stale,
+            },
             "mutations": False,
             "provision": False,
             "verify": False,
@@ -516,6 +540,97 @@ def register(router: Router, plane: ControlPlane) -> Router:
             )
         return profile
 
+    def _foundation_policy(request: ApiRequest) -> RuntimePolicy:
+        requested = (request.query.get("runtime") or "").strip()
+        allow_test = (request.query.get("allow_test_only") or "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        allow_reference = (request.query.get("allow_reference") or "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        return RuntimePolicy(
+            mode=(
+                RuntimeResolverMode.EXPLICIT
+                if requested
+                else RuntimeResolverMode.AUTO
+            ),
+            requested_runtime=requested if requested else NOT_PROVIDED,
+            allow_test_only=allow_test,
+            allow_reference_runtimes=allow_reference,
+        )
+
+    def runtime_foundation(request: ApiRequest) -> dict[str, object]:
+        """Recommended versus selected foundation. GET does not realize."""
+        host = plane.hosts.current
+        policy = _foundation_policy(request)
+        overview = plane.foundation.view(
+            host,
+            _executors(host),
+            plane.runtimes.descriptors(),
+            policy,
+            components=_components(),
+        )
+        payload = overview.payload()
+        payload["host_id"] = host.host_id.value
+        return payload
+
+    def select_foundation(request: ApiRequest) -> dict[str, object]:
+        """Persist AUTO or MANUAL selection. Does not provision or verify."""
+        mode = (request.query.get("mode") or "").strip().lower()
+        candidate_id = (request.query.get("candidate_id") or "").strip()
+        host = plane.hosts.current
+        policy = _foundation_policy(request)
+        args = (
+            host,
+            _executors(host),
+            plane.runtimes.descriptors(),
+            policy,
+        )
+        if mode == "auto":
+            overview = plane.foundation.select_auto(
+                *args, components=_components()
+            )
+        elif mode == "manual":
+            overview = plane.foundation.select_manual(
+                candidate_id, *args, components=_components()
+            )
+        else:
+            raise ValidationError(
+                "mode must be auto or manual", parameter="mode"
+            )
+        payload = overview.payload()
+        payload["host_id"] = host.host_id.value
+        payload["mutations"] = True
+        return payload
+
+    def realize_foundation(request: ApiRequest) -> object:
+        """Provision the selected candidate. Does not verify or switch."""
+        retry = (request.query.get("retry") or "").lower() in {"1", "true", "yes"}
+        host = plane.hosts.current
+        return plane.foundation.realize_selected(
+            host,
+            _executors(host),
+            plane.runtimes.descriptors(),
+            RuntimePolicy(),
+            components=_components(),
+            retry=retry,
+        )
+
+    def verify_selected_foundation(_: ApiRequest) -> object:
+        """Verify the selected installation. Does not switch foundation."""
+        host = plane.hosts.current
+        return plane.foundation.verify_selected(
+            host,
+            _executors(host),
+            plane.runtimes.descriptors(),
+            RuntimePolicy(),
+            components=_components(),
+        )
+
     def models(_: ApiRequest) -> dict[str, object]:
         """The curated candidate catalog. Read-only. No ranking, no download."""
         return {
@@ -540,6 +655,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
             available_runtimes=plane.runtimes.product_identities(),
         )
         planned = plan_from(recommendation)
+        stored = plane.foundation.stored(host)
         return {
             "download": False,
             "estimator_mode": recommendation.estimator_mode,
@@ -552,6 +668,12 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "outcome": recommendation.outcome.value,
             "recommendation": recommendation,
             "plan": planned,
+            "foundation_stale": (
+                stored.downstream_stale if stored is not None else False
+            ),
+            "foundation_selection_mode": (
+                stored.selection_mode.value if stored is not None else None
+            ),
         }
 
     def models_inventory(_: ApiRequest) -> dict[str, object]:
@@ -654,6 +776,10 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/runtimes/verify", verify_runtime)
     router.get("/runtimes/capability-profiles", list_capability_profiles)
     router.get("/runtimes/capability-profile", get_capability_profile)
+    router.get("/runtimes/foundation", runtime_foundation)
+    router.post("/runtimes/foundation/select", select_foundation)
+    router.post("/runtimes/foundation/realize", realize_foundation)
+    router.post("/runtimes/foundation/verify", verify_selected_foundation)
     router.post("/runtime/execution", start_reference)
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)

@@ -62,6 +62,7 @@ from kultrun.execution.contracts import (
     ContainerExecutionConfig,
     ExecutionId,
     ExecutionState,
+    ExecutorCapabilityProfile,
     ExecutorHandle,
 )
 from kultrun.execution.ports import Executor
@@ -120,12 +121,14 @@ from kultrun.runtime.contracts import (
     RuntimePolicy,
     RuntimeProvisioningPlanId,
     RuntimeResolverMode,
+    RuntimeSupportDescriptor,
     VerificationStatus,
 )
-from kultrun.runtime.lock import ProvisioningLock, VerificationLock
+from kultrun.runtime.lock import ProvisioningLock, SelectionLock, VerificationLock
 from kultrun.runtime.ports import RuntimeProvisioner, RuntimeVerifier
 from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import path_presence, resolve
+from kultrun.runtime.selection import FoundationSelectionService
 from kultrun.runtime.verify import VerificationService
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
 from kultrun.storage.contracts import StorageSanityEvidence
@@ -275,6 +278,7 @@ class Platform:
     instances: InstanceService
     provisioning: ProvisioningService
     verification: VerificationService
+    foundation: FoundationSelectionService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -672,6 +676,13 @@ def build(
             container_executor.capabilities(current_host),
         ),
     )
+    foundation = FoundationSelectionService(
+        store,
+        resolved_clock,
+        provisioning,
+        verification,
+        SelectionLock(state_root),
+    )
     admission = AdmissionService(
         resources,
         inventory,
@@ -704,6 +715,7 @@ def build(
         instances=instances,
         provisioning=provisioning,
         verification=verification,
+        foundation=foundation,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
@@ -733,6 +745,7 @@ def build(
         instances=instances,
         provisioning=provisioning,
         verification=verification,
+        foundation=foundation,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -1083,12 +1096,12 @@ def _runtime(arguments: Sequence[str]) -> int:
 
 
 def _runtimes(arguments: Sequence[str]) -> int:
-    """Runtime candidates and provisioning. GET candidates never install."""
+    """Runtime candidates, selection, and provisioning. GET never installs."""
     if not arguments or arguments[0] in ("-h", "--help"):
         print(
             "usage: kultrun runtimes "
-            "{candidates,plan,provision,installations,verify,capabilities} "
-            "[...]",
+            "{candidates,foundation,select,plan,provision,realize,"
+            "installations,verify,capabilities} [...]",
             file=sys.stderr,
         )
         return 0 if arguments else 2
@@ -1096,10 +1109,16 @@ def _runtimes(arguments: Sequence[str]) -> int:
     rest = list(arguments[1:])
     if command == "candidates":
         return show_runtime_candidates(rest)
+    if command == "foundation":
+        return show_foundation(rest)
+    if command == "select":
+        return select_foundation(rest)
     if command == "plan":
         return plan_runtime(rest)
     if command == "provision":
         return provision_runtime(rest)
+    if command == "realize":
+        return realize_foundation(rest)
     if command == "installations":
         return show_runtime_installations()
     if command == "verify":
@@ -1109,7 +1128,8 @@ def _runtimes(arguments: Sequence[str]) -> int:
     print(f"kultrun: unknown runtimes command {command!r}", file=sys.stderr)
     print(
         "usage: kultrun runtimes "
-        "{candidates,plan,provision,installations,verify,capabilities}",
+        "{candidates,foundation,select,plan,provision,realize,"
+        "installations,verify,capabilities}",
         file=sys.stderr,
     )
     return 2
@@ -1197,6 +1217,146 @@ def show_runtime_candidates(arguments: Sequence[str]) -> int:
             f"{item.executor.value:18} {item.compatibility.value:12} "
             f"{item.support_tier.value:10} {item.reason}"
         )
+    return 0
+
+
+def _runtime_inputs(
+    platform: Platform,
+) -> tuple[
+    HostCapabilities,
+    tuple[ExecutorCapabilityProfile, ExecutorCapabilityProfile],
+    tuple[RuntimeSupportDescriptor, ...],
+    dict[str, str],
+]:
+    host = platform.hosts.current
+    executors = (
+        platform.executions.capabilities(host),
+        platform.plane.container_capability(host),
+    )
+    descriptors = platform.runtimes.descriptors()
+    components = path_presence(
+        [
+            component.value
+            for descriptor in descriptors
+            for component in descriptor.required_components
+        ]
+    )
+    return host, executors, descriptors, components
+
+
+def show_foundation(arguments: Sequence[str]) -> int:
+    """Print recommended versus selected foundation. Does not realize."""
+    del arguments
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host, executors, descriptors, components = _runtime_inputs(platform)
+    overview = platform.foundation.view(
+        host, executors, descriptors, components=components
+    )
+    selection = overview.selection
+    recommended = (
+        selection.recommended_candidate_id
+        if isinstance(selection.recommended_candidate_id, str)
+        else "-"
+    )
+    selected = (
+        selection.selected_candidate_id
+        if isinstance(selection.selected_candidate_id, str)
+        else "-"
+    )
+    print(
+        f"selection {selection.selection_mode.value}  "
+        f"resolver {overview.resolution.policy.mode.value}  "
+        f"recommended {recommended}  selected {selected}  "
+        f"stale {str(selection.downstream_stale).lower()}"
+    )
+    if not overview.candidates:
+        print("no foundation candidates")
+        return 0
+    for item in overview.candidates:
+        mark = "*" if item.selected else "-"
+        print(
+            f"{mark} {item.candidate_id} {item.role:24} "
+            f"{item.confidence.value:20} "
+            f"{item.profile_status or 'unverified'}"
+        )
+    return 0
+
+
+def select_foundation(arguments: Sequence[str]) -> int:
+    """Persist AUTO or MANUAL selection. Does not provision."""
+    mode = "auto"
+    candidate: str | None = None
+    rest = list(arguments)
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if token == "--auto":
+            mode = "auto"
+            index += 1
+            continue
+        if token == "--candidate":
+            if index + 1 >= len(rest):
+                print("kultrun: --candidate needs an id", file=sys.stderr)
+                return 2
+            mode = "manual"
+            candidate = rest[index + 1]
+            index += 2
+            continue
+        print(f"kultrun: unknown argument {token!r}", file=sys.stderr)
+        return 2
+    if mode == "manual" and not candidate:
+        print("usage: kultrun runtimes select --auto|--candidate <id>", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host, executors, descriptors, components = _runtime_inputs(platform)
+    if mode == "auto":
+        overview = platform.foundation.select_auto(
+            host, executors, descriptors, components=components
+        )
+    else:
+        overview = platform.foundation.select_manual(
+            candidate or "",
+            host,
+            executors,
+            descriptors,
+            components=components,
+        )
+    selected = (
+        overview.selection.selected_candidate_id
+        if isinstance(overview.selection.selected_candidate_id, str)
+        else "-"
+    )
+    print(
+        f"selection {overview.selection.selection_mode.value}  "
+        f"selected {selected}  "
+        f"generation {overview.selection.generation}"
+    )
+    return 0
+
+
+def realize_foundation(arguments: Sequence[str]) -> int:
+    """Provision the selected foundation. Does not verify or switch."""
+    retry = "--retry" in arguments
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host, executors, descriptors, components = _runtime_inputs(platform)
+    installation = platform.foundation.realize_selected(
+        host,
+        executors,
+        descriptors,
+        components=components,
+        retry=retry,
+    )
+    print(
+        f"installation {installation.installation_id.value}  "
+        f"{installation.status.value}  "
+        f"{installation.runtime.value}=={installation.runtime_version}  "
+        f"attempts {installation.attempt_count}"
+    )
+    if installation.status.value == "failed":
+        return 1
     return 0
 
 
@@ -1311,22 +1471,23 @@ def verify_runtime(arguments: Sequence[str]) -> int:
     """Verify an exact installed runtime. Does not provision or load a model."""
     if not arguments:
         print(
-            "usage: kultrun runtimes verify <installation-id>",
+            "usage: kultrun runtimes verify <installation-id>|--selected",
             file=sys.stderr,
         )
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
-    host = platform.hosts.current
-    executors = (
-        platform.executions.capabilities(host),
-        platform.plane.container_capability(host),
-    )
-    profile = platform.verification.verify(
-        RuntimeInstallationId.parse(arguments[0]),
-        host,
-        executors,
-    )
+    host, executors, descriptors, components = _runtime_inputs(platform)
+    if arguments[0] == "--selected":
+        profile = platform.foundation.verify_selected(
+            host, executors, descriptors, components=components
+        )
+    else:
+        profile = platform.verification.verify(
+            RuntimeInstallationId.parse(arguments[0]),
+            host,
+            executors,
+        )
     print(
         f"profile {profile.profile_id.value}  {profile.status.value}  "
         f"{profile.runtime.value}=={profile.runtime_version}  "

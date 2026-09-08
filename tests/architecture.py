@@ -202,6 +202,7 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "execution.capability_profile",
         "runtime.capability_profile",
         "runtime.verification_basis",
+        "runtime.foundation_selection",
     }
 )
 
@@ -643,6 +644,7 @@ GENERIC_SEAM_KINDS = frozenset(
         "runtime.verification_basis",
         "runtime.verification_check",
         "runtime.verification_probe",
+        "runtime.foundation_selection",
         "execution.spec",
         "execution.handle",
         "execution.capability_profile",

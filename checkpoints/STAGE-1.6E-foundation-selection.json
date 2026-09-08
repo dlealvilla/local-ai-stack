@@ -1,0 +1,118 @@
+{
+  "stage": "1.6E",
+  "name": "foundation-selection",
+  "milestone": 1,
+  "output": "FoundationSelection + two-phase provisionable/executable classification + selected path through existing provision/verify + downstream stale seam",
+  "status": "in_progress",
+  "gate": "L1",
+  "evidence_level": "L1",
+  "t3_required": false,
+  "ready_for_t3": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "fb67e7d6bcaf011cc39951472ae1ebf692e7fd88",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.6D-runtime-verification.json"
+    ],
+    "starting_source_commit": "fb67e7d6bcaf011cc39951472ae1ebf692e7fd88",
+    "safety_tag": "checkpoint/stage-1.6D-closed-fb67e7d",
+    "feature_branch": "stage/1.6E-foundation-selection",
+    "predecessor_closed": true,
+    "do_not_reopen": ["1.6B", "1.6C", "1.6D"]
+  },
+  "contracts": {
+    "runtime.foundation_selection": "runtime.foundation_selection@1",
+    "foundation_candidate_kind": false,
+    "deployment_foundation_class": false,
+    "environment_provider_port": false,
+    "recipe_dsl": false,
+    "weighted_scoring": false
+  },
+  "selection_identity": {
+    "form": "fsel_<16 hex sha256>",
+    "material": "runtime.foundation_selection@1|host_id",
+    "one_current_selection_per_host": true
+  },
+  "modes": {
+    "foundation_selection": ["auto", "manual"],
+    "runtime_policy": ["auto", "explicit"],
+    "overloaded": false
+  },
+  "confidence": [
+    "blocked",
+    "provisionable",
+    "verified_executable"
+  ],
+  "provisionable_implies_executable": false,
+  "recommended_implies_verified": false,
+  "compatible_implies_verified": false,
+  "silent_fallback": false,
+  "get_persists": false,
+  "get_probes": false,
+  "get_provisions": false,
+  "invalidation": {
+    "framework": false,
+    "downstream_stale": true,
+    "stale_domains": [
+      "eligible_model_view",
+      "current_model_validity",
+      "model_requirement",
+      "capacity",
+      "resource_request",
+      "deployment_plan"
+    ]
+  },
+  "k66": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k77": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-86", "K-87", "K-91"],
+  "no_duplicate_debt": [
+    "FoundationCandidate",
+    "HostCapabilityProfile",
+    "EnvironmentRealization",
+    "VerifiedRuntimeCapabilityProfile",
+    "EnvironmentProvider",
+    "recipe DSL",
+    "SelectionFramework"
+  ],
+  "t2": {
+    "passed": true,
+    "clean_source": false,
+    "acceptance_evidence": false,
+    "script": "tools/t2_runtime_foundation_selection.py",
+    "wheel": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "691f415cfab6f2f12fafae76069d3968708e2cce8e0a07dbc74f58b7d143c06a",
+    "build_id": "0.1.0+fb67e7d6bcaf.wip",
+    "source_checkout": false,
+    "fixture_selection": true,
+    "verified_executable": true,
+    "blocked_refused": 412,
+    "api": true,
+    "cli": true,
+    "console": true,
+    "note": "WIP dirty-tree wheel. Rebuild from a clean commit before L1 close."
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false
+  },
+  "test_modes": {
+    "T0": "schema, AUTO≠resolver AUTO, GET no persist, MANUAL only provisionable, no silent fallback, stale seam",
+    "T1": "fixture host; AUTO realize+verify VERIFIED; blocked refused; return-to-AUTO; API/CLI/Console",
+    "T2": "clean wheel; fixture provisioner+verifier; no real vLLM",
+    "T3": "not required"
+  },
+  "not_begun": [
+    "runtime-aware eligible model view",
+    "authoritative selected DeploymentPlan",
+    "real inference",
+    "K-66 Managed Python",
+    "K-77 driver remediation",
+    "weighted scoring"
+  ]
+}

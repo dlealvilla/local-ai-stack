@@ -5380,6 +5380,81 @@
     },
     "python": "RuntimeCapabilityProfile"
   },
+  "runtime.foundation_selection@1": {
+    "fields": {
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this selection record was first written",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "downstream_stale": {
+        "may_be_unresolved": false,
+        "meaning": "true after a selection change until later stages recompute",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "generation": {
+        "may_be_unresolved": false,
+        "meaning": "increments when the selected candidate changes",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this selection applies to",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "recommended_candidate_id": {
+        "may_be_unresolved": true,
+        "meaning": "current pre-provision recommendation; unresolved when none exists",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selected_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the current selection last changed",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "selected_candidate_id": {
+        "may_be_unresolved": true,
+        "meaning": "candidate AUTO or MANUAL chose; unresolved when none exists",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selection_id": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of the current selection record for one host",
+        "nullable": false,
+        "optional": false,
+        "type": "FoundationSelectionId"
+      },
+      "selection_mode": {
+        "may_be_unresolved": false,
+        "meaning": "AUTO follows the current recommendation; MANUAL holds another provisionable candidate. Not RuntimePolicy.mode",
+        "nullable": false,
+        "optional": false,
+        "type": "FoundationSelectionMode"
+      },
+      "stale_domains": {
+        "may_be_unresolved": false,
+        "meaning": "derived domains that must not be trusted after a selection change",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      }
+    },
+    "python": "FoundationSelection"
+  },
   "runtime.installation@1": {
     "fields": {
       "attempt_count": {

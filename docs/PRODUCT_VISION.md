@@ -2806,7 +2806,8 @@ Overrides should be:
 - validated as a complete combination, not field-by-field;
 - explained;
 - recorded;
-- reversible where possible (return to AUTO is a later seam).
+- reversible: return to AUTO is implemented for foundation selection
+  (Stage 1.6E); richer override governance remains deferred (K-81).
 
 Hard physical, compatibility, permission, policy, entitlement, and
 safety invariants are never bypassable.

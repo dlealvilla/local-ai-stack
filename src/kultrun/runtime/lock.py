@@ -9,6 +9,7 @@ from pathlib import Path
 
 LOCK_NAME = "provision.lock"
 VERIFY_LOCK_NAME = "verify.lock"
+SELECT_LOCK_NAME = "select.lock"
 
 
 class ProvisioningLock:
@@ -35,3 +36,10 @@ class VerificationLock(ProvisioningLock):
 
     def __init__(self, state_root: Path) -> None:
         super().__init__(state_root, VERIFY_LOCK_NAME)
+
+
+class SelectionLock(ProvisioningLock):
+    """One lock for competing foundation-selection mutations."""
+
+    def __init__(self, state_root: Path) -> None:
+        super().__init__(state_root, SELECT_LOCK_NAME)
