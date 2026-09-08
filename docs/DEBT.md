@@ -1077,6 +1077,218 @@ To make real: After RuntimeVerifier and real inference produce evidence.
 Retire when:  benchmark evidence is a ranking input with tests.
 Status:       OPEN
 
+### K-66 — Managed Python runtime acquisition
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime / components
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: `kultrun.runtime.python.locate_python`
+What:         Kultrun locates a host Python 3.12 interpreter and never
+              installs one. Missing Python is a prerequisite failure.
+Why now:      Automatic Python acquisition would expand this stage into
+              OS package management.
+To make real: A managed interpreter provisioner behind a dedicated port,
+              never apt/brew inside VllmNativeProvisioner.
+Retire when:  a later stage accepts managed Python acquisition with tests.
+Status:       OPEN
+
+### K-67 — Alternative installer backend (uv)
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: `VllmNativeProvisioner` / `python -m pip`
+What:         The first product installer is stdlib venv + pip. `uv` is
+              not an architectural requirement.
+Why now:      Keep the provisioning mechanism explicit and replaceable.
+To make real: A second RuntimeProvisioner adapter using uv, selected by
+              composition, with the same plan contract.
+Retire when:  an alternative installer adapter is an accepted stage output.
+Status:       OPEN
+
+### K-68 — Offline / air-gapped runtime bundles
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: PyPI as package source on RuntimeProvisioningPlan
+What:         Provisioning expects network access to the package index.
+              Pre-resolved offline bundles are not produced.
+Why now:      First proof is an exact online pin, not air-gap logistics.
+To make real: Vendor-prepared wheels/bundles with the same plan schema.
+Retire when:  offline runtime install is an accepted capability.
+Status:       OPEN
+
+### K-69 — Fully locked runtime dependency manifests
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: pip install report hashes captured when present; never
+              fabricated; not enforced against a lockfile
+What:         Transitive dependency hashes are recorded when the installer
+              reports them. There is no maintained lock of every vLLM
+              dependency.
+Why now:      A manual hash list would be stale the day it shipped.
+To make real: A generated lockfile/hash policy that fails closed.
+Retire when:  locked/offline bundles (K-68) need hash enforcement.
+Status:       OPEN
+
+### K-70 — Runtime package cache / mirror
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: installer uses the default package index
+What:         No customer-local or vendor-managed artifact cache.
+Why now:      One PyPI install is enough to prove isolated provisioning.
+To make real: A configured index/cache that the provisioner can consume.
+Retire when:  a cache/mirror is required for air-gap or repeat installs.
+Status:       OPEN
+
+### K-71 — Runtime upgrade
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: one pin per plan; older installations may remain stored
+What:         Installing a newer runtime version and deliberately promoting
+              it is not implemented. Version *selection* remains K-57.
+Why now:      This stage proves one exact install, not version management.
+To make real: An explicit upgrade workflow that creates a new plan and
+              installation without mutating the old receipt.
+Retire when:  upgrade is an accepted mutating workflow with tests.
+Status:       OPEN
+
+### K-72 — Runtime rollback
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: RuntimeInstallation remains INSTALLED regardless of later
+              verification
+What:         Returning to a prior installed version is not implemented.
+Why now:      Rollback without a verified second install is theatre.
+To make real: After side-by-side installs exist (K-74) and verification
+              can name which installation to serve.
+Retire when:  rollback is an accepted mutating workflow with tests.
+Status:       OPEN
+
+### K-73 — Runtime uninstall / garbage collection
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: failed staging is deleted; successful installs stay
+What:         Safe removal and disk reclamation of INSTALLED runtimes
+              is not implemented.
+Why now:      Cleanup of success would look like rollback and is easy
+              to get wrong around later verification.
+To make real: An explicit uninstall path constrained to Kultrun state.
+Retire when:  uninstall/GC is an accepted mutating workflow with tests.
+Status:       OPEN
+
+### K-74 — Side-by-side version management
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: path `runtimes/<family>/<version>/<installation-id>/`
+What:         Multiple versions of the same family may already occupy
+              disk, but there is no product policy for serving, listing
+              as current, or choosing among them.
+Why now:      One pin is the 1.6C proof.
+To make real: A current-installation marker that is not verification.
+Retire when:  side-by-side serving is an accepted capability.
+Status:       OPEN
+
+### K-75 — Containerized runtime provisioning
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime / execution
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: is_provisionable rejects non-native-process candidates
+What:         vLLM images through ContainerExecutor are not provisioned.
+              Container candidates remain resolution-only (K-33 GPU
+              exposure still unknown).
+Why now:      Native isolated venv is the first product installer.
+To make real: A container provisioner adapter that does not put Docker
+              fields on generic plans.
+Retire when:  containerized vLLM install is an accepted stage output.
+Status:       OPEN
+
+### K-76 — CUDA / toolkit dependency management
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime / components
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: unresolved driver/toolkit facts are non-provisionable
+What:         The runtime provisioner does not install CUDA toolkit or
+              matching userspace libraries.
+Why now:      That is system administration, not isolated package install.
+To make real: A separate prerequisite manager, if ever needed, outside
+              VllmNativeProvisioner.
+Retire when:  toolkit management is an explicit product decision with tests.
+Status:       OPEN
+
+### K-77 — Driver management
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    host / components
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: NVIDIA driver facts come from Host Discovery; the provisioner
+              never mutates them
+What:         Installing or upgrading NVIDIA (or other) drivers is
+              outside the runtime provisioner. Future policy only.
+Why now:      A runtime installer that writes kernel drivers is a
+              different product.
+To make real: An explicit host-prerequisite policy, never implicit apt.
+Retire when:  driver management is an accepted product decision.
+Status:       OPEN
+
+### K-78 — Concurrent / background provisioning jobs
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime / platform
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: `ProvisioningLock` serializes one control plane; INSTALLING
+              returns conflict
+What:         No job queue, progress, pause, or resume. Provision is
+              synchronous. Duplicate INSTALLING is a conflict, not a
+              second worker.
+Why now:      A scheduler would hide failure and retry semantics.
+To make real: A job contract that cannot authorize a different plan.
+Retire when:  background provisioning is an accepted control-plane feature.
+Status:       OPEN
+
+### K-79 — Signed runtime artifacts / supply-chain verification
+Label:        DEFERRED
+Owner stage:  1.6C
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: installer report path + SHA-256 of the report bytes
+What:         Provenance is the pip install report and package metadata.
+              There is no signature verification of wheels or indexes.
+Why now:      First proof is isolated install + metadata version.
+To make real: Signed artifacts and index policy as commercialization
+              hardening, without making PyPI the semantic owner.
+Retire when:  signed runtime artifacts are an accepted security control.
+Status:       OPEN
+
 ## Deferred capability register
 
 Distinct from the debt entries above. A debt entry records an approximation
