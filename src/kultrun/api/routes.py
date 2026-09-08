@@ -40,6 +40,10 @@ from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
+from kultrun.platform.deployment_plan import (
+    DeploymentPlanningService,
+    DeploymentPlanOverview,
+)
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
@@ -101,6 +105,7 @@ class ControlPlane:
     foundation: FoundationSelectionService
     eligibility: ModelEligibilityService
     model_selection: ModelSelectionService
+    deployment_plan: DeploymentPlanningService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -731,6 +736,32 @@ def register(router: Router, plane: ControlPlane) -> Router:
         payload["mutations"] = True
         return payload
 
+    def _plan_overview(
+        host: HostCapabilities, *, persist: bool
+    ) -> DeploymentPlanOverview:
+        view, envelope, rows = _assessments(host)
+        selection = plane.model_selection.view(host, view, envelope, rows)
+        foundation = plane.foundation.stored(host)
+        if persist:
+            return plane.deployment_plan.refresh(
+                host, view, envelope, rows, selection, foundation
+            )
+        return plane.deployment_plan.view(
+            host, view, envelope, rows, selection, foundation
+        )
+
+    def deployments_plan(_: ApiRequest) -> dict[str, object]:
+        """Authoritative current deployment plan. GET does not persist."""
+        payload = _plan_overview(plane.hosts.current, persist=False).payload()
+        payload["mutations"] = False
+        return payload
+
+    def refresh_deployments_plan(_: ApiRequest) -> dict[str, object]:
+        """Persist the current plan from upstream state. Does not execute."""
+        payload = _plan_overview(plane.hosts.current, persist=True).payload()
+        payload["mutations"] = True
+        return payload
+
     def models_requirements(_: ApiRequest) -> dict[str, object]:
         """Derived requirements and capacity. GET does not admit or acquire."""
         host = plane.hosts.current
@@ -886,6 +917,8 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/models", models)
     router.get("/models/selection", models_selection)
     router.post("/models/selection", select_model)
+    router.get("/deployments/plan", deployments_plan)
+    router.post("/deployments/plan", refresh_deployments_plan)
     router.get("/models/eligible", models_eligible)
     router.get("/models/requirements", models_requirements)
 

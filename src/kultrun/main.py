@@ -106,6 +106,11 @@ from kultrun.platform.contracts import (
     PlatformSettings,
     StartupReport,
 )
+from kultrun.platform.deployment_plan import (
+    DeploymentPlanLock,
+    DeploymentPlanningService,
+    DeploymentPlanOverview,
+)
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
@@ -295,6 +300,7 @@ class Platform:
     foundation: FoundationSelectionService
     eligibility: ModelEligibilityService
     model_selection: ModelSelectionService
+    deployment_plan: DeploymentPlanningService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -713,6 +719,13 @@ def build(
         models,
         ModelSelectionLock(state_root),
     )
+    deployment_plan = DeploymentPlanningService(
+        store,
+        resolved_clock,
+        DeploymentPlanLock(state_root),
+        live_executor.identity.value,
+        selection.policy.policy_version,
+    )
     admission = AdmissionService(
         resources,
         inventory,
@@ -748,6 +761,7 @@ def build(
         foundation=foundation,
         eligibility=eligibility,
         model_selection=model_selection,
+        deployment_plan=deployment_plan,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
@@ -780,6 +794,7 @@ def build(
         foundation=foundation,
         eligibility=eligibility,
         model_selection=model_selection,
+        deployment_plan=deployment_plan,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -1315,6 +1330,22 @@ def _model_overview(platform: Platform) -> ModelSelectionOverview:
     return platform.model_selection.view(host, view, envelope, rows)
 
 
+def _deployment_overview(
+    platform: Platform, *, persist: bool = False
+) -> DeploymentPlanOverview:
+    host = platform.hosts.current
+    view, envelope, rows = _assessments(platform)
+    selection = platform.model_selection.view(host, view, envelope, rows)
+    foundation = platform.foundation.stored(host)
+    if persist:
+        return platform.deployment_plan.refresh(
+            host, view, envelope, rows, selection, foundation
+        )
+    return platform.deployment_plan.view(
+        host, view, envelope, rows, selection, foundation
+    )
+
+
 def _selected_runtime(view: EligibleModelView) -> str:
     token = view.runtime
     return token if isinstance(token, str) and token.strip() else ""
@@ -1773,6 +1804,46 @@ def _models(arguments: Sequence[str]) -> int:
         file=sys.stderr,
     )
     return 2
+
+
+def _deployments(arguments: Sequence[str]) -> int:
+    if arguments and arguments[0] not in {"plan", "--refresh"}:
+        print("usage: kultrun deployments plan [--refresh]", file=sys.stderr)
+        return 2
+    return show_deployment_plan(refresh="--refresh" in arguments)
+
+
+def show_deployment_plan(*, refresh: bool) -> int:
+    """Print the authoritative deployment plan. Does not execute."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    overview = _deployment_overview(platform, persist=refresh)
+    plan = overview.plan
+    print(f"Deployment Plan: {overview.status.value.upper()}")
+    if overview.reasons:
+        print(f"reasons {'; '.join(overview.reasons)}")
+    if plan is None:
+        print("no persisted plan")
+        return 0
+    runtime = plan.runtime if isinstance(plan.runtime, str) else "-"
+    version = plan.runtime_version if isinstance(plan.runtime_version, str) else "-"
+    print(f"plan {plan.plan_id if isinstance(plan.plan_id, str) else '-'}")
+    print(f"Runtime:\n  {runtime} {version}")
+    print(f"Model:\n  {plan.logical_name.value}")
+    mode = (
+        plan.model_selection_mode if isinstance(plan.model_selection_mode, str) else "-"
+    )
+    print(f"Selection:\n  {mode.upper() if mode != '-' else mode}")
+    verdict = (
+        plan.capacity_verdict.upper() if isinstance(plan.capacity_verdict, str) else "-"
+    )
+    print(f"Capacity:\n  {verdict}")
+    print("Resources:")
+    print(f"  RAM: {_bytes(plan.expected_ram_bytes)}")
+    print(f"  VRAM: {_bytes(plan.expected_vram_bytes)}")
+    executor = plan.executor_kind if isinstance(plan.executor_kind, str) else "-"
+    print(f"Execution:\n  {executor}")
+    return 0
 
 
 def show_inventory() -> int:
@@ -2361,6 +2432,7 @@ COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "version": lambda _: show_version(),
     "host": lambda _: show_host(),
     "models": _models,
+    "deployments": _deployments,
     "resources": _resources,
     "instances": _instances,
     "storage": _storage,
@@ -2377,7 +2449,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     the workflow needs it: `version` identifies a deployed build, `host`
     lets a real-host run be observed without shipping a script beside the
     product,     `models` lists the catalog and inventory and can acquire or
-    delete stored artifacts, `resources` admits capacity, `instances`
+    delete stored artifacts, `deployments plan` shows the current
+    deployment decision, `resources` admits capacity, `instances`
     starts and stops reference serving workloads, `storage` and `runtime`
     are explicit mutations, and `serve` is what the platform does.
     """

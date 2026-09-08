@@ -35,6 +35,7 @@ const SUBSYSTEMS = [
   { name: 'Eligible models', probe: '/models/eligible' },
   { name: 'Model requirements', probe: '/models/requirements' },
   { name: 'Model selection', probe: '/models/selection' },
+  { name: 'Deployment plan', probe: '/deployments/plan' },
   { name: 'Model inventory', probe: '/models/inventory' },
   { name: 'Resource admission', probe: '/resources' },
   { name: 'Inference instances', probe: '/inference/instances' },
@@ -1072,6 +1073,71 @@ async function renderSelection() {
   }
 }
 
+function renderDeploymentPlanError(panel, target, error) {
+  if (error.message.startsWith('404')) {
+    panel.classList.add('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+  failure(target, error);
+}
+
+async function renderDeploymentPlan() {
+  const panel = document.getElementById('plan-panel');
+  const summary = document.getElementById('plan-summary');
+  const target = document.getElementById('plan');
+  try {
+    const state = await get('/deployments/plan');
+    panel.classList.remove('hidden');
+    const requirement = state.requirement || {};
+    const capacity = state.capacity || {};
+    rows(summary, [
+      ['status', state.status || 'unavailable'],
+      ['runtime', state.runtime || 'none'],
+      ['runtime version', state.runtime_version || 'none'],
+      ['model', state.selected_model || 'none'],
+      ['selection', state.model_selection_mode || 'none'],
+      ['capacity', capacity.verdict || 'none'],
+      ['requirement RAM', fmt(requirement.ram_bytes)],
+      ['requirement VRAM', fmt(requirement.vram_bytes)],
+    ]);
+    target.replaceChildren();
+    target.append(deploymentPlanActions());
+    if (state.reasons && state.reasons.length) {
+      const note = document.createElement('p');
+      note.className = 'note';
+      note.textContent = state.reasons.join('; ');
+      target.append(note);
+    }
+    json(document.getElementById('plan-json'), state);
+  } catch (error) {
+    renderDeploymentPlanError(panel, target, error);
+  }
+}
+
+function deploymentPlanActions() {
+  const action = document.createElement('div');
+  action.className = 'action';
+  const refreshPlan = document.createElement('button');
+  refreshPlan.textContent = 'Refresh plan';
+  const status = span('muted', '');
+  refreshPlan.addEventListener('click', async () => {
+    refreshPlan.disabled = true;
+    status.textContent = ' refreshing…';
+    try {
+      const result = await post('/deployments/plan', {});
+      status.textContent = ` ${result.status || 'done'}`;
+      await renderDeploymentPlan();
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      refreshPlan.disabled = false;
+    }
+  });
+  action.append(refreshPlan, status);
+  return action;
+}
+
 function modelSelectionActions(state) {
   const action = document.createElement('div');
   action.className = 'action';
@@ -1605,6 +1671,7 @@ async function refresh() {
     await renderCatalog();
     await renderEligibleModels();
     await renderSelection();
+    await renderDeploymentPlan();
     await renderInventory();
     await renderResources();
     await renderInstances();

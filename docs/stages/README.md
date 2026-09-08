@@ -201,6 +201,12 @@ model selection. Ranking consumes only currently feasible candidates.
 K-55 RETIRED. Do not reopen 1.6B–1.6G. Checkpoint:
 `checkpoints/STAGE-1.6H-model-selection.json`.
 
-**Next after 1.6H close:** authoritative DeploymentPlan migration.
-Do not begin it from this package. Present depth options before
-implementation.
+**Stage 1.6I is closed** at `L1`. Authoritative DeploymentPlan from
+current foundation, verified runtime, ModelSelection, requirement,
+and feasible capacity. K-86 RETIRED. `plan_from` demoted. Do not
+reopen 1.6B–1.6H. Checkpoint:
+`checkpoints/STAGE-1.6I-deployment-plan.json`.
+
+**Next after 1.6I close:** plan-driven Acquisition + Resource
+Admission. Do not begin it from this package. Present depth options
+before implementation.

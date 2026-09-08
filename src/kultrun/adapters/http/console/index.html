@@ -111,6 +111,19 @@
       <details><summary>View JSON</summary><pre id="selection-json"></pre></details>
     </section>
 
+    <section id="plan-panel" class="hidden">
+      <h2>Deployment plan</h2>
+      <p class="note">
+        Authoritative current deployment decision. CURRENT means the
+        persisted plan still matches foundation, runtime, selection,
+        requirement, and capacity. This panel does not acquire, reserve,
+        or start inference.
+      </p>
+      <div class="grid" id="plan-summary"></div>
+      <div id="plan"></div>
+      <details><summary>View JSON</summary><pre id="plan-json"></pre></details>
+    </section>
+
     <section id="inventory-panel" class="hidden">
       <h2>Model inventory</h2>
       <p class="note">

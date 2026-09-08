@@ -156,6 +156,7 @@ class ModelSelectionOverview:
             "recommendation": self.recommendation,
             "plan": planned,
             "plan_authoritative": False,
+            "deployment_plan_route": "/v1/deployments/plan",
             "runtime_eligibility_status": self.view.status.value,
             "runtime_eligibility_authoritative": self.view.status.value == "current",
             "selected_runtime": _token(self.view.runtime),
