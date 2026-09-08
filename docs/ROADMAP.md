@@ -501,8 +501,9 @@ Introduce the pattern incrementally at existing domain seams:
       bounded AUTO|MANUAL ModelSelection; no DeploymentPlan authority
 1.6I  authoritative DeploymentPlan from current foundation, runtime,
       ModelSelection, requirement, and feasible capacity; CURRENT vs STALE
-later plan-driven Acquisition, ResourceManager remap, InferenceInstance,
-      real inference
+1.6J  CURRENT DeploymentPlan drives exact acquisition and ResourceManager
+      admission; STORE_ONLY remains independent; no InferenceInstance
+later InferenceInstance remap, real inference
 ```
 
 ---
@@ -708,7 +709,9 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6I Authoritative DeploymentPlan         ← CLOSED L1; CURRENT vs STALE; no execution
   ↓
-1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
+1.6J Plan-driven Acquisition + Admission  ← CLOSED L1; artifact + reservation; no instance
+  ↓
+1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; InferenceInstance remap next
   ↓
 post-inference breadth review, then 1.7 onward
 ```
@@ -1311,6 +1314,21 @@ remap Acquisition, ResourceManager, or InferenceInstance. Retire K-86.
 CLOSED. T0/T1/T2 fixture. T3 not required; this stage adds no
 hardware path. Do not reopen 1.6B–1.6H.
 
+### Stage 1.6J — Plan-Driven Acquisition + Resource Admission
+
+Migrate already-built executable acquisition and ResourceManager
+admission onto the CURRENT `DeploymentPlan`. Exact selected
+model/revision is acquired or reused. ResourceRequest amounts come
+from plan resource intent plus the matching artifact id.
+`plan_for_entry` is not the normal deployment authority. STORE_ONLY
+warehouse acquisition stays independent. ResourceManager stays
+generic and remains the live physical decision. Do not migrate
+InferenceInstance. Do not launch.
+
+**Output:** plan-driven `ModelArtifact` + `ResourceReservation` ·
+**Gate:** L1 CLOSED. T0/T1/T2 fixture. T3 not required. Do not
+reopen 1.6B–1.6I.
+
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
@@ -1320,12 +1338,13 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6G** is ModelRequirement + Capacity migration.
 **1.6H** is ModelSelector + bounded model selection.
 **1.6I** is the authoritative DeploymentPlan.
-Later letters cover plan-driven acquisition, admission remap, and real
-inference.
+**1.6J** is plan-driven acquisition and resource admission.
+Later letters cover InferenceInstance remap and real inference.
 **1.6D is CLOSED L2.** **1.6E is CLOSED L1.** **1.6F is CLOSED L1.**
 **1.6G is CLOSED L1.** **1.6H is CLOSED L1.** **1.6I is CLOSED L1.**
-Next is plan-driven Acquisition + Resource Admission; do not begin it
-from 1.6I. Present depth options before implementation.
+**1.6J is CLOSED L1.**
+Next is plan-driven InferenceInstance; do not begin it from 1.6J.
+Present depth options before implementation.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2561,6 +2580,53 @@ MUST NOT                     Reopen 1.6B–1.6H; remap Acquisition,
                              silent fallback to recommendation;
                              persist CURRENT with INFEASIBLE capacity;
                              GenericPlanFramework; execute the plan.
+DEPTH                        Accepted: minimum + a little depth.
+```
+
+### Stage 1.6J brief
+
+```text
+CURRENT STAGE                Plan-driven acquisition and resource
+                             admission. CURRENT DeploymentPlan is
+                             execution intent. Stop before
+                             InferenceInstance.
+PREDECESSOR OUTPUTS          Stage 1.6I CLOSED L1
+                             (`dd45e7eca54a630a2d2048c2b17dd64cca1958af`).
+THIS STAGE'S REQUIRED OUTPUT Plan-driven acquire/reuse of the exact
+                             selected ModelArtifact; ResourceRequest
+                             from DeploymentPlan.resource_request plus
+                             artifact_id; ResourceManager admission;
+                             ResourceReservation; STORE_ONLY preserved.
+CORE CONTRACTS AFFECTED      None new. Existing ResourceRequest,
+                             ModelArtifact, ResourceReservation.
+                             No PlanAcquisitionServiceV2.
+                             No PlanResourceRequestV2.
+ADAPTERS AFFECTED            None.
+PERSISTED STATE              Existing artifacts and reservations.
+                             PreparedDeployment is not persisted.
+MUTATION / FAILURE BOUNDARY  POST /deployments/plan/acquire|admit|prepare.
+                             STALE/UNAVAILABLE refuse. Admission refusal
+                             does not mutate the plan or shrink the
+                             request. No InferenceInstance.
+CANCELLATION / CLEANUP       Existing acquisition and reservation
+                             release paths. Duplicate ACTIVE reuse by
+                             request_id.
+ACCEPTANCE LEVEL             L1 CLOSED. T0/T1 plus T2 clean-wheel
+                             fixture chain. T3 not required.
+ADMIN SURFACE                POST /v1/deployments/plan/acquire;
+                             POST /v1/deployments/plan/admit;
+                             POST /v1/deployments/plan/prepare;
+                             kultrun deployments acquire|admit|prepare;
+                             Console Prepare deployment.
+DEBT ENTRIES                 K-66, K-77 remain OPEN.
+                             plan_from remains non-authoritative
+                             recommendation display.
+                             plan_for_entry residual on artifact-id
+                             reservation until InferenceInstance remap.
+MUST NOT                     Reopen 1.6B–1.6I; migrate InferenceInstance;
+                             launch runtime; create V2 services;
+                             force STORE_ONLY through DeploymentPlan;
+                             silent fallback; GenericPlanFramework.
 DEPTH                        Accepted: minimum + a little depth.
 ```
 

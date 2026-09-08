@@ -1120,9 +1120,12 @@ function deploymentPlanActions() {
   action.className = 'action';
   const refreshPlan = document.createElement('button');
   refreshPlan.textContent = 'Refresh plan';
+  const prepare = document.createElement('button');
+  prepare.textContent = 'Prepare deployment';
   const status = span('muted', '');
   refreshPlan.addEventListener('click', async () => {
     refreshPlan.disabled = true;
+    prepare.disabled = true;
     status.textContent = ' refreshing…';
     try {
       const result = await post('/deployments/plan', {});
@@ -1132,9 +1135,30 @@ function deploymentPlanActions() {
       status.textContent = ` ${error.message}`;
     } finally {
       refreshPlan.disabled = false;
+      prepare.disabled = false;
     }
   });
-  action.append(refreshPlan, status);
+  prepare.addEventListener('click', async () => {
+    refreshPlan.disabled = true;
+    prepare.disabled = true;
+    status.textContent = ' preparing…';
+    try {
+      const result = await post('/deployments/plan/prepare', {});
+      const acquisition = result.acquisition || {};
+      const admission = result.admission || {};
+      const artifact = acquisition.reused ? 'reused' : 'acquired';
+      const verdict = admission.verdict || 'none';
+      const reservation = admission.reservation_id || 'none';
+      status.textContent = ` ${artifact} ${verdict} ${reservation}`;
+      await renderDeploymentPlan();
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      refreshPlan.disabled = false;
+      prepare.disabled = false;
+    }
+  });
+  action.append(refreshPlan, prepare, status);
   return action;
 }
 

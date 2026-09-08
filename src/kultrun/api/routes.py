@@ -44,6 +44,7 @@ from kultrun.platform.deployment_plan import (
     DeploymentPlanningService,
     DeploymentPlanOverview,
 )
+from kultrun.platform.deployment_prepare import DeploymentPreparationService
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
@@ -106,6 +107,7 @@ class ControlPlane:
     eligibility: ModelEligibilityService
     model_selection: ModelSelectionService
     deployment_plan: DeploymentPlanningService
+    deployment_prepare: DeploymentPreparationService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -762,6 +764,22 @@ def register(router: Router, plane: ControlPlane) -> Router:
         payload["mutations"] = True
         return payload
 
+    def acquire_deployment_plan(_: ApiRequest) -> dict[str, object]:
+        """Acquire or reuse the CURRENT plan's exact artifact. Does not admit."""
+        return plane.deployment_prepare.acquire(plane.hosts.current).payload()
+
+    def admit_deployment_plan(request: ApiRequest) -> dict[str, object]:
+        """Admit the CURRENT plan against a matching stored artifact. No instance."""
+        raw = (request.query.get("artifact_id") or "").strip()
+        artifact_id = ArtifactId.parse(raw) if raw else None
+        return plane.deployment_prepare.admit(
+            plane.hosts.current, artifact_id
+        ).payload()
+
+    def prepare_deployment_plan(_: ApiRequest) -> dict[str, object]:
+        """Acquire/reuse then admit the CURRENT plan. Does not launch inference."""
+        return plane.deployment_prepare.prepare(plane.hosts.current).payload()
+
     def models_requirements(_: ApiRequest) -> dict[str, object]:
         """Derived requirements and capacity. GET does not admit or acquire."""
         host = plane.hosts.current
@@ -851,12 +869,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "yes",
         }
         if recommended and not candidate:
-            host = plane.hosts.current
-            view, envelope, rows = _assessments(host)
-            overview = plane.model_selection.view(host, view, envelope, rows)
-            if overview.recommendation.primary is None:
-                raise PreconditionFailedError("no recommended candidate to acquire")
-            candidate = overview.recommendation.primary.logical_name.value
+            return plane.deployment_prepare.acquire(plane.hosts.current).payload()
         if not candidate:
             raise ValidationError(
                 "a known candidate is required", parameter="candidate"
@@ -919,6 +932,9 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/models/selection", select_model)
     router.get("/deployments/plan", deployments_plan)
     router.post("/deployments/plan", refresh_deployments_plan)
+    router.post("/deployments/plan/acquire", acquire_deployment_plan)
+    router.post("/deployments/plan/admit", admit_deployment_plan)
+    router.post("/deployments/plan/prepare", prepare_deployment_plan)
     router.get("/models/eligible", models_eligible)
     router.get("/models/requirements", models_requirements)
 

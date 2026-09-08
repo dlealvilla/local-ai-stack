@@ -207,6 +207,12 @@ and feasible capacity. K-86 RETIRED. `plan_from` demoted. Do not
 reopen 1.6B–1.6H. Checkpoint:
 `checkpoints/STAGE-1.6I-deployment-plan.json`.
 
-**Next after 1.6I close:** plan-driven Acquisition + Resource
-Admission. Do not begin it from this package. Present depth options
-before implementation.
+**Stage 1.6J is closed** at `L1`. Plan-driven acquisition and
+ResourceManager admission consume the CURRENT DeploymentPlan.
+STORE_ONLY remains independent. InferenceInstance is not remapped.
+Do not reopen 1.6B–1.6I. Checkpoint:
+`checkpoints/STAGE-1.6J-deployment-prepare.json`.
+
+**Next after 1.6J close:** plan-driven InferenceInstance. Do not
+begin it from this package. Present depth options before
+implementation.

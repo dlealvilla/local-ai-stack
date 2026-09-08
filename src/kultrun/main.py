@@ -111,6 +111,7 @@ from kultrun.platform.deployment_plan import (
     DeploymentPlanningService,
     DeploymentPlanOverview,
 )
+from kultrun.platform.deployment_prepare import DeploymentPreparationService
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
@@ -301,6 +302,7 @@ class Platform:
     eligibility: ModelEligibilityService
     model_selection: ModelSelectionService
     deployment_plan: DeploymentPlanningService
+    deployment_prepare: DeploymentPreparationService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -738,6 +740,45 @@ def build(
         reservation_in_use=instances.blocks_release,
     )
 
+    def _plan_overview_live(host: HostCapabilities) -> DeploymentPlanOverview:
+        descriptors = runtimes.descriptors()
+        view = eligibility.evaluate(
+            host,
+            (
+                executions.capabilities(host),
+                container_executor.capabilities(host),
+            ),
+            descriptors,
+            catalog_facts(models),
+            RuntimePolicy(),
+            components=path_presence(
+                [
+                    component.value
+                    for descriptor in descriptors
+                    for component in descriptor.required_components
+                ]
+            ),
+        )
+        envelope = capacity.compute(host, _stored_sanity_with(sanity, host))
+        rows = assess_catalog(
+            view, models, envelope, selection.estimator, selection.policy
+        )
+        chosen = model_selection.view(host, view, envelope, rows)
+        return deployment_plan.view(
+            host, view, envelope, rows, chosen, foundation.stored(host)
+        )
+
+    deployment_prepare = DeploymentPreparationService(
+        _plan_overview_live,
+        models,
+        acquisition,
+        inventory,
+        admission,
+        capacity,
+        lambda host: _stored_sanity_with(sanity, host),
+        resolved_clock,
+    )
+
     plane = ControlPlane(
         state=state,
         startup=startup,
@@ -762,6 +803,7 @@ def build(
         eligibility=eligibility,
         model_selection=model_selection,
         deployment_plan=deployment_plan,
+        deployment_prepare=deployment_prepare,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
@@ -795,6 +837,7 @@ def build(
         eligibility=eligibility,
         model_selection=model_selection,
         deployment_plan=deployment_plan,
+        deployment_prepare=deployment_prepare,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -1807,10 +1850,20 @@ def _models(arguments: Sequence[str]) -> int:
 
 
 def _deployments(arguments: Sequence[str]) -> int:
-    if arguments and arguments[0] not in {"plan", "--refresh"}:
-        print("usage: kultrun deployments plan [--refresh]", file=sys.stderr)
-        return 2
-    return show_deployment_plan(refresh="--refresh" in arguments)
+    if not arguments or arguments[0] in {"plan", "--refresh"}:
+        return show_deployment_plan(refresh="--refresh" in arguments)
+    command = arguments[0]
+    if command == "acquire":
+        return acquire_deployment()
+    if command == "admit":
+        return admit_deployment()
+    if command == "prepare":
+        return prepare_deployment()
+    print(
+        "usage: kultrun deployments {plan [--refresh]|acquire|admit|prepare}",
+        file=sys.stderr,
+    )
+    return 2
 
 
 def show_deployment_plan(*, refresh: bool) -> int:
@@ -1844,6 +1897,78 @@ def show_deployment_plan(*, refresh: bool) -> int:
     executor = plan.executor_kind if isinstance(plan.executor_kind, str) else "-"
     print(f"Execution:\n  {executor}")
     return 0
+
+
+def acquire_deployment() -> int:
+    """Acquire or reuse the CURRENT plan's exact artifact. Does not admit."""
+    from kultrun.kernel.errors import KultrunError
+
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        result = platform.deployment_prepare.acquire(platform.hosts.current)
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    _print_acquisition(result.payload())
+    return 0
+
+
+def admit_deployment() -> int:
+    """Admit the CURRENT plan against a matching stored artifact."""
+    from kultrun.kernel.errors import KultrunError
+
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        result = platform.deployment_prepare.admit(platform.hosts.current)
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    payload = result.payload()
+    _print_acquisition(payload)
+    return _print_admission(payload)
+
+
+def prepare_deployment() -> int:
+    """Acquire/reuse then admit the CURRENT plan. Does not start inference."""
+    from kultrun.kernel.errors import KultrunError
+
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        result = platform.deployment_prepare.prepare(platform.hosts.current)
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    payload = result.payload()
+    _print_acquisition(payload)
+    return _print_admission(payload)
+
+
+def _print_acquisition(payload: Mapping[str, object]) -> None:
+    status = str(payload.get("plan_status") or "unavailable").upper()
+    print(f"Plan: {status}")
+    print(f"Model: {payload.get('selected_model') or '-'}")
+    acquisition = payload.get("acquisition")
+    details = acquisition if isinstance(acquisition, Mapping) else {}
+    reused = bool(details.get("reused"))
+    print(f"Artifact: {'reused' if reused else 'acquired'}")
+    print(f"Artifact ID: {payload.get('artifact_id') or '-'}")
+
+
+def _print_admission(payload: Mapping[str, object]) -> int:
+    admission = payload.get("admission")
+    details = admission if isinstance(admission, Mapping) else {}
+    verdict = str(details.get("verdict") or "unresolved").upper()
+    print(f"Admission: {verdict}")
+    reservation = details.get("reservation_id") or "-"
+    print(f"Reservation ID: {reservation}")
+    reasons = details.get("reasons")
+    if isinstance(reasons, list):
+        for line in reasons:
+            print(f"  {line}")
+    return 0 if verdict == "ADMITTED" else 1
 
 
 def show_inventory() -> int:
@@ -1885,13 +2010,7 @@ def acquire_named(arguments: Sequence[str]) -> int:
     recommended = "--recommended" in arguments
     names = [item for item in arguments if not item.startswith("-")]
     if recommended and not names:
-        platform = build()
-        _warn_if_state_root_defaulted(platform)
-        overview = _model_overview(platform)
-        if overview.recommendation.primary is None:
-            print("kultrun: no recommended candidate", file=sys.stderr)
-            return 1
-        names = [overview.recommendation.primary.logical_name.value]
+        return acquire_deployment()
     if len(names) != 1:
         print(
             "usage: kultrun models acquire <candidate-id> | --recommended",
@@ -2450,7 +2569,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     lets a real-host run be observed without shipping a script beside the
     product,     `models` lists the catalog and inventory and can acquire or
     delete stored artifacts, `deployments plan` shows the current
-    deployment decision, `resources` admits capacity, `instances`
+    deployment decision, `deployments acquire|admit|prepare` consume
+    that plan, `resources` admits capacity, `instances`
     starts and stops reference serving workloads, `storage` and `runtime`
     are explicit mutations, and `serve` is what the platform does.
     """

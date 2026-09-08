@@ -443,6 +443,20 @@ DeploymentPlan CURRENT, MANUAL selected model, restart, invalidation,
 refresh, no execution. T3 is not required. Do not reopen 1.6H. Do
 not treat L1 plan evidence as acquisition or inference proof.
 
+**Stage 1.6J** is T0/T1/T2 plan-driven acquisition and resource
+admission. Tests cover CURRENT acquire, STALE/UNAVAILABLE refuse,
+exact artifact reuse, wrong revision/quantization not reused, MANUAL
+selected model, STORE_ONLY independence, plan-derived ResourceRequest,
+artifact_id binding, stale-between-acquire-and-admit, mismatch
+refusal before ResourceManager, admission success/failure without
+fallback, Small→Large→Small, and architecture guards (no V2
+services, ResourceManager generic, planning ⟂ resource). T2 is a
+clean-wheel fixture chain through CURRENT DeploymentPlan →
+acquire/reuse → plan-derived request → ResourceManager →
+ResourceReservation, plus STORE_ONLY, contention refusal, stale
+admission, and zero InferenceInstance. T3 is not required. Do not
+reopen 1.6I. Do not treat L1 prepare evidence as inference proof.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.

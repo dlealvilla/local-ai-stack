@@ -223,11 +223,13 @@ def plan_for_entry(
     runtime_version: Maybe[str] = NOT_PROVIDED,
     requirement_basis: Maybe[str] = NOT_PROVIDED,
 ) -> DeploymentPlan:
-    """Amounts for a stored-artifact ResourceRequest.
+    """Residual amounts for the artifact-id reservation path.
 
-    Ranking and CapacityAssessment skip BLOCKED/UNRESOLVED models.
-    Admission still needs numeric amounts until ResourceManager remap,
-    so this path still estimates. Compatibility is recorded, not defaulted.
+    Plan-driven admission uses ``DeploymentPlan.resource_request`` via
+    ``request_from_plan``. Ranking and CapacityAssessment skip
+    BLOCKED/UNRESOLVED models. This helper still estimates so 1.5A/1.5B
+    and InferenceInstance tests keep a ResourceRequest until that remap.
+    Compatibility is recorded, not defaulted.
     """
     capacity = deployment_capacity(envelope)
     request = estimation_request(
@@ -293,8 +295,9 @@ def plan_from(recommendation: SelectionRecommendation) -> DeploymentPlan | None:
     """Provisional recommendation projection. Not an authoritative DeploymentPlan.
 
     Product authority is ``DeploymentPlanningService``. This helper stays
-    for isolated ranking tests and admission amount construction until
-    ResourceManager remap. It never sets ``plan_id``.
+    for isolated ranking tests and the non-authoritative recommendation
+    payload. It never sets ``plan_id`` and never supplies execution
+    resource values.
     """
     primary = recommendation.primary
     if primary is None:

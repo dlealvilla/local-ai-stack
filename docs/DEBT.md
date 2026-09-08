@@ -950,10 +950,10 @@ Note:         `SelectionService.recommend()` remains for isolated
               estimator tests. Product authority is `rank_feasible()`
               via `ModelSelectionService`. `plan_from` in the selection
               payload remains a provisional recommendation artifact
-              (`plan_authoritative: false`); demoted in 1.6I, remove
-              during ResourceManager remap. Acquisition `--recommended`
-              already reads the migrated recommendation. STORE is not
-              plan-gated.
+              (`plan_authoritative: false`); demoted in 1.6I. It does
+              not supply execution resource values. Acquisition
+              `--recommended` now consumes the CURRENT DeploymentPlan.
+              STORE_ONLY catalog acquire remains independent of the plan.
 
 ### K-56 — Runtime performance-aware ranking
 Label:        DEFERRED
@@ -1594,11 +1594,12 @@ Retire when:  no product path defaults missing eligibility to COMPATIBLE,
               and estimator identity is the selected runtime.
 Status:       RETIRED (1.6G, 2026-09-08)
 Note:         `plan_for_entry` still estimates numeric ResourceRequest
-              amounts for BLOCKED/UNRESOLVED so 1.5A/1.5B reservation
-              arithmetic keeps working. That is ResourceManager remap
-              remaining work, not a compatibility default.
+              amounts for the residual artifact-id reservation path
+              used by 1.5A/1.5B and InferenceInstance tests. Normal
+              deployment admission uses `request_from_plan`. Removal
+              trigger: InferenceInstance remap.
 
-## Runtime-first migration ledger (after 1.6I)
+## Runtime-first migration ledger (after 1.6J)
 
 Not a second architecture. Existing components still to migrate, in
 order. Do not begin automatically.
@@ -1610,10 +1611,10 @@ order. Do not begin automatically.
 | CapacityAssessment | remapped `ModelRequirement` + host SAFE envelope | same | done in 1.6G; existing SAFE math | none | ✅ |
 | ModelSelector | `FeasibleModelCandidate[]` from eligible + ready + feasible assessments | same | done in 1.6H; existing capacity-band ranking | `SelectionService.recommend()` isolated tests only | ✅ |
 | Bounded model selection | host-scoped `ModelSelection` AUTO\|MANUAL; recommended ≠ selected | same | done in 1.6H | none | ✅ |
-| Authoritative DeploymentPlan | current foundation + VERIFIED runtime + ModelSelection + READY requirement + feasible capacity | same | done in 1.6I; CURRENT vs STALE from `plan_basis` | `plan_from` demoted (`plan_authoritative: false`) until ResourceManager remap | ✅ |
-| Acquisition | catalog identity + storage envelope; `--recommended` uses ModelSelection | fresh CURRENT DeploymentPlan for normal executable acquisition; preserve STORE_ONLY warehouse | next | `--recommended` still reads ModelSelection | NEXT |
-| ResourceManager | existing resource amounts / `plan_for_entry` | `DeploymentPlan.resource_request` | next | estimate-for-admission until remap | pending |
-| InferenceInstance | ModelArtifact + ResourceReservation + reconstructed runtime settings | `DeploymentPlan` + `ModelArtifact` + `ResourceReservation` | not remapped | none | pending |
+| Authoritative DeploymentPlan | current foundation + VERIFIED runtime + ModelSelection + READY requirement + feasible capacity | same | done in 1.6I; CURRENT vs STALE from `plan_basis` | `plan_from` demoted (`plan_authoritative: false`) for recommendation display | ✅ |
+| Acquisition | CURRENT DeploymentPlan identity for normal executable acquire; STORE_ONLY catalog path preserved | same | done in 1.6J | STORE_ONLY remains plan-independent | ✅ |
+| ResourceManager | `ResourceRequest` from `DeploymentPlan.resource_request` + exact artifact_id | same | done in 1.6J; ResourceManager stays generic | `plan_for_entry` residual on artifact-id reserve until InferenceInstance remap | ✅ |
+| InferenceInstance | ModelArtifact + ResourceReservation + reconstructed runtime settings | `DeploymentPlan` + exact `ModelArtifact` + matching `ResourceReservation` | next | none | NEXT |
 | Real inference | reference serving | selected foundation + acquired artifact + reservation | later 1.6 letter | none | pending |
 
 ## Deferred capability register

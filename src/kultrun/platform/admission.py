@@ -19,7 +19,12 @@ from kultrun.capacity.envelope import CapacityService
 from kultrun.host.contracts import HostCapabilities
 from kultrun.identity.contracts import SubjectId
 from kultrun.kernel.clock import Clock
-from kultrun.kernel.errors import ConflictError, NotFoundError, ValidationError
+from kultrun.kernel.errors import (
+    ConflictError,
+    NotFoundError,
+    PreconditionFailedError,
+    ValidationError,
+)
 from kultrun.kernel.ids import Name
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
@@ -110,6 +115,37 @@ class AdmissionService:
         )
         return decision
 
+    def reserve_for_plan(
+        self,
+        plan: DeploymentPlan,
+        artifact: ModelArtifact,
+        host: HostCapabilities,
+        sanity: dict[str, StorageSanityEvidence],
+    ) -> tuple[ResourceRequest, AdmissionDecision]:
+        """Admit plan resource intent bound to a matching artifact.
+
+        Amounts come from the authoritative DeploymentPlan, not plan_for_entry.
+        ResourceManager remains the live physical decision.
+        """
+        if not artifact_matches_plan(artifact, plan):
+            raise PreconditionFailedError(
+                "artifact does not match the current deployment plan",
+                reason="artifact_plan_mismatch",
+                artifact_id=artifact.artifact_id.value,
+                model_id=plan.model_id.value,
+            )
+        envelope = self._capacity.compute(host, sanity)
+        request = request_from_plan(plan, artifact, envelope)
+        decision = self._manager.admit(request, envelope, artifact)
+        self._audit(
+            "resource.reserve",
+            artifact.artifact_id.value,
+            decision.verdict.value,
+            decision.reasons[0] if decision.reasons else None,
+            allowed=decision.verdict.value == "admitted",
+        )
+        return request, decision
+
     def release(self, reservation_id: ReservationId) -> ResourceReservation:
         if self._reservation_in_use(reservation_id):
             raise ConflictError(
@@ -151,6 +187,90 @@ class AdmissionService:
         self._store.put(event.audit_id.value, event)
 
 
+def artifact_matches_plan(artifact: ModelArtifact, plan: DeploymentPlan) -> bool:
+    """Exact plan identity. Same display name with a wrong revision is not a match."""
+    if artifact.model_id != plan.model_id:
+        return False
+    if is_resolved(artifact.source_ref) and artifact.source_ref != plan.source_ref:
+        return False
+    if is_resolved(plan.source_revision) and (
+        not is_resolved(artifact.revision) or artifact.revision != plan.source_revision
+    ):
+        return False
+    return not (
+        is_resolved(plan.quantization)
+        and _opt(artifact.quantization) != _opt(plan.quantization)
+    )
+
+
+def request_from_plan(
+    plan: DeploymentPlan,
+    artifact: ModelArtifact,
+    envelope: CapacityEnvelope,
+    *,
+    request_id: RequestId | None = None,
+) -> ResourceRequest:
+    """Bind plan resource intent to a stored artifact. Does not re-estimate."""
+    if not is_resolved(plan.plan_basis):
+        raise ValidationError("deployment plan has no basis")
+    if is_resolved(plan.host_id) and plan.host_id != envelope.host_id.value:
+        raise PreconditionFailedError(
+            "plan host does not match live host",
+            reason="plan_host_mismatch",
+            plan_host=plan.host_id,
+            live_host=envelope.host_id.value,
+        )
+    ident = request_id or fingerprint_plan_request_id(
+        str(plan.plan_basis), artifact.artifact_id.value
+    )
+    placement = plan.placement
+    return ResourceRequest(
+        request_id=ident,
+        host_id=envelope.host_id,
+        artifact_id=artifact.artifact_id,
+        model_id=plan.model_id,
+        plan_fingerprint=str(plan.plan_basis),
+        placement=placement,
+        ram_bytes=plan.expected_ram_bytes,
+        accelerator_bytes=(
+            plan.expected_vram_bytes
+            if placement is MemoryPlacement.DISCRETE_GPU
+            else NOT_PROVIDED
+        ),
+        unified_bytes=(
+            plan.expected_unified_bytes
+            if placement is MemoryPlacement.UNIFIED_MEMORY
+            else NOT_PROVIDED
+        ),
+        logical_name=plan.logical_name.value,
+        runtime=plan.runtime,
+        accelerator_index=plan.accelerator_index,
+        incremental_storage_bytes=NOT_PROVIDED,
+        estimator_provider=plan.estimator_provider,
+        plan_version=plan.policy_version,
+        model_revision=artifact.revision,
+        quantization=plan.quantization,
+        context_tokens=plan.context_tokens,
+        capacity_policy_version=envelope.policy_version,
+        host_fingerprint=envelope.host_fingerprint,
+        workload_type=WorkloadType.INFERENCE,
+    )
+
+
+def fingerprint_plan_request_id(plan_basis: str, artifact_id: str) -> RequestId:
+    """Deterministic request identity for one plan basis + artifact pair."""
+    digest = hashlib.sha256(
+        f"resource.request.plan@1|{plan_basis}|{artifact_id}".encode()
+    ).hexdigest()
+    return RequestId(f"rreq_{digest[:16]}")
+
+
+def _opt(value: object) -> str:
+    if not is_resolved(value) or value is None:
+        return ""
+    return str(value)
+
+
 def request_from_artifact(
     artifact: ModelArtifact,
     envelope: CapacityEnvelope,
@@ -162,7 +282,11 @@ def request_from_artifact(
     runtime_version: Maybe[str] = NOT_PROVIDED,
     request_id: RequestId | None = None,
 ) -> ResourceRequest:
-    """Build a request from server-side evidence. No caller amounts."""
+    """Legacy artifact-id reservation path. Not plan-driven admission.
+
+    Amounts still come from ``plan_for_entry`` for STORE_ONLY / InferenceInstance
+    callers that have not migrated. Normal deployment uses ``request_from_plan``.
+    """
     if artifact.state is not ArtifactState.STORED:
         # Still build a request so ResourceManager can reject with the typed reason.
         pass
