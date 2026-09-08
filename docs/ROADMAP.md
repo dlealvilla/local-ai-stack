@@ -686,9 +686,9 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6C Runtime Provisioning                 ← CLOSED L2
   ↓
-1.6D Runtime Verification                 ← current
+1.6D Runtime Verification                 ← CLOSED L2
   ↓
-1.6E Runtime Evaluation / Selection       ← not begun; first bounded runtime override
+1.6E Runtime Evaluation / Selection       ← not begun / NEXT; first bounded runtime override
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1226,7 +1226,7 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6D** is verification. **1.6E** is bounded runtime selection.
 Later letters cover `RuntimeCapabilityProfile` consumption in
 eligibility remap, acquisition, admission, and real inference.
-**1.6D and 1.6E are not begun from 1.6C.** 1.6D is the current stage.
+**1.6D is CLOSED L2.** 1.6E is next and not begun.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2204,11 +2204,12 @@ SELECTION SEAM               Provision the explicitly identified
                              INSTALLED is not VERIFIED. No ranking UI.
 ```
 
-### Stage 1.6D brief (current)
+### Stage 1.6D brief
 
 ```text
 CURRENT STAGE                Runtime verification. Exact installation
                              → host/executor probe → capability profile.
+                             CLOSED L2.
 PREDECESSOR OUTPUTS          Stage 1.6C CLOSED L2
                              (`0f39753d9d2b2c9e2942ca852983efa2e6203ad3`).
 THIS STAGE'S REQUIRED OUTPUT RuntimeVerifier; RuntimeCapabilityProfile;
@@ -2219,6 +2220,8 @@ THIS STAGE'S REQUIRED OUTPUT RuntimeVerifier; RuntimeCapabilityProfile;
 MUST NOT                     Rank; recommend; silently fall back;
                              treat INSTALLED as VERIFIED; treat VERIFIED
                              as model-compatible; load a model; infer.
+ACCEPTANCE LEVEL             L2 CLOSED. Real NVIDIA T3: import vllm,
+                             backend, tiny CUDA. No model.
 DEFERRED ITEMS               1.6E bounded runtime selection. K-88…K-93.
 ```
 

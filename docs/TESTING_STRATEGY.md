@@ -375,11 +375,11 @@ verification-basis fingerprint, driver/accelerator/runtime staleness,
 free RAM/VRAM non-staleness, success/failure/retry/idempotency, fixture
 scenarios A–O, architecture non-edges, API/CLI/Console, and that GET
 never probes. T2 uses the fixture verifier in a clean wheel; that is
-not real vLLM. T3 must rediscover the host, verify the exact installed
-`vllm==0.28.0` native-process path, actually `import vllm`, import the
-backend, see the NVIDIA device, and run a tiny CUDA operation. No
-model is downloaded or loaded. Stage 1.6D T3 is not real model
-inference.
+not real vLLM. T3 passed L2 on a rediscovered Linux x86_64 NVIDIA RTX
+A6000 host: exact `rinst_22e540a9eeca0e8d` / `vllm==0.28.0`
+native-process, `import vllm`, backend import, CUDA available, GPU
+visible, tiny CUDA operation PASS. No model was downloaded or loaded.
+Stage 1.6D T3 is not real model inference.
 
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.

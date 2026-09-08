@@ -2,7 +2,7 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN.** Checkpoint:
+Status: **CLOSED — L2.** Checkpoint:
 `checkpoints/STAGE-1.6D-runtime-verification.json`.
 
 This stage answers whether an exact installed runtime operates correctly
@@ -36,8 +36,11 @@ MUTATION / FAILURE BOUNDARY  POST verify only. GET may present STALE.
 CANCELLATION / CLEANUP       Bounded probe; timeout becomes FAILED;
                              no daemon left behind. Failed verify does
                              not delete the installation.
-ACCEPTANCE LEVEL             L2 required to close. T2 is L1 control-plane
-                             evidence. Fixture verify is not real vLLM.
+ACCEPTANCE LEVEL             L2 CLOSED. T3 imported vLLM 0.28.0 on the
+                             rediscovered NVIDIA host and ran a tiny
+                             CUDA operation. No model. INSTALLED is
+                             not VERIFIED. VERIFIED is not
+                             model-compatible.
 ADMIN SURFACE                POST /v1/runtimes/verify;
                              GET /v1/runtimes/capability-profiles;
                              GET /v1/runtimes/capability-profile;
@@ -150,9 +153,10 @@ managed Python (K-66), driver remediation (K-77).
 - **T1** — fixture scenarios A–O, including restart and FAILED→retry.
 - **T2** — clean wheel, fixture chain through `VERIFIED`, API/CLI/Console,
   persistence, restart, staleness, failure, retry, idempotency.
-- **T3** — real NVIDIA host, rediscovered (not reused 1.6C host facts),
-  exact installation (reuse 1.6C if present, else recreate through
-  Kultrun), actual import/backend/GPU probe. Not real model inference.
+- **T3** — PASSED L2. Rediscovered Linux x86_64 Ubuntu 24.04.3 NVIDIA
+  RTX A6000 (driver 580.159.04). Reused `rinst_22e540a9eeca0e8d`.
+  Profile `rcap_641634a3c0325d0f` VERIFIED. `import vllm`, backend,
+  CUDA, tiny CUDA operation. No model. Not real inference.
 
 ## STOP
 
