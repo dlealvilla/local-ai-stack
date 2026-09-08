@@ -161,6 +161,7 @@ ADAPTER_PORT_DOMAIN: Mapping[str, str] = {
     "adaptation": "training",
     "install": "install",
     "provisioning": "runtime",
+    "verification": "runtime",
 }
 
 #: Part II §4. Nothing may import this package; it is strictly additive.
@@ -199,6 +200,8 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "inference.instance",
         "execution.handle",
         "execution.capability_profile",
+        "runtime.capability_profile",
+        "runtime.verification_basis",
     }
 )
 
@@ -636,6 +639,10 @@ GENERIC_SEAM_KINDS = frozenset(
         "runtime.provisioning_component",
         "runtime.provisioning_plan",
         "runtime.installation",
+        "runtime.capability_profile",
+        "runtime.verification_basis",
+        "runtime.verification_check",
+        "runtime.verification_probe",
         "execution.spec",
         "execution.handle",
         "execution.capability_profile",
@@ -707,6 +714,20 @@ def seam_import_leaks(source_root: Path) -> list[str]:
                 "kultrun.planning",
                 "kultrun.inference",
                 "kultrun.adapters",
+                "subprocess",
+            )
+        )
+    for path in (source_root / "kultrun" / "adapters" / "verification").rglob("*.py"):
+        problems.extend(
+            _imports_named(
+                path,
+                "subprocess",
+                "kultrun.execution",
+                "kultrun.adapters.execution",
+                "kultrun.model",
+                "kultrun.resource",
+                "kultrun.inference",
+                "kultrun.planning",
             )
         )
     for path in (source_root / "kultrun" / "execution").rglob("*.py"):

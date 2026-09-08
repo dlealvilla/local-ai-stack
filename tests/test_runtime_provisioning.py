@@ -669,18 +669,37 @@ def test_api_plan_and_provision_and_reads(tmp_path: Path) -> None:
     assert listed.status == 200
     body = listed.body["payload"]
     assert isinstance(body, dict)
-    assert body["verified"] is False
+    assert body["verify_on_get"] is False
     plans = platform.router.handle(
         ApiRequest(method=Method.GET, path="/v1/runtimes/provisioning-plans")
     )
     assert plans.status == 200
-    verify = platform.router.handle(
+    missing = platform.router.handle(
         ApiRequest(method=Method.POST, path="/v1/runtimes/verify")
     )
-    assert verify.status == 404
+    assert missing.status == 400
+    verified = platform.router.handle(
+        ApiRequest(
+            method=Method.POST,
+            path="/v1/runtimes/verify",
+            query={"installation_id": installation["installation_id"]},
+        )
+    )
+    assert verified.status == 200
+    profile = verified.body["payload"]
+    assert isinstance(profile, dict)
+    assert profile["status"] == "verified"
+    listed_again = platform.router.handle(
+        ApiRequest(method=Method.GET, path="/v1/runtimes/capability-profiles")
+    )
+    assert listed_again.status == 200
+    listed_body = listed_again.body["payload"]
+    assert isinstance(listed_body, dict)
+    assert listed_body["verify_on_get"] is False
+    assert listed_body["mutations"] is False
 
 
-def test_console_has_plan_and_provision_but_not_verify() -> None:
+def test_console_has_plan_provision_and_verify() -> None:
     html = (
         SOURCE / "kultrun" / "adapters" / "http" / "console" / "index.html"
     ).read_text(encoding="utf-8")
@@ -690,10 +709,12 @@ def test_console_has_plan_and_provision_but_not_verify() -> None:
     assert "Create plan" in script
     assert "Provision" in script
     assert "/runtimes/provisioning-plans" in script
+    assert "post('/runtimes/verify" in script
     assert "Launch Model" not in html
     assert "Launch Model" not in script
+    assert "Recommended Runtime" not in script
+    assert "Select Model" not in script
+    assert "textContent = 'Start vLLM'" not in script
     panel = html.split("candidates-panel", 1)[1].split("<section", 1)[0]
     assert "Verify" not in panel
-    assert "textContent = 'Start vLLM'" not in script
-    assert "provenance" in script
-    assert "post('/runtimes/verify" not in script
+    assert "provenance" in script or "verification" in script

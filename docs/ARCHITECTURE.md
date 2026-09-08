@@ -896,11 +896,11 @@ capacity contract.
 
 | | |
 |---|---|
-| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. |
+| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible. |
 | **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) |
 | **Ports** | `InferenceRuntime` · `RuntimeProvisioner` |
 | **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Silently substitute a different RuntimeCandidate than the one supplied for provisioning. Rank or recommend during provisioning or verification. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
-| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
+| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
 Later deepening may read `host` and `model` contracts. It must never read
 `capacity` or `execution`. Stage 4.3 exists because the previous attempt
@@ -978,14 +978,32 @@ under the Kultrun state root. It is not engine proof. The first product
 adapter is `VllmNativeProvisioner` (`vllm==0.28.0`, Python 3.12 venv +
 pip). Fixture provisioning is for T0/T1/T2 only.
 
-Future chain, **not implemented in 1.6C**:
+Stage 1.6D verification (composition selects the verifier adapter;
+runtime owns interpretation; executor owns probe execution):
 
 ```text
+RuntimeCandidate
+        ↓
+RuntimeProvisioningPlan
+        ↓
 RuntimeInstallation
         ↓
-Stage 1.6D RuntimeVerifier
+RuntimeVerifier
         ↓
 RuntimeCapabilityProfile
+        ↓
+[STOP 1.6D]
+```
+
+`VERIFIED` means the installed runtime passed its host/runtime/backend
+checks against the current material verification basis. It is not model
+compatibility. The first product adapter is `VllmNativeVerifier`. Fixture
+verification is for T0/T1/T2 only. GET never executes a probe.
+
+Future chain, **not implemented in 1.6D**:
+
+```text
+RuntimeCapabilityProfile[]
         ↓
 Stage 1.6E RuntimeEvaluator / RuntimeSelector
         ↓
@@ -1002,7 +1020,7 @@ authoritative selected DeploymentPlan
 
 RuntimeResolver answers structural plausibility. RuntimeProvisioner
 installs the **explicitly selected** candidate, never the implicit AUTO
-recommendation. RuntimeVerifier (1.6D) produces evidence, not ranking.
+recommendation. RuntimeVerifier produces evidence, not ranking.
 RuntimeEvaluator / RuntimeSelector (1.6E) is the first bounded
 administrator runtime override. A runtime change is not a field swap on
 the previous plan.
@@ -1442,9 +1460,9 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.5C | Runtime / Executor boundary reconciliation | 1.5B | ✅ |
 | 1.6A | Minimal ContainerExecutor + executor portability | 1.5C | ✅ closed L2 |
 | 1.6B | RuntimeResolver + RuntimeCandidate | 1.6A, 1.5C descriptors | ✅ closed L1 |
-| 1.6C | RuntimeProvisioningPlan + RuntimeProvisioner + RuntimeInstallation | 1.6B | ⏳ T2 L1; T3 required for L2 close |
-| 1.6D | RuntimeVerifier + structured verification evidence | 1.6C | not begun |
-| 1.6E | Runtime evaluation / bounded selection + dependent invalidation | 1.6D | not begun |
+| 1.6C | RuntimeProvisioningPlan + RuntimeProvisioner + RuntimeInstallation | 1.6B | ✅ closed L2 |
+| 1.6D | RuntimeVerifier + RuntimeCapabilityProfile | 1.6C | ✅ closed L2 |
+| 1.6E | Runtime evaluation / bounded selection + dependent invalidation | 1.6D | not begun / NEXT |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

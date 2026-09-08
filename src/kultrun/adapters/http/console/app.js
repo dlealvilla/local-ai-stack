@@ -29,6 +29,7 @@ const SUBSYSTEMS = [
   { name: 'Runtime / executor', probe: '/runtime' },
   { name: 'Runtime candidates', probe: '/runtimes/candidates' },
   { name: 'Runtime installations', probe: '/runtimes/installations' },
+  { name: 'Runtime capability profiles', probe: '/runtimes/capability-profiles' },
   { name: 'Model catalog', probe: '/models' },
   { name: 'Model selection', probe: '/models/selection' },
   { name: 'Model inventory', probe: '/models/inventory' },
@@ -606,6 +607,16 @@ async function renderInstallations() {
   if (!target) return;
   try {
     const state = await get('/runtimes/installations');
+    let profiles = { profiles: [] };
+    try {
+      profiles = await get('/runtimes/capability-profiles');
+    } catch (error) {
+      profiles = { profiles: [] };
+    }
+    const byInstall = {};
+    for (const profile of profiles.profiles || []) {
+      byInstall[profile.installation_id] = profile;
+    }
     target.replaceChildren();
     const items = state.installations || [];
     if (!items.length) {
@@ -620,27 +631,61 @@ async function renderInstallations() {
       const title = document.createElement('span');
       title.className = 'pool-path';
       title.textContent = `${item.runtime || 'runtime'} ${item.runtime_version || ''}`;
+      const profile = byInstall[item.installation_id];
+      const verification = profile ? profile.status : 'unverified';
       head.append(
         title,
         pill(String(item.status || 'unknown'), item.status === 'installed' ? 'ok' : 'unknown'),
+        pill(verification, verification === 'verified' ? 'ok' : verification === 'failed' ? 'bad' : 'unknown'),
       );
       card.append(head);
       const grid = document.createElement('div');
       grid.className = 'grid';
+      const checks = (profile && profile.checks || []).map((check) => `${check.name}:${check.outcome}`).join(', ');
+      const reasons = (profile && profile.reason_codes || []).join(', ');
       rows(grid, [
         ['installation', item.installation_id],
         ['plan', item.plan_id],
         ['executor', item.executor],
+        ['host', profile && profile.host_id ? profile.host_id : item.host_id],
         ['path', item.installation_root],
-        ['provenance', item.provenance_manifest_sha256 || 'none'],
-        ['verified', 'false'],
+        ['verification', verification],
+        ['last verified', profile && profile.verified_at ? profile.verified_at : 'never'],
+        ['checks', checks || 'none'],
+        ['failure', reasons || (profile && profile.last_failure_message) || 'none'],
       ]);
       card.append(grid);
+      card.append(verifyAction(item, profile));
       target.append(card);
     }
   } catch (error) {
     failure(target, error);
   }
+}
+
+function verifyAction(item, profile) {
+  const action = document.createElement('div');
+  action.className = 'action';
+  const button = document.createElement('button');
+  button.textContent = 'Verify';
+  const status = span('muted', profile ? ` ${profile.status}` : ' unverified');
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    status.textContent = ' verifying…';
+    try {
+      const result = await post('/runtimes/verify', {
+        installation_id: item.installation_id,
+      });
+      status.textContent = ` ${result.status} ${result.profile_id}`;
+      await renderInstallations();
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+  action.append(button, status);
+  return action;
 }
 
 function executionCard(execution) {

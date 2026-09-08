@@ -563,3 +563,215 @@ class RuntimeInstallation(Contract):
     last_failure_message: Maybe[str] = meaning(
         "short failure detail; not a traceback dump", default=NOT_PROVIDED
     )
+
+
+class RuntimeCapabilityProfileId(EntityId):
+    """Deterministic identity of the current profile for one installation."""
+
+    prefix = "rcap"
+
+
+class VerificationStatus(StrEnum):
+    """Effective runtime verification state. Not installation status."""
+
+    UNVERIFIED = "unverified"
+    VERIFIED = "verified"
+    FAILED = "failed"
+    STALE = "stale"
+
+
+class VerificationReasonCode(StrEnum):
+    """Normalized verification failures. Not installer or resolver codes."""
+
+    INSTALLATION_NOT_INSTALLED = "installation_not_installed"
+    INSTALLATION_PATH_MISSING = "installation_path_missing"
+    PYTHON_EXECUTABLE_MISSING = "python_executable_missing"
+    PYTHON_PROBE_FAILED = "python_probe_failed"
+    RUNTIME_PACKAGE_MISSING = "runtime_package_missing"
+    RUNTIME_VERSION_MISMATCH = "runtime_version_mismatch"
+    RUNTIME_IMPORT_FAILED = "runtime_import_failed"
+    BACKEND_IMPORT_FAILED = "backend_import_failed"
+    EXECUTOR_UNAVAILABLE = "executor_unavailable"
+    PROBE_TIMEOUT = "probe_timeout"
+    PROBE_EXIT_NONZERO = "probe_exit_nonzero"
+    PROBE_OUTPUT_INVALID = "probe_output_invalid"
+    ACCELERATOR_NOT_VISIBLE = "accelerator_not_visible"
+    ACCELERATOR_IDENTITY_MISMATCH = "accelerator_identity_mismatch"
+    BACKEND_ACCELERATOR_UNAVAILABLE = "backend_accelerator_unavailable"
+    ACCELERATOR_OPERATION_FAILED = "accelerator_operation_failed"
+    DRIVER_BACKEND_INCOMPATIBLE = "driver_backend_incompatible"
+    VERIFICATION_BASIS_CHANGED = "verification_basis_changed"
+
+
+_PROBE_SHELL_NAMES = frozenset({"sh", "bash", "zsh", "dash", "csh", "ksh", "fish"})
+
+
+@contract(kind="runtime.verification_check", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeVerificationCheck(Contract):
+    """One bounded check inside a verification attempt."""
+
+    name: str = meaning("stable check identity, e.g. runtime_import")
+    outcome: str = meaning("pass or fail")
+    detail: str = meaning("short factual detail; never a traceback dump", default="")
+
+
+@contract(kind="runtime.verification_basis", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeVerificationBasis(Contract):
+    """Material facts a previous verification may still apply to.
+
+    Capacity, load, and free-space figures are not part of this basis.
+    """
+
+    host_id: HostId = meaning("host these facts were taken from")
+    installation_id: RuntimeInstallationId = meaning(
+        "installation this basis is bound to"
+    )
+    installation_root: str = meaning("final install path relative to the state root")
+    runtime: Name = meaning("runtime family/provider identity")
+    runtime_version: str = meaning("exact installed runtime version pin")
+    python_executable: str = meaning("isolated runtime interpreter path")
+    python_version: str = meaning("isolated runtime Python version token")
+    executor: Name = meaning("executor identity used for the probe")
+    executor_type: str = meaning("generic executor type, e.g. process")
+    executor_available: bool = meaning(
+        "whether that executor is currently available"
+    )
+    os_family: str = meaning("host OS family, e.g. linux")
+    architecture: str = meaning("host architecture, e.g. x86_64")
+    accelerator_vendor: str = meaning("primary accelerator vendor, or none")
+    accelerator_model: str = meaning("primary accelerator model, or none")
+    accelerator_count: int = meaning("visible accelerator count")
+    driver_version: str = meaning("primary accelerator driver version, or none")
+    fingerprint: str = meaning("SHA-256 of the canonical material above")
+
+
+@contract(kind="runtime.verification_probe", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeVerificationProbe(Contract):
+    """Executor-neutral one-shot probe. Copied into an ExecutorSpec."""
+
+    executable: str = meaning("program to exec; not a shell line")
+    arguments: tuple[str, ...] = meaning(
+        "argv after the executable; each element is one argument"
+    )
+    environment: tuple[str, ...] = meaning(
+        "extra environment bindings as NAME=value strings", default=()
+    )
+    timeout_seconds: float = meaning("how long the probe may run", default=180.0)
+    output_limit_bytes: int = meaning(
+        "stdout and stderr are each truncated at this size", default=32 * 1024
+    )
+
+    def __post_init__(self) -> None:
+        if not self.executable.strip():
+            raise ValidationError("probe executable must not be empty")
+        if "\0" in self.executable:
+            raise ValidationError("probe executable must not contain a NUL")
+        if Path(self.executable).name in _PROBE_SHELL_NAMES:
+            raise ValidationError(
+                "probe executable must not be a shell",
+                executable=self.executable,
+            )
+        for argument in self.arguments:
+            if "\0" in argument:
+                raise ValidationError("probe arguments must be NUL-free strings")
+        if self.timeout_seconds <= 0:
+            raise ValidationError("probe timeout must be positive")
+        if self.output_limit_bytes < 1:
+            raise ValidationError("probe output limit must be at least one byte")
+
+
+@contract(kind="runtime.capability_profile", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeCapabilityProfile(Contract):
+    """Host-specific observed runtime capability. Not declared support."""
+
+    profile_id: RuntimeCapabilityProfileId = meaning(
+        "fingerprint of the current profile for one installation"
+    )
+    installation_id: RuntimeInstallationId = meaning(
+        "installation this profile describes"
+    )
+    plan_id: RuntimeProvisioningPlanId = meaning("plan that produced the install")
+    candidate_id: RuntimeCandidateId = meaning("candidate the plan was made from")
+    runtime: Name = meaning("runtime family/provider identity")
+    runtime_family: Name = meaning("runtime family; v0 matches runtime")
+    runtime_provider: Name = meaning("runtime provider; v0 matches runtime")
+    runtime_version: str = meaning("exact runtime version observed or requested")
+    executor: Name = meaning("executor identity this profile is bound to")
+    executor_type: str = meaning("generic executor type, e.g. process")
+    host_id: HostId = meaning("host these facts were verified against")
+    status: VerificationStatus = meaning("unverified, verified, failed, or stale")
+    verification_basis_fingerprint: str = meaning(
+        "fingerprint of the material basis used for this profile"
+    )
+    verifier_provider: Name = meaning("which verifier adapter produced this profile")
+    verifier_schema: str = meaning("verifier/schema token, e.g. 1")
+    created_at: dt.datetime = meaning("when this profile record was first written")
+    last_attempted_at: dt.datetime = meaning("when a probe last ran, UTC")
+    attempt_count: int = meaning("how many explicit probes have run", default=0)
+    verification_basis: RuntimeVerificationBasis | None = meaning(
+        "material basis captured with the last attempt", default=None
+    )
+    verified_at: dt.datetime | None = meaning(
+        "when required checks last passed", default=None
+    )
+    python_executable: Maybe[str] = meaning(
+        "isolated runtime interpreter path", default=NOT_PROVIDED
+    )
+    python_version: Maybe[str] = meaning(
+        "Python version observed during verification", default=NOT_PROVIDED
+    )
+    runtime_package_version: Maybe[str] = meaning(
+        "runtime package metadata version observed during verification",
+        default=NOT_PROVIDED,
+    )
+    backend: Maybe[str] = meaning(
+        "backend identity observed during verification, e.g. torch",
+        default=NOT_PROVIDED,
+    )
+    backend_version: Maybe[str] = meaning(
+        "backend version observed during verification", default=NOT_PROVIDED
+    )
+    backend_accelerator_available: Maybe[bool] = meaning(
+        "whether the runtime backend reported an accelerator device",
+        default=NOT_PROVIDED,
+    )
+    backend_accelerator_runtime_version: Maybe[str] = meaning(
+        "accelerator runtime version reported by the backend", default=NOT_PROVIDED
+    )
+    device_count: Maybe[int] = meaning(
+        "accelerator devices visible inside the runtime", default=NOT_PROVIDED
+    )
+    devices: tuple[str, ...] = meaning(
+        "observed accelerator names; never a vendor object", default=()
+    )
+    accelerator_operation: Maybe[str] = meaning(
+        "tiny accelerator operation outcome: pass, fail, or skip",
+        default=NOT_PROVIDED,
+    )
+    checks: tuple[RuntimeVerificationCheck, ...] = meaning(
+        "bounded verification checks from the last attempt", default=()
+    )
+    reason_codes: tuple[VerificationReasonCode, ...] = meaning(
+        "normalized failure reasons; empty when verified", default=()
+    )
+    diagnostic_summary: str = meaning(
+        "bounded stdout/stderr or failure summary; never a full log",
+        default="",
+    )
+    evidence_digest: Maybe[str] = meaning(
+        "SHA-256 of the structured probe payload when one existed",
+        default=NOT_PROVIDED,
+    )
+    last_failure_code: Maybe[str] = meaning(
+        "normalized failure code when status is failed", default=NOT_PROVIDED
+    )
+    last_failure_message: Maybe[str] = meaning(
+        "short failure detail; not a traceback dump", default=NOT_PROVIDED
+    )
+    probe_exit_code: Maybe[int] = meaning(
+        "probe process exit code when one was observed", default=NOT_PROVIDED
+    )

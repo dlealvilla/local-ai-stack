@@ -47,12 +47,14 @@ from kultrun.resource.contracts import RequestId, ReservationId
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.runtime.contracts import (
+    RuntimeInstallationId,
     RuntimePolicy,
     RuntimeProvisioningPlanId,
     RuntimeResolverMode,
 )
 from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import path_presence, resolve
+from kultrun.runtime.verify import VerificationService
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService, summarize
 
@@ -84,6 +86,7 @@ class ControlPlane:
     admission: AdmissionService
     instances: InstanceService
     provisioning: ProvisioningService
+    verification: VerificationService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -466,9 +469,52 @@ def register(router: Router, plane: ControlPlane) -> Router:
         return {
             "installations": list(items),
             "count": len(items),
-            "verified": False,
+            "verify_on_get": False,
             "mutations": False,
         }
+
+    def verify_runtime(request: ApiRequest) -> object:
+        """Probe an exact installation. Does not provision or load a model."""
+        installation_id = (request.query.get("installation_id") or "").strip()
+        if not installation_id:
+            raise ValidationError(
+                "an installation id is required", parameter="installation_id"
+            )
+        host = plane.hosts.current
+        return plane.verification.verify(
+            RuntimeInstallationId.parse(installation_id),
+            host,
+            _executors(host),
+        )
+
+    def list_capability_profiles(_: ApiRequest) -> dict[str, object]:
+        host = plane.hosts.current
+        items = plane.verification.profiles(host, _executors(host))
+        return {
+            "profiles": list(items),
+            "count": len(items),
+            "mutations": False,
+            "verify_on_get": False,
+        }
+
+    def get_capability_profile(request: ApiRequest) -> object:
+        installation_id = (request.query.get("installation_id") or "").strip()
+        if not installation_id:
+            raise ValidationError(
+                "an installation id is required", parameter="installation_id"
+            )
+        host = plane.hosts.current
+        profile = plane.verification.profile_for(
+            RuntimeInstallationId.parse(installation_id),
+            host,
+            _executors(host),
+        )
+        if profile is None:
+            raise NotFoundError(
+                "no capability profile for this installation",
+                installation_id=installation_id,
+            )
+        return profile
 
     def models(_: ApiRequest) -> dict[str, object]:
         """The curated candidate catalog. Read-only. No ranking, no download."""
@@ -605,6 +651,9 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/runtimes/provision", provision_runtime)
     router.get("/runtimes/provisioning-plans", list_provisioning_plans)
     router.get("/runtimes/installations", list_installations)
+    router.post("/runtimes/verify", verify_runtime)
+    router.get("/runtimes/capability-profiles", list_capability_profiles)
+    router.get("/runtimes/capability-profile", get_capability_profile)
     router.post("/runtime/execution", start_reference)
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)

@@ -8,15 +8,16 @@ from contextlib import contextmanager
 from pathlib import Path
 
 LOCK_NAME = "provision.lock"
+VERIFY_LOCK_NAME = "verify.lock"
 
 
 class ProvisioningLock:
     """One lock for competing plan/provision mutations on this installation."""
 
-    def __init__(self, state_root: Path) -> None:
+    def __init__(self, state_root: Path, name: str = LOCK_NAME) -> None:
         root = Path(state_root).resolve() / "runtimes"
         root.mkdir(parents=True, exist_ok=True)
-        self._path = root / LOCK_NAME
+        self._path = root / name
 
     @contextmanager
     def hold(self) -> Iterator[None]:
@@ -27,3 +28,10 @@ class ProvisioningLock:
         finally:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
             handle.close()
+
+
+class VerificationLock(ProvisioningLock):
+    """One lock for competing verify mutations. Does not cover provision."""
+
+    def __init__(self, state_root: Path) -> None:
+        super().__init__(state_root, VERIFY_LOCK_NAME)
