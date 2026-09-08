@@ -102,6 +102,15 @@ RuntimeCapabilityProfile
 `import vllm`, `vllm serve`, engine init, CUDA, and model load are
 Stage 1.6D.
 
+**Current T3 vs commercial Python.** This stage's reference proof
+requires Python 3.12 already on the host. Kultrun locates it and never
+installs it. The commercial target is the opposite for Class A
+prerequisites: the customer must not be expected to preinstall a
+specific Python; Kultrun will provision a managed isolated interpreter
+(K-66) after the first runtime path is physically proven. Those two
+statements are not in conflict. A working NVIDIA driver is likewise a
+current host prerequisite; privileged driver remediation is K-77.
+
 ## Provisionability
 
 A plan is allowed for `COMPATIBLE` native-process vLLM, or `CONDITIONAL`
@@ -163,7 +172,8 @@ READY_FOR_T3 at L1.
 
 Recorded in `docs/DEBT.md`. None block Stage 1.6C:
 
-* K-66 managed Python runtime acquisition
+* K-66 Managed Python / Interpreter Provisioning (required
+  pre-commercial; not implemented here)
 * K-67 alternative installer backend (`uv`)
 * K-68 offline / air-gapped runtime bundles
 * K-69 fully locked runtime dependency manifests
@@ -174,7 +184,8 @@ Recorded in `docs/DEBT.md`. None block Stage 1.6C:
 * K-74 side-by-side version management
 * K-75 containerized runtime provisioning
 * K-76 CUDA/toolkit dependency management
-* K-77 driver management (outside the runtime provisioner)
+* K-77 Privileged Accelerator Driver Remediation (required
+  pre-commercial behavior; not implemented here)
 * K-78 concurrent/background provisioning jobs
 * K-79 signed runtime artifacts
 

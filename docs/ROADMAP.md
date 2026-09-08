@@ -1186,6 +1186,11 @@ substitute another runtime or executor. `INSTALLED` is not `VERIFIED`.
 This preserves the bounded-selection seam; it does not implement
 recommendation, alternatives, or override UX.
 
+The current L2 reference proof requires Python 3.12 and a working NVIDIA
+driver already on the host. That is a bounded validation assumption, not
+the commercial target. Managed Python (K-66) and privileged driver
+remediation (K-77) remain deferred; 1.6C must not apt-install either.
+
 ### Stage 1.6D — Runtime Verification
 
 Verify a specific `RuntimeInstallation` on the actual

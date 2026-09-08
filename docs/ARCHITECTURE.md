@@ -1024,6 +1024,33 @@ silently reconstruct the original recommendation.
 
 The Admin UI and Admin AI Agent are clients of the same decision APIs.
 
+## Managed prerequisites vs privileged host remediation
+
+Kultrun prefers using the current host. It still owns application-level
+prerequisites it can isolate. Three classes, owned as architecture, not
+as Stage 1.6C code:
+
+- **Managed prerequisites (Class A).** Python interpreters, isolated
+  environments, runtime packages, runtime-owned dependency graphs, and
+  models. Future: acquire under Kultrun state; never mutate system
+  Python. Commercial installations must not require the customer to
+  preinstall a specific Python (`docs/DEBT.md` K-66). Stage 1.6C still
+  locates an already-present Python 3.12; that is a current reference
+  proof, not the commercial target.
+- **Privileged remediation (Class B).** GPU drivers and other
+  machine-wide components. Prefer an existing adequate driver. Do not
+  upgrade for recency. Missing/insufficient drivers leave the runtime
+  candidate blocked until remediation succeeds. Future automatic
+  remediation is only on validated platforms, only with explicit
+  administrator approval, never silent, and must rediscover the host and
+  recompute feasibility afterward (`docs/DEBT.md` K-77).
+- **Fixed constraints (Class C).** Physical GPU, architecture, RAM,
+  accelerator family, pass-through, physical capacity. Detect and
+  explain; do not pretend to provision them.
+
+`VllmNativeProvisioner` installs isolated packages only. It does not
+install Python, drivers, or CUDA toolkits.
+
 ## TIER 6 — Serving and the record of it
 
 ### `inference`

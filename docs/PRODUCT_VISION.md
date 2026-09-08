@@ -491,6 +491,51 @@ unresolved evidence as feasible.
 
 ---
 
+## 5.12 Managed prerequisites, privileged remediation, and fixed constraints
+
+Kultrun prefers adapting to the current host over modifying the host.
+That preference does not mean handing the customer a list of
+application-level prerequisites that the platform can isolate and own.
+
+Three classes:
+
+**Class A — Kultrun-managed prerequisites.** Interpreters required by a
+runtime, isolated Python environments, runtime binaries and packages,
+runtime-owned dependency graphs (including PyTorch where the runtime
+provisioner owns them), models and model artifacts. Future behavior:
+detect → determine the requirement → download/provision automatically →
+verify provenance and integrity → install under Kultrun-owned state →
+use without modifying the system or global installation.
+
+A commercial Kultrun installation must not require the customer to
+manually install a specific Python version before Kultrun can provision
+supported runtimes. Managed Python is a Kultrun-owned isolated
+prerequisite (`docs/DEBT.md` K-66). System Python is never modified.
+
+**Class B — Privileged host remediation.** NVIDIA or AMD GPU drivers,
+accelerator/kernel integration, and other machine-wide components.
+Default: detect what is already installed; prefer the existing
+environment when it is sufficient; do not upgrade merely because a
+newer version exists; determine whether current runtime choices remain
+feasible; consider remediation only when current host software blocks an
+otherwise-supported runtime path.
+
+A missing or insufficient driver keeps the affected runtime candidate
+**blocked**. Knowing a driver could theoretically be installed does not
+make that candidate selectable. Future validated remediation may install
+a vendor-supported driver after explicit administrator approval, reboot
+if required, then **must** rerun Host Discovery, Runtime Resolution, and
+compatibility/feasibility evaluation. Silent AUTO driver mutation is
+forbidden (`docs/DEBT.md` K-77).
+
+**Class C — Fixed / external constraints.** Physical GPU, CPU
+architecture, physical RAM, accelerator family, unsupported
+virtualization/pass-through, unavailable physical storage or capacity.
+Kultrun detects, evaluates, and explains. It cannot software-provision
+these into existence.
+
+---
+
 # 6. TOP-LEVEL SYSTEM ARCHITECTURE
 
 The system should conceptually consist of the following planes.

@@ -1077,20 +1077,35 @@ To make real: After RuntimeVerifier and real inference produce evidence.
 Retire when:  benchmark evidence is a ranking input with tests.
 Status:       OPEN
 
-### K-66 — Managed Python runtime acquisition
-Label:        DEFERRED
-Owner stage:  1.6C
+### K-66 — Managed Python / Interpreter Provisioning
+Label:        DEFERRED — REQUIRED PRE-COMMERCIAL DEPLOYMENT CAPABILITY
+Owner stage:  later runtime / onboarding (after first runtime path is
+              provisioned, verified, and exercised end-to-end)
 Subsystem:    runtime / components
 Authorizes:   NO
 Blocks 1.6C:  No
 Current seam: `kultrun.runtime.python.locate_python`
-What:         Kultrun locates a host Python 3.12 interpreter and never
-              installs one. Missing Python is a prerequisite failure.
-Why now:      Automatic Python acquisition would expand this stage into
-              OS package management.
-To make real: A managed interpreter provisioner behind a dedicated port,
-              never apt/brew inside VllmNativeProvisioner.
-Retire when:  a later stage accepts managed Python acquisition with tests.
+What:         Stage 1.6C locates an already-present host Python 3.12 and
+              never installs one. Missing Python is a prerequisite
+              failure for this reference proof. The commercial product
+              must not require the customer to preinstall a specific
+              Python version. Future: determine the required interpreter
+              from the selected runtime path; reuse a compatible existing
+              interpreter where appropriate; otherwise acquire a trusted
+              Kultrun-managed interpreter; verify provenance/integrity;
+              install beneath Kultrun-managed state; never modify system
+              Python; hand the exact interpreter identity to
+              RuntimeProvisioner; persist and remain idempotent; integrate
+              with onboarding/bootstrapper.
+Why now:      The first physical vLLM install must complete before
+              interpreter acquisition is designed. Implementing K-66
+              inside 1.6C would expand the stage into OS/package
+              management.
+To make real: A dedicated interpreter provisioner port. Never apt, brew,
+              or pyenv inside VllmNativeProvisioner.
+Retire when:  managed Python is an accepted pre-commercial capability
+              with tests, and a commercial install no longer requires a
+              customer-supplied interpreter.
 Status:       OPEN
 
 ### K-67 — Alternative installer backend (uv)
@@ -1242,20 +1257,38 @@ To make real: A separate prerequisite manager, if ever needed, outside
 Retire when:  toolkit management is an explicit product decision with tests.
 Status:       OPEN
 
-### K-77 — Driver management
-Label:        DEFERRED
-Owner stage:  1.6C
+### K-77 — Privileged Accelerator Driver Remediation
+Label:        DEFERRED — REQUIRED PRE-COMMERCIAL DRIVER BEHAVIOR
+Owner stage:  later host / onboarding
 Subsystem:    host / components
 Authorizes:   NO
 Blocks 1.6C:  No
 Current seam: NVIDIA driver facts come from Host Discovery; the provisioner
-              never mutates them
-What:         Installing or upgrading NVIDIA (or other) drivers is
-              outside the runtime provisioner. Future policy only.
-Why now:      A runtime installer that writes kernel drivers is a
-              different product.
-To make real: An explicit host-prerequisite policy, never implicit apt.
-Retire when:  driver management is an accepted product decision.
+              never mutates them. A working driver is a Stage 1.6C host
+              prerequisite.
+What:         Prefer an existing adequate driver. Do not upgrade merely
+              because a newer version exists. Detect and explain
+              missing/insufficient drivers. Affected runtime candidates
+              remain BLOCKED until remediation succeeds; a theoretically
+              installable driver is not a selectable override.
+              Future validated behavior, only on specifically supported
+              host/distribution combinations, may: offer remediation →
+              require explicit administrator approval → install a
+              vendor-supported driver → reboot if required → rerun Host
+              Discovery → rerun Runtime Resolution → recompute
+              compatibility/feasibility. Silent AUTO driver mutation is
+              forbidden. Unsupported platforms may initially get guided
+              vendor-approved operator remediation rather than automation.
+              No promise to install every driver on every OS.
+Why now:      Isolated package install is not kernel/driver administration.
+              Commercial/non-technical readiness still needs a deliberate
+              missing-driver behavior (validated automatic remediation
+              and/or clear guided remediation).
+To make real: An explicit privileged-remediation workflow outside
+              VllmNativeProvisioner, with mandatory rediscovery after
+              any host-wide change.
+Retire when:  missing/insufficient driver behavior is an accepted
+              pre-commercial product path with tests.
 Status:       OPEN
 
 ### K-78 — Concurrent / background provisioning jobs
