@@ -12,13 +12,14 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from kultrun.capacity.contracts import CapacityEnvelope
-from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import ModelCatalogEntry, ModelRequirement
 from kultrun.model.ports import ModelRequirementEstimator
 from kultrun.planning.contracts import (
     CapacityFitClass,
     CompatibilityVerdict,
+    FeasibleModelCandidate,
     ModelEvaluation,
     SelectionPolicy,
     SelectionRecommendation,
@@ -106,6 +107,9 @@ class RequirementAssessment:
     required_vram_bytes: object
     safe_ram_bytes: object
     safe_vram_bytes: object
+    source_ref: str | None
+    source_revision: object
+    evaluation: ModelEvaluation | None
 
 
 def _token(value: object) -> str | None:
@@ -267,47 +271,63 @@ def assess_catalog(
     return tuple(rows)
 
 
-MappingCompat = dict[str, CompatibilityVerdict]
+def is_selectable(item: RequirementAssessment) -> bool:
+    """Hard gate: ELIGIBLE + READY + FEASIBLE against a CURRENT view."""
+    return (
+        item.view_status == EligibleViewStatus.CURRENT.value
+        and item.eligibility_status == RuntimeEligibilityStatus.ELIGIBLE.value
+        and item.requirement_status is RequirementStatus.READY
+        and item.capacity_verdict == "feasible"
+        and item.evaluation is not None
+        and item.basis is not None
+        and item.runtime is not None
+        and item.profile_id is not None
+    )
 
 
-def planning_inputs(
+def feasible_candidates(
     assessments: Sequence[RequirementAssessment],
-) -> tuple[str, MappingCompat]:
-    """Runtime identity and compatibility tokens for existing ranking."""
-    runtime = ""
-    mapping: dict[str, CompatibilityVerdict] = {}
+) -> tuple[FeasibleModelCandidate, ...]:
+    """Selection input. BLOCKED, UNRESOLVED, INFEASIBLE, and stale are omitted."""
+    rows: list[FeasibleModelCandidate] = []
     for item in assessments:
-        if item.runtime and not runtime:
-            runtime = item.runtime
-        if item.requirement_status is RequirementStatus.READY:
-            mapping[item.model_id] = CompatibilityVerdict.COMPATIBLE
-        elif item.requirement_status is RequirementStatus.REFUSED:
-            mapping[item.model_id] = CompatibilityVerdict.UNSUPPORTED
-        else:
-            mapping[item.model_id] = CompatibilityVerdict.UNRESOLVED
-    return runtime, mapping
+        if not is_selectable(item) or item.evaluation is None:
+            continue
+        revision: Maybe[str] = (
+            item.source_revision
+            if isinstance(item.source_revision, str)
+            else NOT_PROVIDED
+        )
+        version: Maybe[str] = (
+            item.runtime_version if item.runtime_version is not None else NOT_PROVIDED
+        )
+        rows.append(
+            FeasibleModelCandidate(
+                model_id=item.model_id,
+                logical_name=item.logical_name,
+                source_ref=item.source_ref or item.evaluation.source_ref,
+                source_revision=revision,
+                view_id=item.view_id,
+                profile_id=item.profile_id or "",
+                runtime=item.runtime or "",
+                runtime_version=version,
+                requirement_basis=item.basis or "",
+                capacity_fit=item.capacity_fit or item.evaluation.capacity_fit.value,
+                evaluation=item.evaluation,
+            )
+        )
+    return tuple(rows)
 
 
 def recommend_from_view(
     selection: SelectionService,
-    view: EligibleModelView,
     envelope: CapacityEnvelope,
-    candidates: tuple[ModelCatalogEntry, ...],
     assessments: Sequence[RequirementAssessment],
 ) -> SelectionRecommendation:
-    """Existing ranking, fed by remapped requirement inputs."""
-    runtime, mapping = planning_inputs(assessments)
-    if not runtime:
-        runtime = _token(view.runtime) or ""
-    version = _token(view.runtime_version) or NOT_PROVIDED
-    basis = next((item.basis for item in assessments if item.basis), NOT_PROVIDED)
-    return selection.recommend(
-        envelope=envelope,
-        candidates=candidates,
-        runtime=runtime or "unresolved",
-        runtime_compatibility=mapping,
-        runtime_version=version,
-        requirement_basis=basis if isinstance(basis, str) else NOT_PROVIDED,
+    """Existing ranking, applied only to currently feasible candidates."""
+    return selection.rank_feasible(
+        feasible_candidates(assessments),
+        host_fingerprint=envelope.host_fingerprint,
     )
 
 
@@ -361,6 +381,9 @@ def _row(
         required_vram_bytes=vram,
         safe_ram_bytes=safe_ram,
         safe_vram_bytes=safe_vram,
+        source_ref=entry.metadata.source_ref,
+        source_revision=entry.metadata.source_revision,
+        evaluation=evaluation,
     )
 
 

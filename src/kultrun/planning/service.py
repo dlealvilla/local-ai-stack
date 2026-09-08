@@ -22,6 +22,7 @@ from kultrun.planning.contracts import (
     CompatibilityVerdict,
     DeploymentCapacity,
     DeploymentPlan,
+    FeasibleModelCandidate,
     ModelEvaluation,
     SelectionOutcome,
     SelectionPolicy,
@@ -174,6 +175,41 @@ class SelectionService:
             self._estimator,
             self._clock.now(),
             envelope.host_fingerprint,
+        )
+
+    def rank_feasible(
+        self,
+        feasible: tuple[FeasibleModelCandidate, ...],
+        *,
+        host_fingerprint: str,
+    ) -> SelectionRecommendation:
+        """Rank only currently feasible candidates. Does not estimate or gate.
+
+        Hard gates belong upstream. This method must not see BLOCKED,
+        UNRESOLVED, INFEASIBLE, or stale assessments.
+        """
+        evaluations = tuple(item.evaluation for item in feasible)
+        if not evaluations:
+            provider = self._estimator.identity.value
+            version = self._estimator.version
+            return SelectionRecommendation(
+                outcome=SelectionOutcome.NO_FEASIBLE_CANDIDATE,
+                policy_version=self._policy.policy_version,
+                estimator_provider=provider,
+                estimator_version=version,
+                recommended_at=self._clock.now(),
+                host_fingerprint=host_fingerprint,
+                rationale=("No eligible and feasible candidate.",),
+                evaluations=(),
+                estimator_mode=provider,
+                requested_primary=provider,
+            )
+        return _select(
+            evaluations,
+            self._policy,
+            self._estimator,
+            self._clock.now(),
+            host_fingerprint,
         )
 
 

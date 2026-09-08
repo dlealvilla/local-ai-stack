@@ -204,6 +204,7 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "runtime.verification_basis",
         "runtime.foundation_selection",
         "runtime.eligible_model_view",
+        "planning.model_selection",
     }
 )
 
@@ -398,9 +399,7 @@ def _check(edge: ImportEdge) -> list[str]:
                 f"anything (Law 5)"
             ]
         source = domain
-        law5 = (
-            f" [Law 5: '{family}' adapter inherits '{domain}'s import budget]"
-        )
+        law5 = f" [Law 5: '{family}' adapter inherits '{domain}'s import budget]"
 
     source_tier, target_tier = TIERS[source], TIERS[target]
 
@@ -518,8 +517,7 @@ def _carries_identity(contract_type: type[Contract]) -> bool:
     """
     hints = get_type_hints(contract_type)
     return any(
-        isinstance(hints[field.name], type)
-        and issubclass(hints[field.name], EntityId)
+        isinstance(hints[field.name], type) and issubclass(hints[field.name], EntityId)
         for field in fields(cast("Any", contract_type))
     )
 
@@ -683,8 +681,10 @@ def _imports_named(path: Path, *names: str) -> list[str]:
             for alias in node.names:
                 if _module_matches(alias.name, wanted):
                     found.append(f"{path}:{node.lineno} imports {alias.name}")
-        elif isinstance(node, ast.ImportFrom) and node.module and _module_matches(
-            node.module, wanted
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and _module_matches(node.module, wanted)
         ):
             found.append(f"{path}:{node.lineno} imports {node.module}")
     return found
