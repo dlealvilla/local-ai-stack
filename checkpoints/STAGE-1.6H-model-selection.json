@@ -1,0 +1,97 @@
+{
+  "stage": "1.6H",
+  "name": "model-selection",
+  "milestone": 1,
+  "output": "FeasibleModelCandidate[] + migrated ranking + bounded AUTO|MANUAL ModelSelection",
+  "status": "closed",
+  "gate": "L1",
+  "evidence_level": "L1",
+  "t3_required": false,
+  "ready_for_t3": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "c7eccd415a5b133e75f061de512bddda2257516b",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.6G-model-requirement-capacity.json"
+    ],
+    "starting_source_commit": "c7eccd415a5b133e75f061de512bddda2257516b",
+    "safety_tag": "checkpoint/stage-1.6G-closed-c7eccd415",
+    "safety_branch": "safety/pre-model-selection-c7eccd415",
+    "feature_branch": "stage/1.6H-model-selection",
+    "predecessor_closed": true,
+    "do_not_reopen": ["1.6B", "1.6C", "1.6D", "1.6E", "1.6F", "1.6G"]
+  },
+  "contracts": {
+    "planning.model_selection": "planning.model_selection@1",
+    "feasible_model_candidate": "derived",
+    "model_selector_v2": false,
+    "selection_framework": false,
+    "deployment_plan_authority": false,
+    "selected_deployment_candidate": false
+  },
+  "selection": {
+    "hard_gates_before_ranking": true,
+    "ranking_redesigned": false,
+    "recommended_distinct_from_selected": true,
+    "auto_follows_recommendation": true,
+    "manual_bounded_to_feasible": true,
+    "force_mode": false,
+    "silent_fallback": false,
+    "status_computed_not_stored": true
+  },
+  "k55": {
+    "status": "RETIRED",
+    "removed": [
+      "catalog-only product ranking authority",
+      "independent recommendation beside EligibleModelView"
+    ],
+    "recommend_isolated_tests_retained": true,
+    "plan_from_provisional": true
+  },
+  "k66": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k77": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k86": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-86", "K-88", "K-91"],
+  "t2": {
+    "passed": false,
+    "script": "tools/t2_model_selection.py"
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-08",
+    "method": "T0/T1 plus T2 clean wheel. T3 not required."
+  },
+  "test_modes": {
+    "T0": "feasible gates, deterministic recommendation, AUTO, MANUAL, refusals, return-to-AUTO, invalidation, no fallback, metadata unchanged",
+    "T1": "fixture host; A/B feasible; C infeasible; D blocked; AUTO; MANUAL; refusals; return AUTO; capacity; foundation; profile stale; restart; ranking feasible-only",
+    "T2": "clean wheel; fixture chain foundation → view → requirement → capacity → feasible → recommendation → AUTO/MANUAL; refusals; return AUTO; invalidation; no real vLLM",
+    "T3": "not required"
+  },
+  "not_begun": [
+    "SelectedDeploymentCandidate",
+    "authoritative selected DeploymentPlan",
+    "plan-gated Acquisition",
+    "ResourceManager remap",
+    "InferenceInstance remap",
+    "real inference",
+    "K-66 Managed Python",
+    "K-77 driver remediation"
+  ],
+  "merge": {
+    "performed": false
+  },
+  "END_LINK": {
+    "checkpoint": "checkpoints/STAGE-1.6H-model-selection.json",
+    "next": "Authoritative DeploymentPlan migration. Present depth options before implementation. Do not begin from this package."
+  }
+}

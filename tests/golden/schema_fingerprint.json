@@ -3857,6 +3857,102 @@
     },
     "python": "ModelEvaluation"
   },
+  "planning.model_selection@1": {
+    "fields": {
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this selection record was first written",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "generation": {
+        "may_be_unresolved": false,
+        "meaning": "increments when the selected model identity changes",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this selection applies to",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "recommended_logical_name": {
+        "may_be_unresolved": true,
+        "meaning": "catalog name of the current recommendation",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "recommended_model_id": {
+        "may_be_unresolved": true,
+        "meaning": "current feasible recommendation; unresolved when none exists",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selected_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the current selection last changed",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "selected_logical_name": {
+        "may_be_unresolved": true,
+        "meaning": "catalog name of the selected model",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selected_model_id": {
+        "may_be_unresolved": true,
+        "meaning": "model AUTO or MANUAL chose; unresolved when none exists",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selected_source_ref": {
+        "may_be_unresolved": true,
+        "meaning": "upstream identity of the selected model",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selected_source_revision": {
+        "may_be_unresolved": true,
+        "meaning": "immutable revision of the selected model, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selection_basis": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of foundation, view, requirement, capacity, and policy",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "selection_id": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of the current model selection record for one host",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelSelectionId"
+      },
+      "selection_mode": {
+        "may_be_unresolved": false,
+        "meaning": "AUTO follows the current recommendation; MANUAL holds another currently feasible model",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelSelectionMode"
+      }
+    },
+    "python": "ModelSelection"
+  },
   "planning.selection_policy@1": {
     "fields": {
       "allow_offload": {

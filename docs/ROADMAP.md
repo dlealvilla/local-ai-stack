@@ -497,7 +497,9 @@ Introduce the pattern incrementally at existing domain seams:
       capacity remap
 1.6G  ModelRequirement + Capacity consume EligibleModelView and the
       selected verified runtime; no ModelSelector redesign
-later bounded model selection, authoritative selected DeploymentPlan
+1.6H  migrate existing ranking onto FeasibleModelCandidate[];
+      bounded AUTO|MANUAL ModelSelection; no DeploymentPlan authority
+later authoritative selected DeploymentPlan
 ```
 
 ---
@@ -698,6 +700,8 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
 1.6F Eligible Model View                  ← CLOSED L1; runtime-aware compatibility
   ↓
 1.6G ModelRequirement + Capacity          ← CLOSED L1; remapped onto eligible view
+  ↓
+1.6H ModelSelector + ModelSelection       ← CLOSED L1; feasible ranking; AUTO|MANUAL
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1271,6 +1275,23 @@ Do not remap ResourceManager or InferenceInstance. Retire K-94.
 eligible view · **Gate:** L1 CLOSED. T0/T1/T2 fixture. T3 not required;
 this stage adds no hardware path. Do not reopen 1.6B–1.6F.
 
+### Stage 1.6H — ModelSelector + Bounded Model Selection Migration
+
+Migrate existing model recommendation/selection onto currently feasible
+candidates. Hard-gate on runtime eligibility, current requirement, and
+capacity feasibility before the existing deterministic ranking.
+Introduce host-scoped `ModelSelection` AUTO|MANUAL. Recommended stays
+distinct from selected. MANUAL may choose another currently feasible
+model. Invalid selections are refused. Return-to-AUTO recomputes the
+current recommendation. Upstream basis change makes a MANUAL selection
+stale or invalid; do not silently switch identities. Do not implement
+authoritative DeploymentPlan. Do not remap Acquisition, ResourceManager,
+or InferenceInstance. Retire K-55.
+
+**Output:** `FeasibleModelCandidate[]` + migrated ranking + persisted
+`ModelSelection` · **Gate:** L1 CLOSED. T0/T1/T2 fixture. T3 not
+required; this stage adds no hardware path. Do not reopen 1.6B–1.6G.
+
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
@@ -1278,12 +1299,13 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6D** is verification. **1.6E** is bounded foundation selection.
 **1.6F** is runtime-aware eligible models.
 **1.6G** is ModelRequirement + Capacity migration.
-Later letters cover ModelSelector, acquisition gating, admission
-remap, and real inference.
+**1.6H** is ModelSelector + bounded model selection.
+Later letters cover authoritative DeploymentPlan, acquisition gating,
+admission remap, and real inference.
 **1.6D is CLOSED L2.** **1.6E is CLOSED L1.** **1.6F is CLOSED L1.**
-**1.6G is CLOSED L1.**
-Next is ModelSelector + bounded model selection; do not begin it from
-1.6G.
+**1.6G is CLOSED L1.** **1.6H is CLOSED L1.**
+Next is authoritative DeploymentPlan migration; do not begin it from
+1.6H. Present depth options before implementation.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2435,6 +2457,51 @@ MUST NOT                     Reopen 1.6B–1.6F; redesign ModelSelector;
                              estimate BLOCKED as compatible; treat
                              UNRESOLVED as FEASIBLE; use
                              supported_runtimes[0] as identity.
+DEPTH                        Accepted: minimum + a little depth.
+```
+
+### Stage 1.6H brief
+
+```text
+CURRENT STAGE                ModelSelector + bounded model selection.
+                             Feasible candidates, then ranking, then
+                             AUTO|MANUAL ModelSelection. Stop.
+PREDECESSOR OUTPUTS          Stage 1.6G CLOSED L1
+                             (`c7eccd415a5b133e75f061de512bddda2257516b`).
+THIS STAGE'S REQUIRED OUTPUT FeasibleModelCandidate[] from eligible +
+                             ready + feasible assessments; existing
+                             ranking on that set only; persisted
+                             AUTO|MANUAL ModelSelection; GET/POST
+                             /v1/models/selection; kultrun models
+                             selection|select; Console AUTO/MANUAL;
+                             K-55 RETIRED.
+CORE CONTRACTS AFFECTED      planning.model_selection@1.
+                             FeasibleModelCandidate derived, not
+                             persisted. No ModelSelectorV2.
+                             No SelectionFramework. No DeploymentPlan
+                             authority.
+ADAPTERS AFFECTED            None.
+PERSISTED STATE              One current ModelSelection per host.
+MUTATION / FAILURE BOUNDARY  POST /models/selection persists AUTO or
+                             MANUAL. GET does not persist. Invalid
+                             MANUAL is 412. No acquire, no admit.
+CANCELLATION / CLEANUP       Return-to-AUTO recomputes recommendation.
+ACCEPTANCE LEVEL             L1 CLOSED. T0/T1 plus T2 clean-wheel
+                             fixture chain. T3 not required.
+ADMIN SURFACE                GET/POST /v1/models/selection;
+                             kultrun models selection;
+                             kultrun models select <model>|--auto;
+                             Console Model selection.
+DEBT ENTRIES                 K-55 RETIRED. K-66, K-77, K-80, K-86
+                             remain. plan_from payload is a
+                             provisional shim; remove during
+                             DeploymentPlan.
+MUST NOT                     Reopen 1.6B–1.6G; create DeploymentPlan
+                             authority; remap Acquisition,
+                             ResourceManager, or InferenceInstance;
+                             rank blocked/infeasible/unresolved;
+                             silent MANUAL fallback; force/infeasible
+                             bypass; generic SelectionFramework.
 DEPTH                        Accepted: minimum + a little depth.
 ```
 

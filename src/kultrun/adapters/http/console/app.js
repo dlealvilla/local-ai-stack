@@ -1032,53 +1032,33 @@ async function renderSelection() {
     const primary = rec.primary || null;
     const plan = state.plan || null;
     rows(summary, [
+      ['selection mode', state.selection_mode || 'auto'],
+      ['status', state.status || 'unavailable'],
+      ['recommended', state.recommended || 'none'],
+      ['selected', state.selected || 'none'],
+      ['feasible models', String(state.feasible_count || 0)],
       ['estimator mode', state.estimator_mode || rec.estimator_mode],
       ['active estimator', state.estimator_provider || rec.estimator_provider],
-      ['estimator version', state.estimator_version || rec.estimator_version],
-      ['fallback', fallbackLabel(state, rec)],
-      ['policy', state.policy_version || rec.policy_version],
       ['outcome', state.outcome || rec.outcome],
       ['runtime eligibility', state.runtime_eligibility_status || 'not reported'],
-      ['eligibility authoritative', state.runtime_eligibility_authoritative ? 'yes' : 'no'],
       ['selected runtime', state.selected_runtime || 'none'],
-      ['runtime version', state.selected_runtime_version || 'none'],
+      ['plan authoritative', state.plan_authoritative ? 'yes' : 'no'],
     ]);
     target.replaceChildren();
-    if (primary) {
-      const card = document.createElement('div');
-      card.className = 'pool';
-      const head = document.createElement('div');
-      head.className = 'pool-head';
-      const title = document.createElement('span');
-      title.className = 'pool-path';
-      title.textContent = fmt(primary.logical_name);
-      head.append(title, pill(fmt(primary.capacity_fit), fitTone(primary.capacity_fit)));
-      card.append(head);
-      const grid = document.createElement('div');
-      grid.className = 'grid';
-      const util = primary.utilization || {};
-      rows(grid, [
-        ['requirement RAM', bytes(primary.required_ram_bytes)],
-        ['requirement VRAM', bytes(primary.required_vram_bytes)],
-        ['SAFE RAM', bytes(primary.safe_ram_bytes)],
-        ['SAFE VRAM', bytes(primary.safe_vram_bytes)],
-        ['utilization', percent(util.ratio)],
-        ['limiting resource', util.limiting_resource],
-        ['fit class', primary.capacity_fit],
-        ['capacity', capacityLabel(state, primary)],
-        ['quantization', primary.quantization],
-      ]);
-      card.append(grid);
-      target.append(card);
-    } else {
-      target.append(span('muted', 'No preferred candidate for this host and policy.'));
+    target.append(modelSelectionActions(state));
+    const feasible = state.feasible || [];
+    if (feasible.length === 0) {
+      target.append(span('muted', 'No currently feasible model.'));
+    }
+    for (const item of feasible) {
+      target.append(feasibleCard(item, state, primary));
     }
     if (plan) {
       const note = document.createElement('p');
       note.className = 'note';
       note.textContent =
-        `Plan: ${fmt(plan.logical_name)} · placement ${fmt(plan.placement)} · ` +
-        `estimator ${fmt(plan.estimator_provider)}`;
+        `Provisional recommendation artifact: ${fmt(plan.logical_name)} · ` +
+        `placement ${fmt(plan.placement)}. Not an authoritative DeploymentPlan.`;
       target.append(note);
     }
     json(document.getElementById('selection-json'), state);
@@ -1090,6 +1070,81 @@ async function renderSelection() {
     panel.classList.remove('hidden');
     failure(target, error);
   }
+}
+
+function modelSelectionActions(state) {
+  const action = document.createElement('div');
+  action.className = 'action';
+  const auto = document.createElement('button');
+  auto.textContent = 'Use AUTO';
+  const status = span('muted', '');
+  auto.addEventListener('click', async () => {
+    auto.disabled = true;
+    status.textContent = ' returning to AUTO…';
+    try {
+      const result = await post('/models/selection', { mode: 'auto' });
+      status.textContent = ` ${result.selection_mode} ${result.selected || 'none'}`;
+      await renderSelection();
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      auto.disabled = false;
+    }
+  });
+  action.append(auto, status);
+  return action;
+}
+
+function feasibleCard(item, state, primary) {
+  const card = document.createElement('div');
+  card.className = 'pool';
+  const head = document.createElement('div');
+  head.className = 'pool-head';
+  const title = document.createElement('span');
+  title.className = 'pool-path';
+  title.textContent = item.logical_name || item.model_id;
+  head.append(title, pill(fmt(item.capacity_fit), fitTone(item.capacity_fit)));
+  if (item.logical_name && item.logical_name === state.recommended) {
+    head.append(pill('recommended', 'ok'));
+  }
+  if (item.selected) {
+    head.append(pill('selected', 'ok'));
+  }
+  card.append(head);
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  const util = (primary && primary.logical_name === item.logical_name && primary.utilization) || {};
+  rows(grid, [
+    ['capacity fit', item.capacity_fit],
+    ['runtime', item.runtime],
+    ['requirement basis', item.requirement_basis],
+    ['utilization', percent(util.ratio)],
+  ]);
+  card.append(grid);
+  const choose = document.createElement('button');
+  choose.textContent = 'Choose';
+  const status = span('muted', '');
+  choose.addEventListener('click', async () => {
+    choose.disabled = true;
+    status.textContent = ' choosing…';
+    try {
+      const result = await post('/models/selection', {
+        mode: 'manual',
+        model: item.logical_name || item.model_id,
+      });
+      status.textContent = ` ${result.selection_mode} ${result.selected || 'none'}`;
+      await renderSelection();
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      choose.disabled = false;
+    }
+  });
+  const action = document.createElement('div');
+  action.className = 'action';
+  action.append(choose, status);
+  card.append(action);
+  return card;
 }
 
 async function renderInventory() {

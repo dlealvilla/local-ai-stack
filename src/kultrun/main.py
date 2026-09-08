@@ -109,11 +109,15 @@ from kultrun.platform.contracts import (
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
+from kultrun.platform.model_selection import (
+    ModelSelectionLock,
+    ModelSelectionOverview,
+    ModelSelectionService,
+)
 from kultrun.platform.probe_run import ExecutorProbeRunner
 from kultrun.platform.requirement import (
     RequirementAssessment,
     assess_catalog,
-    recommend_from_view,
 )
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
@@ -290,6 +294,7 @@ class Platform:
     verification: VerificationService
     foundation: FoundationSelectionService
     eligibility: ModelEligibilityService
+    model_selection: ModelSelectionService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -701,6 +706,13 @@ def build(
         verification,
         interpreters=(VllmModelCompatibility(),),
     )
+    model_selection = ModelSelectionService(
+        store,
+        resolved_clock,
+        selection,
+        models,
+        ModelSelectionLock(state_root),
+    )
     admission = AdmissionService(
         resources,
         inventory,
@@ -735,6 +747,7 @@ def build(
         verification=verification,
         foundation=foundation,
         eligibility=eligibility,
+        model_selection=model_selection,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
@@ -766,6 +779,7 @@ def build(
         verification=verification,
         foundation=foundation,
         eligibility=eligibility,
+        model_selection=model_selection,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -1295,6 +1309,12 @@ def _assessments(
     return view, envelope, rows
 
 
+def _model_overview(platform: Platform) -> ModelSelectionOverview:
+    host = platform.hosts.current
+    view, envelope, rows = _assessments(platform)
+    return platform.model_selection.view(host, view, envelope, rows)
+
+
 def _selected_runtime(view: EligibleModelView) -> str:
     token = view.runtime
     return token if isinstance(token, str) and token.strip() else ""
@@ -1733,6 +1753,10 @@ def _models(arguments: Sequence[str]) -> int:
     command = arguments[0]
     if command == "recommend":
         return show_recommendation()
+    if command == "selection":
+        return show_model_selection()
+    if command == "select":
+        return select_named_model(arguments[1:])
     if command == "eligible":
         return show_eligible_models()
     if command == "requirements":
@@ -1745,7 +1769,7 @@ def _models(arguments: Sequence[str]) -> int:
         return delete_named(arguments[1:])
     print(
         "usage: kultrun models ["
-        "recommend|eligible|requirements|inventory|acquire|delete]",
+        "recommend|selection|select|eligible|requirements|inventory|acquire|delete]",
         file=sys.stderr,
     )
     return 2
@@ -1792,18 +1816,11 @@ def acquire_named(arguments: Sequence[str]) -> int:
     if recommended and not names:
         platform = build()
         _warn_if_state_root_defaulted(platform)
-        view, envelope, rows = _assessments(platform)
-        recommendation = recommend_from_view(
-            platform.selection,
-            view,
-            envelope,
-            platform.models.entries(),
-            rows,
-        )
-        if recommendation.primary is None:
+        overview = _model_overview(platform)
+        if overview.recommendation.primary is None:
             print("kultrun: no recommended candidate", file=sys.stderr)
             return 1
-        names = [recommendation.primary.logical_name.value]
+        names = [overview.recommendation.primary.logical_name.value]
     if len(names) != 1:
         print(
             "usage: kultrun models acquire <candidate-id> | --recommended",
@@ -1862,22 +1879,28 @@ def show_recommendation() -> int:
 
     platform = build()
     _warn_if_state_root_defaulted(platform)
-    view, envelope, rows = _assessments(platform)
-    recommendation = recommend_from_view(
-        platform.selection,
-        view,
-        envelope,
-        platform.models.entries(),
-        rows,
-    )
+    overview = _model_overview(platform)
+    recommendation = overview.recommendation
     recommendation_mode = recommendation.estimator_mode
     fallback = (
         f"  fallback {recommendation.fallback_reason}"
         if recommendation.fallback_used and is_resolved(recommendation.fallback_reason)
         else "  fallback no"
     )
-    runtime = _selected_runtime(view) or "-"
-    version = view.runtime_version if isinstance(view.runtime_version, str) else "-"
+    runtime = _selected_runtime(overview.view) or "-"
+    version = (
+        overview.view.runtime_version
+        if isinstance(overview.view.runtime_version, str)
+        else "-"
+    )
+    rec = overview.selection.recommended_logical_name
+    sel = overview.selection.selected_logical_name
+    print(
+        f"selection {overview.selection.selection_mode.value}  "
+        f"status {overview.status.value}  "
+        f"recommended {rec if isinstance(rec, str) else '-'}  "
+        f"selected {sel if isinstance(sel, str) else '-'}"
+    )
     print(
         f"mode {recommendation_mode}  "
         f"effective {recommendation.estimator_provider}  "
@@ -1886,7 +1909,8 @@ def show_recommendation() -> int:
         f"{fallback}"
     )
     print(
-        f"runtime {runtime}  runtime-version {version}  eligibility {view.status.value}"
+        f"runtime {runtime}  runtime-version {version}  "
+        f"eligibility {overview.view.status.value}"
     )
     print(f"policy {recommendation.policy_version}")
     for line in recommendation.rationale:
@@ -1899,7 +1923,11 @@ def show_recommendation() -> int:
             f"primary {winner.logical_name.value}  {winner.capacity_fit.value}  {used}"
         )
         assessed = next(
-            (item for item in rows if item.model_id == winner.model_id.value),
+            (
+                item
+                for item in overview.assessments
+                if item.model_id == winner.model_id.value
+            ),
             None,
         )
         if assessed is not None:
@@ -1912,8 +1940,78 @@ def show_recommendation() -> int:
         print(
             f"plan {planned.logical_name.value}  "
             f"placement {planned.placement.value}  "
-            f"runtime {planned.runtime if is_resolved(planned.runtime) else '-'}"
+            f"runtime {planned.runtime if is_resolved(planned.runtime) else '-'}  "
+            f"authoritative no"
         )
+    return 0
+
+
+def show_model_selection() -> int:
+    """Current AUTO|MANUAL model selection and feasible alternatives."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    overview = _model_overview(platform)
+    rec = overview.selection.recommended_logical_name
+    sel = overview.selection.selected_logical_name
+    print(
+        f"mode {overview.selection.selection_mode.value}  "
+        f"status {overview.status.value}"
+    )
+    print(f"recommended {rec if isinstance(rec, str) else '-'}")
+    print(f"selected {sel if isinstance(sel, str) else '-'}")
+    if overview.feasible:
+        print("feasible")
+        for item in overview.feasible:
+            mark = (
+                "selected"
+                if item.model_id
+                == (
+                    overview.selection.selected_model_id
+                    if isinstance(overview.selection.selected_model_id, str)
+                    else ""
+                )
+                else "ok"
+            )
+            print(f"  {mark:8} {item.logical_name}  {item.capacity_fit}")
+    else:
+        print("feasible none")
+    return 0
+
+
+def select_named_model(arguments: Sequence[str]) -> int:
+    """Persist AUTO or a currently feasible MANUAL model."""
+    from kultrun.kernel.errors import KultrunError
+
+    auto = "--auto" in arguments
+    names = [item for item in arguments if not item.startswith("-")]
+    if auto and names:
+        print("usage: kultrun models select <model> | --auto", file=sys.stderr)
+        return 2
+    if not auto and len(names) != 1:
+        print("usage: kultrun models select <model> | --auto", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    view, envelope, rows = _assessments(platform)
+    try:
+        if auto:
+            overview = platform.model_selection.select_auto(host, view, envelope, rows)
+        else:
+            overview = platform.model_selection.select_manual(
+                names[0], host, view, envelope, rows
+            )
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    rec = overview.selection.recommended_logical_name
+    sel = overview.selection.selected_logical_name
+    print(
+        f"{overview.selection.selection_mode.value}  "
+        f"{overview.status.value}  "
+        f"recommended {rec if isinstance(rec, str) else '-'}  "
+        f"selected {sel if isinstance(sel, str) else '-'}"
+    )
     return 0
 
 

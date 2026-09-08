@@ -36,18 +36,18 @@ from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import ArtifactId
 from kultrun.model.inventory import ModelInventory
 from kultrun.planning.contracts import CompatibilityVerdict
-from kultrun.planning.service import SelectionService, plan_from
+from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
+from kultrun.platform.model_selection import ModelSelectionService
 from kultrun.platform.requirement import (
     RequirementAssessment,
     assess_catalog,
     assessment_payload,
-    recommend_from_view,
 )
 from kultrun.platform.startup import Startup
 from kultrun.platform.state import PlatformStateStore
@@ -100,6 +100,7 @@ class ControlPlane:
     verification: VerificationService
     foundation: FoundationSelectionService
     eligibility: ModelEligibilityService
+    model_selection: ModelSelectionService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -689,44 +690,46 @@ def register(router: Router, plane: ControlPlane) -> Router:
         }
 
     def models_selection(_: ApiRequest) -> dict[str, object]:
-        """Active-estimator selection. No dual estimates. No download."""
+        """Current feasible set, recommendation, and AUTO|MANUAL selection."""
         host = plane.hosts.current
         view, envelope, rows = _assessments(host)
-        recommendation = recommend_from_view(
-            plane.selection,
-            view,
-            envelope,
-            plane.models.entries(),
-            rows,
-        )
-        planned = plan_from(recommendation)
+        overview = plane.model_selection.view(host, view, envelope, rows)
+        payload = overview.payload()
         stored = plane.foundation.stored(host)
-        return {
-            "download": False,
-            "estimator_mode": recommendation.estimator_mode,
-            "estimator_provider": recommendation.estimator_provider,
-            "estimator_version": recommendation.estimator_version,
-            "requested_primary": recommendation.requested_primary,
-            "fallback_used": recommendation.fallback_used,
-            "fallback_reason": recommendation.fallback_reason,
-            "policy_version": recommendation.policy_version,
-            "outcome": recommendation.outcome.value,
-            "recommendation": recommendation,
-            "plan": planned,
-            "foundation_stale": (
-                stored.downstream_stale if stored is not None else False
-            ),
-            "foundation_selection_mode": (
-                stored.selection_mode.value if stored is not None else None
-            ),
-            "runtime_eligibility_status": view.status.value,
-            "runtime_eligibility_authoritative": view.status.value == "current",
-            "selected_runtime": _selected_runtime(view) or None,
-            "selected_runtime_version": (
-                view.runtime_version if isinstance(view.runtime_version, str) else None
-            ),
-            "assessments": [assessment_payload(item) for item in rows],
-        }
+        payload["foundation_stale"] = (
+            stored.downstream_stale if stored is not None else False
+        )
+        payload["foundation_selection_mode"] = (
+            stored.selection_mode.value if stored is not None else None
+        )
+        return payload
+
+    def select_model(request: ApiRequest) -> dict[str, object]:
+        """Persist AUTO or MANUAL model selection. Does not acquire or admit."""
+        mode = (request.query.get("mode") or "").strip().lower()
+        token = (
+            request.query.get("model") or request.query.get("model_id") or ""
+        ).strip()
+        host = plane.hosts.current
+        view, envelope, rows = _assessments(host)
+        if mode == "auto" and not token:
+            overview = plane.model_selection.select_auto(host, view, envelope, rows)
+        elif mode == "manual" or (token and mode != "auto"):
+            overview = plane.model_selection.select_manual(
+                token, host, view, envelope, rows
+            )
+        else:
+            raise ValidationError("mode must be auto or manual", parameter="mode")
+        payload = overview.payload()
+        stored = plane.foundation.stored(host)
+        payload["foundation_stale"] = (
+            stored.downstream_stale if stored is not None else False
+        )
+        payload["foundation_selection_mode"] = (
+            stored.selection_mode.value if stored is not None else None
+        )
+        payload["mutations"] = True
+        return payload
 
     def models_requirements(_: ApiRequest) -> dict[str, object]:
         """Derived requirements and capacity. GET does not admit or acquire."""
@@ -819,16 +822,10 @@ def register(router: Router, plane: ControlPlane) -> Router:
         if recommended and not candidate:
             host = plane.hosts.current
             view, envelope, rows = _assessments(host)
-            recommendation = recommend_from_view(
-                plane.selection,
-                view,
-                envelope,
-                plane.models.entries(),
-                rows,
-            )
-            if recommendation.primary is None:
+            overview = plane.model_selection.view(host, view, envelope, rows)
+            if overview.recommendation.primary is None:
                 raise PreconditionFailedError("no recommended candidate to acquire")
-            candidate = recommendation.primary.logical_name.value
+            candidate = overview.recommendation.primary.logical_name.value
         if not candidate:
             raise ValidationError(
                 "a known candidate is required", parameter="candidate"
@@ -888,6 +885,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)
     router.get("/models/selection", models_selection)
+    router.post("/models/selection", select_model)
     router.get("/models/eligible", models_eligible)
     router.get("/models/requirements", models_requirements)
 

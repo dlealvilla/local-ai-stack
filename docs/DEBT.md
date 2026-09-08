@@ -930,22 +930,29 @@ To make real: Later 1.6 letters under a separate brief.
 Retire when:  a verified `RuntimeCapabilityProfile` is accepted evidence.
 Status:       OPEN
 
-### K-55 — model selection is not yet runtime-first
-Label:        DEFERRED
-Owner stage:  1.5C
+### K-55 — model selection is not yet runtime-first  ·  RETIRED
+Label:        DEFERRED → RETIRED
+Owner stage:  1.6H
 Subsystem:    planning
 Authorizes:   NO
-What:         The 19-model funnel still ranks from catalog + host
-              capacity. Stage 1.6F now supplies runtime compatibility
-              tokens from `EligibleModelView`. Acquisition is not gated
-              on a DeploymentPlan plus verified runtime. `STORE` remains
-              the warehouse path as in 1.4C.
+What:         The 19-model funnel ranked from catalog + host capacity.
+              Stage 1.6H ranks only currently feasible candidates
+              derived from EligibleModelView + remapped requirement +
+              CapacityAssessment, and persists bounded AUTO|MANUAL
+              ModelSelection. Acquisition remains the warehouse STORE
+              path until DeploymentPlan gating.
 Why now:      1.5C must not remap selection before a verified runtime exists.
-To make real: After 1.6G; migrate ModelSelector onto eligible +
-              remapped requirement + capacity, then bounded selection.
+To make real: Implemented in Stage 1.6H.
 Retire when:  normal executable selection consumes runtime eligibility
               and capacity against the selected verified foundation.
-Status:       OPEN
+Status:       RETIRED (1.6H, 2026-09-08)
+Note:         `SelectionService.recommend()` remains for isolated
+              estimator tests. Product authority is `rank_feasible()`
+              via `ModelSelectionService`. `plan_from` in the selection
+              payload is a provisional recommendation artifact
+              (`plan_authoritative: false`); remove during DeploymentPlan
+              (K-86). Acquisition `--recommended` already reads the
+              migrated recommendation. STORE is not plan-gated.
 
 ### K-56 — Runtime performance-aware ranking
 Label:        DEFERRED
@@ -1464,9 +1471,10 @@ Retire when:  the eligible view is the only runtime/model compatibility
               authority (planning no longer intersects catalog runtimes).
 Status:       RETIRED (1.6F, 2026-09-08)
 Note:         Resource-fit / ModelRequirement / Capacity migrated in
-              1.6G. Planning still receives CompatibilityVerdict
+              1.6G. ModelSelector and bounded ModelSelection migrated
+              in 1.6H. Planning still receives CompatibilityVerdict
               tokens through composition because it cannot import
-              runtime. ModelSelector remains NEXT.
+              runtime. Authoritative DeploymentPlan remains NEXT.
 
 ### K-88 — Runtime verification scheduling / background revalidation
 Label:        DEFERRED
@@ -1586,7 +1594,7 @@ Note:         `plan_for_entry` still estimates numeric ResourceRequest
               arithmetic keeps working. That is ResourceManager remap
               remaining work, not a compatibility default.
 
-## Runtime-first migration ledger (after 1.6G)
+## Runtime-first migration ledger (after 1.6H)
 
 Not a second architecture. Existing components still to migrate, in
 order. Do not begin automatically.
@@ -1596,13 +1604,14 @@ order. Do not begin automatically.
 | Runtime/model compatibility | `EligibleModelView` / `RuntimeEligibleModelCandidate` | same | done in 1.6F | composition copy of eligibility → `CompatibilityVerdict` (planning ⟂ runtime) | ✅ |
 | ModelRequirement | `RuntimeEligibleModelCandidate` + fresh VERIFIED profile + selected runtime | same | done in 1.6G | none | ✅ |
 | CapacityAssessment | remapped `ModelRequirement` + host SAFE envelope | same | done in 1.6G; existing SAFE math | none | ✅ |
-| ModelSelector | catalog entries + remapped requirement + capacity + eligibility tokens | feasible eligible candidates + remapped requirement + capacity; bounded AUTO/MANUAL | ranking still capacity-band; do not redesign until next stage | composition tokens; ranking unchanged | 3 — next |
-| SelectedDeploymentCandidate | not a persisted identity; recommendation primary | selected vs recommended after bounded model selection | keep recommended ≠ selected | none | 4 |
-| DeploymentPlan | recommendation artifact from 1.4B | authoritative selected plan; stale when foundation/eligibility/requirement/capacity change | K-86 freshness | K-86 OPEN | 5 |
-| Acquisition | catalog identity + storage envelope; `--recommended` uses remapped ranking | gate on eligible + feasible selected plan | still warehouse STORE path (K-55) | `--recommended` already reads remapped ranking | 6 |
-| ResourceManager | `ModelRequirement` + SAFE envelope; product reserve passes eligibility tokens into `plan_for_entry` | ResourceRequest derived from remapped requirement against selected foundation; skip BLOCKED amounts | admission already consumes tokens; request amounts still estimated for blocked/unresolved artifacts | estimate-for-admission until remap | 7 |
-| InferenceInstance | admitted reservation + stored artifact | instance against selected verified foundation + eligible model | not remapped; T2 inference passes explicit mapping | none as compatibility default | 8 |
-| Real inference | reference serving | selected foundation + acquired artifact + reservation | later 1.6 letter | none | 9 |
+| ModelSelector | `FeasibleModelCandidate[]` from eligible + ready + feasible assessments | same | done in 1.6H; existing capacity-band ranking | `SelectionService.recommend()` isolated tests only | ✅ |
+| Bounded model selection | host-scoped `ModelSelection` AUTO\|MANUAL; recommended ≠ selected | same | done in 1.6H | none | ✅ |
+| SelectedDeploymentCandidate | not a persisted identity; ModelSelection + upstream refs | combine into the final deployment choice | next with DeploymentPlan | none | NEXT |
+| DeploymentPlan | 1.4B recommendation artifact (`plan_authoritative: false`) | authoritative selected plan; stale when foundation/eligibility/requirement/capacity/selection change | K-86 freshness | `plan_from` on GET /models/selection | NEXT |
+| Acquisition | catalog identity + storage envelope; `--recommended` uses migrated ranking | gate on eligible + feasible selected plan | still warehouse STORE path | `--recommended` already reads ModelSelection recommendation | pending |
+| ResourceManager | `ModelRequirement` + SAFE envelope; product reserve passes eligibility tokens into `plan_for_entry` | ResourceRequest derived from remapped requirement against selected foundation; skip BLOCKED amounts | admission already consumes tokens; request amounts still estimated for blocked/unresolved artifacts | estimate-for-admission until remap | pending |
+| InferenceInstance | admitted reservation + stored artifact | instance against selected verified foundation + eligible model | not remapped; T2 inference passes explicit mapping | none as compatibility default | pending |
+| Real inference | reference serving | selected foundation + acquired artifact + reservation | later 1.6 letter | none | pending |
 
 ## Deferred capability register
 

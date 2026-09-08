@@ -661,12 +661,14 @@ def test_recommend_from_view_skips_blocked(tmp_path: Path) -> None:
     before = len(recorder.requests)
     recommendation = recommend_from_view(
         SelectionService(recorder, FixedClock(now_utc())),
-        view,
         envelope,
-        models.entries(),
         rows,
     )
-    assert all(item.model_id.value != blocked_id for item in recorder.requests[before:])
+    assert len(recorder.requests) == before
+    assert all(item.model_id.value != blocked_id for item in recommendation.evaluations)
+    assert all(
+        item.logical_name.value != BLOCKED for item in recommendation.evaluations
+    )
     assert recommendation.primary is not None
     assert recommendation.primary.logical_name.value != BLOCKED
 

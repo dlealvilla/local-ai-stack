@@ -196,6 +196,11 @@ migration onto the eligible view. Selected verified runtime is the
 estimator identity. K-94 RETIRED. Do not reopen 1.6B–1.6F. Checkpoint:
 `checkpoints/STAGE-1.6G-model-requirement-capacity.json`.
 
-**Next after 1.6G close:** ModelSelector + bounded model selection.
+**Stage 1.6H is closed** at `L1`. ModelSelector + bounded AUTO|MANUAL
+model selection. Ranking consumes only currently feasible candidates.
+K-55 RETIRED. Do not reopen 1.6B–1.6G. Checkpoint:
+`checkpoints/STAGE-1.6H-model-selection.json`.
+
+**Next after 1.6H close:** authoritative DeploymentPlan migration.
 Do not begin it from this package. Present depth options before
 implementation.

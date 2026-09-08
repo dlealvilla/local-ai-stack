@@ -14,7 +14,7 @@ from enum import StrEnum
 from kultrun.capacity.contracts import CapacityEnvelope
 from kultrun.evidence.contracts import Confidence
 from kultrun.host.contracts import HostId
-from kultrun.kernel.ids import Name
+from kultrun.kernel.ids import EntityId, Name
 from kultrun.kernel.schema import Contract, contract, meaning
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
 from kultrun.model.contracts import MemoryPlacement, ModelId
@@ -215,14 +215,98 @@ class SelectionRecommendation(Contract):
     estimator_mode: str = meaning(
         "configured mode: auto, or a strict provider id", default="auto"
     )
-    requested_primary: str = meaning(
-        "first provider asked", default=""
-    )
+    requested_primary: str = meaning("first provider asked", default="")
     fallback_used: bool = meaning(
         "true when the primary provider failed to estimate", default=False
     )
     fallback_reason: Maybe[str] = meaning(
         "typed primary failure that caused fallback", default=NOT_PROVIDED
+    )
+
+
+class ModelSelectionId(EntityId):
+    """Deterministic identity of the current model selection on one host."""
+
+    prefix = "msel"
+
+
+class ModelSelectionMode(StrEnum):
+    """Product model-selection mode. Not FoundationSelection AUTO/MANUAL."""
+
+    AUTO = "auto"
+    MANUAL = "manual"
+
+
+class ModelSelectionStatus(StrEnum):
+    """Whether the current model selection may be treated as executable."""
+
+    CURRENT = "current"
+    STALE = "stale"
+    INVALID = "invalid"
+    UNAVAILABLE = "unavailable"
+
+
+@dataclass(frozen=True, slots=True)
+class FeasibleModelCandidate:
+    """Eligible and currently feasible. Derived ranking input, not persisted.
+
+    Does not copy ModelMetadata, RuntimeCapabilityProfile, or CapacityEnvelope.
+    """
+
+    model_id: str
+    logical_name: str
+    source_ref: str
+    source_revision: Maybe[str]
+    view_id: str
+    profile_id: str
+    runtime: str
+    runtime_version: Maybe[str]
+    requirement_basis: str
+    capacity_fit: str
+    evaluation: ModelEvaluation
+
+
+@contract(kind="planning.model_selection", version=1)
+@dataclass(frozen=True, slots=True)
+class ModelSelection(Contract):
+    """Recommended versus selected model. Not a DeploymentPlan."""
+
+    selection_id: ModelSelectionId = meaning(
+        "fingerprint of the current model selection record for one host"
+    )
+    host_id: HostId = meaning("host this selection applies to")
+    selection_mode: ModelSelectionMode = meaning(
+        "AUTO follows the current recommendation; MANUAL holds another "
+        "currently feasible model"
+    )
+    created_at: dt.datetime = meaning("when this selection record was first written")
+    selected_at: dt.datetime = meaning("when the current selection last changed")
+    selection_basis: str = meaning(
+        "fingerprint of foundation, view, requirement, capacity, and policy"
+    )
+    recommended_model_id: Maybe[str] = meaning(
+        "current feasible recommendation; unresolved when none exists",
+        default=NOT_PROVIDED,
+    )
+    selected_model_id: Maybe[str] = meaning(
+        "model AUTO or MANUAL chose; unresolved when none exists",
+        default=NOT_PROVIDED,
+    )
+    recommended_logical_name: Maybe[str] = meaning(
+        "catalog name of the current recommendation", default=NOT_PROVIDED
+    )
+    selected_logical_name: Maybe[str] = meaning(
+        "catalog name of the selected model", default=NOT_PROVIDED
+    )
+    selected_source_ref: Maybe[str] = meaning(
+        "upstream identity of the selected model", default=NOT_PROVIDED
+    )
+    selected_source_revision: Maybe[str] = meaning(
+        "immutable revision of the selected model, when known",
+        default=NOT_PROVIDED,
+    )
+    generation: int = meaning(
+        "increments when the selected model identity changes", default=1
     )
 
 
