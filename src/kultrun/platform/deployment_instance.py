@@ -1,26 +1,37 @@
 """Plan-driven InferenceInstance create. Consumes; does not replan.
 
 Composition-owned. Inference still owns lifecycle. Planning still owns
-the DeploymentPlan. This service only binds a CURRENT plan to a matching
-artifact and ACTIVE reservation. It does not select a model, estimate
-capacity, admit resources, or launch a product runtime.
+the DeploymentPlan. This service binds a CURRENT plan to a matching
+artifact and ACTIVE reservation, and prepares the exact launch request
+for native vLLM. It does not select a model, estimate capacity, or admit
+resources.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from kultrun.host.contracts import HostCapabilities
-from kultrun.inference.contracts import InferenceInstance, InstanceId
-from kultrun.inference.service import InstanceService
+from kultrun.inference.contracts import (
+    REFERENCE_STARTUP_TIMEOUT_SECONDS,
+    VLLM_STARTUP_TIMEOUT_SECONDS,
+    InferenceInstance,
+    InferenceRequest,
+    InferenceResponse,
+    InstanceId,
+    ObservedState,
+)
+from kultrun.inference.endpoint import LOOPBACK, allocate_loopback_port
+from kultrun.inference.service import InstanceService, served_model_identity
 from kultrun.kernel.errors import (
     NotFoundError,
     PreconditionFailedError,
     ValidationError,
 )
 from kultrun.kernel.ids import Name
-from kultrun.kernel.unresolved import NOT_MEASURED, is_resolved
+from kultrun.kernel.unresolved import NOT_MEASURED, Maybe, is_resolved
 from kultrun.model.contracts import ArtifactId, ArtifactState, ModelArtifact
 from kultrun.model.inventory import ModelInventory
 from kultrun.planning.contracts import DeploymentPlan, DeploymentPlanStatus
@@ -37,6 +48,13 @@ from kultrun.resource.contracts import (
     ResourceReservation,
 )
 from kultrun.resource.manager import ResourceManager
+from kultrun.runtime.contracts import (
+    InstallationStatus,
+    RuntimeInstallation,
+    RuntimeInstallationId,
+    RuntimeLaunchRequest,
+)
+from kultrun.runtime.provision import ProvisioningService
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +96,7 @@ class InstanceView:
             "runtime": item.runtime.value,
             "runtime_version": _token(item.runtime_version),
             "executor": item.executor.value,
+            "served_model": served_model_identity(item),
             "placement": _token(item.placement),
             "accelerator_index": item.accelerator_index,
             "context_length_tokens": (
@@ -109,11 +128,15 @@ class DeploymentInstanceService:
         inventory: ModelInventory,
         resources: ResourceManager,
         instances: InstanceService,
+        provisioning: ProvisioningService,
+        state_root: Path,
     ) -> None:
         self._overview = overview
         self._inventory = inventory
         self._resources = resources
         self._instances = instances
+        self._provisioning = provisioning
+        self._state_root = Path(state_root)
 
     def create(
         self,
@@ -166,11 +189,34 @@ class DeploymentInstanceService:
         serving_mode: str = "healthy",
     ) -> InstanceView:
         instance = self._require_instance(instance_id)
+        if instance.observed_state in {
+            ObservedState.RUNNING,
+            ObservedState.STARTING,
+        }:
+            return self.view(instance, host)
         self._require_start_currentness(instance, host)
+        request, timeout = self._launch_request(instance, host)
         started = self._instances.start(
-            instance_id, ledger_health=ledger_health, serving_mode=serving_mode
+            instance_id,
+            ledger_health=ledger_health,
+            serving_mode=serving_mode,
+            launch_request=request,
+            startup_timeout=timeout,
         )
         return self.view(started, host)
+
+    def infer(
+        self,
+        instance_id: InstanceId,
+        host: HostCapabilities,
+        request: InferenceRequest,
+    ) -> InferenceResponse:
+        instance = self._require_instance(instance_id)
+        current = self.view(instance, host).configuration_current
+        overlay: Maybe[bool] = current if current is not None else NOT_MEASURED
+        return self._instances.infer(
+            instance_id, request, configuration_current=overlay
+        )
 
     def stop(self, instance_id: InstanceId, host: HostCapabilities) -> InstanceView:
         return self.view(self._instances.stop(instance_id), host)
@@ -256,6 +302,99 @@ class DeploymentInstanceService:
                 reason="instance_executor_mismatch",
                 instance_id=instance.instance_id.value,
             )
+
+    def _launch_request(
+        self, instance: InferenceInstance, host: HostCapabilities
+    ) -> tuple[RuntimeLaunchRequest, float]:
+        artifact_id = (
+            instance.artifact_id.value if instance.artifact_id is not None else ""
+        )
+        if instance.runtime.value != "vllm":
+            return (
+                RuntimeLaunchRequest(
+                    instance_id=instance.instance_id.value,
+                    artifact_id=artifact_id,
+                ),
+                REFERENCE_STARTUP_TIMEOUT_SECONDS,
+            )
+        if instance.executor.value != "native-process":
+            raise PreconditionFailedError(
+                "only native-process vLLM serving is implemented",
+                reason="runtime_launch_unsupported",
+                runtime=instance.runtime.value,
+                executor=instance.executor.value,
+            )
+        overview = self._overview(host)
+        plan = require_current_plan(overview)
+        if not is_resolved(plan.installation_id):
+            raise PreconditionFailedError(
+                "deployment plan has no runtime installation",
+                reason="runtime_installation_missing",
+            )
+        installation = self._provisioning.get_installation(
+            RuntimeInstallationId.parse(str(plan.installation_id))
+        )
+        if installation.status is not InstallationStatus.INSTALLED:
+            raise PreconditionFailedError(
+                "runtime installation is not INSTALLED",
+                reason="runtime_installation_unusable",
+                installation_id=installation.installation_id.value,
+            )
+        if installation.runtime != instance.runtime:
+            raise PreconditionFailedError(
+                "installation runtime does not match the instance",
+                reason="runtime_installation_unusable",
+            )
+        if (
+            is_resolved(instance.runtime_version)
+            and installation.runtime_version != instance.runtime_version
+        ):
+            raise PreconditionFailedError(
+                "installation runtime version does not match the plan",
+                reason="runtime_installation_unusable",
+                required=str(instance.runtime_version),
+                installed=installation.runtime_version,
+            )
+        interpreter = _installation_python(installation, self._state_root)
+        if instance.artifact_id is None:
+            raise PreconditionFailedError(
+                "instance is missing artifact or reservation",
+                instance_id=instance.instance_id.value,
+            )
+        model_path = self._inventory.require_complete_local_model(instance.artifact_id)
+        if instance.accelerator_index is None:
+            raise PreconditionFailedError(
+                "vLLM native serving requires a selected accelerator",
+                reason="accelerator_unresolved",
+                instance_id=instance.instance_id.value,
+            )
+        port = allocate_loopback_port(self._instances.occupied_ports())
+        return (
+            RuntimeLaunchRequest(
+                instance_id=instance.instance_id.value,
+                artifact_id=artifact_id,
+                interpreter=str(interpreter),
+                model_path=str(model_path),
+                served_model=served_model_identity(instance),
+                bind_address=LOOPBACK,
+                bind_port=port,
+                context_tokens=(
+                    instance.context_length_tokens
+                    if is_resolved(instance.context_length_tokens)
+                    else NOT_MEASURED
+                ),
+                concurrency=(
+                    instance.runtime_concurrency
+                    if is_resolved(instance.runtime_concurrency)
+                    else NOT_MEASURED
+                ),
+                accelerator_index=instance.accelerator_index,
+                quantization=instance.quantization,
+                installation_id=installation.installation_id.value,
+                runtime_version=installation.runtime_version,
+            ),
+            VLLM_STARTUP_TIMEOUT_SECONDS,
+        )
 
     def _resolve_triple(
         self,
@@ -407,3 +546,23 @@ def _token(value: object) -> str | None:
         return text
     return None
 
+
+def _installation_python(installation: RuntimeInstallation, state_root: Path) -> Path:
+    raw = installation.python_executable
+    if not is_resolved(raw) or not str(raw).strip():
+        raise PreconditionFailedError(
+            "runtime installation has no interpreter",
+            reason="runtime_installation_unusable",
+            installation_id=installation.installation_id.value,
+        )
+    path = Path(str(raw))
+    if not path.is_absolute():
+        path = state_root / path
+    resolved = path.parent.resolve() / path.name
+    if not resolved.is_file():
+        raise PreconditionFailedError(
+            "runtime interpreter is missing",
+            reason="runtime_installation_unusable",
+            installation_id=installation.installation_id.value,
+        )
+    return resolved

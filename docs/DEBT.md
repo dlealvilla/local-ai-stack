@@ -808,12 +808,17 @@ Owner stage:  1.5A
 Subsystem:    resource
 Authorizes:   NO
 What:         ResourceRequest.port_count is unused. No port reservation,
-              discovery, proxy, or gateway routing.
-Why now:      The 1.5B reference server binds 127.0.0.1:0 and reports
-              the port. Real runtimes will need exclusive ports.
-To make real: Stage 1.6 if a production runtime cannot self-report a
-              bound endpoint.
-Retire when:  endpoint/port reservation is required for instance start.
+              discovery, proxy, or gateway routing. Stage 1.6L added a
+              small InferenceInstance loopback allocator
+              (`allocate_loopback_port`) with collision retry; it is not
+              a ResourceManager port grant.
+Why now:      The first vertical needs an exclusive loopback port, not
+              a network orchestration platform.
+To make real: Resource-level endpoint reservation, discovery, proxy, or
+              gateway routing when more than one local bind strategy
+              exists.
+Retire when:  endpoint/port reservation is a ResourceManager concern or
+              a dedicated network seam owns it.
 Status:       OPEN
 
 ### K-46 — no scheduler, queues, or preemption
@@ -869,12 +874,13 @@ Owner stage:  1.5C
 Subsystem:    runtime
 Authorizes:   NO
 What:         The reference-serving adapter owns `/health` and the ready
-              marker. Inference composes that verdict with executor
-              liveness. vLLM, llama.cpp and MLX readiness are not
-              implemented.
-Why now:      Stage 1.5C moved ownership; it did not add a real runtime.
-To make real: Stage 1.6 per production runtime adapter.
-Retire when:  a real runtime owns its readiness translation.
+              marker. Native vLLM readiness (process alive + `/health` +
+              `/v1/models` served-name match) exists in Stage 1.6L.
+              llama.cpp and MLX readiness are not implemented.
+Why now:      The first product serving path is native vLLM only.
+To make real: Stage per additional production runtime adapter.
+Retire when:  every product runtime that can launch owns its readiness
+              translation.
 Status:       OPEN
 
 ### K-51 — real model load and inference
@@ -882,11 +888,18 @@ Label:        DEFERRED
 Owner stage:  1.5B
 Subsystem:    runtime
 Authorizes:   NO
-What:         No vLLM, llama.cpp, MLX, CUDA or ROCm model load. No
-              prompt, chat, completions, or token API.
-Why now:      A reference process is enough to prove instance lifecycle.
-To make real: Stage 1.6 bounded brief.
-Retire when:  a real request reaches a real model.
+What:         Native vLLM non-streaming text generation exists in
+              Stage 1.6L (T0/T1/T2). Real T5 on GPU is still required
+              for stage close. llama.cpp, MLX, CUDA/ROCm load outside
+              this path, chat, completions streaming, and token APIs
+              beyond the bounded contract are not implemented.
+Why now:      One vertical is enough to prove serving; other runtimes
+              and request types stay later.
+To make real: T5 on a real GPU host through Kultrun API/CLI; later
+              stages for other runtimes and streaming.
+Retire when:  a real Kultrun request reaches a real vLLM model on real
+              hardware (Stage 1.6L CLOSED L3). Remaining runtimes and
+              streaming are then separate entries.
 Status:       OPEN
 
 ### K-52 — no shared execution cache
@@ -1601,6 +1614,24 @@ Note:         `plan_for_entry` still estimates numeric ResourceRequest
               `request_from_plan`. Removal trigger: retire the
               artifact-id reservation API.
 
+### K-95 — vLLM serving deferred depth
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    runtime / inference
+Authorizes:   NO
+What:         The first native vLLM vertical does not implement
+              streaming, request cancellation, automatic crash
+              recovery, request queues/backpressure, richer
+              concurrency controls, advanced health/reconciliation,
+              exact mapping of admitted VRAM into vLLM
+              `--gpu-memory-utilization`, or richer inference
+              observability. Prompts and responses stay transient.
+Why now:      One bounded prompt → generated text path is the product
+              proof. Those depths are not required to close 1.6L.
+To make real: Later stages that own each concern separately.
+Retire when:  the named depth is an accepted stage output.
+Status:       OPEN
+
 ## Runtime-first migration ledger (after 1.6K)
 
 Not a second architecture. Existing components still to migrate, in
@@ -1616,9 +1647,9 @@ order. Do not begin automatically.
 | Authoritative DeploymentPlan | current foundation + VERIFIED runtime + ModelSelection + READY requirement + feasible capacity | same | done in 1.6I; CURRENT vs STALE from `plan_basis` | `plan_from` demoted (`plan_authoritative: false`) for recommendation display | ✅ |
 | Acquisition | CURRENT DeploymentPlan identity for normal executable acquire; STORE_ONLY catalog path preserved | same | done in 1.6J | STORE_ONLY remains plan-independent | ✅ |
 | ResourceManager | `ResourceRequest` from `DeploymentPlan.resource_request` + exact artifact_id | same | done in 1.6J; ResourceManager stays generic | `plan_for_entry` residual on artifact-id reserve only; not instance authority | ✅ |
-| InferenceInstance | `DeploymentPlan` + exact `ModelArtifact` + matching `ResourceReservation` | same | done in 1.6K; settings from plan; vLLM START refused | low-level `InstanceService.create` remains a test helper | ✅ |
-| Real vLLM serving | declared vLLM support; launch refused | selected foundation + acquired artifact + reservation + real `RuntimeLaunchSpec` | next | none | NEXT |
-| Real inference | reference serving | real vLLM endpoint + prompt + response | later 1.6 letter | none | pending |
+| InferenceInstance | `DeploymentPlan` + exact `ModelArtifact` + matching `ResourceReservation` | same | done in 1.6K; settings from plan | low-level `InstanceService.create` remains a test helper | ✅ |
+| Real vLLM serving | selected foundation + acquired artifact + reservation + real `RuntimeLaunchSpec` | same | done in 1.6L T0/T1/T2; exact installation; local artifact; loopback; readiness | none | OPEN until T5 |
+| Real inference | generic `InferenceRequest` / `InferenceResponse` through instance API/CLI | same | done in 1.6L T0/T1/T2; T5 pending | reference-serving remains fixture-only | OPEN until T5 |
 
 ## Deferred capability register
 

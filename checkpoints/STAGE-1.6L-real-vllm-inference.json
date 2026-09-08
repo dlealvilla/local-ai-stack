@@ -1,0 +1,102 @@
+{
+  "stage": "1.6L",
+  "name": "real-vllm-inference",
+  "milestone": 1,
+  "output": "first real native vLLM serving vertical: exact RuntimeInstallation + local ModelArtifact + NativeProcessExecutor + readiness + bounded InferenceRequest/Response",
+  "status": "open",
+  "gate": "L3",
+  "evidence_level": "T2 local; T3/T5 pending",
+  "t3_required": true,
+  "t5_required": true,
+  "ready_for_t3": true,
+  "START_LINK": {
+    "predecessor_accepted_commit": "1e51f13ec2a7c2e1fa34b6a3ec0c92f712d4b43e",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.6K-plan-driven-inference-instance.json"
+    ],
+    "starting_source_commit": "1e51f13ec2a7c2e1fa34b6a3ec0c92f712d4b43e",
+    "safety_tag": "checkpoint/stage-1.6K-closed-1e51f13ec",
+    "safety_branch": "safety/pre-real-vllm-inference-1e51f13ec",
+    "feature_branch": "stage/1.6L-real-vllm-inference",
+    "predecessor_closed": true,
+    "do_not_reopen": ["1.6B", "1.6C", "1.6D", "1.6E", "1.6F", "1.6G", "1.6H", "1.6I", "1.6J", "1.6K"]
+  },
+  "contracts": {
+    "inference.request": "inference.request@1",
+    "inference.response": "inference.response@1",
+    "runtime.launch_request": "runtime.launch_request@1",
+    "vllm_runtime_v2": false,
+    "vllm_serving_v2": false
+  },
+  "serving": {
+    "runtime": "vllm",
+    "executor": "native-process",
+    "exact_installation": true,
+    "local_artifact": true,
+    "loopback_only": true,
+    "structured_argv": true,
+    "trust_remote_code": false,
+    "reference_fallback": false,
+    "streaming": false,
+    "cancellation": false,
+    "auto_restart": false
+  },
+  "k66": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k77": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k95": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95"],
+  "t2": {
+    "passed": false,
+    "script": "tools/t2_vllm_inference.py",
+    "source_commit": "",
+    "wheel": "",
+    "sha256": "",
+    "build_id": "",
+    "source_checkout": false,
+    "editable": false
+  },
+  "acceptance": {
+    "level": "T2 local",
+    "required": "L3",
+    "real_host": false,
+    "date": "2026-09-08",
+    "method": "T0/T1 plus T2 clean wheel. T3/T5 required for close."
+  },
+  "test_modes": {
+    "T0": "launch spec authority; readiness matrix; inference contract; lifecycle; no reference fallback",
+    "T1": "vLLM HTTP protocol fixture; delayed readiness; wrong model; crash; duplicate start; stop; restart",
+    "T2": "clean wheel; isolated install; full suite against wheel; product start fails without real vLLM; infer refused; no chat frontend",
+    "T3": "required; not yet performed",
+    "T5": "required; Kultrun prompt to generated response; not yet performed"
+  },
+  "not_begun": [
+    "streaming",
+    "cancellation",
+    "container GPU serving",
+    "llama.cpp",
+    "MLX",
+    "multi-GPU",
+    "routing",
+    "production chat frontend",
+    "K-66 Managed Python",
+    "K-77 driver remediation"
+  ],
+  "merge": {
+    "performed": false
+  },
+  "END_LINK": {
+    "acceptance_source_commit": "",
+    "t2_artifact_sha256": "",
+    "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
+    "next": "Complete T3/T5 on a real GPU host through the exact T2 wheel. Do not begin streaming or additional runtimes."
+  }
+}

@@ -2291,6 +2291,135 @@
     },
     "python": "InferenceInstance"
   },
+  "inference.request@1": {
+    "fields": {
+      "max_output_tokens": {
+        "may_be_unresolved": false,
+        "meaning": "upper bound on generated tokens",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "prompt": {
+        "may_be_unresolved": false,
+        "meaning": "caller text to generate from; never a model identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "temperature": {
+        "may_be_unresolved": false,
+        "meaning": "sampling temperature; 0 is deterministic-ish",
+        "nullable": false,
+        "optional": true,
+        "type": "float"
+      },
+      "timeout_seconds": {
+        "may_be_unresolved": false,
+        "meaning": "bounded wait for the runtime response",
+        "nullable": false,
+        "optional": true,
+        "type": "float"
+      }
+    },
+    "python": "InferenceRequest"
+  },
+  "inference.response@1": {
+    "fields": {
+      "configuration_current": {
+        "may_be_unresolved": true,
+        "meaning": "whether the bound DeploymentPlan is still CURRENT; overlay only",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
+      "executor": {
+        "may_be_unresolved": true,
+        "meaning": "executor that owns the runtime process",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "finish_reason": {
+        "may_be_unresolved": true,
+        "meaning": "runtime finish reason when supplied",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "generated_text": {
+        "may_be_unresolved": false,
+        "meaning": "model output; not persisted by default",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "input_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "prompt token count when the runtime supplied one",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "instance_id": {
+        "may_be_unresolved": false,
+        "meaning": "instance that produced the text",
+        "nullable": false,
+        "optional": false,
+        "type": "InstanceId"
+      },
+      "latency_ms": {
+        "may_be_unresolved": false,
+        "meaning": "wall time from request accept to response",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "planned model identity",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "output_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "generated token count when the runtime supplied one",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "request_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this request",
+        "nullable": false,
+        "optional": false,
+        "type": "InferenceRequestId"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime adapter that served the request",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "runtime version taken from the instance plan provenance",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "served_model": {
+        "may_be_unresolved": false,
+        "meaning": "served-model identity verified at readiness",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "InferenceResponse"
+  },
   "knowledge.item@1": {
     "fields": {
       "checksum": {
@@ -6163,6 +6292,13 @@
   },
   "runtime.launch_request@1": {
     "fields": {
+      "accelerator_index": {
+        "may_be_unresolved": false,
+        "meaning": "selected accelerator index; none means not a discrete GPU placement",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
       "artifact_id": {
         "may_be_unresolved": true,
         "meaning": "stored artifact identity for provenance only",
@@ -6177,6 +6313,34 @@
         "optional": true,
         "type": "str"
       },
+      "bind_port": {
+        "may_be_unresolved": true,
+        "meaning": "allocated loopback port for this instance",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "concurrency": {
+        "may_be_unresolved": true,
+        "meaning": "plan-resolved runtime concurrency; unresolved means runtime default",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "plan-resolved context length; unresolved means runtime default",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "installation_id": {
+        "may_be_unresolved": true,
+        "meaning": "verified RuntimeInstallation identity this recipe must use",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "instance_id": {
         "may_be_unresolved": false,
         "meaning": "which InferenceInstance this recipe is for",
@@ -6184,12 +6348,47 @@
         "optional": false,
         "type": "str"
       },
+      "interpreter": {
+        "may_be_unresolved": true,
+        "meaning": "exact runtime interpreter from the verified installation; never PATH python",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "mode": {
         "may_be_unresolved": false,
         "meaning": "reference serving mode: healthy, exit-immediately, never-ready, crash-after-ready",
         "nullable": false,
         "optional": true,
         "type": "str"
+      },
+      "model_path": {
+        "may_be_unresolved": true,
+        "meaning": "local stored artifact directory; never a Hub repository id",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "plan-required quantization; omitted when the plan did not require one",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "plan runtime version this recipe must honour",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "served_model": {
+        "may_be_unresolved": true,
+        "meaning": "deterministic served-model identity derived from the plan",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       }
     },
     "python": "RuntimeLaunchRequest"
@@ -6598,6 +6797,13 @@
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
+      },
+      "served_models": {
+        "may_be_unresolved": false,
+        "meaning": "identities the runtime reports as loaded; empty until probed",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
       }
     },
     "python": "RuntimeReadiness"

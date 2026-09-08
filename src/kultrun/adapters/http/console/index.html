@@ -154,9 +154,9 @@
       <h2>Inference instances</h2>
       <p class="note">
         Workloads that exist or run. A CURRENT DeploymentPlan, matching
-        artifact and ACTIVE reservation create the instance. Start of a
-        vLLM plan is refused until real serving exists; that is not a
-        reference-serving substitute. Stop does not release the reservation.
+        artifact and ACTIVE reservation create the instance. Start launches
+        native vLLM when that path is selected. Stop does not release the
+        reservation. A small probe can send one prompt to a RUNNING instance.
       </p>
       <div class="grid" id="instances-summary"></div>
       <div id="instances"></div>

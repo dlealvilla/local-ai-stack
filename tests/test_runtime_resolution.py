@@ -148,9 +148,7 @@ def test_case_a_linux_nvidia_native_is_compatible_when_vllm_present() -> None:
         components={"vllm": "present"},
     )
     native = next(
-        item
-        for item in result.candidates
-        if item.executor.value == "native-process"
+        item for item in result.candidates if item.executor.value == "native-process"
     )
     assert native.compatibility is CompatibilityClass.COMPATIBLE
     assert native.support_tier is RuntimeSupportTier.PRODUCT
@@ -218,9 +216,7 @@ def test_case_e_explicit_incompatible_runtime_does_not_fallback() -> None:
         host,
         (_native(host),),
         (VllmRuntimeSupport().support(), ReferenceServingRuntime().support()),
-        RuntimePolicy(
-            mode=RuntimeResolverMode.EXPLICIT, requested_runtime="vllm"
-        ),
+        RuntimePolicy(mode=RuntimeResolverMode.EXPLICIT, requested_runtime="vllm"),
         components={"vllm": "present"},
     )
     names = {item.runtime.value for item in result.unsupported}
@@ -329,9 +325,7 @@ def test_explicit_unknown_runtime_does_not_choose_reference() -> None:
         host,
         (_native(host),),
         (VllmRuntimeSupport().support(), ReferenceServingRuntime().support()),
-        RuntimePolicy(
-            mode=RuntimeResolverMode.EXPLICIT, requested_runtime="llama.cpp"
-        ),
+        RuntimePolicy(mode=RuntimeResolverMode.EXPLICIT, requested_runtime="llama.cpp"),
     )
     assert result.candidates == ()
     assert all(item.runtime.value != "reference-serving" for item in result.unsupported)
@@ -372,9 +366,7 @@ def test_runtime_resolver_class_delegates_to_resolve() -> None:
     descriptors = (VllmRuntimeSupport().support(),)
     policy = RuntimePolicy()
     components = {"vllm": "present"}
-    function = resolve(
-        host, executors, descriptors, policy, components=components
-    )
+    function = resolve(host, executors, descriptors, policy, components=components)
     named = RuntimeResolver().resolve(
         host, executors, descriptors, policy, components=components
     )
@@ -386,11 +378,11 @@ def test_runtime_resolver_class_delegates_to_resolve() -> None:
 
 def test_vllm_adapter_does_not_launch_or_import_vllm() -> None:
     adapter = VllmRuntimeSupport()
-    with pytest.raises(ValidationError, match="not part of provisioning"):
+    with pytest.raises(ValidationError, match="exact interpreter"):
         adapter.launch_spec()
-    source = (
-        SOURCE / "kultrun" / "adapters" / "runtime" / "vllm.py"
-    ).read_text(encoding="utf-8")
+    source = (SOURCE / "kultrun" / "adapters" / "runtime" / "vllm.py").read_text(
+        encoding="utf-8"
+    )
     assert "import vllm" not in source
     assert "from vllm" not in source
 
@@ -452,12 +444,7 @@ def test_api_candidates_are_read_only(tmp_path: Path) -> None:
 
 def test_console_candidates_panel_has_no_verify_or_launch() -> None:
     html = (
-        SOURCE
-        / "kultrun"
-        / "adapters"
-        / "http"
-        / "console"
-        / "index.html"
+        SOURCE / "kultrun" / "adapters" / "http" / "console" / "index.html"
     ).read_text(encoding="utf-8")
     script = (
         SOURCE / "kultrun" / "adapters" / "http" / "console" / "app.js"

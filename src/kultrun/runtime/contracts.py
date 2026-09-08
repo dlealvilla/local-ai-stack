@@ -54,6 +54,44 @@ class RuntimeLaunchRequest(Contract):
     artifact_id: Maybe[str] = meaning(
         "stored artifact identity for provenance only", default=NOT_PROVIDED
     )
+    interpreter: Maybe[str] = meaning(
+        "exact runtime interpreter from the verified installation; never PATH python",
+        default=NOT_PROVIDED,
+    )
+    model_path: Maybe[str] = meaning(
+        "local stored artifact directory; never a Hub repository id",
+        default=NOT_PROVIDED,
+    )
+    served_model: Maybe[str] = meaning(
+        "deterministic served-model identity derived from the plan",
+        default=NOT_PROVIDED,
+    )
+    bind_port: Maybe[int] = meaning(
+        "allocated loopback port for this instance", default=NOT_PROVIDED
+    )
+    context_tokens: Maybe[int] = meaning(
+        "plan-resolved context length; unresolved means runtime default",
+        default=NOT_PROVIDED,
+    )
+    concurrency: Maybe[int] = meaning(
+        "plan-resolved runtime concurrency; unresolved means runtime default",
+        default=NOT_PROVIDED,
+    )
+    accelerator_index: int | None = meaning(
+        "selected accelerator index; none means not a discrete GPU placement",
+        default=None,
+    )
+    quantization: Maybe[str] = meaning(
+        "plan-required quantization; omitted when the plan did not require one",
+        default=NOT_PROVIDED,
+    )
+    installation_id: Maybe[str] = meaning(
+        "verified RuntimeInstallation identity this recipe must use",
+        default=NOT_PROVIDED,
+    )
+    runtime_version: Maybe[str] = meaning(
+        "plan runtime version this recipe must honour", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="runtime.profile", version=1)
@@ -241,6 +279,10 @@ class RuntimeReadiness(Contract):
     )
     reason: Maybe[str] = meaning(
         "why it is not ready, or how readiness was decided", default=NOT_PROVIDED
+    )
+    served_models: tuple[str, ...] = meaning(
+        "identities the runtime reports as loaded; empty until probed",
+        default=(),
     )
 
 
@@ -481,9 +523,7 @@ class RuntimeProvisioningPlan(Contract):
     host_id: HostId = meaning("host this plan was made for")
     host_fingerprint: str = meaning("host fingerprint at plan creation")
     python_version: str = meaning("required Python version, e.g. 3.12")
-    installation_root: str = meaning(
-        "destination relative to the Kultrun state root"
-    )
+    installation_root: str = meaning("destination relative to the Kultrun state root")
     installer: str = meaning("installer name, e.g. pip")
     installer_mechanism: str = meaning(
         "how isolation is realized, e.g. python-venv-pip"
@@ -635,9 +675,7 @@ class RuntimeVerificationBasis(Contract):
     python_version: str = meaning("isolated runtime Python version token")
     executor: Name = meaning("executor identity used for the probe")
     executor_type: str = meaning("generic executor type, e.g. process")
-    executor_available: bool = meaning(
-        "whether that executor is currently available"
-    )
+    executor_available: bool = meaning("whether that executor is currently available")
     os_family: str = meaning("host OS family, e.g. linux")
     architecture: str = meaning("host architecture, e.g. x86_64")
     accelerator_vendor: str = meaning("primary accelerator vendor, or none")
@@ -960,9 +998,7 @@ class EligibleModelView(Contract):
     )
     eligible_count: int = meaning("how many catalog models are ELIGIBLE", default=0)
     blocked_count: int = meaning("how many catalog models are BLOCKED", default=0)
-    unresolved_count: int = meaning(
-        "how many catalog models are UNRESOLVED", default=0
-    )
+    unresolved_count: int = meaning("how many catalog models are UNRESOLVED", default=0)
     candidates: tuple[RuntimeEligibleModelCandidate, ...] = meaning(
         "per-model judgements; empty when the view is unavailable",
         default=(),

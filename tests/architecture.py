@@ -650,6 +650,8 @@ GENERIC_SEAM_KINDS = frozenset(
         "execution.handle",
         "execution.capability_profile",
         "inference.instance",
+        "inference.request",
+        "inference.response",
     }
 )
 

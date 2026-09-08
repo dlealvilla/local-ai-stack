@@ -98,20 +98,17 @@ class ReferenceServingRuntime:
         execution_alive: bool,
         bound_address: str | None = None,
         bound_port: int | None = None,
+        expected_served_model: str | None = None,
     ) -> RuntimeReadiness:
-        del stderr
+        del stderr, expected_served_model
         if not execution_alive:
-            return RuntimeReadiness(
-                ready=False, reason="execution is not alive"
-            )
+            return RuntimeReadiness(ready=False, reason="execution is not alive")
         parsed = _ready_from_stdout(stdout)
         host = bound_address or (parsed[0] if parsed is not None else None)
         published = parsed[1] if parsed is not None else None
         port = bound_port if bound_port is not None else published
         if host is None or port is None:
-            return RuntimeReadiness(
-                ready=False, reason="bind address not published"
-            )
+            return RuntimeReadiness(ready=False, reason="bind address not published")
         if not _health_ok(host, port):
             return RuntimeReadiness(
                 ready=False,

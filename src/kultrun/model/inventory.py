@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from kultrun.host.contracts import HostId
+from kultrun.kernel.errors import NotFoundError, PreconditionFailedError
 from kultrun.kernel.persistence import Store
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.model.contracts import (
@@ -116,6 +119,36 @@ class ModelInventory:
 
     def record(self, artifact_id: ArtifactId) -> ModelInventoryRecord | None:
         return self._store.get(ModelInventoryRecord, artifact_id.value)
+
+    def artifact_dir(self, artifact_id: ArtifactId) -> Path:
+        """Kultrun-owned local directory for one artifact. Not a Hub path."""
+        return self._artifacts.artifact_dir(artifact_id)
+
+    def require_complete_local_model(self, artifact_id: ArtifactId) -> Path:
+        """Fail if the stored artifact is missing or incomplete. Do not download."""
+        artifact = self.get(artifact_id)
+        if artifact is None:
+            raise NotFoundError("no such model artifact", artifact_id=artifact_id.value)
+        if artifact.state is not ArtifactState.STORED:
+            raise PreconditionFailedError(
+                "artifact is not STORED",
+                reason="artifact_missing",
+                artifact_id=artifact_id.value,
+            )
+        directory = self.artifact_dir(artifact_id)
+        if not self._artifacts.manifest_path(artifact_id).is_file():
+            raise PreconditionFailedError(
+                "stored artifact is missing its manifest",
+                reason="artifact_incomplete",
+                artifact_id=artifact_id.value,
+            )
+        if not (directory / "config.json").is_file():
+            raise PreconditionFailedError(
+                "stored artifact is incomplete; refusing to download a replacement",
+                reason="artifact_incomplete",
+                artifact_id=artifact_id.value,
+            )
+        return directory
 
 
 def _inventory_state(state: ArtifactState) -> InventoryState:

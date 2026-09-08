@@ -76,12 +76,11 @@ class ReferenceProcessRuntime:
         execution_alive: bool,
         bound_address: str | None = None,
         bound_port: int | None = None,
+        expected_served_model: str | None = None,
     ) -> RuntimeReadiness:
-        del stdout, stderr, bound_address, bound_port
+        del stdout, stderr, bound_address, bound_port, expected_served_model
         if not execution_alive:
-            return RuntimeReadiness(
-                ready=False, reason="execution is not alive"
-            )
+            return RuntimeReadiness(ready=False, reason="execution is not alive")
         return RuntimeReadiness(
             ready=True,
             reason="process harness has no HTTP probe; liveness is enough",

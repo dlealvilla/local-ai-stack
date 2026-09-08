@@ -1573,7 +1573,7 @@ function instanceCard(item) {
   stop.className = 'danger';
   stop.textContent = 'Stop';
   const status = span('muted', item.runtime === 'vllm'
-    ? ' start waits for real vLLM serving; not a reference substitute'
+    ? ' start launches native vLLM; stop does not release the reservation'
     : ' stop does not release the reservation');
   start.addEventListener('click', async () => {
     start.disabled = true;
@@ -1596,6 +1596,36 @@ function instanceCard(item) {
     }
   });
   action.append(start, stop, status);
+  if (observed === 'running') {
+    const probe = document.createElement('div');
+    probe.style.marginTop = '0.7rem';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'probe prompt';
+    input.style.minWidth = '16rem';
+    const send = document.createElement('button');
+    send.textContent = 'Infer';
+    const result = span('muted', ' one bounded generation; not a conversation');
+    send.addEventListener('click', async () => {
+      send.disabled = true;
+      try {
+        const body = await post('/inference/instances/infer', {
+          instance_id: item.instance_id,
+          prompt: input.value,
+          max_output_tokens: 64,
+          temperature: 0,
+        });
+        const text = body && body.generated_text ? String(body.generated_text) : '';
+        result.textContent = text ? ` ${text}` : ' empty generation';
+      } catch (error) {
+        result.textContent = ` failed: ${error.message}`;
+      } finally {
+        send.disabled = false;
+      }
+    });
+    probe.append(input, send, result);
+    card.append(probe);
+  }
   card.append(action);
   return card;
 }

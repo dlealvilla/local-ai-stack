@@ -56,6 +56,7 @@ class InferenceRuntime(Protocol):
         execution_alive: bool,
         bound_address: str | None = None,
         bound_port: int | None = None,
+        expected_served_model: str | None = None,
     ) -> RuntimeReadiness:
         """Runtime-owned READY probe. Must not signal or kill a process."""
         ...

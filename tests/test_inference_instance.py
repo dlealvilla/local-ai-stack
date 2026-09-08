@@ -610,15 +610,11 @@ class TestSurfaces:
             == 200
         )
         assert (
-            _call(
-                platform, "/runtimes/foundation/realize", method=Method.POST
-            ).status
+            _call(platform, "/runtimes/foundation/realize", method=Method.POST).status
             == 200
         )
         assert (
-            _call(
-                platform, "/runtimes/foundation/verify", method=Method.POST
-            ).status
+            _call(platform, "/runtimes/foundation/verify", method=Method.POST).status
             == 200
         )
         assert _call(platform, "/deployments/plan", method=Method.POST).status == 200
@@ -651,14 +647,13 @@ class TestSurfaces:
             method=Method.POST,
             query={"instance_id": instance_id},
         )
-        assert started.status == 412
-        assert (
-            _obj(_obj(started.body["error"])["context"])["reason"]
-            == "runtime_launch_unsupported"
-        )
+        assert started.status == 200
+        started_payload = _obj(started.body["payload"])
+        assert started_payload["runtime"] == "vllm"
+        assert started_payload["observed_state"] == "failed"
         observed = platform.instances.get(InstanceId.parse(instance_id))
         assert observed is not None
-        assert observed.observed_state is ObservedState.CREATED
+        assert observed.observed_state is ObservedState.FAILED
         listing = _call(platform, "/inference/instances")
         listed = _obj(listing.body["payload"])
         assert listed["count"] == 1

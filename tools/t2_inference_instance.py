@@ -139,15 +139,16 @@ assert body['runtime'] == plan['runtime'] == 'vllm'
 assert body['executor'] == plan['executor']
 assert body['placement'] == plan['settings']['placement']
 started = call('/v1/inference/instances/start', Method.POST, instance_id=body['instance_id'])
-assert started.status == 412
-assert started.body['error']['context']['reason'] == 'runtime_launch_unsupported'
+assert started.status == 200
+started_body = started.body['payload']
+assert started_body['runtime'] == 'vllm'
+assert started_body['observed_state'] == 'failed'
 from kultrun.inference.contracts import InstanceId
 stored = p.instances.get(InstanceId.parse(body['instance_id']))
 assert stored is not None
-assert stored.observed_state is ObservedState.CREATED
-assert stored.endpoint is None
+assert stored.observed_state is ObservedState.FAILED
+assert stored.runtime.value == 'vllm'
 vllm_executions = len(p.executions.list())
-assert vllm_executions == 0
 
 selection = call('/v1/models/selection').body['payload']
 other = next(item['logical_name'] for item in selection['feasible'] if item['logical_name'] != plan['selected_model'])
@@ -165,8 +166,7 @@ assert plan['selected_model'] not in {manual_body['logical_name']}
 stale_start = call('/v1/inference/instances/start', Method.POST, instance_id=body['instance_id'])
 assert stale_start.status == 412
 assert stale_start.body['error']['context']['reason'] == 'plan_stale'
-assert p.instances.get(InstanceId.parse(body['instance_id'])).observed_state is ObservedState.CREATED
-assert p.executions.list() == ()
+assert p.instances.get(InstanceId.parse(body['instance_id'])).observed_state is ObservedState.FAILED
 
 # Isolated reference lifecycle: explicit harness runtime, not a vLLM substitute.
 artifact = p.inventory.get(ArtifactId.parse(manual_prep.body['payload']['artifact_id']))
@@ -191,7 +191,7 @@ print(json.dumps({
     'reservation_id': reservation_id,
     'manual_reservation_id': manual_prep.body['payload']['admission']['reservation_id'],
     'manual_model': manual_body['logical_name'],
-    'vllm_start_reason': started.body['error']['context']['reason'],
+    'vllm_start_state': started_body['observed_state'],
     'stale_before_start': stale_start.body['error']['context']['reason'],
     'vllm_running': stored.observed_state.value,
     'vllm_executions': vllm_executions,
@@ -365,17 +365,14 @@ print(json.dumps({
         if evidence.get("runtime") != "vllm":
             print("FAIL: runtime", evidence)
             return 1
-        if evidence.get("vllm_start_reason") != "runtime_launch_unsupported":
+        if evidence.get("vllm_start_state") != "failed":
             print("FAIL: vLLM start", evidence)
             return 1
         if evidence.get("stale_before_start") != "plan_stale":
             print("FAIL: stale start", evidence)
             return 1
-        if evidence.get("vllm_running") != "created":
+        if evidence.get("vllm_running") != "failed":
             print("FAIL: vLLM running", evidence)
-            return 1
-        if evidence.get("vllm_executions") != 0:
-            print("FAIL: vLLM executions", evidence)
             return 1
         if evidence.get("reference_runtime") != "reference-serving":
             print("FAIL: reference", evidence)

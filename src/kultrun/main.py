@@ -791,6 +791,8 @@ def build(
         inventory,
         resources,
         instances,
+        provisioning,
+        state_root,
     )
 
     plane = ControlPlane(
@@ -2426,8 +2428,10 @@ def _instances(arguments: Sequence[str]) -> int:
         return stop_named_instance(arguments[1:])
     if command == "inspect":
         return inspect_named_instance(arguments[1:])
+    if command == "infer":
+        return infer_named_instance(arguments[1:])
     print(
-        "usage: kultrun instances [create|start|stop|inspect]",
+        "usage: kultrun instances [create|start|stop|inspect|infer]",
         file=sys.stderr,
     )
     return 2
@@ -2566,11 +2570,7 @@ def inspect_named_instance(arguments: Sequence[str]) -> int:
             f"{instance.endpoint.scheme}://{instance.endpoint.address}"
             f":{instance.endpoint.port}"
         )
-    current = (
-        "CURRENT"
-        if view.configuration_current
-        else (view.plan_status or "-")
-    )
+    current = "CURRENT" if view.configuration_current else (view.plan_status or "-")
     print(f"instance {instance.instance_id.value}")
     print(f"plan {_token_or_dash(instance.plan_id)}")
     print(f"plan basis {_token_or_dash(instance.plan_basis)}")
@@ -2590,6 +2590,101 @@ def inspect_named_instance(arguments: Sequence[str]) -> int:
     print(f"endpoint {endpoint}")
     print(f"ready {instance.ready if is_resolved(instance.ready) else 'unknown'}")
     return 0
+
+
+def infer_named_instance(arguments: Sequence[str]) -> int:
+    from kultrun.inference.contracts import InstanceId
+    from kultrun.inference.service import parse_inference_request
+    from kultrun.kernel.errors import KultrunError
+    from kultrun.kernel.unresolved import is_resolved as resolved
+
+    instance_id, query, err = _parse_infer_args(arguments)
+    if err is not None:
+        print(err, file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        response = platform.deployment_instance.infer(
+            InstanceId.parse(instance_id),
+            platform.hosts.current,
+            parse_inference_request(query),
+        )
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    print(f"instance {response.instance_id.value}")
+    print(f"request {response.request_id.value}")
+    print(f"model {response.served_model}")
+    print(f"runtime {response.runtime.value}")
+    print(
+        "runtime-version "
+        f"{response.runtime_version if resolved(response.runtime_version) else '-'}"
+    )
+    print(f"latency-ms {response.latency_ms}")
+    print(
+        "input-tokens "
+        f"{response.input_tokens if resolved(response.input_tokens) else '-'}"
+    )
+    print(
+        "output-tokens "
+        f"{response.output_tokens if resolved(response.output_tokens) else '-'}"
+    )
+    print(
+        f"finish {response.finish_reason if resolved(response.finish_reason) else '-'}"
+    )
+    print("generated")
+    print(response.generated_text)
+    return 0
+
+
+def _parse_infer_args(
+    arguments: Sequence[str],
+) -> tuple[str, dict[str, str], str | None]:
+    if not arguments:
+        return (
+            "",
+            {},
+            'usage: kultrun instances infer <instance-id> --prompt "..."',
+        )
+    instance_id = ""
+    query: dict[str, str] = {}
+    pending = list(arguments)
+    while pending:
+        token = pending.pop(0)
+        if token == "--prompt":
+            if not pending:
+                return "", {}, "usage: kultrun instances infer <id> --prompt TEXT"
+            query["prompt"] = pending.pop(0)
+            continue
+        if token == "--max-tokens":
+            if not pending:
+                return "", {}, "usage: kultrun instances infer <id> --max-tokens N"
+            query["max_output_tokens"] = pending.pop(0)
+            continue
+        if token == "--temperature":
+            if not pending:
+                return "", {}, "usage: kultrun instances infer <id> --temperature N"
+            query["temperature"] = pending.pop(0)
+            continue
+        if token == "--timeout":
+            if not pending:
+                return "", {}, "usage: kultrun instances infer <id> --timeout N"
+            query["timeout_seconds"] = pending.pop(0)
+            continue
+        if token.startswith("-"):
+            return "", {}, f"kultrun: unknown infer option {token}"
+        if instance_id:
+            return "", {}, "usage: kultrun instances infer <instance-id> --prompt TEXT"
+        instance_id = token
+    if not instance_id or "prompt" not in query:
+        return (
+            "",
+            {},
+            'usage: kultrun instances infer <instance-id> --prompt "..."',
+        )
+    query["instance_id"] = instance_id
+    return instance_id, query, None
 
 
 def _token_or_dash(value: object) -> str:
@@ -2630,8 +2725,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     delete stored artifacts, `deployments plan` shows the current
     deployment decision, `deployments acquire|admit|prepare` consume
     that plan, `resources` admits capacity, `instances`
-    binds a CURRENT plan to a matching reservation and starts only
-    launchable reference runtimes, `storage` and `runtime`
+    binds a CURRENT plan to a matching reservation and starts native
+    vLLM when that path is selected, `storage` and `runtime`
     are explicit mutations, and `serve` is what the platform does.
     """
     arguments = list(sys.argv[1:] if argv is None else argv)

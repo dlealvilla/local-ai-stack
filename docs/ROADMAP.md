@@ -505,7 +505,9 @@ Introduce the pattern incrementally at existing domain seams:
       admission; STORE_ONLY remains independent; no InferenceInstance
 1.6K  CURRENT DeploymentPlan + matching artifact + ACTIVE reservation
       create InferenceInstance; no real vLLM serving
-later real vLLM inference
+1.6L  first real native vLLM serving: exact installation + local artifact
+      → RuntimeLaunchSpec → NativeProcessExecutor → readiness → bounded
+      InferenceRequest/Response; loopback only; no reference substitute
 ```
 
 ---
@@ -715,7 +717,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6K Plan-driven InferenceInstance        ← CLOSED L1; create from plan triple; no real serving
   ↓
-1.6 REAL INFERENCE VERTICAL               ← first real vLLM inference next
+1.6L First real vLLM inference vertical   ← OPEN until T5 L3; native-process single-GPU
   ↓
 post-inference breadth review, then 1.7 onward
 ```
@@ -1346,6 +1348,20 @@ vLLM substitute. `plan_for_entry` is not instance authority.
 **Output:** plan-driven `InferenceInstance` CREATED · **Gate:** L1
 CLOSED. T0/T1/T2 fixture. T3 not required. Do not reopen 1.6B–1.6J.
 
+### Stage 1.6L — First Real vLLM Inference Vertical
+
+Evolve the existing vLLM runtime adapter into the first product serving
+path: exact verified `RuntimeInstallation`, exact local `ModelArtifact`,
+plan placement, structured `RuntimeLaunchSpec`, `NativeProcessExecutor`,
+deterministic readiness (alive + health + served-model match), and one
+bounded non-streaming `InferenceRequest` → `InferenceResponse`. Loopback
+bind only. No reference-runtime fallback. No streaming, cancellation,
+container GPU, multi-GPU, or additional runtimes.
+
+**Output:** RUNNING native vLLM instance serving a real Kultrun request ·
+**Gate:** L3. T0/T1/T2 may pass locally while the stage stays OPEN until
+real T3/T5. Do not reopen 1.6B–1.6K.
+
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
@@ -1357,18 +1373,20 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6I** is the authoritative DeploymentPlan.
 **1.6J** is plan-driven acquisition and resource admission.
 **1.6K** is plan-driven InferenceInstance create.
-Later letters cover real vLLM inference.
+**1.6L** is the first real native vLLM serving vertical.
 **1.6D is CLOSED L2.** **1.6E is CLOSED L1.** **1.6F is CLOSED L1.**
 **1.6G is CLOSED L1.** **1.6H is CLOSED L1.** **1.6I is CLOSED L1.**
 **1.6J is CLOSED L1.** **1.6K is CLOSED L1.**
-Next is the first real vLLM inference vertical; do not begin it from 1.6K.
-Present three depths of that same feature before implementation.
+**1.6L is OPEN** until real T3 launch and T5 Kultrun prompt → generated
+response. Do not mark CLOSED at L1. Do not begin streaming, cancellation,
+container GPU, additional runtimes, or routing from this stage.
 
 Selected stored model, admitted reservation, runtime, executor,
-InferenceInstance, endpoint, a real prompt, a real response. Prototype
-Console inference-test view.
+InferenceInstance, loopback endpoint, a real prompt, a real response.
+Prototype Console inference probe only.
 
-**Output:** healthy `InferenceEndpoint` serving a real request · **Gate:** L3
+**Output:** healthy `InferenceEndpoint` serving a real request through
+Kultrun · **Gate:** L3
 
 ### Milestone 1 Hardware Breadth Review — after Stage 1.6, before broadening
 
@@ -2685,6 +2703,48 @@ MUST NOT                     Reopen 1.6B–1.6J; real vLLM launch;
                              prompt/response; fake vLLM via
                              reference-serving; InferenceInstanceV2;
                              auto-kill RUNNING on later plan staleness.
+DEPTH                        Accepted: minimum + a little depth.
+```
+
+### Stage 1.6L brief
+
+```text
+CURRENT STAGE                First real vLLM inference vertical.
+                             Native-process single-GPU serving from a
+                             CURRENT DeploymentPlan through readiness
+                             and bounded Kultrun inference.
+PREDECESSOR OUTPUTS          Stage 1.6K CLOSED L1
+                             (`1e51f13ec2a7c2e1fa34b6a3ec0c92f712d4b43e`).
+THIS STAGE'S REQUIRED OUTPUT Exact RuntimeInstallation launch; local
+                             ModelArtifact; loopback RuntimeLaunchSpec;
+                             deterministic readiness; generic
+                             InferenceRequest/Response; API + CLI infer.
+CORE CONTRACTS AFFECTED      runtime.launch_request optional serving
+                             fields; inference.request@1;
+                             inference.response@1. No VllmRuntimeV2.
+ADAPTERS AFFECTED            existing vLLM runtime adapter;
+                             NativeProcessExecutor used as-is.
+PERSISTED STATE              InferenceInstance endpoint/ready/lifecycle.
+                             Prompts and responses are not persisted.
+MUTATION / FAILURE BOUNDARY  START launches real vLLM when the plan
+                             selects native vLLM. Infer requires RUNNING
+                             + ready + ACTIVE reservation. STOP terminates
+                             the process. No automatic restart.
+CANCELLATION / CLEANUP       Existing stop; readiness timeout stops the
+                             process; reservation remains until explicit
+                             release; artifact retained.
+ACCEPTANCE LEVEL             L3 required. Stage stays OPEN until T5.
+                             T0/T1/T2 local is not closure.
+ADMIN SURFACE                POST /v1/inference/instances/start|stop|infer;
+                             kultrun instances start|inspect|infer|stop;
+                             Console modest probe.
+DEBT ENTRIES                 K-66, K-77 remain OPEN.
+                             K-95 records deferred depth of this vertical.
+MUST NOT                     Reopen 1.6B–1.6K; container GPU; llama.cpp;
+                             MLX; streaming; cancellation; routing; RAG;
+                             trust_remote_code by default; PATH python;
+                             Hub redownload; reference-runtime substitute;
+                             public vLLM bind.
 DEPTH                        Accepted: minimum + a little depth.
 ```
 

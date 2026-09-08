@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import time
-from dataclasses import replace
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from typing import Any
 
 from kultrun.execution.contracts import (
@@ -16,14 +17,20 @@ from kultrun.execution.contracts import (
 )
 from kultrun.execution.service import ExecutionService
 from kultrun.inference.contracts import (
+    DEFAULT_INFERENCE_TIMEOUT_SECONDS,
+    DEFAULT_OUTPUT_TOKENS,
     DesiredState,
     HealthState,
     InferenceEndpoint,
     InferenceInstance,
+    InferenceRequest,
+    InferenceRequestId,
+    InferenceResponse,
     InstanceId,
     LifecycleState,
     ObservedState,
 )
+from kultrun.inference.endpoint import LOOPBACK
 from kultrun.kernel.clock import Clock
 from kultrun.kernel.errors import (
     ConflictError,
@@ -51,20 +58,12 @@ from kultrun.runtime.contracts import (
 )
 
 SERVING_RUNTIME = Name("reference-serving")
+PRODUCT_VLLM = Name("vllm")
 STARTUP_TIMEOUT_SECONDS = 5.0
 _LIVE = frozenset(
     {ObservedState.STARTING, ObservedState.RUNNING, ObservedState.STOPPING}
 )
 _BLOCKS_RELEASE = _LIVE | frozenset({ObservedState.UNKNOWN})
-_LIFECYCLE = {
-    ObservedState.CREATED: LifecycleState.PENDING,
-    ObservedState.STARTING: LifecycleState.STARTING,
-    ObservedState.RUNNING: LifecycleState.RUNNING,
-    ObservedState.STOPPING: LifecycleState.STOPPING,
-    ObservedState.STOPPED: LifecycleState.STOPPED,
-    ObservedState.FAILED: LifecycleState.FAILED,
-    ObservedState.UNKNOWN: LifecycleState.UNKNOWN,
-}
 _LAUNCHABLE_TIERS = frozenset(
     {RuntimeSupportTier.REFERENCE, RuntimeSupportTier.TEST_ONLY}
 )
@@ -193,6 +192,8 @@ class InstanceService:
         *,
         ledger_health: LedgerHealth,
         serving_mode: str = "healthy",
+        launch_request: RuntimeLaunchRequest | None = None,
+        startup_timeout: float | None = None,
     ) -> InferenceInstance:
         instance = self._require(instance_id)
         if instance.observed_state is ObservedState.RUNNING:
@@ -206,8 +207,23 @@ class InstanceService:
                 "instance process identity is unverified; resolve it before start"
             )
         self._require_start(instance, ledger_health)
-        self._require_launch_path(instance)
+        request = launch_request or RuntimeLaunchRequest(
+            instance_id=instance.instance_id.value,
+            mode=serving_mode,
+            artifact_id=(
+                instance.artifact_id.value if instance.artifact_id is not None else ""
+            ),
+        )
+        self._require_launch_path(instance, request)
+        timeout = self._startup_timeout if startup_timeout is None else startup_timeout
         now = self._clock.now()
+        endpoint = None
+        if is_resolved(request.bind_port) and is_resolved(request.bind_address):
+            endpoint = InferenceEndpoint(
+                scheme="http",
+                address=str(request.bind_address),
+                port=int(request.bind_port),
+            )
         instance = self._write(
             instance,
             desired_state=DesiredState.RUNNING,
@@ -216,29 +232,53 @@ class InstanceService:
             health=HealthState.UNKNOWN,
             last_observed_at=now,
             failure_reason=NOT_MEASURED,
+            ready=False,
+            reachable=False,
+            endpoint=endpoint,
         )
-        request = RuntimeLaunchRequest(
-            instance_id=instance.instance_id.value,
-            mode=serving_mode,
-            artifact_id=(
-                instance.artifact_id.value if instance.artifact_id is not None else ""
-            ),
-        )
-        launch = self._runtimes.launch(instance.runtime, request)
-        handle = self._executions.start(instance.host_id, _spec_from(launch))
+        try:
+            launch = self._runtimes.launch(instance.runtime, request)
+            handle = self._executions.start(instance.host_id, _spec_from(launch))
+        except (ValidationError, PreconditionFailedError) as error:
+            return self._fail(
+                instance,
+                f"process did not start: {error.message}",
+                reason_code="process_did_not_start",
+            )
         instance = self._write(instance, execution_id=handle.execution_id)
         if handle.observed_state is ExecutionState.FAILED:
-            return self._fail(instance, handle.detail or "executor failed to start")
-        ready = self._wait_ready(instance, handle.execution_id)
-        if ready is None:
+            return self._fail(
+                instance,
+                f"process did not start: {handle.detail or 'executor failed to start'}",
+                handle,
+                reason_code="process_did_not_start",
+            )
+        expected = (
+            str(request.served_model)
+            if is_resolved(request.served_model)
+            else served_model_identity(instance)
+        )
+        outcome = self._wait_ready(
+            instance,
+            handle.execution_id,
+            timeout=timeout,
+            bound_address=endpoint.address if endpoint is not None else None,
+            bound_port=endpoint.port if endpoint is not None else None,
+            expected_served_model=(
+                expected if instance.runtime == PRODUCT_VLLM else None
+            ),
+        )
+        if outcome.kind != "ready":
             self._safe_stop(handle.execution_id)
             refreshed = self._executions.observe(handle.execution_id)
-            reason = "readiness was not achieved before startup timeout"
-            if is_resolved(refreshed.exit_code):
-                reason = f"process exited before ready ({refreshed.exit_code})"
-            return self._fail(instance, reason, refreshed)
-        host, port = ready
+            return self._fail(
+                instance,
+                outcome.message,
+                refreshed,
+                reason_code=outcome.reason,
+            )
         now = self._clock.now()
+        host, port = outcome.host, outcome.port
         return self._write(
             instance,
             observed_state=ObservedState.RUNNING,
@@ -251,7 +291,130 @@ class InstanceService:
             started_at=now,
             last_observed_at=now,
             stopped_at=None,
+            failure_reason=NOT_MEASURED,
         )
+
+    def infer(
+        self,
+        instance_id: InstanceId,
+        request: InferenceRequest,
+        *,
+        configuration_current: Maybe[bool] = NOT_MEASURED,
+    ) -> InferenceResponse:
+        instance = self.observe(instance_id)
+        if instance.observed_state is ObservedState.FAILED:
+            raise PreconditionFailedError(
+                "instance is not running",
+                reason="instance_not_running",
+                observed_state=instance.observed_state.value,
+            )
+        if instance.observed_state is not ObservedState.RUNNING:
+            reason = (
+                "instance_not_ready"
+                if instance.observed_state is ObservedState.STARTING
+                else "instance_not_running"
+            )
+            raise PreconditionFailedError(
+                "instance is not running",
+                reason=reason,
+                observed_state=instance.observed_state.value,
+            )
+        if not (is_resolved(instance.ready) and instance.ready is True):
+            raise PreconditionFailedError(
+                "instance is not ready",
+                reason="instance_not_ready",
+            )
+        if instance.reservation_id is None:
+            raise PreconditionFailedError(
+                "reservation is not ACTIVE",
+                reason="reservation_not_active",
+            )
+        reservation = self._resources.get(instance.reservation_id)
+        if reservation is None or reservation.state is not ReservationState.ACTIVE:
+            raise PreconditionFailedError(
+                "reservation is not ACTIVE",
+                reason="reservation_not_active",
+            )
+        if instance.execution_id is None:
+            raise PreconditionFailedError(
+                "runtime process is not running",
+                reason="runtime_process_exited",
+            )
+        handle = self._executions.observe(instance.execution_id)
+        if (
+            handle.ownership is not ExecutionOwnership.OWNED
+            or handle.observed_state is not ExecutionState.RUNNING
+        ):
+            failed = self._fail(
+                instance,
+                handle.detail or "process exited unexpectedly",
+                handle,
+                reason_code="runtime_process_exited",
+            )
+            raise PreconditionFailedError(
+                "runtime process exited",
+                reason="runtime_process_exited",
+                instance_id=failed.instance_id.value,
+            )
+        if instance.endpoint is None:
+            raise PreconditionFailedError(
+                "instance is not ready",
+                reason="instance_not_ready",
+            )
+        adapter = self._runtimes.get(instance.runtime)
+        complete = getattr(adapter, "complete", None)
+        if complete is None:
+            raise PreconditionFailedError(
+                "selected runtime does not support inference",
+                reason="inference_unsupported",
+                runtime=instance.runtime.value,
+            )
+        served = served_model_identity(instance)
+        request_id = InferenceRequestId.generate()
+        started = time.monotonic()
+        completion = complete(
+            address=instance.endpoint.address,
+            port=instance.endpoint.port,
+            served_model=served,
+            prompt=request.prompt,
+            max_output_tokens=request.max_output_tokens,
+            temperature=request.temperature,
+            timeout_seconds=request.timeout_seconds,
+        )
+        latency_ms = max(0, int((time.monotonic() - started) * 1000))
+        return InferenceResponse(
+            request_id=request_id,
+            instance_id=instance.instance_id,
+            model_id=instance.model_id,
+            served_model=served,
+            generated_text=completion.text,
+            runtime=instance.runtime,
+            latency_ms=latency_ms,
+            finish_reason=(
+                completion.finish_reason if completion.finish_reason else NOT_PROVIDED
+            ),
+            input_tokens=(
+                completion.input_tokens
+                if completion.input_tokens is not None
+                else NOT_MEASURED
+            ),
+            output_tokens=(
+                completion.output_tokens
+                if completion.output_tokens is not None
+                else NOT_MEASURED
+            ),
+            runtime_version=instance.runtime_version,
+            executor=instance.executor.value,
+            configuration_current=configuration_current,
+        )
+
+    def occupied_ports(self) -> set[int]:
+        ports: set[int] = set()
+        for item in self._store.records(InferenceInstance):
+            current = item
+            if current.observed_state in _LIVE and current.endpoint is not None:
+                ports.add(current.endpoint.port)
+        return ports
 
     def stop(self, instance_id: InstanceId) -> InferenceInstance:
         instance = self._require(instance_id)
@@ -385,6 +548,7 @@ class InstanceService:
                 execution_alive=True,
                 bound_address=instance.endpoint.address,
                 bound_port=instance.endpoint.port,
+                expected_served_model=served_model_identity(instance),
             )
             ready = verdict.ready
             return self._write(
@@ -450,8 +614,10 @@ class InstanceService:
             ):
                 raise ConflictError("instance already has a live process")
 
-    def _require_launch_path(self, instance: InferenceInstance) -> None:
-        """Refuse missing or product runtimes. Do not substitute reference-serving."""
+    def _require_launch_path(
+        self, instance: InferenceInstance, request: RuntimeLaunchRequest
+    ) -> None:
+        """Refuse missing runtimes. Product vLLM needs a complete request."""
         if (
             self._live_executor is not None
             and instance.executor.value != self._live_executor
@@ -470,17 +636,33 @@ class InstanceService:
                 reason="runtime_unavailable",
                 runtime=instance.runtime.value,
             ) from error
-        if adapter.support().support_tier not in _LAUNCHABLE_TIERS:
-            raise PreconditionFailedError(
-                "selected runtime cannot launch this instance yet",
-                reason="runtime_launch_unsupported",
-                runtime=instance.runtime.value,
-            )
+        tier = adapter.support().support_tier
+        if tier in _LAUNCHABLE_TIERS:
+            return
+        if (
+            tier is RuntimeSupportTier.PRODUCT
+            and instance.runtime == PRODUCT_VLLM
+            and instance.executor.value == "native-process"
+            and _vllm_request_complete(request)
+        ):
+            return
+        raise PreconditionFailedError(
+            "selected runtime cannot launch this instance yet",
+            reason="runtime_launch_unsupported",
+            runtime=instance.runtime.value,
+        )
 
     def _wait_ready(
-        self, instance: InferenceInstance, execution_id: ExecutionId
-    ) -> tuple[str, int] | None:
-        deadline = time.monotonic() + self._startup_timeout
+        self,
+        instance: InferenceInstance,
+        execution_id: ExecutionId,
+        *,
+        timeout: float,
+        bound_address: str | None,
+        bound_port: int | None,
+        expected_served_model: str | None,
+    ) -> _ReadyOutcome:
+        deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             handle = self._executions.observe(execution_id)
             alive = handle.observed_state is ExecutionState.RUNNING
@@ -489,27 +671,68 @@ class InstanceService:
                 stdout=handle.stdout,
                 stderr=handle.stderr,
                 execution_alive=alive,
+                bound_address=bound_address,
+                bound_port=bound_port,
+                expected_served_model=expected_served_model,
             )
+            if (
+                is_resolved(verdict.reason)
+                and str(verdict.reason) == "runtime_model_mismatch"
+            ):
+                return _ReadyOutcome(
+                    kind="mismatch",
+                    reason="runtime_model_mismatch",
+                    message="runtime reported a different served model than planned",
+                )
             if (
                 verdict.ready
                 and is_resolved(verdict.address)
                 and is_resolved(verdict.port)
             ):
-                return str(verdict.address), int(verdict.port)
+                return _ReadyOutcome(
+                    kind="ready",
+                    host=str(verdict.address),
+                    port=int(verdict.port),
+                )
             if handle.observed_state in {
                 ExecutionState.EXITED,
                 ExecutionState.FAILED,
             }:
-                return None
+                code = handle.exit_code if is_resolved(handle.exit_code) else "unknown"
+                evidence = _bounded_log(handle.stderr or handle.stdout)
+                message = f"process exited before ready ({code})"
+                if evidence:
+                    message = f"{message}: {evidence}"
+                return _ReadyOutcome(
+                    kind="exited",
+                    reason="runtime_process_exited",
+                    message=message,
+                )
             time.sleep(0.05)
-        return None
+        evidence = ""
+        try:
+            handle = self._executions.observe(execution_id)
+            evidence = _bounded_log(handle.stderr or handle.stdout)
+        except NotFoundError:
+            evidence = ""
+        message = "runtime_readiness_timeout"
+        if evidence:
+            message = f"{message}: {evidence}"
+        return _ReadyOutcome(
+            kind="timeout",
+            reason="runtime_readiness_timeout",
+            message=message,
+        )
 
     def _fail(
         self,
         instance: InferenceInstance,
         reason: str,
         handle: object | None = None,
+        *,
+        reason_code: str | None = None,
     ) -> InferenceInstance:
+        del reason_code
         exit_code = NOT_MEASURED
         if handle is not None and hasattr(handle, "exit_code"):
             exit_code = handle.exit_code
@@ -579,3 +802,115 @@ def _spec_from(launch: RuntimeLaunchSpec) -> ExecutorSpec:
         filesystem_mappings=launch.filesystem_mappings,
         network_bindings=launch.network_bindings,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _ReadyOutcome:
+    kind: str
+    reason: str = ""
+    message: str = ""
+    host: str = LOOPBACK
+    port: int = 0
+
+
+def served_model_identity(instance: InferenceInstance) -> str:
+    """Deterministic served-model name from plan identity. Not a filesystem path."""
+    if is_resolved(instance.logical_name):
+        token = str(instance.logical_name).strip()
+        if token:
+            return token
+    return instance.model_id.value
+
+
+def _vllm_request_complete(request: RuntimeLaunchRequest) -> bool:
+    return (
+        is_resolved(request.interpreter)
+        and is_resolved(request.model_path)
+        and is_resolved(request.served_model)
+        and is_resolved(request.bind_port)
+        and bool(str(request.interpreter).strip())
+        and bool(str(request.model_path).strip())
+    )
+
+
+def _bounded_log(text: str, *, limit: int = 800) -> str:
+    compact = " ".join(text.split())
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1] + "…"
+
+
+_INFER_QUERY_KEYS = frozenset(
+    {
+        "instance_id",
+        "prompt",
+        "max_output_tokens",
+        "temperature",
+        "timeout_seconds",
+    }
+)
+_INFER_REFUSED_KEYS = frozenset(
+    {
+        "model",
+        "model_id",
+        "served_model",
+        "url",
+        "path",
+        "executable",
+        "host",
+        "port",
+        "runtime",
+        "argv",
+        "command",
+        "flags",
+        "quantization",
+        "trust_remote_code",
+    }
+)
+
+
+def parse_inference_request(query: Mapping[str, str]) -> InferenceRequest:
+    """Build a generic request from query fields. Callers cannot choose the model."""
+    refused = sorted(set(query) & _INFER_REFUSED_KEYS)
+    if refused:
+        raise ValidationError(
+            "inference callers may not choose model, runtime, path, or flags",
+            refused=refused,
+        )
+    extra = sorted(key for key in query if key not in _INFER_QUERY_KEYS)
+    if extra:
+        raise ValidationError(
+            "unsupported inference parameter",
+            refused=extra,
+        )
+    return InferenceRequest(
+        prompt=query.get("prompt", ""),
+        max_output_tokens=_optional_int(
+            query.get("max_output_tokens"), DEFAULT_OUTPUT_TOKENS
+        ),
+        temperature=_optional_float(query.get("temperature"), 0.0),
+        timeout_seconds=_optional_float(
+            query.get("timeout_seconds"), DEFAULT_INFERENCE_TIMEOUT_SECONDS
+        ),
+    )
+
+
+def _optional_int(raw: str | None, default: int) -> int:
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError as error:
+        raise ValidationError(
+            "max_output_tokens must be an integer",
+            parameter="max_output_tokens",
+        ) from error
+
+
+def _optional_float(raw: str | None, default: float) -> float:
+    if raw is None or raw == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError as error:
+        raise ValidationError("numeric inference field is malformed") from error

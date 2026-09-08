@@ -53,9 +53,7 @@ def test_matching_triple_creates_from_plan(tmp_path: Path) -> None:
     plan = _current_plan(platform)
     prepared = _prepare(platform)
     counted = _count_admit(platform)
-    created = _create(
-        platform, reservation_id=prepared["admission"]["reservation_id"]
-    )
+    created = _create(platform, reservation_id=prepared["admission"]["reservation_id"])
     assert created.status == 200
     body = created.body["payload"]
     assert body["observed_state"] == "created"
@@ -235,12 +233,10 @@ def test_manual_model_and_plan_settings(
     assert auto["selected_model"] not in {body["logical_name"], body["model_id"]}
 
 
-def test_vllm_start_refused_without_reference_substitute(tmp_path: Path) -> None:
+def test_vllm_start_does_not_substitute_reference(tmp_path: Path) -> None:
     platform = _product(tmp_path)
     prepared = _prepare(platform)
-    created = _create(
-        platform, reservation_id=prepared["admission"]["reservation_id"]
-    )
+    created = _create(platform, reservation_id=prepared["admission"]["reservation_id"])
     body = created.body["payload"]
     started = _call(
         platform,
@@ -248,25 +244,21 @@ def test_vllm_start_refused_without_reference_substitute(tmp_path: Path) -> None
         Method.POST,
         instance_id=body["instance_id"],
     )
-    assert started.status == 412
-    assert (
-        started.body["error"]["context"]["reason"] == "runtime_launch_unsupported"
-    )
+    assert started.status == 200
+    payload = started.body["payload"]
+    assert payload["runtime"] == "vllm"
+    assert payload["observed_state"] == "failed"
     stored = platform.instances.get(InstanceId.parse(body["instance_id"]))
     assert stored is not None
-    assert stored.observed_state is ObservedState.CREATED
+    assert stored.observed_state is ObservedState.FAILED
     assert stored.runtime.value == "vllm"
-    assert stored.endpoint is None
-    assert platform.executions.list() == ()
 
 
 def test_stale_before_start_keeps_created(tmp_path: Path) -> None:
     platform = _product(tmp_path)
     plan = _current_plan(platform)
     prepared = _prepare(platform)
-    created = _create(
-        platform, reservation_id=prepared["admission"]["reservation_id"]
-    )
+    created = _create(platform, reservation_id=prepared["admission"]["reservation_id"])
     body = created.body["payload"]
     other = _other_feasible(platform, plan["selected_model"])
     _call(platform, "/models/selection", Method.POST, mode="manual", model=other)
@@ -494,8 +486,8 @@ def test_cli_and_console_surfaces(
     assert "Create instance" in script
     assert "configuration" in script
     assert "chat" not in script
-    assert "prompt" not in script
-    assert "until real serving exists" in html
+    assert "/inference/instances/infer" in script
+    assert "native vLLM" in html
 
 
 def test_architecture_guards() -> None:
@@ -506,9 +498,9 @@ def test_architecture_guards() -> None:
     assert "class InferenceInstanceV2" not in text
     assert "class PlanInferenceInstance" not in text
     assert "class RuntimeInstanceV2" not in text
-    instance = (
-        SOURCE / "kultrun" / "platform" / "deployment_instance.py"
-    ).read_text(encoding="utf-8")
+    instance = (SOURCE / "kultrun" / "platform" / "deployment_instance.py").read_text(
+        encoding="utf-8"
+    )
     assert "plan_for_entry" not in instance
     assert "plan_from" not in instance
     assert "rank_feasible" not in instance

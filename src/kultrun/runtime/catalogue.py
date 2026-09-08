@@ -77,6 +77,7 @@ class RuntimeCatalogue:
         execution_alive: bool,
         bound_address: str | None = None,
         bound_port: int | None = None,
+        expected_served_model: str | None = None,
     ) -> RuntimeReadiness:
         """Ask the runtime whether its workload is READY."""
         return self.get(runtime).inspect_readiness(
@@ -85,4 +86,5 @@ class RuntimeCatalogue:
             execution_alive=execution_alive,
             bound_address=bound_address,
             bound_port=bound_port,
+            expected_served_model=expected_served_model,
         )

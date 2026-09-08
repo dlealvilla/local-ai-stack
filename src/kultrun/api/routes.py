@@ -20,7 +20,7 @@ from kultrun.host.contracts import DeploymentProfile, HostCapabilities
 from kultrun.host.inventory import HostInventory
 from kultrun.host.profile import shape_of
 from kultrun.inference.contracts import InstanceId, ObservedState
-from kultrun.inference.service import InstanceService
+from kultrun.inference.service import InstanceService, parse_inference_request
 from kultrun.kernel.build import identity as build_identity
 from kultrun.kernel.config import Configuration
 from kultrun.kernel.errors import (
@@ -1070,6 +1070,21 @@ def register(router: Router, plane: ControlPlane) -> Router:
             InstanceId.parse(raw), plane.hosts.current
         ).payload()
 
+    def infer_instance(request: ApiRequest) -> object:
+        """Bounded non-streaming generation through a RUNNING instance."""
+        _reject_arbitrary_command(request)
+        _reject_arbitrary_destination(request)
+        _reject_client_quantities(request)
+        raw = (request.query.get("instance_id") or "").strip()
+        if not raw:
+            raise ValidationError("an instance id is required", parameter="instance_id")
+        parsed = parse_inference_request(request.query)
+        return plane.deployment_instance.infer(
+            InstanceId.parse(raw),
+            plane.hosts.current,
+            parsed,
+        )
+
     router.get("/models/inventory", models_inventory)
     router.post("/models/acquire", acquire_model)
     router.delete("/models/artifact", delete_artifact)
@@ -1081,6 +1096,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/inference/instances", create_instance)
     router.post("/inference/instances/start", start_instance)
     router.post("/inference/instances/stop", stop_instance)
+    router.post("/inference/instances/infer", infer_instance)
     router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)

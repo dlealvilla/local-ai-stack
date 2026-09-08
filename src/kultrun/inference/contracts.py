@@ -26,6 +26,7 @@ from enum import StrEnum
 
 from kultrun.execution.contracts import ExecutionId
 from kultrun.host.contracts import HostId
+from kultrun.kernel.errors import ValidationError
 from kultrun.kernel.ids import EntityId, Name
 from kultrun.kernel.schema import Contract, contract, meaning
 from kultrun.kernel.unresolved import NOT_MEASURED, NOT_PROVIDED, Maybe
@@ -37,6 +38,12 @@ class InstanceId(EntityId):
     """Identifies one serving instance."""
 
     prefix = "inst"
+
+
+class InferenceRequestId(EntityId):
+    """Identifies one non-streaming inference request. Not persisted."""
+
+    prefix = "ireq"
 
 
 class LifecycleState(StrEnum):
@@ -204,4 +211,101 @@ class InferenceInstance(Contract):
     accelerator_index: int | None = meaning(
         "assigned accelerator taken from the bound DeploymentPlan",
         default=None,
+    )
+
+
+MAX_PROMPT_CHARS = 32_768
+MAX_OUTPUT_TOKENS = 2_048
+DEFAULT_OUTPUT_TOKENS = 64
+MAX_INFERENCE_TIMEOUT_SECONDS = 300.0
+DEFAULT_INFERENCE_TIMEOUT_SECONDS = 60.0
+MIN_INFERENCE_TIMEOUT_SECONDS = 1.0
+VLLM_STARTUP_TIMEOUT_SECONDS = 600.0
+REFERENCE_STARTUP_TIMEOUT_SECONDS = 5.0
+
+
+@contract(kind="inference.request", version=1)
+@dataclass(frozen=True, slots=True)
+class InferenceRequest(Contract):
+    """One bounded non-streaming generation. Not a vLLM or OpenAI payload."""
+
+    prompt: str = meaning("caller text to generate from; never a model identity")
+    max_output_tokens: int = meaning(
+        "upper bound on generated tokens", default=DEFAULT_OUTPUT_TOKENS
+    )
+    temperature: float = meaning(
+        "sampling temperature; 0 is deterministic-ish", default=0.0
+    )
+    timeout_seconds: float = meaning(
+        "bounded wait for the runtime response",
+        default=DEFAULT_INFERENCE_TIMEOUT_SECONDS,
+    )
+
+    def __post_init__(self) -> None:
+        if not self.prompt.strip():
+            raise ValidationError("prompt must be non-empty", parameter="prompt")
+        if len(self.prompt) > MAX_PROMPT_CHARS:
+            raise ValidationError(
+                "prompt exceeds the supported size",
+                parameter="prompt",
+                maximum=MAX_PROMPT_CHARS,
+            )
+        if self.max_output_tokens < 1:
+            raise ValidationError(
+                "max_output_tokens must be greater than zero",
+                parameter="max_output_tokens",
+            )
+        if self.max_output_tokens > MAX_OUTPUT_TOKENS:
+            raise ValidationError(
+                "max_output_tokens exceeds the supported bound",
+                parameter="max_output_tokens",
+                maximum=MAX_OUTPUT_TOKENS,
+            )
+        if not 0.0 <= self.temperature <= 2.0:
+            raise ValidationError(
+                "temperature must be between 0 and 2",
+                parameter="temperature",
+            )
+        if not (
+            MIN_INFERENCE_TIMEOUT_SECONDS
+            <= self.timeout_seconds
+            <= MAX_INFERENCE_TIMEOUT_SECONDS
+        ):
+            raise ValidationError(
+                "timeout_seconds is outside the supported bound",
+                parameter="timeout_seconds",
+            )
+
+
+@contract(kind="inference.response", version=1)
+@dataclass(frozen=True, slots=True)
+class InferenceResponse(Contract):
+    """Normalized generation result. Prompt and text are transient."""
+
+    request_id: InferenceRequestId = meaning("platform-minted identity of this request")
+    instance_id: InstanceId = meaning("instance that produced the text")
+    model_id: ModelId = meaning("planned model identity")
+    served_model: str = meaning("served-model identity verified at readiness")
+    generated_text: str = meaning("model output; not persisted by default")
+    runtime: Name = meaning("runtime adapter that served the request")
+    latency_ms: int = meaning("wall time from request accept to response")
+    finish_reason: Maybe[str] = meaning(
+        "runtime finish reason when supplied", default=NOT_PROVIDED
+    )
+    input_tokens: Maybe[int] = meaning(
+        "prompt token count when the runtime supplied one", default=NOT_MEASURED
+    )
+    output_tokens: Maybe[int] = meaning(
+        "generated token count when the runtime supplied one", default=NOT_MEASURED
+    )
+    runtime_version: Maybe[str] = meaning(
+        "runtime version taken from the instance plan provenance",
+        default=NOT_PROVIDED,
+    )
+    executor: Maybe[str] = meaning(
+        "executor that owns the runtime process", default=NOT_PROVIDED
+    )
+    configuration_current: Maybe[bool] = meaning(
+        "whether the bound DeploymentPlan is still CURRENT; overlay only",
+        default=NOT_MEASURED,
     )

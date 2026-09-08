@@ -934,7 +934,7 @@ capacity contract.
 | **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) |
 | **Ports** | `InferenceRuntime` · `RuntimeProvisioner` |
 | **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Treat `PROVISIONABLE` as `VERIFIED EXECUTABLE`. Silently substitute a different RuntimeCandidate than the one selected or supplied for provisioning. Rank or recommend during provisioning or verification. Overload `RuntimePolicy.mode` as product selection. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
-| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Eligibility** 1.6F (`EligibleModelView`) · **Requirement/Capacity** 1.6G · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
+| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Eligibility** 1.6F (`EligibleModelView`) · **Requirement/Capacity** 1.6G · **Serving** 1.6L native vLLM first vertical · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
 Stage 1.6F consumes catalog facts copied by composition
 (`ModelEligibilityFacts`). Runtime still must not import `model`. It
@@ -1152,8 +1152,23 @@ ResourceReservation
         ↓
 InferenceInstance
         ↓
-[STOP 1.6K]
+vLLM RuntimeAdapter
+        ↓
+RuntimeLaunchSpec
+        ↓
+NativeProcessExecutor
+        ↓
+REAL vLLM
+        ↓
+Readiness
+        ↓
+InferenceRequest / InferenceResponse
 ```
+
+This is the first real serving vertical. Native-process vLLM on a
+single planned NVIDIA GPU is implemented. ContainerExecutor GPU,
+multi-runtime, multi-GPU, streaming, and a production chat frontend
+are not.
 
 `CURRENT` requires current `FoundationSelection`, the selected
 candidate, a matching INSTALLED installation, a matching fresh
@@ -1172,26 +1187,11 @@ feasibility is not live admission.
 
 Normal instance create consumes that CURRENT plan plus the matching
 artifact and ACTIVE reservation. Settings come from the plan. START of
-a product vLLM plan is refused until real serving exists; the
-reference-serving adapter is test infrastructure only.
-
-Future, **not implemented in 1.6K**:
-
-```text
-InferenceInstance
-        ↓
-real vLLM RuntimeLaunchSpec
-        ↓
-Executor
-        ↓
-model load
-        ↓
-readiness
-        ↓
-inference endpoint
-        ↓
-prompt / response
-```
+a native-process product vLLM instance launches the exact verified
+`RuntimeInstallation` against the exact local `ModelArtifact`. RUNNING
+requires process liveness, health, and served-model identity match.
+The reference-serving adapter remains test infrastructure only and is
+not a vLLM substitute.
 
 `RuntimePolicy.mode` AUTO|EXPLICIT is resolver coverage. It is not
 `FoundationSelection.selection_mode` AUTO|MANUAL. Do not overload them.
@@ -1225,6 +1225,8 @@ persisted class.
 | Plan-driven stored bytes | exact `ModelArtifact` for the CURRENT plan |
 | Plan-driven live admission | `ResourceRequest` from plan resource intent + artifact id |
 | Live physical grant | `ResourceReservation` |
+| Bounded generation | `InferenceRequest` / `InferenceResponse` |
+| First real serving vertical | native vLLM + `NativeProcessExecutor` + local `ModelArtifact` |
 
 RuntimeResolver answers structural plausibility. RuntimeProvisioner
 installs the **explicitly selected** candidate, never an implicit
@@ -1289,11 +1291,11 @@ install Python, drivers, or CUDA toolkits.
 
 | | |
 |---|---|
-| **Owns** | `InferenceInstance` — instance identity, host, model artifact and revision, runtime, executor, endpoint, reservation, context, runtime concurrency, platform request limit, access-policy reference, lifecycle state, desired vs observed vs health, configuration version. The lifecycle: create, start, observe, stop, restart. `InferenceEndpoint`. The distinction between status and health. Collections are `inference_instances[]`. The same artifact may have many instances; many models may run at once. |
+| **Owns** | `InferenceInstance` — instance identity, host, model artifact and revision, runtime, executor, endpoint, reservation, context, runtime concurrency, platform request limit, access-policy reference, lifecycle state, desired vs observed vs health, configuration version. The lifecycle: create, start, observe, stop, restart. `InferenceEndpoint`. `InferenceRequest` / `InferenceResponse` — generic bounded generation, not a vLLM or OpenAI payload. The distinction between status and health. Collections are `inference_instances[]`. The same artifact may have many instances; many models may run at once. |
 | **Consumes** | `kernel` · `resource` · `execution` · `runtime` · `model` |
 | **Produces** | A running instance, a healthy endpoint, and reconciliation on restart |
-| **Must not** | Route requests, authenticate, or emit usage events. Confuse a reachable port with a functioning API. Collapse to `current_inference_instance` or `model.running`. Delete a stored artifact on stop. Import `planning`. Import `platform`. Construct runtime argv. Reimplement subprocess management. Import `subprocess`. Auto-release a reservation on stop. Treat stored/active as capacity partitions. Require a PID from every executor. |
-| **Created** | 1.5B reference serving lifecycle (plural) · 1.5C compose Runtime+Executor · 1.6K plan-driven create · 1.6 real model inference · **Deepened** 4.4 concurrent live instances |
+| **Must not** | Route requests, authenticate, or emit usage events. Confuse a reachable port with a functioning API. Collapse to `current_inference_instance` or `model.running`. Delete a stored artifact on stop. Import `planning`. Import `platform`. Construct runtime argv. Reimplement subprocess management. Import `subprocess`. Auto-release a reservation on stop. Treat stored/active as capacity partitions. Require a PID from every executor. Persist prompts or generated text by default. Select a model, foundation, or runtime. |
+| **Created** | 1.5B reference serving lifecycle (plural) · 1.5C compose Runtime+Executor · 1.6K plan-driven create · 1.6L first real native vLLM serving · **Deepened** 4.4 concurrent live instances |
 
 ### `analytics`
 
@@ -1576,20 +1578,17 @@ Planning / DeploymentPlan
   → ResourceManager + live SAFE − ACTIVE reservations
   → AdmissionDecision
   → ResourceReservation ACTIVE
-  → InferenceInstance CREATED           ← Stage 1.6K stops here
+  → InferenceInstance CREATED
        reserved is not running
+  → vLLM RuntimeAdapter → RuntimeLaunchSpec
+  → NativeProcessExecutor.start → real vLLM
+  → readiness (alive + health + served-model match)
+  → RUNNING
+  → InferenceRequest → adapter → local vLLM → InferenceResponse
+  → stop via Executor; reservation remains ACTIVE until explicit release
        a vLLM plan does not start a reference server
 
 STORE_ONLY warehouse acquisition remains independent of DeploymentPlan.
-
-later:
-  InferenceInstance
-    → real vLLM RuntimeLaunchSpec
-    → Executor.start → ExecutorHandle
-    → Runtime readiness
-    → inference endpoint
-    → prompt / response
-    → stop via Executor; reservation remains ACTIVE until explicit release
 
 Stored / Active / Running are lifecycle states, not capacity partitions.
 Disk, RAM, VRAM and unified memory stay separate. Capacity follows the
@@ -1687,7 +1686,9 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6H | ModelSelector + bounded AUTO/MANUAL ModelSelection | 1.6G | ✅ closed L1 |
 | 1.6I | Authoritative DeploymentPlan | 1.6H | ✅ closed L1 |
 | 1.6J | Plan-driven Acquisition + Resource admission | 1.6I | ✅ closed L1 |
-| 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
+| 1.6K | Plan-driven InferenceInstance create | 1.6J | ✅ closed L1 |
+| 1.6L | first real native vLLM serving + bounded inference | 1.6K | OPEN; T0/T1/T2 local; T3/T5 pending |
+| 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; 1.6L is the serving vertical |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |
 | 2.1–2.4 | `storage` deepened | `host`, `evidence`, `ManagedUsageSource` | ✅ implemented by `model` at 1.4C |

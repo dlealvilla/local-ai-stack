@@ -468,6 +468,21 @@ fixture chain through 1.6J prepare → InferenceInstance CREATED.
 T3 is not required. Do not treat L1 instance evidence as real
 inference proof.
 
+**Stage 1.6L** is the first real native vLLM serving vertical. T0/T1
+cover launch-spec authority (exact interpreter, local artifact, plan
+runtime/executor/GPU, structured argv, loopback, served-model identity,
+no PATH python, no Hub redownload, no reference fallback), readiness
+(alive+health+model match, early exit, timeout cleanup, no false
+RUNNING, duplicate start), inference (RUNNING required, CREATED/
+STARTING/STOPPED/FAILED refused, validation, timeout, malformed
+response, token usage, prompts not persisted), and lifecycle (stop,
+restart freshness, crash overlay, stale-running inference with
+currentness, stale START after STOP blocked). T1 uses an explicit
+vLLM HTTP protocol fixture. T2 is a clean-wheel install of that same
+suite plus the product chain. T3/T5 on a real GPU host are required
+for L3 closure. Direct curl to vLLM is not T5 evidence. Do not treat
+T0/T1/T2 as real serving proof.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.
