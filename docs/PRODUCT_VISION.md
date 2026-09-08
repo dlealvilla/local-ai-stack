@@ -112,7 +112,7 @@ A business administrator should be able to:
 6. approve installation;
 7. connect company document systems;
 8. configure users and permissions;
-9. select or accept recommended AI models;
+9. accept recommended AI models or choose another platform-approved alternative;
 10. begin providing governed AI capabilities to employees;
 11. manage Kultrun primarily through an AI Admin Agent and clear visual controls.
 
@@ -444,6 +444,53 @@ as taking liberties.
 
 ---
 
+## 5.11 Automatic by default, controllable within safe bounds
+
+Kultrun should hide unnecessary infrastructure complexity from
+non-technical administrators without becoming an opaque automation
+system.
+
+For runtime selection, model selection, memory/resource allocation,
+context, concurrency, placement, replicas, and similar configuration
+decisions:
+
+```text
+Discover → Evaluate → feasible set → recommend a default
+  → AUTO or bounded MANUAL selection → revalidate the selected choice
+  → authoritative DeploymentPlan → execute
+```
+
+AUTO uses the current recommendation. MANUAL may choose another option
+only from the same platform-approved feasible set.
+
+Three categories:
+
+- **Recommended** — Kultrun's preferred choice from the valid set.
+- **Selectable** — another compatible, verified where required, feasible,
+  and policy-approved option from that same set.
+- **Blocked** — unsupported, unresolved, unverified where verification
+  is required, policy-disallowed, entitlement-disallowed, physically
+  infeasible, or unsafe.
+
+Only Recommended and Selectable may be chosen. Blocked is not an
+override. Hard physical limits, SAFE capacity, Resource Manager
+admission, runtime verification, permissions, security policy, and
+entitlements cannot be overridden.
+
+**Revalidate** is not a one-field check. A changed selection invalidates
+dependent derived state. Kultrun recomputes affected eligibility,
+requirements, and capacity, then emits a new authoritative
+`DeploymentPlan`. The result is never "old plan plus one changed field."
+Downstream execution uses the **selected** configuration, not the
+original recommendation.
+
+The Admin AI Agent follows the same bounds: it may explain
+recommendations, compare safe alternatives, and execute an approved
+choice. It cannot offer or execute blocked configurations or treat
+unresolved evidence as feasible.
+
+---
+
 # 6. TOP-LEVEL SYSTEM ARCHITECTURE
 
 The system should conceptually consist of the following planes.
@@ -713,7 +760,14 @@ A plan should explain:
 - administrator actions;
 - alternatives.
 
-The administrator should be able to accept safe defaults or manually override selected settings.
+The administrator should be able to accept safe defaults or choose
+another option from the current feasible set. A change to any selected
+value invalidates dependent derived state. The planner recomputes
+affected domains and emits a new `DeploymentPlan`. It does not patch one
+field on a superseded plan.
+
+A plan that still carries assumptions from a previous recommendation or
+override is not executable.
 
 ---
 
@@ -1000,6 +1054,13 @@ The objective is not to display every available model blindly.
 Kultrun should answer:
 
 > Which models are appropriate for this organisation and this hardware?
+
+The **global / discoverable catalog** is what Kultrun knows about or can
+import. The **eligible model view** is the subset currently feasible for
+a specific host, runtime, executor, policy, and resource context. The
+eligible view is derived state. It must be recomputed when those inputs
+change. A previously selected model that is no longer eligible is
+invalid, not silently retained.
 
 Administrators should be able to filter by:
 
@@ -1501,6 +1562,12 @@ The Resource Manager is authoritative for resource admission.
 
 It receives recommendations/evidence but makes the final decision based on current system reality.
 
+A selected configuration may be recommended or a bounded manual
+alternative. Either way, admission is against the **selected, fully
+recomputed** requirement. Manual override cannot convert a physically
+invalid configuration into an admitted workload. Reduced but still
+feasible headroom may warn; exceeding SAFE bounds is blocked.
+
 It should consider:
 
 - safe RAM;
@@ -1850,6 +1917,11 @@ It should act as:
 - analytics assistant;
 - licensing assistant;
 - troubleshooting assistant.
+
+It uses the same recommendation and selection boundaries as the rest of
+the platform. It may compare safe alternatives and act on an approved
+choice. It cannot offer or execute blocked configurations, bypass the
+Resource Manager, or treat unresolved evidence as feasible capacity.
 
 ---
 
@@ -2657,14 +2729,42 @@ Use recommended safe settings.
 
 **Manual Override**
 
-Advanced administrator changes setting.
+Advanced administrator chooses another option from the current
+platform-approved feasible set.
+
+Every selectable domain distinguishes:
+
+- **Recommended** — Kultrun's preferred choice from the valid set.
+- **Selectable** — another compatible, verified where required, feasible,
+  and policy-approved option from that same set.
+- **Blocked** — unsupported, unresolved, unverified where verification
+  is required, not installed, policy-disallowed, entitlement-disallowed,
+  physically infeasible, or unsafe. Blocked options are not overrides.
+
+AUTO uses the recommendation. MANUAL may select only Recommended or
+Selectable. Revalidation of that choice recomputes dependent domains and
+produces a new authoritative `DeploymentPlan`; it does not patch one
+field on a superseded plan.
+
+A change to a selected value is not an isolated substitution. Kultrun
+must invalidate dependent derived state, recompute affected domains
+(including eligible models, requirements, capacity, and the
+`DeploymentPlan`), drop selections that are no longer feasible, and
+require a new valid selection where needed. Downstream components must
+not keep cached compatibility, eligibility, requirements, or plan values
+derived from the superseded configuration.
 
 Overrides should be:
 
-- validated;
+- bounded to the current feasible set;
+- followed by dependency-aware recomputation;
+- validated as a complete combination, not field-by-field;
 - explained;
 - recorded;
-- reversible where possible.
+- reversible where possible (return to AUTO is a later seam).
+
+Hard physical, compatibility, permission, policy, entitlement, and
+safety invariants are never bypassable.
 
 ---
 
@@ -3570,6 +3670,8 @@ The product is a **secure, modular, self-hosted Company Brain platform** that:
 - preserves permissions;
 - provides governed organisational AI access;
 - tracks AI usage and effectiveness;
+- recommends explainable defaults and lets administrators choose among
+  proven-safe alternatives without bypassing platform constraints;
 - helps administrators operate Kultrun conversationally;
 - learns which models work best for different businesses, roles and workloads;
 - can eventually optimize the organisation's model portfolio;

@@ -1289,6 +1289,136 @@ To make real: Signed artifacts and index policy as commercialization
 Retire when:  signed runtime artifacts are an accepted security control.
 Status:       OPEN
 
+### K-80 — Richer recommendation scoring
+Label:        DEFERRED
+Owner stage:  1.6E / later planning
+Subsystem:    runtime / planning
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: RuntimeResolver ranking is static (K-56); ModelSelector
+              is not yet runtime-first (K-55)
+What:         Bounded selection needs a recommendation, not a scoring
+              DSL. Explainability, confidence, evidence fusion, and
+              workload-specific scores are not implemented.
+Why now:      1.6C provisions an explicit candidate. Scoring would
+              collapse verification into ranking.
+To make real: After verified feasible sets exist (1.6D/1.6E). Link K-56
+              and K-62 rather than duplicating them.
+Retire when:  a later stage accepts scored recommendations with tests.
+Status:       OPEN
+
+### K-81 — Override governance
+Label:        DEFERRED
+Owner stage:  later platform / identity
+Subsystem:    platform / audit
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: Approval exists from 0.3; override reason, expiry, and
+              two-person approval do not
+What:         Operator-supplied override reason, mandatory reasons for
+              sensitive changes, approval workflows beyond existing
+              meaningful-action approval, override expiry, richer audit.
+Why now:      Bounded selection is not yet executable. Governance UX
+              would be theatre.
+To make real: After AUTO/MANUAL exists on a verified feasible set.
+Retire when:  override governance is an accepted mutating workflow.
+Status:       OPEN
+
+### K-82 — Return-to-AUTO selection mode
+Label:        DEFERRED
+Owner stage:  1.6E / later planning
+Subsystem:    planning / runtime
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: Preserve `selection_mode` AUTO|MANUAL when 1.6E lands
+What:         Removing a manual constraint, re-running recommendation,
+              and invalidating downstream state is not implemented.
+Why now:      No bounded runtime selection yet.
+To make real: After selected vs recommended identities exist.
+Retire when:  return-to-AUTO is tested for at least one domain.
+Status:       OPEN
+
+### K-83 — Generic selection / dependency-graph engine
+Label:        DEFERRED
+Owner stage:  later
+Subsystem:    planning / platform
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: Control plane coordinates when; domains own how
+What:         No `SelectionFramework<T>`, reactive dependency engine,
+              scoring DSL, or configuration optimizer. Incremental
+              recomputation, impact previews, and automatic plan-repair
+              are also out.
+Why now:      Generalizing before two concrete domains share behavior
+              would erase domain validation semantics.
+To make real: After runtime selection and runtime-aware model selection
+              both exist and duplication is measured.
+Retire when:  a shared value object is justified by implemented domains.
+Status:       OPEN
+
+### K-84 — Override and recommendation analytics
+Label:        DEFERRED
+Owner stage:  later analytics
+Subsystem:    analytics
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: UsageEvent / AuditEvent exist; recommendation-vs-selection
+              telemetry does not
+What:         Acceptance rate, override frequency, override outcomes,
+              headroom-risk analytics, team/org override patterns.
+Why now:      Nothing is selected from a verified feasible set yet.
+To make real: After bounded selection exists and privacy boundaries for
+              this telemetry are explicit.
+Retire when:  recommendation-versus-selection telemetry is accepted.
+Status:       OPEN
+
+### K-85 — Organisational preference policies
+Label:        DEFERRED
+Owner stage:  later policy
+Subsystem:    policy / planning
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: SelectionPolicy is utilization-band bounds, not org taste
+What:         Organisation, team, application, or department defaults
+              and configurable recommendation priorities.
+Why now:      Milestone 1 must not grow a preference hierarchy.
+To make real: After bounded AUTO/MANUAL exists on verified paths.
+Retire when:  preference policy is an accepted, non-authorizing input.
+Status:       OPEN
+
+### K-86 — DeploymentPlan freshness / stale-plan seam
+Label:        DEFERRED
+Owner stage:  later planning
+Subsystem:    planning
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: DeploymentPlan v0 is a recommendation artifact, not an
+              executable selected configuration with revision
+What:         VALID vs STALE/REQUIRES REPLAN when host, runtime, model,
+              capacity, or policy inputs change after plan generation.
+              Recommendation vs selected provenance on the plan.
+Why now:      Executable selected plans come after 1.6E and model remap.
+To make real: Preserve selected vs recommended identity when the plan
+              becomes authoritative for execution.
+Retire when:  plan invalidation/versioning has tests.
+Status:       OPEN
+
+### K-87 — Eligible-model view vs global catalog
+Label:        DEFERRED
+Owner stage:  runtime-aware model selection
+Subsystem:    model / planning
+Authorizes:   NO
+Blocks 1.6C:  No
+Current seam: Catalog is curated discoverable entries; eligibility is
+              not yet runtime-first (K-55)
+What:         Host/runtime/executor/policy/resource-specific eligible
+              and blocked model views, recomputed when those inputs
+              change. Current selected model must be rechecked.
+Why now:      1.6C does not remap selection.
+To make real: After 1.6D/1.6E produce a selected verified runtime path.
+Retire when:  executable selection consumes a derived eligible view.
+Status:       OPEN
+
 ## Deferred capability register
 
 Distinct from the debt entries above. A debt entry records an approximation

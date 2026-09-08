@@ -50,6 +50,8 @@ ADMIN SURFACE                POST /v1/runtimes/provisioning-plans;
                              kultrun runtimes {plan,provision,installations};
                              Console Create plan / Provision. No Verify.
 DEBT ENTRIES                 K-66…K-79. K-56…K-65 preserved.
+                             K-80…K-87 selection/replanning debt;
+                             not blocking.
 DEFERRED ITEMS               Stage 1.6D Runtime Verification and later
                              1.6 letters. Do not begin them from this stage.
 ```
@@ -177,7 +179,23 @@ Recorded in `docs/DEBT.md`. None block Stage 1.6C:
 * K-79 signed runtime artifacts
 
 K-56…K-65 remain. Version optimization, fallback, and marketplace are
-those entries, not new duplicates.
+those entries, not new duplicates. Bounded-selection intelligence is
+K-80…K-87 and does not block this stage.
+
+## Selection preservation
+
+RuntimeProvisioner provisions the **explicitly selected**
+`RuntimeCandidate`. It does not independently choose the platform
+recommendation or substitute another candidate.
+
+`RuntimeInstallation` preserves candidate id, plan id, runtime, version,
+executor, host fingerprint, and installer provenance so later
+verification and selection can attach to this exact path.
+
+This stage preserves the bounded-selection and downstream
+dependency-recalculation seam. It does not implement recommendation,
+alternatives UI, AUTO/MANUAL selection, or a generic selection
+framework.
 
 ## Non-goals
 

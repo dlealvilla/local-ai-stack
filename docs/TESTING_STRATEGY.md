@@ -361,6 +361,12 @@ bounded `vllm==0.28.0` install on Linux x86_64 NVIDIA through
 venv, never `import vllm` or engine init. Without a suitable host the
 stage stays OPEN / READY_FOR_T3 at L1.
 
+Bounded administrator selection is a cross-cutting principle
+(`docs/ROADMAP.md` Part II §11). Tests that mutate provisioning must
+prove the explicit candidate is the one installed: no silent
+substitution of the AUTO recommendation. Ranking, alternatives UI, and
+verify endpoints are out of this stage.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.

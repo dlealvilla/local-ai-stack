@@ -422,6 +422,79 @@ The plan document must describe the work actually being done.
 - If implementation reveals that a stage boundary is wrong, change the
   boundary deliberately and record why. Do not reinterpret it in place.
 
+## 11. Bounded selection and dependency recalculation
+
+Kultrun combines automatic recommendation with bounded administrator
+selection. For configurable deployment domains the product slogan is:
+
+```text
+Discover → Evaluate → feasible set → recommend a default
+  → AUTO or bounded MANUAL → revalidate the selected choice
+  → authoritative DeploymentPlan → Resource Manager admission → execute
+```
+
+Revalidate means the selected option is still in the valid set **and**
+dependent derived state is recomputed. The technical expansion is:
+
+```text
+DISCOVER
+    ↓
+EVALUATE
+    ↓
+DETERMINE COMPATIBLE / FEASIBLE SET
+    ↓
+RECOMMEND DEFAULT / OPTIMAL
+    ↓
+AUTO or BOUNDED MANUAL SELECTION
+    ↓
+INVALIDATE DEPENDENT DERIVED STATE
+    ↓
+RECOMPUTE ALL AFFECTED DOMAINS
+    ↓
+VALIDATE COMPLETE RESULTING CONFIGURATION
+    ↓
+GENERATE AUTHORITATIVE DEPLOYMENT PLAN
+    ↓
+RESOURCE ADMISSION
+    ↓
+EXECUTE
+```
+
+AUTO uses the platform recommendation. MANUAL may select another option
+only from the current platform-approved feasible set. Categories:
+
+Recommended — preferred member of the valid set.
+Selectable — another valid member of that set.
+Blocked — unsupported, unresolved, unverified where required,
+policy-disallowed, entitlement-disallowed, physically infeasible, or
+unsafe. Blocked is not an override.
+
+A manual selection is never an isolated substitution. Changing runtime,
+executor, model, context, concurrency, memory, placement, replicas,
+headroom, or another deployment setting must invalidate and recompute
+every dependent compatibility, eligibility, requirement, capacity,
+resource, and planning decision before execution.
+
+The Control Plane / Deployment Planner coordinates **when**
+recomputation is necessary. Concrete domain services own **how** their
+domain is evaluated. Do not introduce a generic `SelectionFramework` or
+dependency-graph engine until repeated concrete implementations
+demonstrate a real need (`docs/DEBT.md` K-83).
+
+Resource Manager remains the final physical admission authority.
+
+Introduce the pattern incrementally at existing domain seams:
+
+```text
+1.6C  provision the explicitly selected RuntimeCandidate; never
+      silently substitute another path; INSTALLED ≠ VERIFIED
+1.6D  verify that exact installation; structured evidence; no ranking
+1.6E  first executable bounded runtime selection over verified paths
+      (not begun); then invalidate runtime-dependent model eligibility
+later runtime-aware model selection, capacity recommended-vs-selected,
+      authoritative selected DeploymentPlan
+```
+
 ---
 
 # PART III — THE BUILD SEQUENCE
@@ -615,6 +688,8 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6D Runtime Verification                 ← not begun
   ↓
+1.6E Runtime Evaluation / Selection       ← not begun; first bounded runtime override
+  ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
 post-inference breadth review, then 1.7 onward
@@ -622,9 +697,10 @@ post-inference breadth review, then 1.7 onward
 
 Nothing sophisticated is inserted into that path. Not Apple, AMD or Intel;
 not Kubernetes; not containerization; not a universal installer; not a
-marketplace; not a learned recommender; not a portfolio optimizer; not
-multi-instance scheduling. Each has a home in the deferred capability
-register in `docs/DEBT.md`, with its own revisit trigger.
+marketplace; not a learned recommender; not a generic selection
+framework; not a portfolio optimizer; not multi-instance scheduling.
+Each has a home in the deferred capability register in `docs/DEBT.md`,
+with its own revisit trigger.
 
 The lifecycle **is** inserted as named thin stages. Catalog, metadata,
 feasibility, selection, acquisition, inventory, admission, reservation
@@ -1104,17 +1180,44 @@ vLLM `0.28.0`, native-process, Python 3.12, stdlib venv + pip.
 `RuntimeInstallation` · **Gate:** L2 on a real Linux x86_64 NVIDIA
 install. T2 fixture evidence is L1 only and does not close the stage.
 
+Provisioning consumes an **explicitly identified** `RuntimeCandidate`.
+It does not assume the AUTO recommendation and must not silently
+substitute another runtime or executor. `INSTALLED` is not `VERIFIED`.
+This preserves the bounded-selection seam; it does not implement
+recommendation, alternatives, or override UX.
+
 ### Stage 1.6D — Runtime Verification
 
-Not begun. Do not start from 1.6C.
+Verify a specific `RuntimeInstallation` on the actual
+runtime+executor+host path. Produce structured VERIFIED / FAILED /
+UNRESOLVED evidence. Do not rank, recommend, or silently fall back.
+Only VERIFIED paths may later enter the selectable runtime set.
+
+**Output:** structured verification evidence for an exact installation ·
+**Gate:** not begun. Do not start from 1.6C.
+
+### Stage 1.6E — Runtime Evaluation & Selection
+
+First fully executable bounded runtime override. Consume verified
+runtime+executor paths. Classify Recommended / Selectable / Blocked.
+AUTO selects the recommendation; MANUAL may select another
+verified feasible path. After selection, invalidate and recompute
+runtime-dependent state (eligible models, current model validity,
+requirements, capacity, `DeploymentPlan` inputs) before planning
+proceeds. Do not build a generic selection framework.
+
+**Output:** verified feasible set + recommendation + selected path +
+invalidation of dependent derived state · **Gate:** not begun. Do not
+start from 1.6C or 1.6D.
 
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6B** is resolution. **1.6C** is isolated installation.
-Later letters cover verification,
-`RuntimeCapabilityProfile`, eligibility remap, acquisition, admission,
-and real inference. **1.6D and later are not begun** here.
+**1.6D** is verification. **1.6E** is bounded runtime selection.
+Later letters cover `RuntimeCapabilityProfile` consumption in
+eligibility remap, acquisition, admission, and real inference.
+**1.6D and later are not begun** here.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -1659,7 +1762,8 @@ capacity calibration; DEEP storage characterization; learned routing;
 the portfolio optimizer; more than a curated model candidate set; more
 than a minimal connector set; knowledge graphs; fine-tuning or
 distillation; autonomous Team Brain learning; organisational
-coordination; custom billing; a polished UI; an exhaustive audit UI.
+coordination; custom billing; a polished UI; an exhaustive audit UI;
+a generic Selection Framework; a reactive dependency-graph engine.
 
 Create the seam. Defer the depth. Record the debt.
 
@@ -2079,8 +2183,49 @@ ADMIN SURFACE                POST /v1/runtimes/provisioning-plans;
                              kultrun runtimes plan|provision|installations;
                              Console Create plan / Provision. No Verify.
 DEBT ENTRIES                 K-66…K-79. K-56…K-65 preserved.
+                             Selection/replanning debt K-80…K-87 recorded;
+                             not blocking 1.6C.
 DEFERRED ITEMS               1.6D Runtime Verification and later 1.6
                              letters. Do not begin them from this stage.
+SELECTION SEAM               Provision the explicitly identified
+                             RuntimeCandidate. Never silently substitute
+                             the AUTO recommendation or another path.
+                             INSTALLED is not VERIFIED. No ranking UI.
+```
+
+### Stage 1.6D brief (not begun)
+
+```text
+CURRENT STAGE                Runtime verification. Exact installation
+                             path. Evidence, not recommendation.
+PREDECESSOR OUTPUTS          Stage 1.6C RuntimeInstallation.
+THIS STAGE'S REQUIRED OUTPUT Structured VERIFIED / FAILED / UNRESOLVED
+                             evidence for runtime+executor+host+install.
+MUST NOT                     Rank; recommend; silently fall back;
+                             treat INSTALLED as VERIFIED.
+DEFERRED ITEMS               1.6E bounded runtime selection.
+```
+
+### Stage 1.6E brief (not begun)
+
+```text
+CURRENT STAGE                Runtime evaluation and bounded selection
+                             over verified paths. First executable
+                             administrator runtime override.
+THIS STAGE'S REQUIRED OUTPUT Recommended / selectable / blocked
+                             classification; AUTO|MANUAL; selected path;
+                             invalidation and recomputation of
+                             runtime-dependent model eligibility and
+                             planning inputs.
+MUST NOT                     Generic SelectionFramework; scoring DSL;
+                             silent fallback; proceed with a model
+                             eligible only for the previous runtime.
+DEPTH                        Present three options before writing the
+                             implementation brief. Recommended later
+                             depth is minimum + architectural seams
+                             (selected vs recommended, blocked reasons,
+                             selection mode, plan-freshness seam),
+                             not a rabbit-hole engine.
 ```
 
 ---

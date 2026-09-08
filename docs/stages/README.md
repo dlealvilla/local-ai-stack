@@ -171,9 +171,15 @@ executor portability. Checkpoint:
 Checkpoint: `checkpoints/STAGE-1.6B-runtime-resolution.json`.
 
 **Stage 1.6C is open.** Runtime provisioning: exact plan and isolated
-install. `INSTALLED` is not `VERIFIED`. L2 close needs a real Linux
-x86_64 NVIDIA vLLM `0.28.0` install. Checkpoint:
-`checkpoints/STAGE-1.6C-runtime-provisioning.json`.
+install. `INSTALLED` is not `VERIFIED`. Provisioning consumes the
+explicitly selected candidate and does not silently substitute another
+path. L2 close needs a real Linux x86_64 NVIDIA vLLM `0.28.0` install.
+Checkpoint: `checkpoints/STAGE-1.6C-runtime-provisioning.json`.
+
+Bounded administrator selection and dependency recalculation are
+recorded in `docs/PRODUCT_VISION.md` §5.11 / §82 and
+`docs/ROADMAP.md` Part II §11. They become executable at 1.6E after
+verification. Do not begin 1.6D or 1.6E from this package.
 
 **Next:** complete Stage 1.6C T3 if a suitable host is available.
 Do not begin Stage 1.6D Runtime Verification from this package.

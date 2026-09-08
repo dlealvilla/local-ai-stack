@@ -179,6 +179,16 @@
     "K-78",
     "K-79"
   ],
+  "selection_replanning_debt": [
+    "K-80",
+    "K-81",
+    "K-82",
+    "K-83",
+    "K-84",
+    "K-85",
+    "K-86",
+    "K-87"
+  ],
   "debt_preserved": [
     "K-56",
     "K-57",
@@ -192,6 +202,7 @@
     "K-65"
   ],
   "not_begun": [
+    "RuntimeEvaluator / RuntimeSelector",
     "RuntimeVerifier",
     "RuntimeCapabilityProfile",
     "vLLM import as operational proof",
@@ -208,6 +219,6 @@
     "checkpoint": "checkpoints/STAGE-1.6C-runtime-provisioning.json",
     "merged_to_kultrun": false,
     "kultrun_head": "cfbfc2f5d488e73cb94642c643f095355964f083",
-    "next": "T3 real vLLM 0.28.0 install on Linux x86_64 NVIDIA, then L2 close. Do not begin Stage 1.6D."
+    "next": "T3 real vLLM 0.28.0 install on Linux x86_64 NVIDIA, then L2 close. Do not begin Stage 1.6D or 1.6E. Bounded selection is documented in ROADMAP Part II §11."
   }
 }

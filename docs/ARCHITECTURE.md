@@ -768,6 +768,12 @@ determine a probe horizon. The tier order makes that rule structural — a
 candidate model cannot influence storage characterization because storage
 cannot see it.
 
+The catalog Kultrun knows about is not the set of models currently
+eligible to deploy. Eligibility is derived from host, selected
+runtime+executor, policy, and resources. That view is invalidated when
+those inputs change. Ranking and AUTO/MANUAL selection remain `planning`
+work, after a verified runtime exists (K-55, K-87).
+
 ## TIER 4 — Recommend and authorize
 
 ### `planning`
@@ -778,7 +784,7 @@ cannot see it.
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` · `components` · `capacity` · `model` |
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
-| **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. Import a concrete estimator adapter, import `EstimatorRouter`, or branch on provider id. Average, min/max, or otherwise reconcile multiple estimators. Expose dual estimates. Fallback to another estimator because a valid estimate is over-capacity, underutilized, or low-ranked. |
+| **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. Treat a recommendation as the selected configuration after a manual choice. Keep stale eligibility, requirement, or plan values after an upstream selection changes. Import a concrete estimator adapter, import `EstimatorRouter`, or branch on provider id. Average, min/max, or otherwise reconcile multiple estimators. Expose dual estimates. Fallback to another estimator because a valid estimate is over-capacity, underutilized, or low-ranked. |
 | **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection |
 
 Feasibility must be computable for candidates that are not yet acquired.
@@ -787,6 +793,17 @@ what made selection impossible. Stage 1.4A supplies metadata and
 host-independent requirements; Stage 1.4B owns filtering and selection.
 Unknown load-bearing requirements yield `UNRESOLVED`, never a silent fit.
 
+`SelectionRecommendation` already distinguishes a primary from preferred
+and underutilized alternatives and rejected candidates. Later bounded
+selection must keep **recommended** distinct from **selected**, and must
+recompute the recommendation when an upstream runtime, executor, host,
+or policy input changes. The global model catalog is not the eligible
+view; eligibility is derived and stale after those inputs change.
+
+The composition root / control plane coordinates invalidation. `planning`
+owns how feasibility and selection are computed. Do not introduce a
+generic selection or dependency-graph engine here (K-83).
+
 ### `resource`
 
 | | |
@@ -794,7 +811,7 @@ Unknown load-bearing requirements yield `UNRESOLVED`, never a silent fit.
 | **Owns** | `Workload` and the generic workload types, `ResourceRequest`, `AdmissionDecision`, `ResourceReservation`, `WorkloadProfile`, `ResourceSummary`. The Resource Manager. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `capacity` safe layer · `model` requirement |
 | **Produces** | `AdmissionDecision` · `ResourceReservation`, persisted and reconciled |
-| **Must not** | Import `planning`, `runtime` or `inference`. Know selection ranking. Admit against a reported or effective value. Conflate requested requirement, admitted reservation, observed consumption and peak observed consumption. |
+| **Must not** | Import `planning`, `runtime` or `inference`. Know selection ranking. Admit against a reported or effective value. Conflate requested requirement, admitted reservation, observed consumption and peak observed consumption. Treat a manual override as authority to exceed SAFE bounds. |
 | **Created** | 1.5A admission and reservation · **Deepened** 4.1 workload types, 4.2 oversubscription, 4.3 concurrency |
 
 The ordering this module enforces is the mutation contract for the whole
@@ -882,7 +899,7 @@ capacity contract.
 | **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. |
 | **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) |
 | **Ports** | `InferenceRuntime` · `RuntimeProvisioner` |
-| **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
+| **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Silently substitute a different RuntimeCandidate than the one supplied for provisioning. Rank or recommend during provisioning or verification. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
 | **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
 Later deepening may read `host` and `model` contracts. It must never read
@@ -970,8 +987,42 @@ Stage 1.6D RuntimeVerifier
         ↓
 RuntimeCapabilityProfile
         ↓
-runtime-aware selection
+Stage 1.6E RuntimeEvaluator / RuntimeSelector
+        ↓
+recommended / selectable / blocked verified paths
+        ↓
+selected runtime+executor path
+        ↓
+invalidate dependent derived state
+        ↓
+runtime-aware eligible model view
+        ↓
+authoritative selected DeploymentPlan
 ```
+
+RuntimeResolver answers structural plausibility. RuntimeProvisioner
+installs the **explicitly selected** candidate, never the implicit AUTO
+recommendation. RuntimeVerifier (1.6D) produces evidence, not ranking.
+RuntimeEvaluator / RuntimeSelector (1.6E) is the first bounded
+administrator runtime override. A runtime change is not a field swap on
+the previous plan.
+
+## Recommendation, selection, and safety boundaries
+
+Kultrun distinguishes recommendation from authorization.
+
+A recommendation is the preferred member of the current approved feasible
+set. A manual selection is another member of that same set. Blocked
+options are unavailable. Neither recommendation nor administrator
+preference may bypass compatibility, verification, policy, permission,
+entitlement, capacity, or Resource Manager constraints.
+
+The Control Plane coordinates **when** dependent domains must be
+recomputed. Domain services own **how**. Downstream components consume
+the **selected** configuration after recomputation. They must not
+silently reconstruct the original recommendation.
+
+The Admin UI and Admin AI Agent are clients of the same decision APIs.
 
 ## TIER 6 — Serving and the record of it
 
@@ -1365,7 +1416,8 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6A | Minimal ContainerExecutor + executor portability | 1.5C | ✅ closed L2 |
 | 1.6B | RuntimeResolver + RuntimeCandidate | 1.6A, 1.5C descriptors | ✅ closed L1 |
 | 1.6C | RuntimeProvisioningPlan + RuntimeProvisioner + RuntimeInstallation | 1.6B | ⏳ T2 L1; T3 required for L2 close |
-| 1.6D | RuntimeVerifier + RuntimeCapabilityProfile | 1.6C | not begun |
+| 1.6D | RuntimeVerifier + structured verification evidence | 1.6C | not begun |
+| 1.6E | Runtime evaluation / bounded selection + dependent invalidation | 1.6D | not begun |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |
