@@ -3527,6 +3527,48 @@
   },
   "planning.deployment_plan@1": {
     "fields": {
+      "accelerator_index": {
+        "may_be_unresolved": false,
+        "meaning": "assigned accelerator for discrete GPU; none otherwise",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "capacity_fit": {
+        "may_be_unresolved": true,
+        "meaning": "capacity-fit class of the selected model",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "capacity_verdict": {
+        "may_be_unresolved": true,
+        "meaning": "feasible when this plan was written; CURRENT requires feasible",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "context length the requirement assumed",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "created_at": {
+        "may_be_unresolved": true,
+        "meaning": "when this authoritative plan was first written",
+        "nullable": false,
+        "optional": true,
+        "type": "datetime | Unresolved"
+      },
+      "eligible_view_id": {
+        "may_be_unresolved": true,
+        "meaning": "EligibleModelView identity consumed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "estimator_mode": {
         "may_be_unresolved": false,
         "meaning": "configured estimator mode",
@@ -3597,6 +3639,41 @@
         "optional": true,
         "type": "bool"
       },
+      "foundation_selection_id": {
+        "may_be_unresolved": true,
+        "meaning": "FoundationSelection identity this plan consumed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "generation": {
+        "may_be_unresolved": false,
+        "meaning": "increments when the selected model identity changes",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "capacity envelope identity consumed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": true,
+        "meaning": "host this plan applies to; unresolved on recommendation projections",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "installation_id": {
+        "may_be_unresolved": true,
+        "meaning": "matching RuntimeInstallation identity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "logical_name": {
         "may_be_unresolved": false,
         "meaning": "catalog name",
@@ -3611,6 +3688,27 @@
         "optional": false,
         "type": "ModelId"
       },
+      "model_selection_basis": {
+        "may_be_unresolved": true,
+        "meaning": "ModelSelection basis fingerprint consumed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "model_selection_id": {
+        "may_be_unresolved": true,
+        "meaning": "ModelSelection identity this plan consumed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "model_selection_mode": {
+        "may_be_unresolved": true,
+        "meaning": "AUTO or MANUAL at plan creation",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "placement": {
         "may_be_unresolved": false,
         "meaning": "proposed device strategy",
@@ -3618,12 +3716,33 @@
         "optional": false,
         "type": "MemoryPlacement"
       },
+      "plan_basis": {
+        "may_be_unresolved": true,
+        "meaning": "fingerprint of foundation, runtime, selection, requirement, and capacity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "plan_id": {
+        "may_be_unresolved": true,
+        "meaning": "fingerprint of the current authoritative plan for one host",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "policy_version": {
         "may_be_unresolved": false,
         "meaning": "policy that selected this",
         "nullable": false,
         "optional": false,
         "type": "str"
+      },
+      "profile_id": {
+        "may_be_unresolved": true,
+        "meaning": "matching RuntimeCapabilityProfile identity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "quantization": {
         "may_be_unresolved": true,
@@ -3639,11 +3758,46 @@
         "optional": false,
         "type": "tuple[str, ...]"
       },
+      "recommended_model_id": {
+        "may_be_unresolved": true,
+        "meaning": "recommendation at plan creation; not substituted for selected",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "requirement_basis": {
+        "may_be_unresolved": true,
+        "meaning": "ModelRequirement basis consumed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "runtime": {
         "may_be_unresolved": true,
         "meaning": "proposed runtime",
         "nullable": false,
         "optional": false,
+        "type": "str | Unresolved"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "selected runtime version",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selected_at": {
+        "may_be_unresolved": true,
+        "meaning": "when the selected deployment identity last changed",
+        "nullable": false,
+        "optional": true,
+        "type": "datetime | Unresolved"
+      },
+      "selected_candidate_id": {
+        "may_be_unresolved": true,
+        "meaning": "selected runtime candidate identity",
+        "nullable": false,
+        "optional": true,
         "type": "str | Unresolved"
       },
       "source_ref": {
@@ -3652,6 +3806,13 @@
         "nullable": false,
         "optional": false,
         "type": "str"
+      },
+      "source_revision": {
+        "may_be_unresolved": true,
+        "meaning": "immutable revision of the selected model, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       }
     },
     "python": "DeploymentPlan"

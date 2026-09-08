@@ -310,10 +310,28 @@ class ModelSelection(Contract):
     )
 
 
+class DeploymentPlanId(EntityId):
+    """Deterministic identity of the current deployment plan on one host."""
+
+    prefix = "dplan"
+
+
+class DeploymentPlanStatus(StrEnum):
+    """Whether a persisted deployment plan may be treated as executable truth."""
+
+    CURRENT = "current"
+    STALE = "stale"
+    UNAVAILABLE = "unavailable"
+
+
 @contract(kind="planning.deployment_plan", version=1)
 @dataclass(frozen=True, slots=True)
 class DeploymentPlan(Contract):
-    """What would be deployed. Does not reserve and does not download."""
+    """Control-plane deployment decision. Does not reserve, download, or start.
+
+    A record with ``plan_id`` is the host's persisted authoritative plan.
+    ``plan_from`` projections omit ``plan_id`` and are not executable truth.
+    """
 
     model_id: ModelId = meaning("selected candidate")
     logical_name: Name = meaning("catalog name")
@@ -336,6 +354,81 @@ class DeploymentPlan(Contract):
     )
     fallback_reason: Maybe[str] = meaning(
         "typed primary failure that caused fallback", default=NOT_PROVIDED
+    )
+    plan_id: Maybe[str] = meaning(
+        "fingerprint of the current authoritative plan for one host",
+        default=NOT_PROVIDED,
+    )
+    host_id: Maybe[str] = meaning(
+        "host this plan applies to; unresolved on recommendation projections",
+        default=NOT_PROVIDED,
+    )
+    created_at: Maybe[dt.datetime] = meaning(
+        "when this authoritative plan was first written", default=NOT_PROVIDED
+    )
+    selected_at: Maybe[dt.datetime] = meaning(
+        "when the selected deployment identity last changed", default=NOT_PROVIDED
+    )
+    plan_basis: Maybe[str] = meaning(
+        "fingerprint of foundation, runtime, selection, requirement, and capacity",
+        default=NOT_PROVIDED,
+    )
+    generation: int = meaning(
+        "increments when the selected model identity changes", default=1
+    )
+    foundation_selection_id: Maybe[str] = meaning(
+        "FoundationSelection identity this plan consumed", default=NOT_PROVIDED
+    )
+    selected_candidate_id: Maybe[str] = meaning(
+        "selected runtime candidate identity", default=NOT_PROVIDED
+    )
+    installation_id: Maybe[str] = meaning(
+        "matching RuntimeInstallation identity", default=NOT_PROVIDED
+    )
+    profile_id: Maybe[str] = meaning(
+        "matching RuntimeCapabilityProfile identity", default=NOT_PROVIDED
+    )
+    runtime_version: Maybe[str] = meaning(
+        "selected runtime version", default=NOT_PROVIDED
+    )
+    model_selection_id: Maybe[str] = meaning(
+        "ModelSelection identity this plan consumed", default=NOT_PROVIDED
+    )
+    model_selection_mode: Maybe[str] = meaning(
+        "AUTO or MANUAL at plan creation", default=NOT_PROVIDED
+    )
+    model_selection_basis: Maybe[str] = meaning(
+        "ModelSelection basis fingerprint consumed", default=NOT_PROVIDED
+    )
+    recommended_model_id: Maybe[str] = meaning(
+        "recommendation at plan creation; not substituted for selected",
+        default=NOT_PROVIDED,
+    )
+    source_revision: Maybe[str] = meaning(
+        "immutable revision of the selected model, when known",
+        default=NOT_PROVIDED,
+    )
+    requirement_basis: Maybe[str] = meaning(
+        "ModelRequirement basis consumed", default=NOT_PROVIDED
+    )
+    context_tokens: Maybe[int] = meaning(
+        "context length the requirement assumed", default=NOT_PROVIDED
+    )
+    capacity_fit: Maybe[str] = meaning(
+        "capacity-fit class of the selected model", default=NOT_PROVIDED
+    )
+    capacity_verdict: Maybe[str] = meaning(
+        "feasible when this plan was written; CURRENT requires feasible",
+        default=NOT_PROVIDED,
+    )
+    host_fingerprint: Maybe[str] = meaning(
+        "capacity envelope identity consumed", default=NOT_PROVIDED
+    )
+    accelerator_index: int | None = meaning(
+        "assigned accelerator for discrete GPU; none otherwise", default=None
+    )
+    eligible_view_id: Maybe[str] = meaning(
+        "EligibleModelView identity consumed", default=NOT_PROVIDED
     )
 
 

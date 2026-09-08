@@ -429,6 +429,20 @@ is a clean-wheel fixture chain: selected foundation → VERIFIED profile
 T3 is not required. Do not reopen 1.6G. Do not treat L1 selection
 evidence as DeploymentPlan or inference proof.
 
+**Stage 1.6I** is T0/T1/T2 authoritative DeploymentPlan. Tests cover
+CURRENT from verified runtime + selection + READY requirement +
+FEASIBLE capacity, AUTO vs MANUAL selected model, INVALID/STALE
+upstream, foundation/runtime/selection/requirement/capacity/revision
+invalidation, infeasible selected model, deterministic fingerprint,
+GET no mutation, no acquire/admit/launch, restart, `plan_from`
+demotion, and architecture guards (no DeploymentPlanV2, no
+GenericPlanFramework, planning ⟂ runtime/resource). T2 is a
+clean-wheel fixture chain: selected foundation → VERIFIED profile →
+CURRENT view → requirement → capacity → ModelSelection →
+DeploymentPlan CURRENT, MANUAL selected model, restart, invalidation,
+refresh, no execution. T3 is not required. Do not reopen 1.6H. Do
+not treat L1 plan evidence as acquisition or inference proof.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.

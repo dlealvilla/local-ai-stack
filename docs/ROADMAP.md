@@ -499,7 +499,10 @@ Introduce the pattern incrementally at existing domain seams:
       selected verified runtime; no ModelSelector redesign
 1.6H  migrate existing ranking onto FeasibleModelCandidate[];
       bounded AUTO|MANUAL ModelSelection; no DeploymentPlan authority
-later authoritative selected DeploymentPlan
+1.6I  authoritative DeploymentPlan from current foundation, runtime,
+      ModelSelection, requirement, and feasible capacity; CURRENT vs STALE
+later plan-driven Acquisition, ResourceManager remap, InferenceInstance,
+      real inference
 ```
 
 ---
@@ -702,6 +705,8 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
 1.6G ModelRequirement + Capacity          ← CLOSED L1; remapped onto eligible view
   ↓
 1.6H ModelSelector + ModelSelection       ← CLOSED L1; feasible ranking; AUTO|MANUAL
+  ↓
+1.6I Authoritative DeploymentPlan         ← CLOSED L1; CURRENT vs STALE; no execution
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1292,6 +1297,20 @@ or InferenceInstance. Retire K-55.
 `ModelSelection` · **Gate:** L1 CLOSED. T0/T1/T2 fixture. T3 not
 required; this stage adds no hardware path. Do not reopen 1.6B–1.6G.
 
+### Stage 1.6I — Authoritative DeploymentPlan Migration
+
+Compose the current FoundationSelection, fresh VERIFIED runtime,
+current ModelSelection, READY ModelRequirement, and feasible
+CapacityAssessment into one host-scoped `DeploymentPlan`. CURRENT vs
+STALE vs UNAVAILABLE is computed from a deterministic plan basis.
+GET is read-only. POST create/refresh persists. MANUAL uses the
+selected model, never the recommendation. Demote `plan_from`. Do not
+remap Acquisition, ResourceManager, or InferenceInstance. Retire K-86.
+
+**Output:** persisted authoritative `DeploymentPlan` · **Gate:** L1
+CLOSED. T0/T1/T2 fixture. T3 not required; this stage adds no
+hardware path. Do not reopen 1.6B–1.6H.
+
 ### Stage 1.6 — Real inference vertical
 
 Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
@@ -1300,12 +1319,13 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6F** is runtime-aware eligible models.
 **1.6G** is ModelRequirement + Capacity migration.
 **1.6H** is ModelSelector + bounded model selection.
-Later letters cover authoritative DeploymentPlan, acquisition gating,
-admission remap, and real inference.
+**1.6I** is the authoritative DeploymentPlan.
+Later letters cover plan-driven acquisition, admission remap, and real
+inference.
 **1.6D is CLOSED L2.** **1.6E is CLOSED L1.** **1.6F is CLOSED L1.**
-**1.6G is CLOSED L1.** **1.6H is CLOSED L1.**
-Next is authoritative DeploymentPlan migration; do not begin it from
-1.6H. Present depth options before implementation.
+**1.6G is CLOSED L1.** **1.6H is CLOSED L1.** **1.6I is CLOSED L1.**
+Next is plan-driven Acquisition + Resource Admission; do not begin it
+from 1.6I. Present depth options before implementation.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2502,6 +2522,45 @@ MUST NOT                     Reopen 1.6B–1.6G; create DeploymentPlan
                              rank blocked/infeasible/unresolved;
                              silent MANUAL fallback; force/infeasible
                              bypass; generic SelectionFramework.
+DEPTH                        Accepted: minimum + a little depth.
+```
+
+### Stage 1.6I brief
+
+```text
+CURRENT STAGE                Authoritative DeploymentPlan. Compose
+                             current foundation, verified runtime,
+                             ModelSelection, requirement, and feasible
+                             capacity. Stop. Do not execute.
+PREDECESSOR OUTPUTS          Stage 1.6H CLOSED L1
+                             (`3fd3d8c1806f0994fc26b8613b5deed96258cfa7`).
+THIS STAGE'S REQUIRED OUTPUT Persisted host-scoped DeploymentPlan;
+                             CURRENT vs STALE vs UNAVAILABLE from
+                             plan_basis; GET/POST /v1/deployments/plan;
+                             kultrun deployments plan [--refresh];
+                             Console Deployment plan; plan_from demoted;
+                             K-86 RETIRED.
+CORE CONTRACTS AFFECTED      planning.deployment_plan@1 evolved with
+                             optional identity/basis fields.
+                             No DeploymentPlanV2. No GenericPlanFramework.
+ADAPTERS AFFECTED            None.
+PERSISTED STATE              One current DeploymentPlan per host.
+MUTATION / FAILURE BOUNDARY  POST /deployments/plan persists. GET does
+                             not. No acquire, admit, or launch.
+CANCELLATION / CLEANUP       Stale plan remains until explicit refresh.
+ACCEPTANCE LEVEL             L1 CLOSED. T0/T1 plus T2 clean-wheel
+                             fixture chain. T3 not required.
+ADMIN SURFACE                GET/POST /v1/deployments/plan;
+                             kultrun deployments plan [--refresh];
+                             Console Deployment plan + Refresh plan.
+DEBT ENTRIES                 K-86 RETIRED. K-66, K-77 remain OPEN.
+                             plan_from demoted (plan_authoritative:
+                             false) until ResourceManager remap.
+MUST NOT                     Reopen 1.6B–1.6H; remap Acquisition,
+                             ResourceManager, or InferenceInstance;
+                             silent fallback to recommendation;
+                             persist CURRENT with INFEASIBLE capacity;
+                             GenericPlanFramework; execute the plan.
 DEPTH                        Accepted: minimum + a little depth.
 ```
 

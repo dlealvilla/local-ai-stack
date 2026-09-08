@@ -290,7 +290,12 @@ def _plan_from_evaluation(
 
 
 def plan_from(recommendation: SelectionRecommendation) -> DeploymentPlan | None:
-    """A plan exists only when there is a primary recommendation."""
+    """Provisional recommendation projection. Not an authoritative DeploymentPlan.
+
+    Product authority is ``DeploymentPlanningService``. This helper stays
+    for isolated ranking tests and admission amount construction until
+    ResourceManager remap. It never sets ``plan_id``.
+    """
     primary = recommendation.primary
     if primary is None:
         return None

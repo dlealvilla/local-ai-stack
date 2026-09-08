@@ -778,7 +778,8 @@ ELIGIBLE under one foundation and BLOCKED under another. Stage 1.6G
 derives `ModelRequirement` from an ELIGIBLE candidate plus the selected
 fresh VERIFIED profile, then capacity-fit against SAFE. Stage 1.6H
 ranks only currently feasible candidates and persists bounded
-AUTO/MANUAL `ModelSelection`. ELIGIBLE is not FEASIBLE.
+AUTO/MANUAL `ModelSelection`. Stage 1.6I persists the authoritative
+current `DeploymentPlan` from those decisions. ELIGIBLE is not FEASIBLE.
 
 ## TIER 4 — Recommend and authorize
 
@@ -791,7 +792,7 @@ AUTO/MANUAL `ModelSelection`. ELIGIBLE is not FEASIBLE.
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
 | **Must not** | Import `resource`. Reserve anything. Select on unverified or reported capacity. Return a boolean verdict. Be nondeterministic given identical inputs and policy version. Encode a global `selected = true`. Silently relax the minimum utilization. Average memory ratios. Sum all GPU VRAM regardless of placement. Treat storage as a utilization-ratio input. Subtract safety headroom twice. Persist a recommendation as permanent truth. Treat a recommendation as the selected configuration after a manual choice. Keep stale eligibility, requirement, or plan values after an upstream selection changes. Import a concrete estimator adapter, import `EstimatorRouter`, or branch on provider id. Average, min/max, or otherwise reconcile multiple estimators. Expose dual estimates. Fallback to another estimator because a valid estimate is over-capacity, underutilized, or low-ranked. |
-| **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection · **ModelSelection** 1.6H |
+| **Created** | 1.4B v0 · **Deepened** 3.3 feasibility, 3.4 plan, 3.5 selection · **ModelSelection** 1.6H · **Authoritative DeploymentPlan** 1.6I |
 
 Feasibility must be computable for candidates that are not yet acquired.
 The previous attempt could only assess models it already had, which is
@@ -817,9 +818,11 @@ product recommendation authority is `rank_feasible()` via
 `ModelSelectionService`. BLOCKED, UNRESOLVED, INFEASIBLE, and stale
 assessments never enter ranking. Capacity math is unchanged.
 
-The 1.4B `DeploymentPlan` object returned from `plan_from` is a
-provisional recommendation artifact (`plan_authoritative: false`).
-It is not the future authoritative selected DeploymentPlan (K-86).
+The 1.4B `plan_from` helper remains a provisional recommendation
+projection (`plan_authoritative: false`). It is not executable truth.
+Product authority is the persisted `planning.deployment_plan@1` record
+produced by `DeploymentPlanningService`. K-86 baseline CURRENT/STALE
+and recommended-versus-selected provenance are implemented.
 
 The composition root / control plane coordinates invalidation. `planning`
 owns how feasibility and selection are computed. Do not introduce a
@@ -827,7 +830,8 @@ generic selection or dependency-graph engine here (K-83). Planning must
 not import `runtime`; the eligibility → verdict copy lives in
 `platform.eligibility`. Requirement derivation lives in
 `platform.requirement`. Bounded model selection persistence lives in
-`platform.model_selection`. None of these is a parallel planner.
+`platform.model_selection`. Authoritative DeploymentPlan persistence
+lives in `platform.deployment_plan`. None of these is a parallel planner.
 
 ### `resource`
 
@@ -1114,7 +1118,7 @@ CapacityAssessment
 
 Stage 1.6H ModelSelector + bounded model selection consumes those
 assessments. It does not reconstruct eligibility, requirements, or
-SAFE capacity. It does not create DeploymentPlan authority.
+SAFE capacity. It does not execute a deployment.
 
 ```text
 RuntimeEligibleModelCandidate
@@ -1131,31 +1135,32 @@ recommended model
         ↓
 AUTO | MANUAL ModelSelection
         ↓
-[STOP 1.6H]
+AUTHORITATIVE DeploymentPlan
+        ↓
+[STOP 1.6I]
 ```
 
 `CURRENT` requires current `FoundationSelection`, the selected
-candidate, a matching INSTALLED installation, and a matching fresh
-VERIFIED profile. `foundation_stale` on the view copies
-`FoundationSelection.downstream_stale` and does not by itself force
-the view out of CURRENT when that verified path still matches.
-MANUAL uses `selected_candidate_id`, never the recommendation.
-UNKNOWN is never ELIGIBLE. RAM, VRAM, disk, reservations, and model
-size are not the eligibility view. They enter at ModelRequirement
-and CapacityAssessment. ELIGIBLE does not mean FEASIBLE.
+candidate, a matching INSTALLED installation, a matching fresh
+VERIFIED profile, current `ModelSelection`, a READY requirement for
+the selected model, and a currently feasible `CapacityAssessment`.
+GET classifies a persisted plan against that basis; it does not
+persist. POST create/refresh persists. MANUAL uses the selected
+model, never the recommendation. Infeasible or invalid selection
+yields no CURRENT plan. `plan_from` is not authority.
 
-Future, **not implemented in 1.6H**:
+Future, **not implemented in 1.6I**:
 
 ```text
-selected foundation
-        +
-selected model
-        +
-requirement
-        +
-capacity
+CURRENT DeploymentPlan
         ↓
-authoritative DeploymentPlan
+Acquisition
+        ↓
+ResourceManager admission
+        ↓
+InferenceInstance
+        ↓
+Real inference
 ```
 
 `RuntimePolicy.mode` AUTO|EXPLICIT is resolver coverage. It is not
@@ -1186,6 +1191,7 @@ persisted class.
 | Runtime-aware capacity fit | existing `ModelEvaluation` / `CapacityFitClass` via composition |
 | Currently feasible ranking input | `FeasibleModelCandidate` (derived) |
 | Bounded model selection | `ModelSelection` AUTO\|MANUAL; recommended ≠ selected |
+| Authoritative current deployment decision | `DeploymentPlan`; CURRENT vs STALE vs UNAVAILABLE |
 
 RuntimeResolver answers structural plausibility. RuntimeProvisioner
 installs the **explicitly selected** candidate, never an implicit
@@ -1195,8 +1201,9 @@ override. A foundation change is not a field swap on the previous plan.
 It marks downstream derived state stale. Stage 1.6F recomputes
 `EligibleModelView`. Stage 1.6G recomputes `ModelRequirement` and
 capacity-fit. Stage 1.6H recomputes the feasible set, recommendation,
-and `ModelSelection` currentness. A later stage makes
-`DeploymentPlan` authoritative.
+and `ModelSelection` currentness. Stage 1.6I persists the authoritative
+`DeploymentPlan` and classifies CURRENT vs STALE. Acquisition,
+ResourceManager, and InferenceInstance are not remapped.
 
 ## Recommendation, selection, and safety boundaries
 
@@ -1639,6 +1646,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6F | EligibleModelView + runtime/model compatibility authority | 1.6E | ✅ closed L1 |
 | 1.6G | ModelRequirement + Capacity consume EligibleModelView | 1.6F | ✅ closed L1 |
 | 1.6H | ModelSelector + bounded AUTO/MANUAL ModelSelection | 1.6G | ✅ closed L1 |
+| 1.6I | Authoritative DeploymentPlan | 1.6H | ✅ closed L1 |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

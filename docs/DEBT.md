@@ -949,10 +949,11 @@ Status:       RETIRED (1.6H, 2026-09-08)
 Note:         `SelectionService.recommend()` remains for isolated
               estimator tests. Product authority is `rank_feasible()`
               via `ModelSelectionService`. `plan_from` in the selection
-              payload is a provisional recommendation artifact
-              (`plan_authoritative: false`); remove during DeploymentPlan
-              (K-86). Acquisition `--recommended` already reads the
-              migrated recommendation. STORE is not plan-gated.
+              payload remains a provisional recommendation artifact
+              (`plan_authoritative: false`); demoted in 1.6I, remove
+              during ResourceManager remap. Acquisition `--recommended`
+              already reads the migrated recommendation. STORE is not
+              plan-gated.
 
 ### K-56 — Runtime performance-aware ranking
 Label:        DEFERRED
@@ -1436,22 +1437,27 @@ To make real: After bounded AUTO/MANUAL exists on verified paths.
 Retire when:  preference policy is an accepted, non-authorizing input.
 Status:       OPEN
 
-### K-86 — DeploymentPlan freshness / stale-plan seam
-Label:        DEFERRED
-Owner stage:  later planning
+### K-86 — DeploymentPlan freshness / stale-plan seam  ·  RETIRED
+Label:        DEFERRED → RETIRED
+Owner stage:  1.6I
 Subsystem:    planning
 Authorizes:   NO
 Blocks 1.6C:  No
-Current seam: DeploymentPlan v0 is a recommendation artifact, not an
-              executable selected configuration with revision
+Current seam: Authoritative `DeploymentPlan` is the host-scoped current
+              deployment decision. GET overlays CURRENT vs STALE vs
+              UNAVAILABLE from `plan_basis`. Recommended vs selected
+              provenance is recorded; MANUAL is not replaced.
 What:         VALID vs STALE/REQUIRES REPLAN when host, runtime, model,
               capacity, or policy inputs change after plan generation.
               Recommendation vs selected provenance on the plan.
-Why now:      Executable selected plans come after 1.6E and model remap.
-To make real: Preserve selected vs recommended identity when the plan
-              becomes authoritative for execution.
+Why now:      Closed 1.6H produced bounded ModelSelection.
+To make real: Implemented in Stage 1.6I.
 Retire when:  plan invalidation/versioning has tests.
-Status:       OPEN
+Status:       RETIRED (1.6I, 2026-09-08)
+Note:         Full plan history / version graph is out of scope.
+              Acquisition, ResourceManager, and InferenceInstance still
+              do not consume DeploymentPlan; that is the next-stage
+              ledger, not a duplicate K-86.
 
 ### K-87 — Eligible-model view vs global catalog  ·  RETIRED
 Label:        DEFERRED → RETIRED
@@ -1472,9 +1478,7 @@ Retire when:  the eligible view is the only runtime/model compatibility
 Status:       RETIRED (1.6F, 2026-09-08)
 Note:         Resource-fit / ModelRequirement / Capacity migrated in
               1.6G. ModelSelector and bounded ModelSelection migrated
-              in 1.6H. Planning still receives CompatibilityVerdict
-              tokens through composition because it cannot import
-              runtime. Authoritative DeploymentPlan remains NEXT.
+              in 1.6H. Authoritative DeploymentPlan migrated in 1.6I.
 
 ### K-88 — Runtime verification scheduling / background revalidation
 Label:        DEFERRED
@@ -1594,7 +1598,7 @@ Note:         `plan_for_entry` still estimates numeric ResourceRequest
               arithmetic keeps working. That is ResourceManager remap
               remaining work, not a compatibility default.
 
-## Runtime-first migration ledger (after 1.6H)
+## Runtime-first migration ledger (after 1.6I)
 
 Not a second architecture. Existing components still to migrate, in
 order. Do not begin automatically.
@@ -1606,11 +1610,10 @@ order. Do not begin automatically.
 | CapacityAssessment | remapped `ModelRequirement` + host SAFE envelope | same | done in 1.6G; existing SAFE math | none | ✅ |
 | ModelSelector | `FeasibleModelCandidate[]` from eligible + ready + feasible assessments | same | done in 1.6H; existing capacity-band ranking | `SelectionService.recommend()` isolated tests only | ✅ |
 | Bounded model selection | host-scoped `ModelSelection` AUTO\|MANUAL; recommended ≠ selected | same | done in 1.6H | none | ✅ |
-| SelectedDeploymentCandidate | not a persisted identity; ModelSelection + upstream refs | combine into the final deployment choice | next with DeploymentPlan | none | NEXT |
-| DeploymentPlan | 1.4B recommendation artifact (`plan_authoritative: false`) | authoritative selected plan; stale when foundation/eligibility/requirement/capacity/selection change | K-86 freshness | `plan_from` on GET /models/selection | NEXT |
-| Acquisition | catalog identity + storage envelope; `--recommended` uses migrated ranking | gate on eligible + feasible selected plan | still warehouse STORE path | `--recommended` already reads ModelSelection recommendation | pending |
-| ResourceManager | `ModelRequirement` + SAFE envelope; product reserve passes eligibility tokens into `plan_for_entry` | ResourceRequest derived from remapped requirement against selected foundation; skip BLOCKED amounts | admission already consumes tokens; request amounts still estimated for blocked/unresolved artifacts | estimate-for-admission until remap | pending |
-| InferenceInstance | admitted reservation + stored artifact | instance against selected verified foundation + eligible model | not remapped; T2 inference passes explicit mapping | none as compatibility default | pending |
+| Authoritative DeploymentPlan | current foundation + VERIFIED runtime + ModelSelection + READY requirement + feasible capacity | same | done in 1.6I; CURRENT vs STALE from `plan_basis` | `plan_from` demoted (`plan_authoritative: false`) until ResourceManager remap | ✅ |
+| Acquisition | catalog identity + storage envelope; `--recommended` uses ModelSelection | fresh CURRENT DeploymentPlan for normal executable acquisition; preserve STORE_ONLY warehouse | next | `--recommended` still reads ModelSelection | NEXT |
+| ResourceManager | existing resource amounts / `plan_for_entry` | `DeploymentPlan.resource_request` | next | estimate-for-admission until remap | pending |
+| InferenceInstance | ModelArtifact + ResourceReservation + reconstructed runtime settings | `DeploymentPlan` + `ModelArtifact` + `ResourceReservation` | not remapped | none | pending |
 | Real inference | reference serving | selected foundation + acquired artifact + reservation | later 1.6 letter | none | pending |
 
 ## Deferred capability register
