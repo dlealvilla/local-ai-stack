@@ -65,15 +65,37 @@
   },
   "deferred": ["K-55", "K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-86", "K-88", "K-91"],
   "t2": {
-    "passed": false,
+    "passed": true,
     "clean_source": true,
-    "acceptance_evidence": false,
+    "acceptance_evidence": true,
     "script": "tools/t2_requirement_capacity.py",
+    "source_commit": "37ed1376f03313ab642bb2e1ab068a46f1e28785",
+    "wheel": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "095032fb20f820d2753850870817776878dd131b5cbd737ba7e30c0ca0333bc5",
+    "build_id": "0.1.0+37ed1376f033",
     "source_checkout": false,
     "editable": false,
+    "fixture_selection": true,
+    "verified_profile": true,
+    "view_status": "current",
+    "selected_runtime": "vllm",
+    "model_a": "qwen2.5-0.5b-instruct-awq ready feasible",
+    "model_b": "qwen2.5-72b-instruct-awq ready infeasible",
+    "model_c": "kultrun-hf-acceptance-tiny unresolved",
+    "model_d": "tinyllama-1.1b-chat-q4 refused not_assessed",
+    "invalidation": "stale",
+    "restart_status": "current",
+    "k94": "k94_removed",
+    "api": true,
+    "cli": true,
+    "console": true,
     "dirty_wip_wheel_used": false,
     "model_selector_redesigned": false,
-    "deployment_plan_created": false
+    "deployment_plan_created": false,
+    "local_tests": 843,
+    "ruff": "clean",
+    "mypy_src": "clean",
+    "mypy_tools": "clean"
   },
   "acceptance": {
     "level": "L1",
@@ -104,6 +126,8 @@
     "performed": false
   },
   "END_LINK": {
+    "acceptance_source_commit": "37ed1376f03313ab642bb2e1ab068a46f1e28785",
+    "t2_artifact_sha256": "095032fb20f820d2753850870817776878dd131b5cbd737ba7e30c0ca0333bc5",
     "checkpoint": "checkpoints/STAGE-1.6G-model-requirement-capacity.json",
     "next": "ModelSelector + bounded model selection. Present depth options before implementation. Do not begin from this package."
   }
