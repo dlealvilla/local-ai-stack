@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import urllib.request
-from dataclasses import fields
+from dataclasses import fields, replace
 from pathlib import Path
 
 import pytest
@@ -29,6 +29,7 @@ from kultrun.inference.contracts import (
     DesiredState,
     InferenceInstance,
     InstanceId,
+    LifecycleState,
     ObservedState,
 )
 from kultrun.inference.service import InstanceService
@@ -583,6 +584,41 @@ class TestReconciliation:
             assert held is not None
             assert held.state is ReservationState.ACTIVE
             assert other.blocks_release(reservation.reservation_id)
+            with pytest.raises(PreconditionFailedError, match="unverified"):
+                other.start(
+                    instance.instance_id, ledger_health=stack.health()
+                )
+        finally:
+            stack.instances.stop(instance.instance_id)
+
+    def test_unknown_becomes_stopped_when_the_pid_is_gone(self, tmp_path: Path) -> None:
+        stack = _Stack(tmp_path)
+        artifact = stack.stored()
+        reservation = stack.reserve(artifact, vram=SMALL)
+        instance = stack.instances.create(artifact, reservation)
+        try:
+            stack.instances.start(instance.instance_id, ledger_health=stack.health())
+            stopped = stack.instances.stop(instance.instance_id)
+            recorded = stack.store.get(InferenceInstance, stopped.instance_id.value)
+            assert recorded is not None
+            poisoned = replace(
+                recorded,
+                observed_state=ObservedState.UNKNOWN,
+                lifecycle_state=LifecycleState.UNKNOWN,
+                desired_state=DesiredState.RUNNING,
+            )
+            stack.store.put(poisoned.instance_id.value, poisoned)
+            other = InstanceService(
+                stack.store,
+                stack.clock,
+                stack.inventory,
+                stack.resources,
+                ExecutionService(NativeProcessExecutor(SystemClock()), stack.store),
+                stack.runtimes,
+            )
+            gone = other.observe(poisoned.instance_id)
+            assert gone.observed_state is ObservedState.STOPPED
+            assert not other.blocks_release(reservation.reservation_id)
         finally:
             stack.instances.stop(instance.instance_id)
 

@@ -195,7 +195,7 @@ class InstanceService:
         launch_request: RuntimeLaunchRequest | None = None,
         startup_timeout: float | None = None,
     ) -> InferenceInstance:
-        instance = self._require(instance_id)
+        instance = self.observe(instance_id)
         if instance.observed_state is ObservedState.RUNNING:
             return instance
         if instance.observed_state is ObservedState.STARTING:
@@ -524,7 +524,10 @@ class InstanceService:
                     handle.detail or "process exited unexpectedly",
                     handle,
                 )
-            if instance.observed_state in _LIVE:
+            if (
+                instance.observed_state in _LIVE
+                or instance.observed_state is ObservedState.UNKNOWN
+            ):
                 return self._write(
                     instance,
                     observed_state=ObservedState.STOPPED,
