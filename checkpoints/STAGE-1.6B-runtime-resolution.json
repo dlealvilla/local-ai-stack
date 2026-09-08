@@ -1,0 +1,195 @@
+{
+  "stage": "1.6B",
+  "name": "runtime-resolution",
+  "milestone": 1,
+  "output": "RuntimePolicy + RuntimeCandidate + RuntimeResolution + RuntimeResolver + conservative vLLM declared-support descriptor + read-only candidates API/CLI/Console",
+  "status": "closed",
+  "gate": "L1",
+  "evidence_level": "L1",
+  "t3_required": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "f3d4baf3d255ca944ffd626aaf1f3505f3b20b27",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.6A-container-executor.json"
+    ],
+    "starting_source_commit": "f3d4baf3d255ca944ffd626aaf1f3505f3b20b27",
+    "safety_tag": "checkpoint/stage-1.6A-closed-f3d4baf",
+    "safety_branch": "safety/pre-runtime-resolution-f3d4baf",
+    "feature_branch": "stage/1.6B-runtime-resolution",
+    "old_experimental_16_branch": "stage/1.6-runtime-first",
+    "old_experimental_16_commit": "68c29390b3aaffcda2b1afc9490ec3e58acefce8",
+    "old_experimental_16_untouched": true
+  },
+  "contracts": {
+    "runtime.policy": "runtime.policy@1",
+    "runtime.candidate": "runtime.candidate@1",
+    "runtime.resolution": "runtime.resolution@1",
+    "runtime.support_descriptor": "additive preferred_version only",
+    "host.capabilities": "reused",
+    "execution.capability_profile": "reused as structural ExecutorCapabilityView",
+    "model.metadata_input": false,
+    "resource.manager_input": false
+  },
+  "runtime_policy": {
+    "modes": ["auto", "explicit"],
+    "defaults": {
+      "allow_reference_runtimes": false,
+      "allow_test_only": false,
+      "allow_future": false,
+      "prefer_conditional": false,
+      "preferred_executor_order": ["native-process", "container-docker"]
+    },
+    "explicit_fallback": false
+  },
+  "compatibility_classes": [
+    "compatible",
+    "conditional",
+    "unsupported",
+    "unresolved"
+  ],
+  "unknown_never_compatible": true,
+  "reason_codes": [
+    "host_os_unsupported",
+    "host_arch_unsupported",
+    "host_os_unknown",
+    "host_arch_unknown",
+    "accelerator_unsupported",
+    "executor_unavailable",
+    "executor_type_unsupported",
+    "executor_capability_missing",
+    "executor_capability_unknown",
+    "runtime_support_unknown",
+    "required_component_missing",
+    "required_component_unknown",
+    "policy_disallowed",
+    "test_only_runtime_excluded",
+    "reference_runtime_excluded",
+    "future_runtime_excluded"
+  ],
+  "ranking": {
+    "order": [
+      "compatibility class",
+      "support tier",
+      "executor availability",
+      "RuntimePolicy preferred executor/runtime order",
+      "stable runtime then executor name"
+    ],
+    "performance_scores": false,
+    "automatic_fallback": false
+  },
+  "candidate_identity": {
+    "form": "rcand_<16 hex sha256>",
+    "material": "runtime.candidate@1|runtime|version-token|executor|host_id|host_fingerprint",
+    "random": false,
+    "persisted_as_truth": false
+  },
+  "persistence": "derived on each read; not durable compatibility truth",
+  "vllm_descriptor": {
+    "runtime": "vllm",
+    "support_tier": "product",
+    "production_candidate": true,
+    "os": ["linux"],
+    "architectures": ["x86_64"],
+    "accelerators": ["nvidia"],
+    "executors": ["native-process", "container-docker"],
+    "preferred_version": "unresolved; not the experimental vllm==0.10.2 pin",
+    "installed": false,
+    "imported": false,
+    "executed": false,
+    "verified": false
+  },
+  "reference_runtime": {
+    "normal_auto_excluded": true,
+    "test_only_preserved": true,
+    "policy_opt_in": true
+  },
+  "surfaces": {
+    "api": "GET /v1/runtimes/candidates",
+    "cli": "kultrun runtimes candidates [--runtime NAME]",
+    "console": "read-only Runtime candidates panel",
+    "mutations": false
+  },
+  "architecture": {
+    "runtime_imports_execution": false,
+    "runtime_imports_model": false,
+    "runtime_imports_resource": false,
+    "runtime_imports_planning": false,
+    "resolver_installs": false,
+    "resolver_executes": false,
+    "runtime_candidate_is_not_capability_profile": true,
+    "docker_fields_on_runtime_candidate": false,
+    "cycles": false
+  },
+  "local_acceptance": {
+    "source_commit": "294f08c17b746378c23c9d235ffed025f620ed89",
+    "artifact": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "4c744789ff170eacfe03a5718f4608e0f338ebb3329f276709bf658b8e7b4372",
+    "build_id": "0.1.0+294f08c17b74",
+    "clean_source": true,
+    "source_checkout": false,
+    "host": true,
+    "native_capability": true,
+    "container_executor_contract": true,
+    "runtime_candidates_api": 200,
+    "explicit_api": 200,
+    "cli_auto": true,
+    "cli_explicit": true,
+    "cli_deterministic": true,
+    "console_assets": true,
+    "auto_runtimes": ["vllm"],
+    "reference_excluded": true,
+    "preferred_on_t2_host": null,
+    "t2_note": "Linux NVIDIA fixture replayed on Darwin. vLLM binary absent so native is CONDITIONAL (required_component_missing). Docker Engine unavailable so container-docker is UNSUPPORTED. Preferred candidate is unresolved until a COMPATIBLE path exists. Honest, not a defect.",
+    "vllm_installed": false,
+    "real_llm": false,
+    "prompt_inference": false
+  },
+  "acceptance": {
+    "level": "L1",
+    "required": "L1",
+    "real_host": false,
+    "date": "2026-09-08",
+    "method": "T0/T1 plus T2 clean wheel; T3 not required",
+    "local_tests": 731,
+    "ruff": "clean",
+    "mypy": "strict clean"
+  },
+  "test_modes": {
+    "T0": "policy, compatibility classes, reason codes, candidate identity, AUTO/EXPLICIT, ranking, reference exclusion",
+    "T1": "fixture HostCapabilities and executor profiles; cases A–I",
+    "T2": "clean wheel; host; executor profiles; candidates API/CLI/Console; deterministic AUTO; explicit vLLM; 1.6A native/container seam",
+    "T3": "not required"
+  },
+  "debt": [
+    "K-56",
+    "K-57",
+    "K-58",
+    "K-59",
+    "K-60",
+    "K-61",
+    "K-62",
+    "K-63",
+    "K-64",
+    "K-65"
+  ],
+  "not_begun": [
+    "RuntimeProvisioningPlan",
+    "RuntimeProvisioner",
+    "RuntimeInstallation",
+    "RuntimeVerifier",
+    "RuntimeCapabilityProfile",
+    "model eligibility remap",
+    "selection remap",
+    "acquisition remap",
+    "vLLM install",
+    "real inference",
+    "Gateway"
+  ],
+  "END_LINK": {
+    "t2_source_commit": "294f08c17b746378c23c9d235ffed025f620ed89",
+    "t2_artifact_sha256": "4c744789ff170eacfe03a5718f4608e0f338ebb3329f276709bf658b8e7b4372",
+    "checkpoint": "checkpoints/STAGE-1.6B-runtime-resolution.json",
+    "merged_to_kultrun": false,
+    "next": "Stage 1.6C — Runtime Provisioning, under a separate bounded instruction set"
+  }
+}

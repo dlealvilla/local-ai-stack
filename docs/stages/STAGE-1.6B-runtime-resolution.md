@@ -2,7 +2,7 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN.** Target gate: `L1` (T0/T1/T2). Checkpoint:
+Status: **CLOSED — L1.** Checkpoint:
 `checkpoints/STAGE-1.6B-runtime-resolution.json`.
 
 This stage answers which runtime/executor paths are **technically
@@ -146,5 +146,12 @@ selection/acquisition remap, vLLM install, real inference, Gateway.
 ## Evidence
 
 T0/T1: `tests/test_runtime_resolution.py` plus architecture non-edges.
-T2: clean wheel, recorded in the checkpoint. T3 is not required.
+731 tests passed; ruff and mypy clean.
+
+T2: clean wheel `kultrun-0.1.0-py3-none-any.whl`
+SHA256 `4c744789ff170eacfe03a5718f4608e0f338ebb3329f276709bf658b8e7b4372`
+from source `294f08c17b746378c23c9d235ffed025f620ed89`. Isolated install,
+no source checkout. Host, native/container 1.6A seam, candidates API/CLI,
+Console assets, deterministic AUTO, explicit vLLM, reference exclusion.
+vLLM was not installed or imported. T3 is not required.
 

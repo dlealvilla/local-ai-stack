@@ -1338,7 +1338,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.5B | `inference` instance lifecycle (plural, reference serving) | `resource`, `execution`, `runtime`, `model` | ✅ |
 | 1.5C | Runtime / Executor boundary reconciliation | 1.5B | ✅ |
 | 1.6A | Minimal ContainerExecutor + executor portability | 1.5C | ✅ closed L2 |
-| 1.6B | RuntimeResolver + RuntimeCandidate | 1.6A, 1.5C descriptors | ⏳ this stage |
+| 1.6B | RuntimeResolver + RuntimeCandidate | 1.6A, 1.5C descriptors | ✅ closed L1 |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

@@ -609,7 +609,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6A executor capability + ContainerExecutor  ← CLOSED L2
   ↓
-1.6B Runtime Resolution                   ← this stage
+1.6B Runtime Resolution                   ← CLOSED L1
   ↓
 1.6 REAL INFERENCE VERTICAL               ← sequenced 1.6A…; not begun from 1.5C
   ↓
@@ -1087,7 +1087,7 @@ and declared `RuntimeSupportDescriptor`s, emit `RuntimeCandidate`s.
 No install, verify, benchmark, model selection, or vLLM execution.
 
 **Output:** `RuntimePolicy` + `RuntimeCandidate` + `RuntimeResolver` ·
-**Gate:** L1 (T0/T1/T2; T3 not required)
+**Gate:** L1 **CLOSED** (T0/T1/T2; T3 not required)
 
 ### Stage 1.6 — Real inference vertical
 
