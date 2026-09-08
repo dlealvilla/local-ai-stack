@@ -2163,6 +2163,7 @@ DEFERRED ITEMS               1.6C Runtime Provisioning and later 1.6
 ```text
 CURRENT STAGE                Runtime provisioning. Exact plan + isolated
                              install. INSTALLED is not VERIFIED.
+                             CLOSED L2.
 PREDECESSOR OUTPUTS          Stage 1.6B CLOSED L1
                              (cfbfc2f5d488e73cb94642c643f095355964f083).
 THIS STAGE'S REQUIRED OUTPUT RuntimeProvisioningPlan;
