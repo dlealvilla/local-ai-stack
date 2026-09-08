@@ -103,6 +103,8 @@ def test_launch_spec_honours_plan_installation_and_artifact(tmp_path: Path) -> N
     assert "TRANSFORMERS_OFFLINE=1" in spec.environment
     assert "PYTHONPATH=" in spec.environment
     assert "--trust-remote-code" not in spec.arguments
+    assert "--no-enable-log-requests" in spec.arguments
+    assert "--disable-log-requests" not in spec.arguments
     assert spec.runtime.value == "vllm"
 
 

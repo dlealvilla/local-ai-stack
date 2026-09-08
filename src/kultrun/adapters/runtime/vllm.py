@@ -160,7 +160,7 @@ class VllmRuntimeSupport:
             str(model_path),
             "--served-model-name",
             served,
-            "--disable-log-requests",
+            "--no-enable-log-requests",
         ]
         if is_resolved(request.context_tokens):
             arguments.extend(["--max-model-len", str(int(request.context_tokens))])
