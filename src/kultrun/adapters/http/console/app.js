@@ -28,6 +28,7 @@ const SUBSYSTEMS = [
   { name: 'Storage sanity', probe: '/storage/sanity' },
   { name: 'Runtime / executor', probe: '/runtime' },
   { name: 'Runtime candidates', probe: '/runtimes/candidates' },
+  { name: 'Runtime foundation', probe: '/runtimes/foundation' },
   { name: 'Runtime installations', probe: '/runtimes/installations' },
   { name: 'Runtime capability profiles', probe: '/runtimes/capability-profiles' },
   { name: 'Model catalog', probe: '/models' },
@@ -491,17 +492,33 @@ async function renderRuntimeCandidates() {
   const summary = document.getElementById('candidates-summary');
   try {
     const state = await get('/runtimes/candidates');
+    let foundation = {};
+    try {
+      foundation = await get('/runtimes/foundation') || {};
+    } catch (error) {
+      foundation = {};
+    }
     panel.classList.remove('hidden');
     const resolution = state.resolution || {};
     const policy = state.policy || {};
     const preferred = resolution.preferred_candidate_id;
+    const recommended = foundation.recommended_candidate_id;
+    const selected = foundation.selected_candidate_id;
+    const byId = {};
+    for (const item of foundation.candidates || []) {
+      byId[item.candidate_id] = item;
+    }
     rows(summary, [
-      ['mode', policy.mode || 'not reported'],
+      ['resolver mode', policy.mode || 'not reported'],
+      ['selection mode', foundation.selection_mode || 'auto'],
       ['host', state.host_id || 'not reported'],
-      ['preferred', preferred && typeof preferred === 'string' ? preferred : 'none'],
+      ['recommended to provision', recommended && typeof recommended === 'string' ? recommended : 'none'],
+      ['selected', selected && typeof selected === 'string' ? selected : 'none'],
+      ['downstream stale', foundation.downstream_stale ? 'yes' : 'no'],
       ['mutations', state.mutations === false ? 'none' : 'unexpected'],
     ]);
     target.replaceChildren();
+    target.append(foundationActions(foundation));
     const groups = [
       ['candidates', resolution.candidates || []],
       ['unresolved', resolution.unresolved || []],
@@ -511,6 +528,7 @@ async function renderRuntimeCandidates() {
     for (const [label, items] of groups) {
       for (const item of items) {
         shown += 1;
+        const classified = byId[item.candidate_id] || {};
         const card = document.createElement('div');
         card.className = 'pool';
         const head = document.createElement('div');
@@ -523,8 +541,17 @@ async function renderRuntimeCandidates() {
           title,
           pill(klass, klass === 'compatible' ? 'ok' : klass === 'unsupported' ? 'bad' : 'unknown'),
         );
-        if (preferred && item.candidate_id === preferred) {
-          head.append(pill('preferred', 'ok'));
+        if (classified.role === 'recommended_to_provision') {
+          head.append(pill('recommended to provision', 'ok'));
+        }
+        if (classified.selected) {
+          head.append(pill('selected', 'ok'));
+        }
+        if (classified.confidence) {
+          head.append(pill(String(classified.confidence).replace(/_/g, ' '), classified.confidence === 'verified_executable' ? 'ok' : classified.confidence === 'blocked' ? 'bad' : 'unknown'));
+        }
+        if (preferred && item.candidate_id === preferred && classified.role !== 'recommended_to_provision') {
+          head.append(pill('resolver preferred', 'unknown'));
         }
         card.append(head);
         const grid = document.createElement('div');
@@ -535,18 +562,17 @@ async function renderRuntimeCandidates() {
           ['reason', item.reason],
           ['codes', (item.reason_codes || []).join(', ') || 'none'],
           ['group', label],
+          ['role', classified.role || 'unclassified'],
         ]);
         card.append(grid);
-        if (label === 'candidates') {
-          card.append(candidateActions(item));
-        }
+        card.append(candidateActions(item, classified));
         target.append(card);
       }
     }
     if (shown === 0) {
       target.append(span('muted', ' No runtime candidates.'));
     }
-    json(document.getElementById('candidates-json'), state);
+    json(document.getElementById('candidates-json'), { candidates: state, foundation });
     await renderInstallations();
   } catch (error) {
     if (error.message.startsWith('404')) {
@@ -558,15 +584,72 @@ async function renderRuntimeCandidates() {
   }
 }
 
-function candidateActions(item) {
+function foundationActions(foundation) {
   const action = document.createElement('div');
   action.className = 'action';
+  const auto = document.createElement('button');
+  auto.textContent = 'Use AUTO';
+  const realize = document.createElement('button');
+  realize.textContent = 'Realize selected';
+  const status = span('muted', '');
+  auto.addEventListener('click', async () => {
+    auto.disabled = true;
+    status.textContent = ' selecting AUTO…';
+    try {
+      const result = await post('/runtimes/foundation/select', { mode: 'auto' });
+      status.textContent = ` ${result.selection_mode} ${result.selected_candidate_id || 'none'}`;
+      await renderRuntimeCandidates();
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      auto.disabled = false;
+    }
+  });
+  realize.addEventListener('click', async () => {
+    realize.disabled = true;
+    status.textContent = ' realizing…';
+    try {
+      const installed = await post('/runtimes/foundation/realize', {});
+      status.textContent = ` ${installed.status} ${installed.installation_id}`;
+      await renderRuntimeCandidates();
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      realize.disabled = false;
+    }
+  });
+  action.append(auto, realize, status);
+  return action;
+}
+
+function candidateActions(item, classified) {
+  const action = document.createElement('div');
+  action.className = 'action';
+  const select = document.createElement('button');
+  select.textContent = 'Select foundation';
+  select.disabled = classified && classified.confidence === 'blocked';
   const plan = document.createElement('button');
   plan.textContent = 'Create plan';
   const provision = document.createElement('button');
   provision.textContent = 'Provision';
   provision.disabled = true;
   const status = span('muted', '');
+  select.addEventListener('click', async () => {
+    select.disabled = true;
+    status.textContent = ' selecting…';
+    try {
+      const result = await post('/runtimes/foundation/select', {
+        mode: 'manual',
+        candidate_id: item.candidate_id,
+      });
+      status.textContent = ` ${result.selection_mode} ${result.selected_candidate_id || 'none'}`;
+      await renderRuntimeCandidates();
+    } catch (error) {
+      status.textContent = ` ${error.message}`;
+    } finally {
+      select.disabled = classified && classified.confidence === 'blocked';
+    }
+  });
   plan.addEventListener('click', async () => {
     plan.disabled = true;
     status.textContent = ' planning…';
@@ -598,7 +681,7 @@ function candidateActions(item) {
       provision.disabled = false;
     }
   });
-  action.append(plan, provision, status);
+  action.append(select, plan, provision, status);
   return action;
 }
 

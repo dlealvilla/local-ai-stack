@@ -12,6 +12,7 @@ PLAN_SCHEMA = "runtime.provisioning_plan@1"
 INSTALLATION_SCHEMA = "runtime.installation@1"
 PROFILE_SCHEMA = "runtime.capability_profile@1"
 BASIS_SCHEMA = "runtime.verification_basis@1"
+SELECTION_SCHEMA = "runtime.foundation_selection@1"
 TARGET_SEMANTICS = "runtimes/{runtime}/{version}"
 PROBE_TIMEOUT_SECONDS = 180.0
 PROBE_OUTPUT_LIMIT_BYTES = 32 * 1024

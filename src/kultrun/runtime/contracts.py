@@ -775,3 +775,60 @@ class RuntimeCapabilityProfile(Contract):
     probe_exit_code: Maybe[int] = meaning(
         "probe process exit code when one was observed", default=NOT_PROVIDED
     )
+
+
+class FoundationSelectionId(EntityId):
+    """Deterministic identity of the current foundation selection on one host."""
+
+    prefix = "fsel"
+
+
+class FoundationSelectionMode(StrEnum):
+    """Product selection mode. Not RuntimePolicy AUTO/EXPLICIT coverage."""
+
+    AUTO = "auto"
+    MANUAL = "manual"
+
+
+class FoundationConfidence(StrEnum):
+    """How far a path may be trusted. Provisionable is not executable."""
+
+    BLOCKED = "blocked"
+    PROVISIONABLE = "provisionable"
+    VERIFIED_EXECUTABLE = "verified_executable"
+
+
+@contract(kind="runtime.foundation_selection", version=1)
+@dataclass(frozen=True, slots=True)
+class FoundationSelection(Contract):
+    """Recommended versus selected foundation. Not a ranking engine."""
+
+    selection_id: FoundationSelectionId = meaning(
+        "fingerprint of the current selection record for one host"
+    )
+    host_id: HostId = meaning("host this selection applies to")
+    selection_mode: FoundationSelectionMode = meaning(
+        "AUTO follows the current recommendation; MANUAL holds another "
+        "provisionable candidate. Not RuntimePolicy.mode"
+    )
+    created_at: dt.datetime = meaning("when this selection record was first written")
+    selected_at: dt.datetime = meaning("when the current selection last changed")
+    recommended_candidate_id: Maybe[str] = meaning(
+        "current pre-provision recommendation; unresolved when none exists",
+        default=NOT_PROVIDED,
+    )
+    selected_candidate_id: Maybe[str] = meaning(
+        "candidate AUTO or MANUAL chose; unresolved when none exists",
+        default=NOT_PROVIDED,
+    )
+    generation: int = meaning(
+        "increments when the selected candidate changes", default=1
+    )
+    downstream_stale: bool = meaning(
+        "true after a selection change until later stages recompute",
+        default=False,
+    )
+    stale_domains: tuple[str, ...] = meaning(
+        "derived domains that must not be trusted after a selection change",
+        default=(),
+    )

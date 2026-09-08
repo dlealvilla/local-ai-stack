@@ -896,11 +896,11 @@ capacity contract.
 
 | | |
 |---|---|
-| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible. |
+| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, `FoundationSelection`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible. `FoundationSelection` records AUTO versus MANUAL choice; recommendation is not selection; provisionable is not executable. |
 | **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) |
 | **Ports** | `InferenceRuntime` · `RuntimeProvisioner` |
-| **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Silently substitute a different RuntimeCandidate than the one supplied for provisioning. Rank or recommend during provisioning or verification. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
-| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
+| **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Treat `PROVISIONABLE` as `VERIFIED EXECUTABLE`. Silently substitute a different RuntimeCandidate than the one selected or supplied for provisioning. Rank or recommend during provisioning or verification. Overload `RuntimePolicy.mode` as product selection. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
+| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
 Later deepening may read `host` and `model` contracts. It must never read
 `capacity` or `execution`. Stage 4.3 exists because the previous attempt
@@ -1000,30 +1000,90 @@ checks against the current material verification basis. It is not model
 compatibility. The first product adapter is `VllmNativeVerifier`. Fixture
 verification is for T0/T1/T2 only. GET never executes a probe.
 
-Future chain, **not implemented in 1.6D**:
+Stage 1.6E foundation selection composes the closed 1.6B–1.6D objects.
+It does not introduce `FoundationCandidate`, `DeploymentFoundation`,
+`EnvironmentProvider`, or a recipe DSL.
 
 ```text
-RuntimeCapabilityProfile[]
+HostCapabilities
+        +
+ExecutorCapabilityProfile[]
+        +
+RuntimeSupportDescriptor[]
+        +
+RuntimePolicy                    ← resolver coverage AUTO|EXPLICIT
         ↓
-Stage 1.6E RuntimeEvaluator / RuntimeSelector
+RuntimeResolver
         ↓
-recommended / selectable / blocked verified paths
+RuntimeCandidate[]
         ↓
-selected runtime+executor path
+hard feasibility (is_provisionable)
         ↓
-invalidate dependent derived state
+RECOMMENDED TO PROVISION
+OTHER PROVISIONABLE
+BLOCKED
         ↓
-runtime-aware eligible model view
+FoundationSelection              ← product AUTO|MANUAL
+recommended_candidate_id
+selected_candidate_id
         ↓
-authoritative selected DeploymentPlan
+RuntimeProvisioningPlan          ← environment recipe snapshot
+        ↓
+RuntimeProvisioner               ← realization family (adapter role)
+        ↓
+RuntimeInstallation              ← environment realization
+        ↓
+RuntimeVerifier
+        ↓
+fresh VERIFIED RuntimeCapabilityProfile
+        =
+VERIFIED EXECUTABLE FOUNDATION
+        ↓
+[STOP 1.6E]
+
+Future, **not implemented in 1.6E** (K-87):
+
+```text
+fresh VERIFIED RuntimeCapabilityProfile
+        +
+Global Model Catalog
+        +
+policy
+        ↓
+Runtime-aware Eligible Model View
 ```
 
+`RuntimePolicy.mode` AUTO|EXPLICIT is resolver coverage. It is not
+`FoundationSelection.selection_mode` AUTO|MANUAL. Do not overload them.
+
+`PROVISIONABLE` is not `EXECUTABLE`. `RECOMMENDED TO ATTEMPT` is not a
+verified recommendation. Only a fresh VERIFIED profile is an
+authoritative execution foundation.
+
+Deployment Foundation is a conceptual composition of `RuntimeCandidate`
++ `RuntimeInstallation` + `RuntimeCapabilityProfile`. It is not a
+persisted class.
+
+| Architecture concept | Kultrun contract |
+|---|---|
+| Normalized host capability profile | `HostCapabilities` |
+| Foundation possibility | `RuntimeCandidate` |
+| Foundation possibility set | `RuntimeResolution.candidates` |
+| Pre-provision recommendation | `FoundationSelection.recommended_candidate_id` (resolver `preferred_candidate_id` is the rank hint) |
+| Environment recipe snapshot | `RuntimeProvisioningPlan` |
+| Environment realization | `RuntimeInstallation` |
+| Environment realization mechanism | `RuntimeProvisioner` adapter |
+| Verified runtime upper capability | fresh VERIFIED `RuntimeCapabilityProfile` |
+| Deployment Foundation | conceptual composition, not a new object |
+| Bounded selected foundation | `FoundationSelection` |
+
 RuntimeResolver answers structural plausibility. RuntimeProvisioner
-installs the **explicitly selected** candidate, never the implicit AUTO
-recommendation. RuntimeVerifier produces evidence, not ranking.
-RuntimeEvaluator / RuntimeSelector (1.6E) is the first bounded
-administrator runtime override. A runtime change is not a field swap on
-the previous plan.
+installs the **explicitly selected** candidate, never an implicit
+fallback. RuntimeVerifier produces evidence, not ranking.
+FoundationSelection is the first bounded administrator foundation
+override. A foundation change is not a field swap on the previous plan.
+It marks downstream derived state stale; later stages recompute
+eligibility and `DeploymentPlan`.
 
 ## Recommendation, selection, and safety boundaries
 
@@ -1462,7 +1522,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6B | RuntimeResolver + RuntimeCandidate | 1.6A, 1.5C descriptors | ✅ closed L1 |
 | 1.6C | RuntimeProvisioningPlan + RuntimeProvisioner + RuntimeInstallation | 1.6B | ✅ closed L2 |
 | 1.6D | RuntimeVerifier + RuntimeCapabilityProfile | 1.6C | ✅ closed L2 |
-| 1.6E | Runtime evaluation / bounded selection + dependent invalidation | 1.6D | not begun / NEXT |
+| 1.6E | FoundationSelection + two-phase provisionable/executable + invalidation seam | 1.6D | ✅ closed L1 |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; not begun |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

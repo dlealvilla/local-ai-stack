@@ -176,13 +176,16 @@ Provisioning consumes the explicitly selected candidate and does not
 silently substitute another path. Checkpoint:
 `checkpoints/STAGE-1.6C-runtime-provisioning.json`.
 
-**Stage 1.6D is in progress.** Runtime verification: exact installation
-to `RuntimeCapabilityProfile`. `INSTALLED` is not `VERIFIED`. `VERIFIED`
-is not model-compatible. Checkpoint:
+**Stage 1.6D is closed** at `L2`. Runtime verification: exact
+installation to `RuntimeCapabilityProfile`. `INSTALLED` is not
+`VERIFIED`. `VERIFIED` is not model-compatible. Checkpoint:
 `checkpoints/STAGE-1.6D-runtime-verification.json`.
 
-Bounded administrator selection becomes executable at 1.6E. Do not
-begin Stage 1.6E from this package.
+**Stage 1.6E is closed** at `L1`. Foundation selection: two-phase
+provisionable ≠ executable. `FoundationSelection` AUTO|MANUAL.
+Do not reopen 1.6B–1.6D. Checkpoint:
+`checkpoints/STAGE-1.6E-foundation-selection.json`.
 
-**Next after 1.6D close:** Stage 1.6E Runtime Evaluation / Bounded
-Selection. Present depth options before implementation.
+**Next after 1.6E close:** runtime-aware eligible model view (K-87).
+Do not begin it from this package. Present depth options before
+implementation.

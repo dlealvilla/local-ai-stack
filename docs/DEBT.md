@@ -1324,19 +1324,21 @@ Status:       OPEN
 
 ### K-80 — Richer recommendation scoring
 Label:        DEFERRED
-Owner stage:  1.6E / later planning
+Owner stage:  later planning
 Subsystem:    runtime / planning
 Authorizes:   NO
 Blocks 1.6C:  No
-Current seam: RuntimeResolver ranking is static (K-56); ModelSelector
-              is not yet runtime-first (K-55)
-What:         Bounded selection needs a recommendation, not a scoring
-              DSL. Explainability, confidence, evidence fusion, and
-              workload-specific scores are not implemented.
-Why now:      1.6C provisions an explicit candidate. Scoring would
-              collapse verification into ranking.
-To make real: After verified feasible sets exist (1.6D/1.6E). Link K-56
-              and K-62 rather than duplicating them.
+Current seam: 1.6E uses hard gates + 1.6B lexicographic rank + reuse
+              of the same fresh VERIFIED candidate identity. No
+              weights. RuntimeResolver ranking remains static (K-56).
+What:         Explainability, confidence fusion, benchmark
+              performance, expected throughput/latency, catalog-size
+              scores, learned reliability, and cost optimization.
+Why now:      Those inputs are not yet trustworthy. Pretending to
+              score them would collapse verification into ranking.
+To make real: After measured evidence exists. Link K-56 and K-62
+              rather than duplicating them. Do not add
+              FoundationCandidate or SelectionFramework debt.
 Retire when:  a later stage accepts scored recommendations with tests.
 Status:       OPEN
 
@@ -1346,30 +1348,34 @@ Owner stage:  later platform / identity
 Subsystem:    platform / audit
 Authorizes:   NO
 Blocks 1.6C:  No
-Current seam: Approval exists from 0.3; override reason, expiry, and
-              two-person approval do not
+Current seam: 1.6E persists AUTO|MANUAL with recommended ≠ selected.
+              Override reason, actor provenance, expiry, and
+              two-person approval do not.
 What:         Operator-supplied override reason, mandatory reasons for
               sensitive changes, approval workflows beyond existing
               meaningful-action approval, override expiry, richer audit.
-Why now:      Bounded selection is not yet executable. Governance UX
-              would be theatre.
-To make real: After AUTO/MANUAL exists on a verified feasible set.
+Why now:      The selection identity exists; governance UX can wait.
+To make real: After operators need audited MANUAL reasons.
 Retire when:  override governance is an accepted mutating workflow.
 Status:       OPEN
 
 ### K-82 — Return-to-AUTO selection mode
-Label:        DEFERRED
-Owner stage:  1.6E / later planning
-Subsystem:    planning / runtime
+Label:        WORKING
+Owner stage:  1.6E
+Subsystem:    runtime
 Authorizes:   NO
 Blocks 1.6C:  No
-Current seam: Preserve `selection_mode` AUTO|MANUAL when 1.6E lands
-What:         Removing a manual constraint, re-running recommendation,
-              and invalidating downstream state is not implemented.
-Why now:      No bounded runtime selection yet.
-To make real: After selected vs recommended identities exist.
-Retire when:  return-to-AUTO is tested for at least one domain.
-Status:       OPEN
+Current seam: `FoundationSelectionService.select_auto` persists AUTO,
+              follows the current recommendation, and marks
+              downstream_stale when the selected identity changes.
+              Richer actor/reason history remains K-81.
+What:         Removing a manual constraint and returning to AUTO.
+Why now:      1.6E requires return-to-AUTO without silent execution
+              of another foundation.
+To make real: Already implemented for foundation selection.
+Retire when:  1.6E T0 covers return-to-AUTO (this file closes with
+              that test).
+Status:       CLOSED
 
 ### K-83 — Generic selection / dependency-graph engine
 Label:        DEFERRED
