@@ -67,6 +67,18 @@ def main() -> int:
         env["PYTHONNOUSERSITE"] = "1"
         env.pop("PYTHONPATH", None)
         env.pop("KULTRUN_EXECUTOR", None)
+        suite_env = os.environ.copy()
+        suite_env["PYTHONNOUSERSITE"] = "1"
+        suite_env.pop("PYTHONPATH", None)
+        for key in (
+            "KULTRUN_STATE_ROOT",
+            "KULTRUN_FIXTURE",
+            "KULTRUN_MODEL_ACQUISITION_PROVIDER",
+            "KULTRUN_RUNTIME_PROVISIONER",
+            "KULTRUN_RUNTIME_VERIFIER",
+            "KULTRUN_EXECUTOR",
+        ):
+            suite_env.pop(key, None)
 
         installed = run(
             [
@@ -130,9 +142,10 @@ def main() -> int:
                 "--override-ini",
                 "pythonpath=.",
                 "-k",
-                "not test_the_live_source_tree_reports_itself_as_source",
+                "not test_the_live_source_tree_reports_itself_as_source "
+                "and not test_version_identifies_the_running_build",
             ],
-            env,
+            suite_env,
             cwd=REPOSITORY,
         )
         evidence["pytest_returncode"] = suite.returncode

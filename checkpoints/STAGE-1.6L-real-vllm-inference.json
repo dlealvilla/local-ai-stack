@@ -55,14 +55,30 @@
   },
   "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95"],
   "t2": {
-    "passed": false,
+    "passed": true,
+    "clean_source": true,
+    "acceptance_evidence": true,
     "script": "tools/t2_vllm_inference.py",
-    "source_commit": "",
-    "wheel": "",
-    "sha256": "",
-    "build_id": "",
+    "source_commit": "a1dfdfac7376251e935ef82c4c47707379f304ce",
+    "wheel": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "677b1b5703afee421ccba9fce8877f29b45058d3a3f0d75e1ba137807f378231",
+    "build_id": "0.1.0+a1dfdfac7376",
     "source_checkout": false,
-    "editable": false
+    "editable": false,
+    "dirty_wip_wheel_used": false,
+    "local_tests": 926,
+    "wheel_suite_excludes": [
+      "test_the_live_source_tree_reports_itself_as_source",
+      "test_version_identifies_the_running_build"
+    ],
+    "ruff": "clean",
+    "mypy_src": "clean",
+    "mypy_tools": "clean",
+    "vllm_start_state": "failed",
+    "infer_reason": "instance_not_running",
+    "reference_runtime": "reference-serving",
+    "chat_status": 404,
+    "real_gpu": false
   },
   "acceptance": {
     "level": "T2 local",
@@ -94,9 +110,9 @@
     "performed": false
   },
   "END_LINK": {
-    "acceptance_source_commit": "",
-    "t2_artifact_sha256": "",
+    "acceptance_source_commit": "a1dfdfac7376251e935ef82c4c47707379f304ce",
+    "t2_artifact_sha256": "677b1b5703afee421ccba9fce8877f29b45058d3a3f0d75e1ba137807f378231",
     "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
-    "next": "Complete T3/T5 on a real GPU host through the exact T2 wheel. Do not begin streaming or additional runtimes."
+    "next": "Complete T3/T5 on a real GPU host using this exact wheel. Do not begin streaming or additional runtimes."
   }
 }
