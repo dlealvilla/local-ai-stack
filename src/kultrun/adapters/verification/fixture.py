@@ -187,6 +187,7 @@ class FixtureProbeRunner:
     def __init__(self, scenario: str = SCENARIO_HEALTHY) -> None:
         self._scenario = scenario
         self.run_count = 0
+        self.last_spec: RuntimeVerificationProbe | None = None
 
     def run(
         self,
@@ -194,7 +195,8 @@ class FixtureProbeRunner:
         *,
         host_id: HostId,
     ) -> ProbeExecutionResult:
-        del spec, host_id
+        del host_id
+        self.last_spec = spec
         self.run_count += 1
         if self._scenario == SCENARIO_TIMEOUT:
             return ProbeExecutionResult(timed_out=True, executed=True)

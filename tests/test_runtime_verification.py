@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import fields, replace
 from pathlib import Path
 
@@ -245,6 +246,42 @@ def _fake_install(host: HostCapabilities, python: str):
         python_executable=python,
         python_version="3.12",
     )
+
+
+def test_venv_interpreter_symlink_to_host_python_is_inside_installation(
+    tmp_path: Path,
+) -> None:
+    """A venv shim may point at host Python. That is not python_executable_missing."""
+    installation, verification, runner, host, native, _ = _install(tmp_path)
+    recorded = Path(str(installation.python_executable))
+    assert recorded.is_file()
+    recorded.unlink()
+    recorded.symlink_to(sys.executable)
+    assert recorded.is_symlink()
+    assert recorded.resolve() != recorded
+    profile = verification.verify(installation.installation_id, host, (native,))
+    assert profile.status is VerificationStatus.VERIFIED
+    assert runner.run_count == 1
+    assert runner.last_spec is not None
+    probed = Path(runner.last_spec.executable)
+    assert probed == recorded.parent.resolve() / recorded.name
+    assert probed.resolve() != probed
+
+
+def test_python_path_outside_installation_fails(tmp_path: Path) -> None:
+    installation, verification, runner, host, native, _ = _install(tmp_path)
+    outside = tmp_path / "not-install" / "python"
+    outside.parent.mkdir()
+    outside.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    store = FileStore(tmp_path / "records")
+    store.put(
+        installation.installation_id.value,
+        replace(installation, python_executable=str(outside)),
+    )
+    profile = verification.verify(installation.installation_id, host, (native,))
+    assert profile.status is VerificationStatus.FAILED
+    assert VerificationReasonCode.PYTHON_EXECUTABLE_MISSING in profile.reason_codes
+    assert runner.run_count == 0
 
 
 def test_case_a_healthy_nvidia_fixture_verified(tmp_path: Path) -> None:

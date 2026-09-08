@@ -130,8 +130,11 @@ an `ExecutorSpec` and runs it through `NativeProcessExecutor`
 installation. It proves installation integrity, isolated Python
 execution, package metadata `vllm==0.28.0`, `import vllm`, backend
 import, CUDA availability, NVIDIA device visibility, and a tiny CUDA
-tensor operation. It does not download a model, start `vllm serve`, or
-generate tokens.
+tensor operation. Installation integrity locates the recorded venv
+interpreter shim inside the promoted root; it does not follow that
+shim's symlink onto the host interpreter (K-66 still does not
+provision a managed Python). It does not download a model, start
+`vllm serve`, or generate tokens.
 
 ## Non-goals
 

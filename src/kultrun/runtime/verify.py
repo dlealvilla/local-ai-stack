@@ -171,6 +171,9 @@ class VerificationService:
                 )
 
             spec = self._verifier.probe_spec(installation)
+            python = self._python_path(installation)
+            if python is not None:
+                spec = replace(spec, executable=str(python))
             result = self._runner.run(spec, host_id=host.host_id)
             outcome = self._verifier.interpret(installation, result, host=host)
             return self._persist_outcome(
@@ -470,13 +473,20 @@ class VerificationService:
         return (self._state_root / installation.installation_root).resolve()
 
     def _python_path(self, installation: RuntimeInstallation) -> Path | None:
+        """The recorded venv interpreter path, not the host interpreter it shims.
+
+        A venv ``python`` is typically a symlink to the host interpreter.
+        Following that leaf symlink would treat a legitimate isolated
+        environment as ``python_executable_missing``. K-66 still does not
+        provision a managed interpreter; this only locates the shim.
+        """
         raw = installation.python_executable
         if not is_resolved(raw):
             return None
         path = Path(raw)
         if not path.is_absolute():
             path = self._state_root / path
-        return path.resolve()
+        return path.parent.resolve() / path.name
 
 
 def _maybe(value: T | None) -> Maybe[T]:
