@@ -468,4 +468,5 @@ def test_console_candidates_panel_has_no_verify_or_launch() -> None:
     candidates = html.split("candidates-panel", 1)[1].split("<section", 1)[0]
     assert "Verify" not in candidates
     assert "/runtimes/candidates" in script
-    assert "post('/runtimes/verify" not in script
+    assert "Recommended Runtime" not in script
+    assert "Select Model" not in script

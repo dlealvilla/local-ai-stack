@@ -36,6 +36,11 @@ from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.runtime.serving import ReferenceServingRuntime
 from kultrun.adapters.runtime.vllm import VllmRuntimeSupport
 from kultrun.adapters.storage import posix_reservation, replayed
+from kultrun.adapters.verification.fixture import (
+    FixtureProbeRunner,
+    FixtureRuntimeVerifier,
+)
+from kultrun.adapters.verification.vllm_native import VllmNativeVerifier
 
 # Contract registration is a side effect of import, so the catalogue the
 # Platform API serves would otherwise list only whatever the control plane
@@ -100,6 +105,7 @@ from kultrun.platform.contracts import (
 )
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
+from kultrun.platform.probe_run import ExecutorProbeRunner
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
@@ -110,14 +116,17 @@ from kultrun.resource.manager import ResourceManager
 from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
 from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.runtime.contracts import (
+    RuntimeInstallationId,
     RuntimePolicy,
     RuntimeProvisioningPlanId,
     RuntimeResolverMode,
+    VerificationStatus,
 )
-from kultrun.runtime.lock import ProvisioningLock
-from kultrun.runtime.ports import RuntimeProvisioner
+from kultrun.runtime.lock import ProvisioningLock, VerificationLock
+from kultrun.runtime.ports import RuntimeProvisioner, RuntimeVerifier
 from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import path_presence, resolve
+from kultrun.runtime.verify import VerificationService
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService
@@ -265,6 +274,7 @@ class Platform:
     admission: AdmissionService
     instances: InstanceService
     provisioning: ProvisioningService
+    verification: VerificationService
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -304,6 +314,7 @@ ACQUISITION_VARIABLE = "KULTRUN_MODEL_ACQUISITION_PROVIDER"
 ACQUISITION_MODES = ("huggingface", "fixture")
 EXECUTOR_VARIABLE = "KULTRUN_EXECUTOR"
 PROVISIONER_VARIABLE = "KULTRUN_RUNTIME_PROVISIONER"
+VERIFIER_VARIABLE = "KULTRUN_RUNTIME_VERIFIER"
 CONTAINER_IMAGE_VARIABLE = "KULTRUN_CONTAINER_IMAGE"
 LIVE_EXECUTORS = ("native-process", "container-docker")
 REFERENCE_CONTAINER_IMAGE = "kultrun-reference-serving:stage-16a"
@@ -434,6 +445,24 @@ def resolve_runtime_provisioner(
     )
 
 
+def resolve_runtime_verifier(
+    name: str | None, *, fixture_host: bool
+) -> RuntimeVerifier:
+    """Fixture on captured hosts; native vLLM on live hosts unless overridden."""
+    chosen = (name or os.environ.get(VERIFIER_VARIABLE) or "").strip()
+    if not chosen:
+        chosen = "fixture" if fixture_host else "vllm-native"
+    if chosen == "fixture":
+        return FixtureRuntimeVerifier()
+    if chosen in {"vllm-native", "vllm"}:
+        return VllmNativeVerifier()
+    raise ConfigError(
+        "unknown runtime verifier",
+        requested=chosen,
+        registered=["fixture", "vllm-native"],
+    )
+
+
 def resolve_estimator(mode: str) -> ModelRequirementEstimator:
     """auto → llmfit then Kultrun; llmfit/kultrun stay strict."""
     if mode not in ESTIMATOR_MODES:
@@ -474,6 +503,7 @@ def build(
     fixture: str | None = None,
     acquisition_adapter: str | None = None,
     runtime_provisioner: str | None = None,
+    runtime_verifier: str | None = None,
 ) -> Platform:
     """Assemble the platform and run its startup path.
 
@@ -618,6 +648,30 @@ def build(
         ProvisioningLock(state_root),
     )
     provisioning.reconcile()
+    runtime_checker = resolve_runtime_verifier(
+        runtime_verifier, fixture_host=shape is not None
+    )
+    probe_runner = (
+        FixtureProbeRunner()
+        if isinstance(runtime_checker, FixtureRuntimeVerifier)
+        else ExecutorProbeRunner(executions)
+    )
+    verification = VerificationService(
+        store,
+        resolved_clock,
+        runtime_checker,
+        probe_runner,
+        state_root,
+        VerificationLock(state_root),
+    )
+    current_host = hosts.current
+    verification.reconcile(
+        current_host,
+        (
+            executions.capabilities(current_host),
+            container_executor.capabilities(current_host),
+        ),
+    )
     admission = AdmissionService(
         resources,
         inventory,
@@ -649,6 +703,7 @@ def build(
         admission=admission,
         instances=instances,
         provisioning=provisioning,
+        verification=verification,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
@@ -677,6 +732,7 @@ def build(
         admission=admission,
         instances=instances,
         provisioning=provisioning,
+        verification=verification,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -1030,7 +1086,8 @@ def _runtimes(arguments: Sequence[str]) -> int:
     """Runtime candidates and provisioning. GET candidates never install."""
     if not arguments or arguments[0] in ("-h", "--help"):
         print(
-            "usage: kultrun runtimes {candidates,plan,provision,installations} "
+            "usage: kultrun runtimes "
+            "{candidates,plan,provision,installations,verify,capabilities} "
             "[...]",
             file=sys.stderr,
         )
@@ -1045,9 +1102,14 @@ def _runtimes(arguments: Sequence[str]) -> int:
         return provision_runtime(rest)
     if command == "installations":
         return show_runtime_installations()
+    if command == "verify":
+        return verify_runtime(rest)
+    if command == "capabilities":
+        return show_runtime_capabilities()
     print(f"kultrun: unknown runtimes command {command!r}", file=sys.stderr)
     print(
-        "usage: kultrun runtimes {candidates,plan,provision,installations}",
+        "usage: kultrun runtimes "
+        "{candidates,plan,provision,installations,verify,capabilities}",
         file=sys.stderr,
     )
     return 2
@@ -1220,19 +1282,85 @@ def provision_runtime(arguments: Sequence[str]) -> int:
 
 
 def show_runtime_installations() -> int:
-    """List persisted installations. Installed is not verified."""
+    """List persisted installations with effective verification status."""
     platform = build()
     _warn_if_state_root_defaulted(platform)
     items = platform.provisioning.installations()
     if not items:
         print("no runtime installations")
         return 0
+    host = platform.hosts.current
+    executors = (
+        platform.executions.capabilities(host),
+        platform.plane.container_capability(host),
+    )
     for item in items:
+        profile = platform.verification.profile_for(
+            item.installation_id, host, executors
+        )
+        status = profile.status.value if profile is not None else "unverified"
         print(
             f"{item.installation_id.value}  {item.status.value}  "
             f"{item.runtime.value}=={item.runtime_version}  "
-            f"{item.executor.value}  verified false"
+            f"{item.executor.value}  verified {status}"
         )
+    return 0
+
+
+def verify_runtime(arguments: Sequence[str]) -> int:
+    """Verify an exact installed runtime. Does not provision or load a model."""
+    if not arguments:
+        print(
+            "usage: kultrun runtimes verify <installation-id>",
+            file=sys.stderr,
+        )
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    executors = (
+        platform.executions.capabilities(host),
+        platform.plane.container_capability(host),
+    )
+    profile = platform.verification.verify(
+        RuntimeInstallationId.parse(arguments[0]),
+        host,
+        executors,
+    )
+    print(
+        f"profile {profile.profile_id.value}  {profile.status.value}  "
+        f"{profile.runtime.value}=={profile.runtime_version}  "
+        f"{profile.executor.value}  attempts {profile.attempt_count}"
+    )
+    if profile.status is not VerificationStatus.VERIFIED:
+        codes = ",".join(code.value for code in profile.reason_codes) or "-"
+        print(f"failure {codes}")
+        return 1
+    return 0
+
+
+def show_runtime_capabilities() -> int:
+    """List persisted capability profiles. GET does not probe."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    host = platform.hosts.current
+    executors = (
+        platform.executions.capabilities(host),
+        platform.plane.container_capability(host),
+    )
+    items = platform.verification.profiles(host, executors)
+    if not items:
+        print("no runtime capability profiles")
+        return 0
+    for item in items:
+        print(
+            f"{item.profile_id.value}  {item.status.value}  "
+            f"{item.runtime.value}=={item.runtime_version}  "
+            f"{item.executor.value}  "
+            f"installation {item.installation_id.value}"
+        )
+        if item.reason_codes:
+            print("  " + ",".join(code.value for code in item.reason_codes))
     return 0
 
 

@@ -10,14 +10,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.ids import Name
 from kultrun.runtime.contracts import (
+    RuntimeInstallation,
     RuntimeLaunchRequest,
     RuntimeLaunchSpec,
     RuntimeProfile,
     RuntimeProvisioningPlan,
     RuntimeReadiness,
     RuntimeSupportDescriptor,
+    RuntimeVerificationCheck,
+    RuntimeVerificationProbe,
 )
 
 
@@ -99,4 +103,99 @@ class RuntimeProvisioner(Protocol):
         python_executable: str | None,
     ) -> InstallerOutcome:
         """Write into staging_dir only. Must not promote or verify the engine."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class IntegrityOutcome:
+    """Installation-path checks before a probe runs. Not a persisted contract."""
+
+    succeeded: bool
+    reason_code: str | None = None
+    message: str | None = None
+    checks: tuple[RuntimeVerificationCheck, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ProbeExecutionResult:
+    """What the executor-neutral probe runner observed. Data only."""
+
+    timed_out: bool = False
+    executor_unavailable: bool = False
+    exit_code: int | None = None
+    stdout: str = ""
+    stderr: str = ""
+    truncated: bool = False
+    executed: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class VerifierOutcome:
+    """Interpreted probe evidence. Not a persisted contract."""
+
+    succeeded: bool
+    reason_codes: tuple[str, ...] = ()
+    message: str | None = None
+    checks: tuple[RuntimeVerificationCheck, ...] = ()
+    python_version: str | None = None
+    runtime_package_version: str | None = None
+    backend: str | None = None
+    backend_version: str | None = None
+    cuda_available: bool | None = None
+    cuda_runtime_version: str | None = None
+    device_count: int | None = None
+    devices: tuple[str, ...] = ()
+    accelerator_operation: str | None = None
+    evidence_digest: str | None = None
+    summary: str = ""
+    diagnostic_summary: str = ""
+    probe_exit_code: int | None = None
+
+
+@runtime_checkable
+class RuntimeVerifier(Protocol):
+    """Interprets runtime verification. Does not exec or provision."""
+
+    @property
+    def identity(self) -> Name:
+        """Stable verifier name."""
+        ...
+
+    @property
+    def schema_version(self) -> str:
+        """Verifier schema token recorded on the profile."""
+        ...
+
+    def inspect_integrity(
+        self, installation: RuntimeInstallation, *, state_root: Path
+    ) -> IntegrityOutcome:
+        """Runtime-specific install checks. Must not start a process."""
+        ...
+
+    def probe_spec(self, installation: RuntimeInstallation) -> RuntimeVerificationProbe:
+        """Structured probe recipe. Composition copies this into an ExecutorSpec."""
+        ...
+
+    def interpret(
+        self,
+        installation: RuntimeInstallation,
+        result: ProbeExecutionResult,
+        *,
+        host: HostCapabilities,
+    ) -> VerifierOutcome:
+        """Normalize probe evidence. Must not exec or provision."""
+        ...
+
+
+@runtime_checkable
+class VerificationProbeRunner(Protocol):
+    """Runs a verification probe. Product implementations live outside runtime."""
+
+    def run(
+        self,
+        spec: RuntimeVerificationProbe,
+        *,
+        host_id: HostId,
+    ) -> ProbeExecutionResult:
+        """Execute one bounded probe. Must not interpret runtime evidence."""
         ...

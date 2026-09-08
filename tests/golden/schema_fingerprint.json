@@ -5116,6 +5116,270 @@
     },
     "python": "RuntimeCandidate"
   },
+  "runtime.capability_profile@1": {
+    "fields": {
+      "accelerator_operation": {
+        "may_be_unresolved": true,
+        "meaning": "tiny accelerator operation outcome: pass, fail, or skip",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "attempt_count": {
+        "may_be_unresolved": false,
+        "meaning": "how many explicit probes have run",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "backend": {
+        "may_be_unresolved": true,
+        "meaning": "backend identity observed during verification, e.g. torch",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "backend_accelerator_available": {
+        "may_be_unresolved": true,
+        "meaning": "whether the runtime backend reported an accelerator device",
+        "nullable": false,
+        "optional": true,
+        "type": "bool | Unresolved"
+      },
+      "backend_accelerator_runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator runtime version reported by the backend",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "backend_version": {
+        "may_be_unresolved": true,
+        "meaning": "backend version observed during verification",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "candidate_id": {
+        "may_be_unresolved": false,
+        "meaning": "candidate the plan was made from",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeCandidateId"
+      },
+      "checks": {
+        "may_be_unresolved": false,
+        "meaning": "bounded verification checks from the last attempt",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[RuntimeVerificationCheck, ...]"
+      },
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this profile record was first written",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "device_count": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator devices visible inside the runtime",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "devices": {
+        "may_be_unresolved": false,
+        "meaning": "observed accelerator names; never a vendor object",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "diagnostic_summary": {
+        "may_be_unresolved": false,
+        "meaning": "bounded stdout/stderr or failure summary; never a full log",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "evidence_digest": {
+        "may_be_unresolved": true,
+        "meaning": "SHA-256 of the structured probe payload when one existed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "executor": {
+        "may_be_unresolved": false,
+        "meaning": "executor identity this profile is bound to",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "executor_type": {
+        "may_be_unresolved": false,
+        "meaning": "generic executor type, e.g. process",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host these facts were verified against",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "installation_id": {
+        "may_be_unresolved": false,
+        "meaning": "installation this profile describes",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeInstallationId"
+      },
+      "last_attempted_at": {
+        "may_be_unresolved": false,
+        "meaning": "when a probe last ran, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "last_failure_code": {
+        "may_be_unresolved": true,
+        "meaning": "normalized failure code when status is failed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "last_failure_message": {
+        "may_be_unresolved": true,
+        "meaning": "short failure detail; not a traceback dump",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "plan_id": {
+        "may_be_unresolved": false,
+        "meaning": "plan that produced the install",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeProvisioningPlanId"
+      },
+      "probe_exit_code": {
+        "may_be_unresolved": true,
+        "meaning": "probe process exit code when one was observed",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "profile_id": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of the current profile for one installation",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeCapabilityProfileId"
+      },
+      "python_executable": {
+        "may_be_unresolved": true,
+        "meaning": "isolated runtime interpreter path",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "python_version": {
+        "may_be_unresolved": true,
+        "meaning": "Python version observed during verification",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "reason_codes": {
+        "may_be_unresolved": false,
+        "meaning": "normalized failure reasons; empty when verified",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[VerificationReasonCode, ...]"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family/provider identity",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_family": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family; v0 matches runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_package_version": {
+        "may_be_unresolved": true,
+        "meaning": "runtime package metadata version observed during verification",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime_provider": {
+        "may_be_unresolved": false,
+        "meaning": "runtime provider; v0 matches runtime",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact runtime version observed or requested",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "unverified, verified, failed, or stale",
+        "nullable": false,
+        "optional": false,
+        "type": "VerificationStatus"
+      },
+      "verification_basis": {
+        "may_be_unresolved": false,
+        "meaning": "material basis captured with the last attempt",
+        "nullable": true,
+        "optional": true,
+        "type": "RuntimeVerificationBasis | None"
+      },
+      "verification_basis_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of the material basis used for this profile",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "verified_at": {
+        "may_be_unresolved": false,
+        "meaning": "when required checks last passed",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "verifier_provider": {
+        "may_be_unresolved": false,
+        "meaning": "which verifier adapter produced this profile",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "verifier_schema": {
+        "may_be_unresolved": false,
+        "meaning": "verifier/schema token, e.g. 1",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "RuntimeCapabilityProfile"
+  },
   "runtime.installation@1": {
     "fields": {
       "attempt_count": {
@@ -5949,6 +6213,196 @@
       }
     },
     "python": "RuntimeSupportDescriptor"
+  },
+  "runtime.verification_basis@1": {
+    "fields": {
+      "accelerator_count": {
+        "may_be_unresolved": false,
+        "meaning": "visible accelerator count",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "accelerator_model": {
+        "may_be_unresolved": false,
+        "meaning": "primary accelerator model, or none",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "accelerator_vendor": {
+        "may_be_unresolved": false,
+        "meaning": "primary accelerator vendor, or none",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "architecture": {
+        "may_be_unresolved": false,
+        "meaning": "host architecture, e.g. x86_64",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "driver_version": {
+        "may_be_unresolved": false,
+        "meaning": "primary accelerator driver version, or none",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "executor": {
+        "may_be_unresolved": false,
+        "meaning": "executor identity used for the probe",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "executor_available": {
+        "may_be_unresolved": false,
+        "meaning": "whether that executor is currently available",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "executor_type": {
+        "may_be_unresolved": false,
+        "meaning": "generic executor type, e.g. process",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 of the canonical material above",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host these facts were taken from",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "installation_id": {
+        "may_be_unresolved": false,
+        "meaning": "installation this basis is bound to",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeInstallationId"
+      },
+      "installation_root": {
+        "may_be_unresolved": false,
+        "meaning": "final install path relative to the state root",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "os_family": {
+        "may_be_unresolved": false,
+        "meaning": "host OS family, e.g. linux",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "python_executable": {
+        "may_be_unresolved": false,
+        "meaning": "isolated runtime interpreter path",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "python_version": {
+        "may_be_unresolved": false,
+        "meaning": "isolated runtime Python version token",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family/provider identity",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact installed runtime version pin",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "RuntimeVerificationBasis"
+  },
+  "runtime.verification_check@1": {
+    "fields": {
+      "detail": {
+        "may_be_unresolved": false,
+        "meaning": "short factual detail; never a traceback dump",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "name": {
+        "may_be_unresolved": false,
+        "meaning": "stable check identity, e.g. runtime_import",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "pass or fail",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "RuntimeVerificationCheck"
+  },
+  "runtime.verification_probe@1": {
+    "fields": {
+      "arguments": {
+        "may_be_unresolved": false,
+        "meaning": "argv after the executable; each element is one argument",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "environment": {
+        "may_be_unresolved": false,
+        "meaning": "extra environment bindings as NAME=value strings",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "executable": {
+        "may_be_unresolved": false,
+        "meaning": "program to exec; not a shell line",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "output_limit_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "stdout and stderr are each truncated at this size",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "timeout_seconds": {
+        "may_be_unresolved": false,
+        "meaning": "how long the probe may run",
+        "nullable": false,
+        "optional": true,
+        "type": "float"
+      }
+    },
+    "python": "RuntimeVerificationProbe"
   },
   "storage.pool@1": {
     "fields": {
