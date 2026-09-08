@@ -391,6 +391,17 @@ without silent fallback, and the downstream_stale seam on
 not required: this stage adds no hardware path. Do not reopen 1.6D
 T3. Do not treat L1 selection evidence as runtime-engine proof.
 
+**Stage 1.6F** is T0/T1/T2 runtime-aware eligible models. Tests cover
+ELIGIBLE / BLOCKED / UNRESOLVED, CURRENT / STALE / UNAVAILABLE,
+UNKNOWN ≠ ELIGIBLE, MANUAL selected foundation, foundation/profile
+invalidation, free RAM/VRAM and reservations ignored, ModelMetadata
+unchanged, architecture non-edges, and that planning no longer
+intersects catalog runtimes independently. T2 is a clean-wheel
+fixture chain: selected foundation → VERIFIED profile → CURRENT view
+with at least one of each status, then profile-basis STALE. T3 is not
+required. Do not reopen 1.6E. Do not treat L1 eligibility as capacity
+or inference proof.
+
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.
 A runtime contract suite runs against the reference-serving adapter.

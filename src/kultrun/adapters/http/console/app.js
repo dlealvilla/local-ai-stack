@@ -32,6 +32,7 @@ const SUBSYSTEMS = [
   { name: 'Runtime installations', probe: '/runtimes/installations' },
   { name: 'Runtime capability profiles', probe: '/runtimes/capability-profiles' },
   { name: 'Model catalog', probe: '/models' },
+  { name: 'Eligible models', probe: '/models/eligible' },
   { name: 'Model selection', probe: '/models/selection' },
   { name: 'Model inventory', probe: '/models/inventory' },
   { name: 'Resource admission', probe: '/resources' },
@@ -885,6 +886,54 @@ async function renderCatalog() {
   }
 }
 
+async function renderEligibleModels() {
+  const panel = document.getElementById('eligible-panel');
+  const summary = document.getElementById('eligible-summary');
+  const target = document.getElementById('eligible');
+  if (!panel || !summary || !target) return;
+  try {
+    const state = await get('/models/eligible');
+    panel.classList.remove('hidden');
+    const tone = state.status === 'current' ? 'ok'
+      : state.status === 'stale' ? 'warn' : 'unknown';
+    rows(summary, [
+      ['view', state.status || 'not reported'],
+      ['authoritative', state.authoritative ? 'yes' : 'no'],
+      ['selection mode', state.selection_mode || 'none'],
+      ['selected foundation', state.selected_candidate_id || 'none'],
+      ['runtime', state.runtime || 'none'],
+      ['version', state.runtime_version || 'none'],
+      ['profile', state.profile_status || 'none'],
+      ['eligible', String(state.eligible_count || 0)],
+      ['blocked', String(state.blocked_count || 0)],
+      ['unresolved', String(state.unresolved_count || 0)],
+    ]);
+    target.replaceChildren();
+    target.append(pill(fmt(state.status), tone));
+    const list = document.createElement('div');
+    for (const item of state.candidates || []) {
+      const line = document.createElement('div');
+      line.className = 'muted';
+      const codes = (item.reason_codes || []).join(', ') || '-';
+      line.textContent = `${item.status}  ${item.logical_name}  ${codes}`;
+      list.append(line);
+    }
+    if (!state.candidates || state.candidates.length === 0) {
+      target.append(span('muted', 'No authoritative eligible-model candidates.'));
+    } else {
+      target.append(list);
+    }
+    json(document.getElementById('eligible-json'), state);
+  } catch (error) {
+    if (error.message.startsWith('404')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
 function catalogCard(entry) {
   const meta = entry.metadata || {};
   const req = entry.requirement || {};
@@ -934,7 +983,7 @@ function catalogCard(entry) {
     ['estimated VRAM', bytes(req.estimated_vram_bytes)],
     ['unified memory', bytes(req.unified_memory_bytes)],
     ['context', meta.context_length_tokens],
-    ['runtime', (meta.supported_runtimes || []).join(', ') || 'unstated'],
+    ['declared runtimes', (meta.supported_runtimes || []).join(', ') || 'unstated'],
     ['license', meta.license_id],
     ['requirement confidence', req.confidence],
     ['estimation method', req.estimation_method],
@@ -981,6 +1030,8 @@ async function renderSelection() {
       ['fallback', fallbackLabel(state, rec)],
       ['policy', state.policy_version || rec.policy_version],
       ['outcome', state.outcome || rec.outcome],
+      ['runtime eligibility', state.runtime_eligibility_status || 'not reported'],
+      ['eligibility authoritative', state.runtime_eligibility_authoritative ? 'yes' : 'no'],
     ]);
     target.replaceChildren();
     if (primary) {
@@ -1486,6 +1537,7 @@ async function refresh() {
     await renderRuntime();
     await renderRuntimeCandidates();
     await renderCatalog();
+    await renderEligibleModels();
     await renderSelection();
     await renderInventory();
     await renderResources();

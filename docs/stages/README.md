@@ -186,6 +186,11 @@ provisionable ≠ executable. `FoundationSelection` AUTO|MANUAL.
 Do not reopen 1.6B–1.6D. Checkpoint:
 `checkpoints/STAGE-1.6E-foundation-selection.json`.
 
-**Next after 1.6E close:** runtime-aware eligible model view (K-87).
+**Stage 1.6F is closed** at `L1`. Runtime-aware eligible model view.
+`EligibleModelView` is the authoritative runtime/model compatibility
+path. Do not reopen 1.6B–1.6E. Checkpoint:
+`checkpoints/STAGE-1.6F-eligible-model-view.json`.
+
+**Next after 1.6F close:** ModelRequirement + Capacity migration.
 Do not begin it from this package. Present depth options before
 implementation.

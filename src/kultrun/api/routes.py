@@ -35,10 +35,12 @@ from kultrun.model.acquisition import AcquisitionService, request_from_entry
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import ArtifactId
 from kultrun.model.inventory import ModelInventory
+from kultrun.planning.contracts import CompatibilityVerdict
 from kultrun.planning.service import SelectionService, plan_from
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
+from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.startup import Startup
@@ -47,11 +49,13 @@ from kultrun.resource.contracts import RequestId, ReservationId
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.runtime.contracts import (
+    EligibleModelView,
     RuntimeInstallationId,
     RuntimePolicy,
     RuntimeProvisioningPlanId,
     RuntimeResolverMode,
 )
+from kultrun.runtime.eligibility import ModelEligibilityService, view_payload
 from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import path_presence, resolve
 from kultrun.runtime.selection import FoundationSelectionService
@@ -89,6 +93,7 @@ class ControlPlane:
     provisioning: ProvisioningService
     verification: VerificationService
     foundation: FoundationSelectionService
+    eligibility: ModelEligibilityService
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -446,6 +451,26 @@ def register(router: Router, plane: ControlPlane) -> Router:
         ]
         return path_presence(required)
 
+    def _eligible_view(host: HostCapabilities) -> EligibleModelView:
+        return plane.eligibility.evaluate(
+            host,
+            _executors(host),
+            plane.runtimes.descriptors(),
+            catalog_facts(plane.models),
+            RuntimePolicy(),
+            components=_components(),
+        )
+
+    def _runtime_compat(
+        host: HostCapabilities,
+    ) -> tuple[EligibleModelView, dict[str, CompatibilityVerdict]]:
+        view = _eligible_view(host)
+        mapping = runtime_compatibility(
+            view,
+            [entry.metadata.model_id.value for entry in plane.models.entries()],
+        )
+        return view, mapping
+
     def create_provisioning_plan(request: ApiRequest) -> object:
         """Create an exact install plan. Does not install."""
         candidate_id = (request.query.get("candidate_id") or "").strip()
@@ -649,10 +674,11 @@ def register(router: Router, plane: ControlPlane) -> Router:
         """Active-estimator selection. No dual estimates. No download."""
         host = plane.hosts.current
         envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        view, compat = _runtime_compat(host)
         recommendation = plane.selection.recommend(
             envelope=envelope,
             candidates=plane.models.entries(),
-            available_runtimes=plane.runtimes.product_identities(),
+            runtime_compatibility=compat,
         )
         planned = plan_from(recommendation)
         stored = plane.foundation.stored(host)
@@ -674,7 +700,16 @@ def register(router: Router, plane: ControlPlane) -> Router:
             "foundation_selection_mode": (
                 stored.selection_mode.value if stored is not None else None
             ),
+            "runtime_eligibility_status": view.status.value,
+            "runtime_eligibility_authoritative": view.status.value == "current",
         }
+
+    def models_eligible(_: ApiRequest) -> dict[str, object]:
+        """Runtime-aware eligible models. GET does not acquire or mutate."""
+        host = plane.hosts.current
+        payload = view_payload(_eligible_view(host))
+        payload["host_id"] = host.host_id.value
+        return payload
 
     def models_inventory(_: ApiRequest) -> dict[str, object]:
         """Plural stored artifacts. Stored is not running."""
@@ -720,7 +755,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
             recommendation = plane.selection.recommend(
                 envelope=envelope,
                 candidates=plane.models.entries(),
-                available_runtimes=plane.runtimes.product_identities(),
+                runtime_compatibility=_runtime_compat(host)[1],
             )
             if recommendation.primary is None:
                 raise PreconditionFailedError("no recommended candidate to acquire")
@@ -784,6 +819,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/runtime/execution/stop", stop_execution)
     router.get("/models", models)
     router.get("/models/selection", models_selection)
+    router.get("/models/eligible", models_eligible)
 
     def resources_summary(_: ApiRequest) -> object:
         """SAFE / RESERVED / AVAILABLE. Reserved is not running."""
@@ -847,7 +883,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
             ArtifactId.parse(raw),
             host,
             plane.stored_sanity(host),
-            plane.runtimes.product_identities(),
+            _runtime_compat(host)[1],
             request_id=request_id,
         )
 

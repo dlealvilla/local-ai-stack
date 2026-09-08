@@ -27,6 +27,7 @@ from kultrun.model.contracts import (
 )
 from kultrun.planning.contracts import (
     CapacityFitClass,
+    CompatibilityVerdict,
     DeploymentCapacity,
     ModelEvaluation,
     SelectionOutcome,
@@ -112,7 +113,6 @@ def _evaluate(
     safe_vram: Maybe[int] = SAFE_VRAM,
     safe_storage: Maybe[int] = 500 * GIB,
     placement: MemoryPlacement = MemoryPlacement.DISCRETE_GPU,
-    runtimes: tuple[str, ...] = ("vllm",),
     policy: SelectionPolicy | None = None,
     metadata: ModelMetadata | None = None,
     **requirement_overrides: object,
@@ -129,7 +129,6 @@ def _evaluate(
         meta,
         req,
         _capacity(vram=safe_vram, storage=safe_storage, placement=placement),
-        runtimes,
         policy or SelectionPolicy(),
     )
 
@@ -237,12 +236,8 @@ class TestProviderIndependence:
         )
         capacity = _capacity(vram=24 * GIB)
         policy = SelectionPolicy()
-        left = evaluate(
-            entry.metadata, kultrun, capacity, ("vllm", "llama.cpp"), policy
-        )
-        right = evaluate(
-            entry.metadata, llmfit, capacity, ("vllm", "llama.cpp"), policy
-        )
+        left = evaluate(entry.metadata, kultrun, capacity, policy)
+        right = evaluate(entry.metadata, llmfit, capacity, policy)
         assert left.estimator_provider == "kultrun"
         assert right.estimator_provider == "llmfit"
         assert left.required_vram_bytes == kultrun.estimated_vram_bytes
@@ -272,7 +267,6 @@ class TestProviderIndependence:
         recommendation = service.recommend(
             envelope=envelope,
             candidates=packaged_candidates()[:3],
-            available_runtimes=("vllm", "llama.cpp"),
         )
         assert recommendation.estimator_provider == "estimator-c"
         assert recommendation.outcome is SelectionOutcome.RECOMMENDED
@@ -294,7 +288,6 @@ class TestGpuAndCpuShapes:
         recommendation = service.recommend(
             envelope=envelope,
             candidates=packaged_candidates(),
-            available_runtimes=("vllm", "llama.cpp"),
         )
         if recommendation.primary is not None:
             assert recommendation.primary.capacity_fit is CapacityFitClass.PREFERRED
@@ -311,7 +304,6 @@ class TestGpuAndCpuShapes:
         recommendation = service.recommend(
             envelope=envelope,
             candidates=packaged_candidates(),
-            available_runtimes=("vllm", "llama.cpp"),
         )
         assert recommendation.outcome is SelectionOutcome.RECOMMENDED
         assert recommendation.primary is not None
@@ -334,7 +326,6 @@ class TestGpuAndCpuShapes:
         recommendation = service.recommend(
             envelope=envelope,
             candidates=packaged_candidates(),
-            available_runtimes=("vllm", "llama.cpp"),
         )
         assert recommendation.estimator_provider == "llmfit"
 
@@ -347,3 +338,29 @@ class TestUtilizationUsesSafeOnly:
         used = utilization(req, _capacity(vram=10 * GIB, storage=1))
         assert used.limiting_resource == "vram"
         assert used.ratio == 0.2
+
+
+class TestRuntimeEligibilityShim:
+    def test_blocked_eligibility_is_not_a_capacity_fit(self) -> None:
+        blocked = _evaluate()
+        blocked = evaluate(
+            _metadata(),
+            _requirement(ModelId.generate(), estimated_vram_bytes=2_000_000_000),
+            _capacity(),
+            SelectionPolicy(),
+            runtime_compatibility=CompatibilityVerdict.UNSUPPORTED,
+        )
+        assert blocked.compatibility is CompatibilityVerdict.UNSUPPORTED
+        assert blocked.preferred is False
+        assert blocked.capacity_fit is CapacityFitClass.EXCEEDS_SAFE
+
+    def test_evaluate_does_not_intersect_supported_runtimes(self) -> None:
+        text = (
+            Path(__file__).resolve().parents[1]
+            / "src"
+            / "kultrun"
+            / "planning"
+            / "evaluate.py"
+        ).read_text(encoding="utf-8")
+        assert "no overlapping runtime" not in text
+        assert "available_runtimes" not in text

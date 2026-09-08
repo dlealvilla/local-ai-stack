@@ -6,7 +6,7 @@ Lives in platform so planning ⟂ resource stays structural.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from kultrun.audit.contracts import (
     AuditDecision,
@@ -31,7 +31,7 @@ from kultrun.model.contracts import (
     ModelArtifact,
 )
 from kultrun.model.inventory import ModelInventory
-from kultrun.planning.contracts import DeploymentPlan
+from kultrun.planning.contracts import CompatibilityVerdict, DeploymentPlan
 from kultrun.planning.evaluate import deployment_capacity
 from kultrun.planning.service import SelectionService, plan_for_entry
 from kultrun.resource.contracts import (
@@ -80,7 +80,7 @@ class AdmissionService:
         artifact_id: ArtifactId,
         host: HostCapabilities,
         sanity: dict[str, StorageSanityEvidence],
-        available_runtimes: tuple[str, ...],
+        runtime_compatibility: Mapping[str, CompatibilityVerdict] | None = None,
         request_id: RequestId | None = None,
     ) -> AdmissionDecision:
         artifact = self._inventory.get(artifact_id)
@@ -92,7 +92,7 @@ class AdmissionService:
             envelope,
             self._models,
             self._selection,
-            available_runtimes,
+            runtime_compatibility,
             request_id=request_id,
         )
         decision = self._manager.admit(request, envelope, artifact)
@@ -151,7 +151,7 @@ def request_from_artifact(
     envelope: CapacityEnvelope,
     models: ModelCatalogue,
     selection: SelectionService,
-    available_runtimes: tuple[str, ...],
+    runtime_compatibility: Mapping[str, CompatibilityVerdict] | None = None,
     request_id: RequestId | None = None,
 ) -> ResourceRequest:
     """Build a request from server-side evidence. No caller amounts."""
@@ -168,7 +168,12 @@ def request_from_artifact(
             "no catalog evidence for this artifact",
             artifact_id=artifact.artifact_id.value,
         )
-    plan = plan_for_entry(selection, entry, envelope, available_runtimes)
+    ident = entry.metadata.model_id.value
+    if runtime_compatibility is None:
+        verdict = CompatibilityVerdict.COMPATIBLE
+    else:
+        verdict = runtime_compatibility.get(ident, CompatibilityVerdict.UNRESOLVED)
+    plan = plan_for_entry(selection, entry, envelope, verdict)
     capacity = deployment_capacity(envelope)
     fingerprint = _plan_fingerprint(artifact, plan, capacity.accelerator_index)
     incremental = NOT_PROVIDED

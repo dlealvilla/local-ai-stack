@@ -5380,6 +5380,205 @@
     },
     "python": "RuntimeCapabilityProfile"
   },
+  "runtime.eligible_model_candidate@1": {
+    "fields": {
+      "architecture": {
+        "may_be_unresolved": true,
+        "meaning": "architecture copied from catalog facts",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "family": {
+        "may_be_unresolved": true,
+        "meaning": "family copied from catalog facts",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "catalog logical name; not an eligibility stamp",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "catalog model identity this judgement applies to",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "quantization copied from catalog facts",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "reason_codes": {
+        "may_be_unresolved": false,
+        "meaning": "typed reasons; empty only when eligible",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[EligibilityReasonCode, ...]"
+      },
+      "reasons": {
+        "may_be_unresolved": false,
+        "meaning": "short factual notes; never a traceback",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "eligible, blocked, or unresolved for this foundation",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeEligibilityStatus"
+      }
+    },
+    "python": "RuntimeEligibleModelCandidate"
+  },
+  "runtime.eligible_model_view@1": {
+    "fields": {
+      "blocked_count": {
+        "may_be_unresolved": false,
+        "meaning": "how many catalog models are BLOCKED",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "candidates": {
+        "may_be_unresolved": false,
+        "meaning": "per-model judgements; empty when the view is unavailable",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[RuntimeEligibleModelCandidate, ...]"
+      },
+      "eligible_count": {
+        "may_be_unresolved": false,
+        "meaning": "how many catalog models are ELIGIBLE",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "evaluated_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this derived view was computed, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "executor": {
+        "may_be_unresolved": true,
+        "meaning": "executor identity of the selected installation",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "foundation_stale": {
+        "may_be_unresolved": false,
+        "meaning": "FoundationSelection.downstream_stale at computation time",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this view was computed for",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "installation_id": {
+        "may_be_unresolved": true,
+        "meaning": "matching RuntimeInstallation identity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "profile_id": {
+        "may_be_unresolved": true,
+        "meaning": "matching RuntimeCapabilityProfile identity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "profile_status": {
+        "may_be_unresolved": true,
+        "meaning": "effective verification status of that profile",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "reason_codes": {
+        "may_be_unresolved": false,
+        "meaning": "why this view is not current, when it is not",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[EligibilityReasonCode, ...]"
+      },
+      "recommended_candidate_id": {
+        "may_be_unresolved": true,
+        "meaning": "current recommendation; never used in place of selected",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime": {
+        "may_be_unresolved": true,
+        "meaning": "selected runtime family identity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "selected runtime version pin or observed version",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selected_candidate_id": {
+        "may_be_unresolved": true,
+        "meaning": "selected foundation this view is bound to",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selection_mode": {
+        "may_be_unresolved": true,
+        "meaning": "AUTO or MANUAL from FoundationSelection; unresolved when none",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "current, stale, or unavailable; only current is authoritative",
+        "nullable": false,
+        "optional": false,
+        "type": "EligibleViewStatus"
+      },
+      "unresolved_count": {
+        "may_be_unresolved": false,
+        "meaning": "how many catalog models are UNRESOLVED",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "view_id": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of this derived view for one host and foundation basis",
+        "nullable": false,
+        "optional": false,
+        "type": "EligibleModelViewId"
+      }
+    },
+    "python": "EligibleModelView"
+  },
   "runtime.foundation_selection@1": {
     "fields": {
       "created_at": {
