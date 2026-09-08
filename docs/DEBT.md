@@ -1452,6 +1452,98 @@ To make real: After 1.6D/1.6E produce a selected verified runtime path.
 Retire when:  executable selection consumes a derived eligible view.
 Status:       OPEN
 
+### K-88 — Runtime verification scheduling / background revalidation
+Label:        DEFERRED
+Owner stage:  later runtime
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6D:  No
+Current seam: Verification runs only on an explicit POST/CLI/Console
+              action. GET may present STALE. Startup does not probe.
+What:         Periodic or event-driven re-verification of installed
+              runtimes.
+Why now:      Milestone 1 needs an explicit verify path, not a scheduler.
+To make real: After 1.6D/1.6E, if operators need automatic refresh.
+Retire when:  scheduled revalidation has tests and does not auto-kill
+              running workloads.
+Status:       OPEN
+
+### K-89 — Deep / model-backed runtime qualification
+Label:        DEFERRED
+Owner stage:  later runtime / inference
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6D:  No
+Current seam: 1.6D verifies import, backend, and a tiny accelerator
+              operation. No model is loaded.
+What:         Engine initialization or validation workloads against a
+              real model beyond host/backend verification.
+Why now:      Model loading mixes architecture, format, quantization,
+              acquisition, and capacity into verification.
+To make real: After first real inference; keep model eligibility separate.
+Retire when:  a later stage owns model-backed runtime qualification.
+Status:       OPEN
+
+### K-90 — Empirical capability-matrix characterization
+Label:        DEFERRED
+Owner stage:  later runtime intelligence
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6D:  No
+Current seam: RuntimeCapabilityProfile has no quantization, context,
+              concurrency, or model-family fields.
+What:         Empirical qualification of quantization/context/concurrency
+              /model-family combinations on a verified runtime.
+Why now:      1.6D verifies the runtime, not every model it might serve.
+To make real: Combine descriptor + verified profile + model metadata.
+Retire when:  eligibility consumes an empirical matrix rather than
+              declared support alone.
+Status:       OPEN
+
+### K-91 — Container runtime verification
+Label:        DEFERRED
+Owner stage:  later execution / runtime
+Subsystem:    runtime / execution
+Authorizes:   NO
+Blocks 1.6D:  No
+Current seam: First product verifier is native-process vLLM. K-75 covers
+              containerized provisioning.
+What:         Real vLLM verification through ContainerExecutor including
+              GPU exposure.
+Why now:      1.6D proves the native path. Container GPU attach is later.
+To make real: After container provisioning (K-75) exists on a real host.
+Retire when:  a container verifier has L2 evidence.
+Status:       OPEN
+
+### K-92 — Verification evidence history / attestation
+Label:        DEFERRED
+Owner stage:  later runtime / audit
+Subsystem:    runtime
+Authorizes:   NO
+Blocks 1.6D:  No
+Current seam: One current profile per installation. Failed/stale details
+              are bounded on that record.
+What:         Immutable historical attempts, signatures, attestations,
+              richer audit of every verify.
+Why now:      MVP seam needs current status, not an evidence ledger.
+To make real: When operators need attempt history beyond last outcome.
+Retire when:  historical verification records have tests.
+Status:       OPEN
+
+### K-93 — Multi-host verification orchestration
+Label:        DEFERRED
+Owner stage:  later fleet
+Subsystem:    runtime / platform
+Authorizes:   NO
+Blocks 1.6D:  No
+Current seam: Profiles are host-scoped. K-60 covers multi-host
+              resolution.
+What:         Orchestrating verification across a fleet of hosts.
+Why now:      Milestone 1 is a single reference host.
+To make real: After multi-host runtime resolution (K-60) is in play.
+Retire when:  fleet verification is an accepted control-plane path.
+Status:       OPEN
+
 ## Deferred capability register
 
 Distinct from the debt entries above. A debt entry records an approximation

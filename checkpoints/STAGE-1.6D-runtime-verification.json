@@ -1,0 +1,90 @@
+{
+  "stage": "1.6D",
+  "name": "runtime-verification",
+  "milestone": 1,
+  "output": "RuntimeVerifier + RuntimeCapabilityProfile + RuntimeVerificationBasis + vLLM native verifier + fixture verifier",
+  "status": "open",
+  "gate": "L2",
+  "evidence_level": "L1",
+  "t3_required": true,
+  "ready_for_t3": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "0f39753d9d2b2c9e2942ca852983efa2e6203ad3",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.6C-runtime-provisioning.json"
+    ],
+    "starting_source_commit": "0f39753d9d2b2c9e2942ca852983efa2e6203ad3",
+    "safety_tag": "checkpoint/stage-1.6C-closed-0f39753",
+    "safety_branch": "safety/pre-runtime-verification-0f39753",
+    "feature_branch": "stage/1.6D-runtime-verification",
+    "old_experimental_16_branch": "stage/1.6-runtime-first",
+    "old_experimental_16_commit": "68c29390b3aaffcda2b1afc9490ec3e58acefce8",
+    "old_experimental_16_untouched": true
+  },
+  "contracts": {
+    "runtime.capability_profile": "runtime.capability_profile@1",
+    "runtime.verification_basis": "runtime.verification_basis@1",
+    "runtime.verification_check": "runtime.verification_check@1",
+    "runtime.verification_probe": "runtime.verification_probe@1",
+    "model_fields_on_profile": false,
+    "recommendation_fields_on_profile": false,
+    "performance_score": false
+  },
+  "profile_identity": {
+    "form": "rcap_<16 hex sha256>",
+    "material": "runtime.capability_profile@1|installation_id",
+    "one_current_profile_per_installation": true
+  },
+  "states": ["unverified", "verified", "failed", "stale"],
+  "installed_implies_verified": false,
+  "verified_implies_model_compatible": false,
+  "verification_does_not_mutate_installation": true,
+  "verifier": {
+    "port": "RuntimeVerifier",
+    "fixture": "FixtureRuntimeVerifier",
+    "product": "VllmNativeVerifier",
+    "composition_default": "fixture on captured host; vllm-native on live host",
+    "override": "KULTRUN_RUNTIME_VERIFIER",
+    "shell": false,
+    "direct_subprocess": false,
+    "executor_bound": true,
+    "probe_runner": "ExecutorProbeRunner copies RuntimeVerificationProbe into ExecutorSpec"
+  },
+  "staleness": {
+    "basis": "installation + runtime version + python identity + executor + OS/arch + accelerator identity + driver",
+    "excludes": ["free RAM", "free VRAM", "disk free", "utilization", "host.fingerprint"],
+    "read_runs_probe": false,
+    "startup_runs_probe": false,
+    "GET_may_present_stale": true
+  },
+  "idempotency": {
+    "fresh_verified_reuses_profile": true,
+    "failed_explicit_retry": true,
+    "stale_explicit_reverify": true,
+    "forced_reverify": false
+  },
+  "k66": {
+    "status": "OPEN",
+    "implemented": false,
+    "python_auto_install_during_verify": false
+  },
+  "k77": {
+    "status": "OPEN",
+    "implemented": false,
+    "driver_changed": false
+  },
+  "deferred": ["K-88", "K-89", "K-90", "K-91", "K-92", "K-93"],
+  "existing_debt_preserved": ["K-56", "K-58", "K-60", "K-61", "K-65", "K-66", "K-75", "K-77", "K-80", "K-83", "K-86", "K-87"],
+  "t2": {
+    "passed": false,
+    "wheel": null,
+    "sha256": null
+  },
+  "t3": {
+    "passed": false,
+    "host_rediscovered": false
+  },
+  "merge": {
+    "performed": false
+  }
+}

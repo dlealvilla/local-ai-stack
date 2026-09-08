@@ -366,8 +366,20 @@ Success is package metadata plus installer-report provenance, never
 Bounded administrator selection is a cross-cutting principle
 (`docs/ROADMAP.md` Part II §11). Tests that mutate provisioning must
 prove the explicit candidate is the one installed: no silent
-substitution of the AUTO recommendation. Ranking, alternatives UI, and
-verify endpoints are out of this stage.
+substitution of the AUTO recommendation. Ranking and alternatives UI
+are out of 1.6C.
+
+**Stage 1.6D** is T0/T1/T2 control-plane verification plus a required
+real NVIDIA T3 for L2 close. Tests cover profile schema and identity,
+verification-basis fingerprint, driver/accelerator/runtime staleness,
+free RAM/VRAM non-staleness, success/failure/retry/idempotency, fixture
+scenarios A–O, architecture non-edges, API/CLI/Console, and that GET
+never probes. T2 uses the fixture verifier in a clean wheel; that is
+not real vLLM. T3 must rediscover the host, verify the exact installed
+`vllm==0.28.0` native-process path, actually `import vllm`, import the
+backend, see the NVIDIA device, and run a tiny CUDA operation. No
+model is downloaded or loaded. Stage 1.6D T3 is not real model
+inference.
 
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.

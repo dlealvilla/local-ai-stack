@@ -176,10 +176,13 @@ Provisioning consumes the explicitly selected candidate and does not
 silently substitute another path. Checkpoint:
 `checkpoints/STAGE-1.6C-runtime-provisioning.json`.
 
-Bounded administrator selection and dependency recalculation are
-recorded in `docs/PRODUCT_VISION.md` §5.11 / §82 and
-`docs/ROADMAP.md` Part II §11. They become executable at 1.6E after
-verification. Do not begin 1.6D or 1.6E from this package.
+**Stage 1.6D is in progress.** Runtime verification: exact installation
+to `RuntimeCapabilityProfile`. `INSTALLED` is not `VERIFIED`. `VERIFIED`
+is not model-compatible. Checkpoint:
+`checkpoints/STAGE-1.6D-runtime-verification.json`.
 
-**Next:** Stage 1.6D Runtime Verification. Present depth options before
-implementation. Do not begin it from this package.
+Bounded administrator selection becomes executable at 1.6E. Do not
+begin Stage 1.6E from this package.
+
+**Next after 1.6D close:** Stage 1.6E Runtime Evaluation / Bounded
+Selection. Present depth options before implementation.

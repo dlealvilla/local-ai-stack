@@ -686,7 +686,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6C Runtime Provisioning                 ← CLOSED L2
   ↓
-1.6D Runtime Verification                 ← not begun
+1.6D Runtime Verification                 ← current
   ↓
 1.6E Runtime Evaluation / Selection       ← not begun; first bounded runtime override
   ↓
@@ -1195,12 +1195,15 @@ remediation (K-77) remain deferred; 1.6C must not apt-install either.
 ### Stage 1.6D — Runtime Verification
 
 Verify a specific `RuntimeInstallation` on the actual
-runtime+executor+host path. Produce structured VERIFIED / FAILED /
-UNRESOLVED evidence. Do not rank, recommend, or silently fall back.
-Only VERIFIED paths may later enter the selectable runtime set.
+runtime+executor+host path. Produce a `RuntimeCapabilityProfile` with
+VERIFIED / FAILED / STALE / UNVERIFIED states. Do not rank, recommend,
+or silently fall back. Only VERIFIED paths may later enter the
+selectable runtime set. Installed is not verified. Verified is not
+model-compatible.
 
-**Output:** structured verification evidence for an exact installation ·
-**Gate:** not begun. Do not start from 1.6C.
+**Output:** `RuntimeVerifier` + `RuntimeCapabilityProfile` for an exact
+installation · **Gate:** L2 required. T2 is fixture L1. Real NVIDIA T3
+required to close.
 
 ### Stage 1.6E — Runtime Evaluation & Selection
 
@@ -1223,7 +1226,7 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6D** is verification. **1.6E** is bounded runtime selection.
 Later letters cover `RuntimeCapabilityProfile` consumption in
 eligibility remap, acquisition, admission, and real inference.
-**1.6D and later are not begun** here.
+**1.6D and 1.6E are not begun from 1.6C.** 1.6D is the current stage.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, endpoint, a real prompt, a real response. Prototype
@@ -2201,17 +2204,22 @@ SELECTION SEAM               Provision the explicitly identified
                              INSTALLED is not VERIFIED. No ranking UI.
 ```
 
-### Stage 1.6D brief (not begun)
+### Stage 1.6D brief (current)
 
 ```text
 CURRENT STAGE                Runtime verification. Exact installation
-                             path. Evidence, not recommendation.
-PREDECESSOR OUTPUTS          Stage 1.6C RuntimeInstallation.
-THIS STAGE'S REQUIRED OUTPUT Structured VERIFIED / FAILED / UNRESOLVED
-                             evidence for runtime+executor+host+install.
+                             → host/executor probe → capability profile.
+PREDECESSOR OUTPUTS          Stage 1.6C CLOSED L2
+                             (`0f39753d9d2b2c9e2942ca852983efa2e6203ad3`).
+THIS STAGE'S REQUIRED OUTPUT RuntimeVerifier; RuntimeCapabilityProfile;
+                             RuntimeVerificationBasis; vLLM native
+                             verifier; fixture verifier; persistence;
+                             idempotency; staleness; API/CLI/Console;
+                             T0/T1/T2; real T3 for L2.
 MUST NOT                     Rank; recommend; silently fall back;
-                             treat INSTALLED as VERIFIED.
-DEFERRED ITEMS               1.6E bounded runtime selection.
+                             treat INSTALLED as VERIFIED; treat VERIFIED
+                             as model-compatible; load a model; infer.
+DEFERRED ITEMS               1.6E bounded runtime selection. K-88…K-93.
 ```
 
 ### Stage 1.6E brief (not begun)
