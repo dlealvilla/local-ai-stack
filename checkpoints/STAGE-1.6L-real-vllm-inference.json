@@ -37,6 +37,7 @@
       "branch": "stage/1.6L-real-vllm-inference",
       "calibration_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
       "pre_readiness_fix_commit": "d9097f2bac8e5bc0b5f3a4c90d192ba2a0544840",
+      "readiness_fix_commit": "4b9c9c9614459eaa37a32f0c4354a198df6b5cf5",
       "state": "LOCAL_READINESS_FIX_THEN_FREEZE",
       "frozen": true,
       "awaiting": "NEW_INTEGRATION_WHEEL_THEN_NEW_GPU_HOST"
