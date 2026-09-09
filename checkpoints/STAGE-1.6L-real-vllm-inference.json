@@ -25,6 +25,8 @@
     "inference.request": "inference.request@1",
     "inference.response": "inference.response@1",
     "runtime.launch_request": "runtime.launch_request@1",
+    "planning.available_model_view": "planning.available_model_view@1",
+    "model.weight_footprint_evidence": "model.weight_footprint_evidence@1",
     "vllm_runtime_v2": false,
     "vllm_serving_v2": false
   },
@@ -75,14 +77,33 @@
     "clean_source": true,
     "acceptance_evidence": true,
     "script": "tools/t2_vllm_inference.py",
-    "source_commit": "e7315a6628adbfa07058e841e333b5a9ec8473e6",
+    "source_commit": "2db886836205eb9749c78383e1649f4938b6a7c2",
     "wheel": "kultrun-0.1.0-py3-none-any.whl",
-    "sha256": "0ed58ae4aa0f830d3fbd4d8147d15a0593517e564a9cd36f21bc485182ef5f35",
-    "build_id": "0.1.0+e7315a6628ad",
+    "sha256": "c63f70410f69414af02d0352bde067ecb8ec2660319ea06b8e888decd24578fc",
+    "build_id": "0.1.0+2db886836205",
     "source_checkout": false,
     "editable": false,
     "dirty_wip_wheel_used": false,
-    "local_tests": 959,
+    "local_tests": 996,
+    "funnel": {
+      "universe": 20,
+      "discovered": 20,
+      "compatibility": 5,
+      "cheap_reject": 0,
+      "deep_analyzed": 5,
+      "available": 3,
+      "excluded": 17,
+      "estimator_invocations": 5,
+      "available_models": [
+        "qwen2.5-0.5b-instruct-awq",
+        "qwen2.5-14b-instruct-awq",
+        "qwen2.5-7b-instruct-awq"
+      ],
+      "recommended": "qwen2.5-14b-instruct-awq",
+      "selected": "qwen2.5-14b-instruct-awq",
+      "mode": "AUTO",
+      "printed_before_recommendation": true
+    },
     "wheel_suite_excludes": [
       "test_the_live_source_tree_reports_itself_as_source",
       "test_version_identifies_the_running_build"
@@ -126,9 +147,9 @@
     "performed": false
   },
   "END_LINK": {
-    "acceptance_source_commit": "e7315a6628adbfa07058e841e333b5a9ec8473e6",
-    "t2_artifact_sha256": "0ed58ae4aa0f830d3fbd4d8147d15a0593517e564a9cd36f21bc485182ef5f35",
+    "acceptance_source_commit": "2db886836205eb9749c78383e1649f4938b6a7c2",
+    "t2_artifact_sha256": "c63f70410f69414af02d0352bde067ecb8ec2660319ea06b8e888decd24578fc",
     "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
-    "next": "Complete T3/T5 on a fresh GPU host using this exact wheel. Do not begin Stage 1.6M, streaming, or additional runtimes."
+    "next": "Complete T3/T5 on a fresh GPU host using this exact wheel (SHA c63f70410f69414af02d0352bde067ecb8ec2660319ea06b8e888decd24578fc). Do not begin Stage 1.6M, streaming, or additional runtimes."
   }
 }
