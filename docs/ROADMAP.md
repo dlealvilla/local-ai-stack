@@ -1382,8 +1382,11 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6G is CLOSED L1.** **1.6H is CLOSED L1.** **1.6I is CLOSED L1.**
 **1.6J is CLOSED L1.** **1.6K is CLOSED L1.**
 **1.6L is OPEN** until real T3 launch and T5 Kultrun prompt → generated
-response. Do not mark CLOSED at L1. Do not begin streaming, cancellation,
-container GPU, additional runtimes, or routing from this stage.
+response. Stream A runtime-memory calibration is implemented; T3/T5
+wait for Stream B to freeze, then one temporary integration artifact,
+then a fresh GPU host. Do not mark CLOSED at L1. Do not begin
+streaming, cancellation, container GPU, additional runtimes, or
+routing from this stage.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, loopback endpoint, a real prompt, a real response.
@@ -2746,7 +2749,8 @@ CANCELLATION / CLEANUP       Existing stop; readiness timeout stops the
                              process; reservation remains until explicit
                              release; artifact retained.
 ACCEPTANCE LEVEL             L3 required. Stage stays OPEN until T5.
-                             T0/T1/T2 local is not closure.
+                             T0/T1/T2 local is not closure. T3/T5 wait
+                             for Stream B freeze + integration artifact.
 ADMIN SURFACE                GET /v1/models/available;
                              POST /v1/models/available/refresh;
                              kultrun models available;

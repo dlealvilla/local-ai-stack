@@ -1723,7 +1723,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6I | Authoritative DeploymentPlan | 1.6H | ✅ closed L1 |
 | 1.6J | Plan-driven Acquisition + Resource admission | 1.6I | ✅ closed L1 |
 | 1.6K | Plan-driven InferenceInstance create | 1.6J | ✅ closed L1 |
-| 1.6L | first real native vLLM serving + bounded inference; staged Available Models funnel; runtime-memory calibration before Available; runtime-aware requirement; current available capacity | 1.6K | OPEN; T0/T1/T2 local; T3/T5 pending |
+| 1.6L | first real native vLLM serving + bounded inference; staged Available Models funnel; runtime-memory calibration before Available; runtime-aware requirement; current available capacity | 1.6K | OPEN; T0/T1/T2 local; Stream A frozen; T3/T5 pending Stream B freeze + integration artifact |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; 1.6L is the serving vertical |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

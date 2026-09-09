@@ -2,8 +2,9 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN — awaiting T3/T5 L3 evidence.** Checkpoint:
-`checkpoints/STAGE-1.6L-real-vllm-inference.json`.
+Status: **OPEN — Stream A frozen; awaiting Stream B freeze, then a
+temporary integration artifact, then fresh-host T3/T5 L3 evidence.**
+Checkpoint: `checkpoints/STAGE-1.6L-real-vllm-inference.json`.
 
 This stage extends the authoritative preparation chain into real serving.
 It does not reopen Stages 1.6B–1.6K. It does not implement container GPU,
@@ -145,6 +146,9 @@ consume storage via live free space; they do not consume VRAM.
 ResourceManager remains final admission. Provider-enabled T2 is the
 same wheel in two isolated installs: T2-A core-only offline catalog
 and Kultrun fallback; T2-B extras `acquisition,estimators,analysis`
-with `KULTRUN_MODEL_SOURCE_MODE=live`. T3/T5 on a real GPU host
-must install that exact wheel with those extras. They remain required
-for close.
+with `KULTRUN_MODEL_SOURCE_MODE=live`. T3/T5 are not ready from
+Stream A alone. They require Stream B frozen, a temporary integration
+artifact that combines the exact frozen Stream A commit with the exact
+frozen Stream B commit, and a completely fresh GPU host. The current
+Stream A wheel is packaging evidence only. Do not begin T3/T5 or
+Stage 1.6M from this freeze.

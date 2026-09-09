@@ -2,13 +2,19 @@
   "stage": "1.6L",
   "name": "real-vllm-inference",
   "milestone": 1,
-  "output": "first real native vLLM serving vertical: exact RuntimeInstallation + local ModelArtifact + NativeProcessExecutor + readiness + bounded InferenceRequest/Response",
+  "output": "first real native vLLM serving vertical: exact RuntimeInstallation + local ModelArtifact + NativeProcessExecutor + readiness + bounded InferenceRequest/Response; highest-pressure runtime-memory calibration before Available Models",
   "status": "open",
   "gate": "L3",
-  "evidence_level": "T2-A/T2-B local; T3/T5 pending",
+  "evidence_level": "T2-A/T2-B local plus T0/T1 calibration; T3/T5 not started",
   "t3_required": true,
   "t5_required": true,
-  "ready_for_t3": true,
+  "ready_for_t3": false,
+  "ready_for_integration": false,
+  "runtime_calibration": "implemented",
+  "t3_after_calibration": "NOT_STARTED",
+  "t5_status": "NOT_STARTED",
+  "stage_1_6m": "NOT_STARTED",
+  "integration_artifact": "NOT_YET_CREATED",
   "START_LINK": {
     "predecessor_accepted_commit": "1e51f13ec2a7c2e1fa34b6a3ec0c92f712d4b43e",
     "predecessor_checkpoints": [
@@ -17,14 +23,38 @@
     "starting_source_commit": "1e51f13ec2a7c2e1fa34b6a3ec0c92f712d4b43e",
     "safety_tag": "checkpoint/stage-1.6K-closed-1e51f13ec",
     "safety_branch": "safety/pre-real-vllm-inference-1e51f13ec",
+    "pre_calibration_safety": "safety/pre-runtime-calibration-36195a9",
+    "pre_calibration_commit": "36195a9ab9093a9a47e38e85135ed06897b1e44f",
     "feature_branch": "stage/1.6L-real-vllm-inference",
     "predecessor_closed": true,
-    "do_not_reopen": ["1.6B", "1.6C", "1.6D", "1.6E", "1.6F", "1.6G", "1.6H", "1.6I", "1.6J", "1.6K"]
+    "do_not_reopen": ["1.6A", "1.6B", "1.6C", "1.6D", "1.6E", "1.6F", "1.6G", "1.6H", "1.6I", "1.6J", "1.6K"]
+  },
+  "streams": {
+    "stream_a": {
+      "owner": "Runtime / Deployment Engineering",
+      "branch": "stage/1.6L-real-vllm-inference",
+      "calibration_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
+      "state": "CLEAN_PUSHED_THEN_FREEZE",
+      "frozen": true,
+      "awaiting": "STREAM_B"
+    },
+    "stream_b": {
+      "owner": "Data Engineering / Data Warehousing",
+      "worktree": "/Users/usyd/Projects/ai-stack-data-warehouse",
+      "branch": "data/phase-0-local-telemetry",
+      "committed_head": "25e3712bd70bffb89cc44d6d159e42b0cbe1a7b2",
+      "pushed": true,
+      "tree": "DIRTY",
+      "frozen": false,
+      "independent_evidence": false,
+      "note": "implementation exists uncommitted; not frozen"
+    }
   },
   "contracts": {
     "inference.request": "inference.request@1",
     "inference.response": "inference.response@1",
     "runtime.launch_request": "runtime.launch_request@1",
+    "runtime.memory_profile": "runtime.memory_profile@1",
     "planning.available_model_view": "planning.available_model_view@1",
     "model.weight_footprint_evidence": "model.weight_footprint_evidence@1",
     "vllm_runtime_v2": false,
@@ -44,7 +74,14 @@
     "auto_restart": false,
     "gpu_memory_source": "reservation",
     "gpu_memory_control": "--gpu-memory-utilization",
-    "hard_vram_cgroup": false
+    "hard_vram_cgroup": false,
+    "runtime_memory_calibration": "before_available_membership",
+    "estimated_feasible_is_not_available": true,
+    "calibration_raise_only": true,
+    "class_bound_transfer": true,
+    "probe_is_not_inference_instance": true,
+    "probe_reservation_workload": "EVALUATION",
+    "get_persist_false_cannot_launch_gpu": true
   },
   "k66": {
     "status": "OPEN",
@@ -61,7 +98,7 @@
   "k96": {
     "status": "OPEN",
     "implemented": false,
-    "note": "llmfit plan minimum is not native vLLM serving demand; AUTO refines successful llmfit vLLM plan components through Kultrun composition and does not shop estimators"
+    "note": "calibration is the vLLM Available gate; fixture proof that plan/ResourceRequest carry calibrated bytes does not close K-96. Close only when fresh-host T3 proves the calibrated total is what Available and admission use."
   },
   "k97": {
     "status": "OPEN",
@@ -73,12 +110,24 @@
     "note": "optional live empty-skeleton analyzer exists when model_source_mode=live and the analysis extra is installed; never vLLM availability authority; skipped when Safetensors already resolved the cheap bound"
   },
   "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95", "K-96", "K-97", "K-98"],
+  "current_artifact": {
+    "source_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
+    "wheel": "kultrun-0.1.0-py3-none-any.whl",
+    "sha256": "c828b72bbcbfd50eba4c7cd28e1c2877b36fa71df572ab2c76da28433ed57c39",
+    "build_id": "0.1.0+f13e6e9adacf",
+    "clean_source": true,
+    "acceptable_stream_a_artifact": true,
+    "acceptable_integration_or_t3_artifact": false,
+    "dirty_wip_wheel_sha256": "c4fdd71d19254afab7d6bafb57b400258d599bdf156954643fe3cbc317c7d91b",
+    "historical_pre_calibration_t2_sha256": "9fbc5e0b4ab9303fcea12c4fbb2bc0a69a7002e2520f0b22393c6ec37dd70537"
+  },
   "t2": {
     "passed": true,
     "clean_source": true,
     "acceptance_evidence": true,
     "script": "tools/t2_vllm_inference.py",
     "source_commit": "a4a1c2c992e7d64f2dc1e3d26fddb67e04428e27",
+    "note": "historical pre-calibration T2-A/T2-B; not current Stream A identity; not T3 authority",
     "wheel": "kultrun-0.1.0-py3-none-any.whl",
     "sha256": "9fbc5e0b4ab9303fcea12c4fbb2bc0a69a7002e2520f0b22393c6ec37dd70537",
     "build_id": "0.1.0+a4a1c2c992e7",
@@ -89,98 +138,21 @@
     "ruff": "clean",
     "mypy_src": "clean",
     "mypy_tools": "clean",
-    "real_gpu": false,
-    "historical_offline_wheel_sha256": "c63f70410f69414af02d0352bde067ecb8ec2660319ea06b8e888decd24578fc",
-    "t2a_offline": {
-      "core_only": true,
-      "extras": [],
-      "providers_unavailable_behavior": "curated catalog and kultrun fallback remain usable",
-      "funnel": {
-        "universe": 20,
-        "discovered": 20,
-        "compatibility": 5,
-        "cheap_reject": 0,
-        "deep_analyzed": 5,
-        "available": 3,
-        "excluded": 17,
-        "estimator_invocations": 5,
-        "available_models": [
-          "qwen2.5-0.5b-instruct-awq",
-          "qwen2.5-14b-instruct-awq",
-          "qwen2.5-7b-instruct-awq"
-        ],
-        "recommended": "qwen2.5-14b-instruct-awq",
-        "selected": "qwen2.5-14b-instruct-awq",
-        "mode": "AUTO",
-        "effective_estimator": "kultrun",
-        "fallback": "provider_unavailable",
-        "printed_before_recommendation": true
-      },
-      "vllm_start_state": "failed",
-      "infer_reason": "instance_not_running",
-      "reference_runtime": "reference-serving",
-      "chat_status": 404,
-      "wheel_suite_excludes": [
-        "test_the_live_source_tree_reports_itself_as_source",
-        "test_version_identifies_the_running_build"
-      ]
-    },
-    "t2b_connected": {
-      "same_wheel": true,
-      "extras": ["acquisition", "estimators", "analysis"],
-      "hf_live": true,
-      "safetensors_live": true,
-      "accelerate_provider": true,
-      "llmfit_real": true,
-      "llmfit_version": "1.1.14",
-      "full_weight_download": false,
-      "qwen_7b_awq": {
-        "source_ref": "Qwen/Qwen2.5-7B-Instruct-AWQ",
-        "sharded": true,
-        "serialized_tensor_bytes": 5570747392,
-        "raw_llmfit_minimum_vram_gb": 4.7453082559999995,
-        "raw_llmfit_recommended_vram_gb": 7.1,
-        "kv_fp16_gb": 0.4375,
-        "refined_vram_bytes": 5900542310,
-        "estimator_provider": "llmfit"
-      },
-      "funnel": {
-        "universe": 50,
-        "discovered": 69,
-        "compatibility": 5,
-        "cheap_reject": 1,
-        "deep_analyzed": 4,
-        "available": 4,
-        "excluded": 66,
-        "available_models": [
-          "llama-3.1-8b-instruct-fp16",
-          "qwen2.5-0.5b-instruct-awq",
-          "qwen2.5-14b-instruct-awq",
-          "qwen2.5-7b-instruct-awq"
-        ],
-        "cheap_reject_example": "qwen2.5-72b-instruct-awq",
-        "recommended": "qwen2.5-14b-instruct-awq",
-        "selected": "qwen2.5-14b-instruct-awq",
-        "mode": "AUTO",
-        "effective_estimator": "llmfit",
-        "fallback": false,
-        "printed_before_recommendation": true
-      }
-    }
+    "real_gpu": false
   },
   "acceptance": {
     "level": "T2 local",
     "required": "L3",
     "real_host": false,
     "date": "2026-09-09",
-    "method": "T0/T1 plus T2-A core wheel and T2-B same wheel with acquisition,estimators,analysis extras. T3/T5 required for close."
+    "method": "Stream A freeze after runtime-memory calibration. Historical T2-A/T2-B retained. Fresh T3/T5 require Stream B freeze + integration artifact. Do not claim L3."
   },
   "test_modes": {
-    "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; staged Available Models funnel; optional live Hub listing; cheap Safetensors metadata bound; optional Accelerate empty-skeleton; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within Available Models; no reference fallback",
-    "T1": "vLLM HTTP protocol fixture; funnel fixture 20/12/7/2/5/3; llmfit fixture after cheap bound; Available Models printed before selector; estimator invocations saved; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible",
-    "T2": "same clean wheel, two isolated installs: T2-A core-only offline catalog+fallback; T2-B extras prove live Hub/Safetensors/Accelerate/llmfit then Available Models before recommend",
-    "T3": "required; not yet performed; must install this exact wheel with declared provider extras",
-    "T5": "required; Kultrun prompt to generated response; not yet performed"
+    "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; staged Available Models funnel; runtime-memory class/sentinel/raise-only calibration; optional live Hub listing; cheap Safetensors metadata bound; optional Accelerate empty-skeleton; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within Available Models; no reference fallback",
+    "T1": "vLLM HTTP protocol fixture; funnel fixture; llmfit fixture after cheap bound; Available Models printed before selector; estimator invocations saved; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible; estimated-feasible is not Available without calibration",
+    "T2": "same clean wheel, two isolated installs: T2-A core-only offline catalog+fallback; T2-B extras prove live Hub/Safetensors/Accelerate/llmfit then Available Models before recommend. Historical evidence predates calibration-as-gate.",
+    "T3": "required; NOT STARTED after calibration; blocked until Stream B is frozen and a temporary integration artifact exists; must use a completely fresh GPU host",
+    "T5": "required; NOT STARTED; same integration and fresh-host constraints as T3"
   },
   "not_begun": [
     "streaming",
@@ -192,15 +164,19 @@
     "routing",
     "production chat frontend",
     "K-66 Managed Python",
-    "K-77 driver remediation"
+    "K-77 driver remediation",
+    "Stage 1.6M",
+    "acceptance/1.6L-with-telemetry",
+    "fresh-host T3 after calibration",
+    "fresh-host T5"
   ],
   "merge": {
     "performed": false
   },
   "END_LINK": {
-    "acceptance_source_commit": "a4a1c2c992e7d64f2dc1e3d26fddb67e04428e27",
-    "t2_artifact_sha256": "9fbc5e0b4ab9303fcea12c4fbb2bc0a69a7002e2520f0b22393c6ec37dd70537",
+    "acceptance_source_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
+    "stream_a_wheel_sha256": "c828b72bbcbfd50eba4c7cd28e1c2877b36fa71df572ab2c76da28433ed57c39",
     "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
-    "next": "Complete T3/T5 on a fresh GPU host by installing this exact wheel (SHA 9fbc5e0b4ab9303fcea12c4fbb2bc0a69a7002e2520f0b22393c6ec37dd70537) with extras acquisition,estimators,analysis and KULTRUN_MODEL_SOURCE_MODE=live. Do not begin Stage 1.6M, streaming, or additional runtimes."
+    "next": "STOP and await independent Stream B PASTE BACK. Then create temporary worktree /Users/usyd/Projects/ai-stack-acceptance on acceptance/1.6L-with-telemetry combining exact frozen Stream A + exact frozen Stream B, build one clean integration wheel, and run T3/T5 on a completely fresh GPU host. Do not reuse 213.173.108.47. Do not begin Stage 1.6M."
   }
 }
