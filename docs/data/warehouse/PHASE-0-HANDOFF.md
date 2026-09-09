@@ -1,13 +1,8 @@
 # Phase 0 handoff — Local telemetry
 
-**NEW_DATA_CHAT_REQUIRED**
-
-Cursor could not open a separate project chat from the Stage 1.6L
-runtime agent. Open a **new** Cursor chat, name it
-`Data Engineering — Phase 0 Local Telemetry` (or
-`Data Warehousing — Phase 0`), and point it at this worktree.
-
-Do **not** continue this work in the Stage 1.6L runtime chat.
+Phase 0 is implemented on `data/phase-0-local-telemetry`.
+Do **not** continue data implementation in the Stage 1.6L runtime chat.
+Do **not** begin later warehouse phases from this file.
 
 ---
 
