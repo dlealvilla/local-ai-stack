@@ -21,9 +21,12 @@ THIS STAGE'S REQUIRED OUTPUT Exact RuntimeInstallation; local artifact;
                              loopback RuntimeLaunchSpec; readiness;
                              InferenceRequest/Response; API + CLI infer.
                              Staged Available Models funnel before
-                             ModelSelector.
+                             ModelSelector. Estimated-feasible is not
+                             Available; vLLM members require resolved
+                             highest-pressure runtime-memory calibration.
 CORE CONTRACTS AFFECTED      runtime.launch_request optional serving
-                             fields; inference.request@1;
+                             fields; runtime.memory_profile@1;
+                             inference.request@1;
                              inference.response@1. No VllmRuntimeV2.
 ADAPTERS AFFECTED            existing vLLM runtime adapter.
 PERSISTED STATE              InferenceInstance endpoint/ready/lifecycle.
@@ -40,7 +43,9 @@ ADMIN SURFACE                GET /v1/models/available; POST /v1/models/available
                              before Model selection; POST /v1/inference/instances/start|stop|infer;
                              kultrun instances start|inspect|infer|stop.
 DEBT ENTRIES                 K-66, K-77 remain OPEN. K-95 deferred depth.
-                             K-96 llmfit plan is not native vLLM serving.
+                             K-96 llmfit plan is not native vLLM serving;
+                             measured runtime-memory calibration is the
+                             Available gate, still OPEN until T3.
                              K-97 Hub ingest deferred. K-98 live Accelerate
                              remains optional/structural-only; default
                              product path stays offline.
@@ -58,6 +63,12 @@ Kultrun compatibility prefilter
 cheap factual weight bound
         ↓
 deep ModelRequirement
+        ↓
+ESTIMATED-FEASIBLE (not Available)
+        ↓
+highest-pressure runtime-memory calibration
+        ↓
+CALIBRATED ModelRequirement
         ↓
 one CurrentCapacitySnapshot
         ↓

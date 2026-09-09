@@ -23,6 +23,7 @@ from kultrun.adapters.model_source.safetensors import (
     serialized_tensor_bytes,
 )
 from kultrun.adapters.persistence.file_store import FileStore
+from kultrun.adapters.runtime.vllm_memory import VllmMemoryInterpreter
 from kultrun.api.contracts import Method
 from kultrun.capacity.envelope import CapacityService
 from kultrun.evidence.contracts import Confidence
@@ -70,6 +71,7 @@ from kultrun.platform.model_selection import (
     ModelSelectionLock,
     ModelSelectionService,
 )
+from kultrun.platform.runtime_memory import RuntimeMemoryCalibrationService
 from kultrun.runtime.contracts import (
     EligibilityReasonCode,
     EligibleModelView,
@@ -145,13 +147,13 @@ class _MapEstimator:
             ram_bytes=GIB,
             unified_memory_bytes=NOT_PROVIDED,
             estimated_vram_bytes=value if isinstance(value, int) else NOT_PROVIDED,
-            assumed_context_tokens=request.context_tokens,
+            assumed_context_tokens=8192,
             supported_runtimes=(str(request.runtime),),
             estimation_method="funnel-test",
             estimator_provider="kultrun",
             estimator_version=self.version,
             assumed_runtime=str(request.runtime),
-            assumed_batch_size=request.batch_size,
+            assumed_batch_size=1,
         )
 
 
@@ -213,6 +215,9 @@ def _view_for(
                 status=status,
                 reason_codes=codes,
                 reasons=reasons,
+                architecture=entry.metadata.architecture,
+                quantization=entry.metadata.quantization,
+                family=entry.metadata.family,
             )
         )
     return EligibleModelView(
@@ -224,6 +229,7 @@ def _view_for(
         selected_candidate_id="cand",
         runtime="vllm",
         runtime_version="0.28.0",
+        executor="native-process",
         profile_id="prof",
         eligible_count=len(eligible),
         blocked_count=len(blocked),
@@ -254,15 +260,20 @@ def _service(
     structural=None,
     policy: SelectionPolicy | None = None,
 ) -> AvailableModelsService:
+    store = FileStore(tmp_path / "records")
+    clock = FixedClock(now_utc())
     return AvailableModelsService(
-        FileStore(tmp_path / "records"),
-        FixedClock(now_utc()),
+        store,
+        clock,
         models,
         estimator,
         policy or SelectionPolicy(),
         AvailableModelsLock(tmp_path / "locks"),
         weights=weights,
         structural=structural,
+        calibrator=RuntimeMemoryCalibrationService(
+            store, clock, VllmMemoryInterpreter()
+        ),
     )
 
 
@@ -896,6 +907,59 @@ class TestAvailableModels:
         assert catalog[1].metadata.model_id.value not in {
             item.model_id for item in overview.feasible
         }
+
+    def test_vllm_static_feasible_is_not_available_without_calibration(
+        self, tmp_path: Path
+    ) -> None:
+        catalog = packaged_candidates()[:1]
+        ident = catalog[0].metadata.model_id.value
+        estimator = _MapEstimator({ident: 8 * GIB})
+        models = ModelCatalogue(_ScriptedSource(catalog, catalog, universe=1))
+        host = host_facts()
+        envelope, gpu_host = _envelope(host)
+        capacity = replace(
+            _capacity(vram=30 * GIB),
+            host_id=gpu_host.host_id,
+            snapshot_basis="bypass",
+            available_vram_bytes=30 * GIB,
+            available_ram_bytes=64 * GIB,
+            available_storage_bytes=500 * GIB,
+        )
+        funnel = AvailableModelsService(
+            FileStore(tmp_path / "records"),
+            FixedClock(now_utc()),
+            models,
+            estimator,
+            SelectionPolicy(),
+            AvailableModelsLock(tmp_path / "locks"),
+        ).evaluate(
+            gpu_host,
+            _view_for(gpu_host, catalog, eligible={ident}),
+            envelope,
+            capacity,
+        )
+        assert funnel.estimated_feasible
+        assert funnel.available.available_count == 0
+        assert all(
+            item.stage.value == "runtime_calibration"
+            for item in funnel.available.exclusions
+            if item.model_id == ident
+        )
+        selector = ModelSelectionService(
+            FileStore(tmp_path / "sel"),
+            FixedClock(now_utc()),
+            SelectionService(estimator, FixedClock(now_utc())),
+            models,
+            ModelSelectionLock(tmp_path / "sellock"),
+        )
+        overview = selector.view(
+            gpu_host,
+            funnel.eligible,
+            envelope,
+            funnel.assessments,
+            funnel.available,
+        )
+        assert overview.feasible == ()
 
 
 class TestProductSurfaces:

@@ -779,8 +779,10 @@ ELIGIBLE under one foundation and BLOCKED under another. Stage 1.6G
 derives `ModelRequirement` from an ELIGIBLE candidate plus the selected
 fresh VERIFIED profile, then capacity-fit against current available
 capacity (SAFE minus ACTIVE). Stage 1.6L produces the first-class
-`AvailableModelView` from that funnel before ranking. Stage 1.6H
-ranks only currently available members and persists bounded
+`AvailableModelView` from that funnel before ranking: static estimated-feasible
+is not membership; vLLM members require resolved highest-pressure
+runtime-memory calibration against a fresh current-available snapshot.
+Stage 1.6H ranks only currently available members and persists bounded
 AUTO/MANUAL `ModelSelection`. Stage 1.6I persists the authoritative
 current `DeploymentPlan` from those decisions. ELIGIBLE is not FEASIBLE.
 
@@ -936,7 +938,7 @@ capacity contract.
 
 | | |
 |---|---|
-| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, `FoundationSelection`, `RuntimeEligibleModelCandidate`, `EligibleModelView`, `ModelEligibilityService`, and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible by itself. `FoundationSelection` records AUTO versus MANUAL choice; recommendation is not selection; provisionable is not executable. `EligibleModelView` is the authoritative runtime/model compatibility path for the currently selected verified foundation. It does not acquire, rank, or admit. |
+| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, `FoundationSelection`, `RuntimeEligibleModelCandidate`, `EligibleModelView`, `ModelEligibilityService`, `RuntimeMemoryProfile` (measured native-runtime memory evidence; not selection, admission, or an InferenceInstance), and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible by itself. `FoundationSelection` records AUTO versus MANUAL choice; recommendation is not selection; provisionable is not executable. `EligibleModelView` is the authoritative runtime/model compatibility path for the currently selected verified foundation. It does not acquire, rank, or admit. `RuntimeMemoryProfile` is host- and runtime-specific; capacity changes recompute availability against a cached profile and do not by themselves require a new probe. |
 | **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) |
 | **Ports** | `InferenceRuntime` · `RuntimeProvisioner` |
 | **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Treat `PROVISIONABLE` as `VERIFIED EXECUTABLE`. Silently substitute a different RuntimeCandidate than the one selected or supplied for provisioning. Rank or recommend during provisioning or verification. Overload `RuntimePolicy.mode` as product selection. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
@@ -1655,7 +1657,15 @@ MODEL UNIVERSE
   → ResourceSummary current available (SAFE minus ACTIVE; derived)
   → one CurrentCapacitySnapshot / DeploymentCapacity for the whole pass
   → per-candidate fit against that same snapshot (no hypothetical subtraction)
-  → AvailableModelView (CURRENT; empty is valid; no recommendation in basis)
+  → ESTIMATED-FEASIBLE (static fit only; not Available; not persisted as authority)
+  → highest-pressure runtime-memory calibration (one sentinel probe per
+    RuntimeMemory class; vLLM adapter interprets logs; Executor owns process
+    lifecycle; ResourceManager admits a temporary EVALUATION reservation;
+    not an InferenceInstance)
+  → CALIBRATED ModelRequirement (raise-only; class-only extra transfer)
+  → fresh CurrentCapacitySnapshot after probe reservations are released
+  → AvailableModelView (CURRENT; empty is valid; vLLM members require resolved
+    runtime validation; no recommendation in basis)
   → persist Available Models
   → PRINT / API / Admin
   → planning Selector over Available Models only
@@ -1713,7 +1723,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6I | Authoritative DeploymentPlan | 1.6H | ✅ closed L1 |
 | 1.6J | Plan-driven Acquisition + Resource admission | 1.6I | ✅ closed L1 |
 | 1.6K | Plan-driven InferenceInstance create | 1.6J | ✅ closed L1 |
-| 1.6L | first real native vLLM serving + bounded inference; staged Available Models funnel; runtime-aware requirement; current available capacity | 1.6K | OPEN; T0/T1/T2 local; T3/T5 pending |
+| 1.6L | first real native vLLM serving + bounded inference; staged Available Models funnel; runtime-memory calibration before Available; runtime-aware requirement; current available capacity | 1.6K | OPEN; T0/T1/T2 local; T3/T5 pending |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; 1.6L is the serving vertical |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

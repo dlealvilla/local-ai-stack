@@ -1660,17 +1660,25 @@ What:         Captured `llmfit plan` for Qwen2.5-7B-Instruct-AWQ at
               the plan minimum as the serving total. AUTO does not
               shop llmfit versus Kultrun and pick the larger. Strict
               llmfit stays unresolved on typed provider failure.
+              llmfit `minimum.vram` is base-model evidence; KV and
+              runtime-extra are composed separately. Measured
+              RuntimeMemoryProfile calibration is the vLLM Available
+              gate; it is not an advisory overlay on static membership.
 Why now:      Fresh-host T3 admitted 8.0 GiB from the packaged Kultrun
               total after llmfit was unavailable; the runtime then
               lacked KV for context 8192. Do not hard-code that host's
               observed remainder. Root cause of that 8 GiB figure was
               catalog `estimated_vram_gib=8.0` used when llmfit was
               absent, not a mapped llmfit field.
-To make real: A provider that estimates native vLLM serving demand for
-              the requested model, revision, quantization, context, and
-              concurrency — or measured calibration that stays advisory.
-Retire when:  that serving total is the product estimate for vLLM, or
-              llmfit is dropped for this runtime family.
+To make real: Measured highest-pressure vLLM runtime-memory
+              calibration is now the Available gate (this
+              continuation). Close K-96 when fresh-host T3 proves
+              the calibrated serving total, not the disproven
+              static 10.37 GiB figure, is what Available and
+              admission use.
+Retire when:  that serving total is the product estimate for vLLM
+              after real T3, or llmfit is dropped for this runtime
+              family.
 Status:       OPEN
 
 ### K-97 — exhaustive Hub listing and remote ranking

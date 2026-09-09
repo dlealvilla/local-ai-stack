@@ -3775,11 +3775,25 @@
         "optional": false,
         "type": "int | Unresolved"
       },
+      "base_model_memory_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "final base-model VRAM component",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "incremental_storage_bytes": {
         "may_be_unresolved": true,
         "meaning": "acquisition footprint still required",
         "nullable": false,
         "optional": false,
+        "type": "int | Unresolved"
+      },
+      "kv_requirement_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "KV cache for the requested context",
+        "nullable": false,
+        "optional": true,
         "type": "int | Unresolved"
       },
       "logical_name": {
@@ -3859,11 +3873,32 @@
         "optional": false,
         "type": "str"
       },
+      "runtime_extra_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "final non-KV runtime-extra VRAM component",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "runtime_memory_profile_id": {
+        "may_be_unresolved": true,
+        "meaning": "measured RuntimeMemoryProfile applied to this member",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "runtime_version": {
         "may_be_unresolved": true,
         "meaning": "selected runtime version",
         "nullable": false,
         "optional": false,
+        "type": "str | Unresolved"
+      },
+      "sentinel_model_id": {
+        "may_be_unresolved": true,
+        "meaning": "highest-pressure sentinel of this validation class",
+        "nullable": false,
+        "optional": true,
         "type": "str | Unresolved"
       },
       "source_ref": {
@@ -3878,6 +3913,27 @@
         "meaning": "immutable revision, when known",
         "nullable": false,
         "optional": false,
+        "type": "str | Unresolved"
+      },
+      "validation_class": {
+        "may_be_unresolved": true,
+        "meaning": "runtime-memory class key",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "validation_confidence": {
+        "may_be_unresolved": true,
+        "meaning": "how the runtime-memory figures were obtained",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "validation_status": {
+        "may_be_unresolved": true,
+        "meaning": "measured, calibrated, cached, or unresolved runtime validation",
+        "nullable": false,
+        "optional": true,
         "type": "str | Unresolved"
       },
       "weight_evidence_source": {
@@ -3941,6 +3997,13 @@
         "optional": false,
         "type": "str"
       },
+      "estimated_feasible_count": {
+        "may_be_unresolved": false,
+        "meaning": "static estimated-feasible candidates before runtime calibration",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
       "estimator_invocations": {
         "may_be_unresolved": false,
         "meaning": "deep estimator calls for this pass",
@@ -3997,6 +4060,13 @@
         "optional": true,
         "type": "str"
       },
+      "probe_invocations": {
+        "may_be_unresolved": false,
+        "meaning": "sentinel probes executed for this pass",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
       "requested_context_tokens": {
         "may_be_unresolved": true,
         "meaning": "serving context assumed for this pass, when one global value applied",
@@ -4037,6 +4107,13 @@
         "meaning": "source records considered before remote filter",
         "nullable": false,
         "optional": false,
+        "type": "int"
+      },
+      "validation_class_count": {
+        "may_be_unresolved": false,
+        "meaning": "runtime-memory classes formed from estimated-feasible candidates",
+        "nullable": false,
+        "optional": true,
         "type": "int"
       },
       "view_basis": {
@@ -7110,6 +7187,249 @@
       }
     },
     "python": "RuntimeLaunchSpec"
+  },
+  "runtime.memory_profile@1": {
+    "fields": {
+      "accelerator_architecture": {
+        "may_be_unresolved": true,
+        "meaning": "selected accelerator architecture/model basis",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "accelerator_index": {
+        "may_be_unresolved": false,
+        "meaning": "device the probe reserved",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "basis_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "material execution basis this profile is valid for",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "capability_profile_id": {
+        "may_be_unresolved": true,
+        "meaning": "RuntimeCapabilityProfile this probe was bound to",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "class_key": {
+        "may_be_unresolved": false,
+        "meaning": "runtime-memory validation class this sentinel represents",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "concurrency": {
+        "may_be_unresolved": true,
+        "meaning": "concurrency assumption the probe used",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "HIGH when measured; UNKNOWN when the profile is not usable",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "context the probe assumed",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "derived_non_kv_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "B minus K; usable even when K is negative",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "derived_runtime_extra_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "non-KV minus model-load when both are valid",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "executor": {
+        "may_be_unresolved": true,
+        "meaning": "executor identity used for the probe",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "failure_reason": {
+        "may_be_unresolved": true,
+        "meaning": "why the probe produced no usable profile, when it did not",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "host fingerprint at measurement",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host these facts were measured on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "kv_dtype": {
+        "may_be_unresolved": true,
+        "meaning": "KV/cache dtype when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "measured_at": {
+        "may_be_unresolved": false,
+        "meaning": "when these facts were captured, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "model_architecture": {
+        "may_be_unresolved": true,
+        "meaning": "model architecture family",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "notes": {
+        "may_be_unresolved": false,
+        "meaning": "short factual notes; never raw logs",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "probe_budget_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "admitted SAFE VRAM budget B for this probe",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "profile_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this measured profile",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeMemoryProfileId"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "quantization family probed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family, e.g. vllm",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_extra_floor_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "conservative runtime-extra floor transferred to same-class members",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "runtime_extra_ratio": {
+        "may_be_unresolved": true,
+        "meaning": "runtime-extra / model-load when that ratio is valid",
+        "nullable": false,
+        "optional": true,
+        "type": "float | Unresolved"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "exact runtime version",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "source_model_id": {
+        "may_be_unresolved": false,
+        "meaning": "sentinel model that was probed",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "source_revision": {
+        "may_be_unresolved": true,
+        "meaning": "exact artifact revision probed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "static_kv_component": {
+        "may_be_unresolved": true,
+        "meaning": "static KV component at probe time",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "static_requirement_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "static estimated-feasible total at probe time",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "static_runtime_overhead": {
+        "may_be_unresolved": true,
+        "meaning": "static runtime-overhead component at probe time",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "static_weight_component": {
+        "may_be_unresolved": true,
+        "meaning": "static base-model component at probe time",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "measured when B and K were captured; failed/unresolved otherwise",
+        "nullable": false,
+        "optional": false,
+        "type": "RuntimeMemoryProfileStatus"
+      },
+      "vllm_available_kv_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "runtime-reported available KV cache memory K; may be negative",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "vllm_model_load_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "runtime-reported model-load memory, when captured",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "RuntimeMemoryProfile"
   },
   "runtime.policy@1": {
     "fields": {

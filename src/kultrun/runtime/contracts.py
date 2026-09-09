@@ -1013,3 +1013,122 @@ class EligibleModelView(Contract):
         "per-model judgements; empty when the view is unavailable",
         default=(),
     )
+
+
+class RuntimeMemoryProfileId(EntityId):
+    """Identity of one measured runtime-memory profile."""
+
+    prefix = "rmp"
+
+
+class RuntimeMemoryProfileStatus(StrEnum):
+    """Whether this profile captured usable memory facts."""
+
+    MEASURED = "measured"
+    UNRESOLVED = "unresolved"
+    FAILED = "failed"
+
+
+class RuntimeValidationStatus(StrEnum):
+    """How a candidate's final requirement was validated. Not ranking."""
+
+    MEASURED_RUNTIME = "measured_runtime"
+    CALIBRATED_FROM_HIGH_PRESSURE_SENTINEL = "calibrated_from_high_pressure_sentinel"
+    CACHED_RUNTIME_CALIBRATION = "cached_runtime_calibration"
+    UNRESOLVED = "unresolved"
+
+
+@contract(kind="runtime.memory_profile", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeMemoryProfile(Contract):
+    """Measured native-runtime memory evidence. Not selection or admission.
+
+    Host- and runtime-specific. Capacity changes do not invalidate a profile
+    whose execution basis is unchanged.
+    """
+
+    profile_id: RuntimeMemoryProfileId = meaning("identity of this measured profile")
+    status: RuntimeMemoryProfileStatus = meaning(
+        "measured when B and K were captured; failed/unresolved otherwise"
+    )
+    basis_fingerprint: str = meaning(
+        "material execution basis this profile is valid for"
+    )
+    class_key: str = meaning("runtime-memory validation class this sentinel represents")
+    source_model_id: str = meaning("sentinel model that was probed")
+    runtime: str = meaning("runtime family, e.g. vllm")
+    host_id: HostId = meaning("host these facts were measured on")
+    host_fingerprint: str = meaning("host fingerprint at measurement")
+    measured_at: dt.datetime = meaning("when these facts were captured, UTC")
+    confidence: Confidence = meaning(
+        "HIGH when measured; UNKNOWN when the profile is not usable"
+    )
+    source_revision: Maybe[str] = meaning(
+        "exact artifact revision probed", default=NOT_PROVIDED
+    )
+    runtime_version: Maybe[str] = meaning("exact runtime version", default=NOT_PROVIDED)
+    executor: Maybe[str] = meaning(
+        "executor identity used for the probe", default=NOT_PROVIDED
+    )
+    capability_profile_id: Maybe[str] = meaning(
+        "RuntimeCapabilityProfile this probe was bound to", default=NOT_PROVIDED
+    )
+    accelerator_index: int | None = meaning(
+        "device the probe reserved", default=None
+    )
+    accelerator_architecture: Maybe[str] = meaning(
+        "selected accelerator architecture/model basis", default=NOT_PROVIDED
+    )
+    model_architecture: Maybe[str] = meaning(
+        "model architecture family", default=NOT_PROVIDED
+    )
+    quantization: Maybe[str] = meaning(
+        "quantization family probed", default=NOT_PROVIDED
+    )
+    context_tokens: Maybe[int] = meaning(
+        "context the probe assumed", default=NOT_PROVIDED
+    )
+    concurrency: Maybe[int] = meaning(
+        "concurrency assumption the probe used", default=NOT_PROVIDED
+    )
+    kv_dtype: Maybe[str] = meaning("KV/cache dtype when known", default=NOT_PROVIDED)
+    probe_budget_bytes: Maybe[int] = meaning(
+        "admitted SAFE VRAM budget B for this probe", default=NOT_PROVIDED
+    )
+    vllm_model_load_bytes: Maybe[int] = meaning(
+        "runtime-reported model-load memory, when captured", default=NOT_PROVIDED
+    )
+    vllm_available_kv_bytes: Maybe[int] = meaning(
+        "runtime-reported available KV cache memory K; may be negative",
+        default=NOT_PROVIDED,
+    )
+    derived_non_kv_bytes: Maybe[int] = meaning(
+        "B minus K; usable even when K is negative", default=NOT_PROVIDED
+    )
+    derived_runtime_extra_bytes: Maybe[int] = meaning(
+        "non-KV minus model-load when both are valid", default=NOT_PROVIDED
+    )
+    runtime_extra_floor_bytes: Maybe[int] = meaning(
+        "conservative runtime-extra floor transferred to same-class members",
+        default=NOT_PROVIDED,
+    )
+    runtime_extra_ratio: Maybe[float] = meaning(
+        "runtime-extra / model-load when that ratio is valid", default=NOT_PROVIDED
+    )
+    static_requirement_bytes: Maybe[int] = meaning(
+        "static estimated-feasible total at probe time", default=NOT_PROVIDED
+    )
+    static_weight_component: Maybe[int] = meaning(
+        "static base-model component at probe time", default=NOT_PROVIDED
+    )
+    static_kv_component: Maybe[int] = meaning(
+        "static KV component at probe time", default=NOT_PROVIDED
+    )
+    static_runtime_overhead: Maybe[int] = meaning(
+        "static runtime-overhead component at probe time", default=NOT_PROVIDED
+    )
+    notes: tuple[str, ...] = meaning("short factual notes; never raw logs", default=())
+    failure_reason: Maybe[str] = meaning(
+        "why the probe produced no usable profile, when it did not",
+        default=NOT_PROVIDED,
+    )

@@ -40,6 +40,7 @@ from kultrun.adapters.provisioning.vllm_native import VllmNativeProvisioner
 from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.runtime.serving import ReferenceServingRuntime
 from kultrun.adapters.runtime.vllm import VllmModelCompatibility, VllmRuntimeSupport
+from kultrun.adapters.runtime.vllm_memory import VllmMemoryInterpreter
 from kultrun.adapters.storage import posix_reservation, replayed
 from kultrun.adapters.verification.fixture import (
     FixtureProbeRunner,
@@ -100,7 +101,7 @@ from kultrun.model.inventory import ModelInventory
 from kultrun.model.ports import ModelAcquisitionProvider, ModelRequirementEstimator
 from kultrun.model.store import ModelArtifactStore
 from kultrun.planning import contracts as _planning_contracts  # noqa: F401
-from kultrun.planning.contracts import CompatibilityVerdict
+from kultrun.planning.contracts import CompatibilityVerdict, DeploymentCapacity
 from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
@@ -140,6 +141,11 @@ from kultrun.platform.model_selection import (
 from kultrun.platform.probe_run import ExecutorProbeRunner
 from kultrun.platform.requirement import (
     RequirementAssessment,
+)
+from kultrun.platform.runtime_memory import (
+    RuntimeMemoryCalibrationService,
+    format_estimated_feasible,
+    format_runtime_validation,
 )
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
@@ -778,6 +784,13 @@ def build(
         models,
         ModelSelectionLock(state_root),
     )
+
+    def refresh_capacity(
+        host: HostCapabilities,
+    ) -> tuple[CapacityEnvelope, DeploymentCapacity]:
+        live = capacity.compute(host, _stored_sanity_with(sanity, host))
+        return live, planning_capacity(resources, live, host)
+
     available_models = AvailableModelsService(
         store,
         resolved_clock,
@@ -788,6 +801,19 @@ def build(
         weights=weight_evidence,
         structural=structural_evidence,
         inventory=inventory,
+        calibrator=RuntimeMemoryCalibrationService(
+            store,
+            resolved_clock,
+            VllmMemoryInterpreter(),
+            acquisition=acquisition,
+            inventory=inventory,
+            resources=resources,
+            executions=executions,
+            runtime=runtimes.get(Name("vllm")),
+            provisioning=provisioning,
+            state_root=state_root,
+        ),
+        refresh_capacity=refresh_capacity,
     )
     deployment_plan = DeploymentPlanningService(
         store,
@@ -2190,14 +2216,22 @@ def delete_named(arguments: Sequence[str]) -> int:
     return 0
 
 
+def _print_availability_report(result: FunnelPass) -> None:
+    print(format_funnel(result.available))
+    print()
+    print(format_estimated_feasible(result.estimated_feasible))
+    if result.validation is not None:
+        print(format_runtime_validation(result.validation))
+        print()
+    print(format_available_models(result.available))
+
+
 def show_available_models() -> int:
     """Print Available Models. Does not recommend or select."""
     platform = build()
     _warn_if_state_root_defaulted(platform)
     result = _funnel(platform, persist=True)
-    print(format_funnel(result.available))
-    print()
-    print(format_available_models(result.available))
+    _print_availability_report(result)
     return 0
 
 
@@ -2208,9 +2242,7 @@ def show_recommendation() -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     result = _funnel(platform, persist=True)
-    print(format_funnel(result.available))
-    print()
-    print(format_available_models(result.available))
+    _print_availability_report(result)
     print()
     overview = platform.model_selection.view(
         platform.hosts.current,
@@ -2340,9 +2372,7 @@ def select_named_model(arguments: Sequence[str]) -> int:
     _warn_if_state_root_defaulted(platform)
     host = platform.hosts.current
     result = _funnel(platform, persist=True, pending_model=None if auto else names[0])
-    print(format_funnel(result.available))
-    print()
-    print(format_available_models(result.available))
+    _print_availability_report(result)
     print()
     try:
         if auto:

@@ -204,6 +204,7 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "runtime.verification_basis",
         "runtime.foundation_selection",
         "runtime.eligible_model_view",
+        "runtime.memory_profile",
         "planning.model_selection",
         "planning.available_model_view",
     }

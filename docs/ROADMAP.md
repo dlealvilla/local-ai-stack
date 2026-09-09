@@ -1356,7 +1356,8 @@ plan placement, structured `RuntimeLaunchSpec`, `NativeProcessExecutor`,
 deterministic readiness (alive + health + served-model match), reservation
 VRAM translated into `--gpu-memory-utilization`, runtime-aware
 `ModelRequirement` vs current available capacity (SAFE minus ACTIVE),
-and one
+bounded highest-pressure vLLM runtime-memory calibration before
+Available membership, and one
 bounded non-streaming `InferenceRequest` → `InferenceResponse`. Loopback
 bind only. No reference-runtime fallback. No streaming, cancellation,
 container GPU, multi-GPU, or additional runtimes.
@@ -2723,11 +2724,15 @@ THIS STAGE'S REQUIRED OUTPUT Exact RuntimeInstallation launch; local
                              deterministic readiness; generic
                              InferenceRequest/Response; API + CLI infer.
                              Staged Available Models funnel before
-                             ModelSelector; runtime-aware ModelRequirement
-                             vs one CurrentCapacitySnapshot; AUTO/MANUAL
+                             ModelSelector; estimated-feasible is not
+                             Available; vLLM members require resolved
+                             highest-pressure runtime-memory calibration;
+                             runtime-aware ModelRequirement vs one
+                             CurrentCapacitySnapshot; AUTO/MANUAL
                              only among Available Models.
 CORE CONTRACTS AFFECTED      runtime.launch_request optional serving
-                             fields; inference.request@1;
+                             fields; runtime.memory_profile@1;
+                             inference.request@1;
                              inference.response@1. No VllmRuntimeV2.
 ADAPTERS AFFECTED            existing vLLM runtime adapter;
                              NativeProcessExecutor used as-is.
@@ -2752,7 +2757,9 @@ DEBT ENTRIES                 K-66, K-77 remain OPEN.
                              K-95 records deferred depth of this vertical.
                              K-96: llmfit plan minimum is not native
                              vLLM serving demand; AUTO refines, does not
-                             shop. K-97 Hub ingest deferred. K-98 live
+                             shop; measured runtime-memory calibration
+                             is the Available gate, still OPEN until T3.
+                             K-97 Hub ingest deferred. K-98 live
                              Accelerate remains optional/structural-only.
 MUST NOT                     Reopen 1.6B–1.6K; container GPU; llama.cpp;
                              MLX; streaming; cancellation; routing; RAG;

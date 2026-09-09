@@ -977,6 +977,7 @@ async function renderAvailableModels() {
         ['required VRAM', bytes(item.required_vram_bytes)],
         ['available VRAM', bytes(item.available_vram_bytes)],
         ['provider', item.requirement_provider],
+        ['validation', item.validation_confidence || item.validation_status || '-'],
         ['confidence', item.requirement_confidence],
       ]);
       line.append(head, grid);

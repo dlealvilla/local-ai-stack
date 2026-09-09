@@ -23,6 +23,7 @@ from kultrun.runtime.contracts import (
     RuntimeVerificationCheck,
     RuntimeVerificationProbe,
 )
+from kultrun.runtime.memory import RuntimeExtraResult
 
 
 @runtime_checkable
@@ -199,4 +200,35 @@ class VerificationProbeRunner(Protocol):
         host_id: HostId,
     ) -> ProbeExecutionResult:
         """Execute one bounded probe. Must not interpret runtime evidence."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class InterpretedRuntimeMemory:
+    """Adapter-normalized vLLM memory facts. Not a persisted profile."""
+
+    model_load_bytes: int | None
+    available_kv_bytes: int | None
+    usable: bool
+    reason: str | None = None
+    extra: RuntimeExtraResult | None = None
+
+
+@runtime_checkable
+class RuntimeMemoryInterpreter(Protocol):
+    """Runtime-specific log interpretation. Must not start a process."""
+
+    @property
+    def identity(self) -> Name:
+        """Stable interpreter identity."""
+        ...
+
+    def interpret(
+        self,
+        *,
+        stdout: str,
+        stderr: str,
+        probe_budget_bytes: int,
+    ) -> InterpretedRuntimeMemory:
+        """Parse captured output into memory facts. Must not exec."""
         ...

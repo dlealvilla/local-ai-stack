@@ -496,6 +496,7 @@ class FunnelStage(StrEnum):
     COMPATIBILITY = "compatibility"
     CHEAP_SIZE_BOUND = "cheap_size_bound"
     DEEP_CAPACITY = "deep_capacity"
+    RUNTIME_CALIBRATION = "runtime_calibration"
 
 
 @contract(kind="planning.available_model_member", version=1)
@@ -534,6 +535,33 @@ class AvailableModelMember(Contract):
     )
     result: str = meaning(
         "always available for members of this view", default="available"
+    )
+    validation_status: Maybe[str] = meaning(
+        "measured, calibrated, cached, or unresolved runtime validation",
+        default=NOT_PROVIDED,
+    )
+    runtime_memory_profile_id: Maybe[str] = meaning(
+        "measured RuntimeMemoryProfile applied to this member",
+        default=NOT_PROVIDED,
+    )
+    sentinel_model_id: Maybe[str] = meaning(
+        "highest-pressure sentinel of this validation class",
+        default=NOT_PROVIDED,
+    )
+    validation_class: Maybe[str] = meaning(
+        "runtime-memory class key", default=NOT_PROVIDED
+    )
+    base_model_memory_bytes: Maybe[int] = meaning(
+        "final base-model VRAM component", default=NOT_PROVIDED
+    )
+    runtime_extra_bytes: Maybe[int] = meaning(
+        "final non-KV runtime-extra VRAM component", default=NOT_PROVIDED
+    )
+    kv_requirement_bytes: Maybe[int] = meaning(
+        "KV cache for the requested context", default=NOT_PROVIDED
+    )
+    validation_confidence: Maybe[str] = meaning(
+        "how the runtime-memory figures were obtained", default=NOT_PROVIDED
     )
 
 
@@ -604,6 +632,17 @@ class AvailableModelView(Contract):
         "why other candidates are not available", default=()
     )
     policy_version: str = meaning("selection/capacity policy of this pass", default="")
+    estimated_feasible_count: int = meaning(
+        "static estimated-feasible candidates before runtime calibration",
+        default=0,
+    )
+    validation_class_count: int = meaning(
+        "runtime-memory classes formed from estimated-feasible candidates",
+        default=0,
+    )
+    probe_invocations: int = meaning(
+        "sentinel probes executed for this pass", default=0
+    )
 
 
 def envelope_fingerprint(envelope: CapacityEnvelope) -> str:

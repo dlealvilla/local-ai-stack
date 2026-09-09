@@ -202,12 +202,13 @@ class LlmfitRequirementEstimator:
         if isinstance(kv_bytes, int) and context:
             per_token = kv_bytes // context
         weights: Maybe[int] = NOT_PROVIDED
-        if isinstance(vram_bytes, int) and isinstance(kv_bytes, int):
-            weights = max(0, vram_bytes - kv_bytes)
+        if isinstance(vram_bytes, int):
+            weights = vram_bytes
         assumptions: tuple[str, ...] = (
             "llmfit plan minimum; host fit flags ignored",
             "gb fields treated as GiB",
             "no cpu offload",
+            "llmfit minimum.vram is base-model evidence, not a serving total",
         )
         estimated = vram_bytes
         kv_total: Maybe[int] = kv_bytes
