@@ -131,5 +131,9 @@ estimators. Feasibility compares a runtime-specific `ModelRequirement`
 to one `CurrentCapacitySnapshot` (SAFE minus ACTIVE) for the whole
 pass. Hypothetical candidates do not consume capacity. Stored artifacts
 consume storage via live free space; they do not consume VRAM.
-ResourceManager remains final admission. T3/T5 on a real GPU host
-remain required for close.
+ResourceManager remains final admission. Provider-enabled T2 is the
+same wheel in two isolated installs: T2-A core-only offline catalog
+and Kultrun fallback; T2-B extras `acquisition,estimators,analysis`
+with `KULTRUN_MODEL_SOURCE_MODE=live`. T3/T5 on a real GPU host
+must install that exact wheel with those extras. They remain required
+for close.

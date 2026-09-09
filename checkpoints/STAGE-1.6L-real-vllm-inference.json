@@ -5,7 +5,7 @@
   "output": "first real native vLLM serving vertical: exact RuntimeInstallation + local ModelArtifact + NativeProcessExecutor + readiness + bounded InferenceRequest/Response",
   "status": "open",
   "gate": "L3",
-  "evidence_level": "T2 local; T3/T5 pending",
+  "evidence_level": "T2-A/T2-B local; T3/T5 pending",
   "t3_required": true,
   "t5_required": true,
   "ready_for_t3": true,
@@ -69,7 +69,8 @@
   },
   "k98": {
     "status": "OPEN",
-    "implemented": false
+    "implemented": true,
+    "note": "optional live empty-skeleton analyzer exists when model_source_mode=live and the analysis extra is installed; never vLLM availability authority; skipped when Safetensors already resolved the cheap bound"
   },
   "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95", "K-96", "K-97", "K-98"],
   "t2": {
@@ -77,58 +78,108 @@
     "clean_source": true,
     "acceptance_evidence": true,
     "script": "tools/t2_vllm_inference.py",
-    "source_commit": "2db886836205eb9749c78383e1649f4938b6a7c2",
+    "source_commit": "a4a1c2c992e7d64f2dc1e3d26fddb67e04428e27",
     "wheel": "kultrun-0.1.0-py3-none-any.whl",
-    "sha256": "c63f70410f69414af02d0352bde067ecb8ec2660319ea06b8e888decd24578fc",
-    "build_id": "0.1.0+2db886836205",
+    "sha256": "9fbc5e0b4ab9303fcea12c4fbb2bc0a69a7002e2520f0b22393c6ec37dd70537",
+    "build_id": "0.1.0+a4a1c2c992e7",
     "source_checkout": false,
     "editable": false,
     "dirty_wip_wheel_used": false,
-    "local_tests": 996,
-    "funnel": {
-      "universe": 20,
-      "discovered": 20,
-      "compatibility": 5,
-      "cheap_reject": 0,
-      "deep_analyzed": 5,
-      "available": 3,
-      "excluded": 17,
-      "estimator_invocations": 5,
-      "available_models": [
-        "qwen2.5-0.5b-instruct-awq",
-        "qwen2.5-14b-instruct-awq",
-        "qwen2.5-7b-instruct-awq"
-      ],
-      "recommended": "qwen2.5-14b-instruct-awq",
-      "selected": "qwen2.5-14b-instruct-awq",
-      "mode": "AUTO",
-      "printed_before_recommendation": true
-    },
-    "wheel_suite_excludes": [
-      "test_the_live_source_tree_reports_itself_as_source",
-      "test_version_identifies_the_running_build"
-    ],
+    "local_tests": 1008,
     "ruff": "clean",
     "mypy_src": "clean",
     "mypy_tools": "clean",
-    "vllm_start_state": "failed",
-    "infer_reason": "instance_not_running",
-    "reference_runtime": "reference-serving",
-    "chat_status": 404,
-    "real_gpu": false
+    "real_gpu": false,
+    "historical_offline_wheel_sha256": "c63f70410f69414af02d0352bde067ecb8ec2660319ea06b8e888decd24578fc",
+    "t2a_offline": {
+      "core_only": true,
+      "extras": [],
+      "providers_unavailable_behavior": "curated catalog and kultrun fallback remain usable",
+      "funnel": {
+        "universe": 20,
+        "discovered": 20,
+        "compatibility": 5,
+        "cheap_reject": 0,
+        "deep_analyzed": 5,
+        "available": 3,
+        "excluded": 17,
+        "estimator_invocations": 5,
+        "available_models": [
+          "qwen2.5-0.5b-instruct-awq",
+          "qwen2.5-14b-instruct-awq",
+          "qwen2.5-7b-instruct-awq"
+        ],
+        "recommended": "qwen2.5-14b-instruct-awq",
+        "selected": "qwen2.5-14b-instruct-awq",
+        "mode": "AUTO",
+        "effective_estimator": "kultrun",
+        "fallback": "provider_unavailable",
+        "printed_before_recommendation": true
+      },
+      "vllm_start_state": "failed",
+      "infer_reason": "instance_not_running",
+      "reference_runtime": "reference-serving",
+      "chat_status": 404,
+      "wheel_suite_excludes": [
+        "test_the_live_source_tree_reports_itself_as_source",
+        "test_version_identifies_the_running_build"
+      ]
+    },
+    "t2b_connected": {
+      "same_wheel": true,
+      "extras": ["acquisition", "estimators", "analysis"],
+      "hf_live": true,
+      "safetensors_live": true,
+      "accelerate_provider": true,
+      "llmfit_real": true,
+      "llmfit_version": "1.1.14",
+      "full_weight_download": false,
+      "qwen_7b_awq": {
+        "source_ref": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+        "sharded": true,
+        "serialized_tensor_bytes": 5570747392,
+        "raw_llmfit_minimum_vram_gb": 4.7453082559999995,
+        "raw_llmfit_recommended_vram_gb": 7.1,
+        "kv_fp16_gb": 0.4375,
+        "refined_vram_bytes": 5900542310,
+        "estimator_provider": "llmfit"
+      },
+      "funnel": {
+        "universe": 50,
+        "discovered": 69,
+        "compatibility": 5,
+        "cheap_reject": 1,
+        "deep_analyzed": 4,
+        "available": 4,
+        "excluded": 66,
+        "available_models": [
+          "llama-3.1-8b-instruct-fp16",
+          "qwen2.5-0.5b-instruct-awq",
+          "qwen2.5-14b-instruct-awq",
+          "qwen2.5-7b-instruct-awq"
+        ],
+        "cheap_reject_example": "qwen2.5-72b-instruct-awq",
+        "recommended": "qwen2.5-14b-instruct-awq",
+        "selected": "qwen2.5-14b-instruct-awq",
+        "mode": "AUTO",
+        "effective_estimator": "llmfit",
+        "fallback": false,
+        "printed_before_recommendation": true
+      }
+    }
   },
   "acceptance": {
     "level": "T2 local",
     "required": "L3",
     "real_host": false,
     "date": "2026-09-09",
-    "method": "T0/T1 plus T2 clean wheel. T3/T5 required for close."
+    "method": "T0/T1 plus T2-A core wheel and T2-B same wheel with acquisition,estimators,analysis extras. T3/T5 required for close."
   },
   "test_modes": {
-    "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; staged Available Models funnel; cheap Safetensors bound; optional Accelerate; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within Available Models; no reference fallback",
-    "T1": "vLLM HTTP protocol fixture; funnel fixture 20/12/7/2/5/3; Available Models printed before selector; estimator invocations saved; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible",
-    "T2": "clean wheel; isolated install; full suite against wheel; Available Models CLI/API before recommend; product start fails without real vLLM; infer refused; no chat frontend",
-    "T3": "required; not yet performed",
+    "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; staged Available Models funnel; optional live Hub listing; cheap Safetensors metadata bound; optional Accelerate empty-skeleton; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within Available Models; no reference fallback",
+    "T1": "vLLM HTTP protocol fixture; funnel fixture 20/12/7/2/5/3; llmfit fixture after cheap bound; Available Models printed before selector; estimator invocations saved; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible",
+    "T2": "same clean wheel, two isolated installs: T2-A core-only offline catalog+fallback; T2-B extras prove live Hub/Safetensors/Accelerate/llmfit then Available Models before recommend",
+    "T3": "required; not yet performed; must install this exact wheel with declared provider extras",
     "T5": "required; Kultrun prompt to generated response; not yet performed"
   },
   "not_begun": [
@@ -147,9 +198,9 @@
     "performed": false
   },
   "END_LINK": {
-    "acceptance_source_commit": "2db886836205eb9749c78383e1649f4938b6a7c2",
-    "t2_artifact_sha256": "c63f70410f69414af02d0352bde067ecb8ec2660319ea06b8e888decd24578fc",
+    "acceptance_source_commit": "a4a1c2c992e7d64f2dc1e3d26fddb67e04428e27",
+    "t2_artifact_sha256": "9fbc5e0b4ab9303fcea12c4fbb2bc0a69a7002e2520f0b22393c6ec37dd70537",
     "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
-    "next": "Complete T3/T5 on a fresh GPU host using this exact wheel (SHA c63f70410f69414af02d0352bde067ecb8ec2660319ea06b8e888decd24578fc). Do not begin Stage 1.6M, streaming, or additional runtimes."
+    "next": "Complete T3/T5 on a fresh GPU host by installing this exact wheel (SHA 9fbc5e0b4ab9303fcea12c4fbb2bc0a69a7002e2520f0b22393c6ec37dd70537) with extras acquisition,estimators,analysis and KULTRUN_MODEL_SOURCE_MODE=live. Do not begin Stage 1.6M, streaming, or additional runtimes."
   }
 }
