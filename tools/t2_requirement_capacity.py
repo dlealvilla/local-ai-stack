@@ -119,7 +119,7 @@ rows = {item['logical_name']: item for item in body['assessments']}
 small, large, blocked, unresolved = rows['qwen2.5-0.5b-instruct-awq'], rows['qwen2.5-72b-instruct-awq'], rows['tinyllama-1.1b-chat-q4'], rows['kultrun-hf-acceptance-tiny']
 assert small['requirement_status'] == 'ready' and small['capacity_verdict'] == 'feasible'
 assert small['eligibility_status'] == 'eligible'
-assert large['requirement_status'] == 'ready' and large['capacity_verdict'] == 'infeasible'
+assert large['requirement_status'] == 'ready' and str(large['capacity_verdict']).startswith('infeasible')
 assert large['eligibility_status'] == 'eligible'
 assert blocked['requirement_status'] == 'refused' and blocked['capacity_verdict'] == 'not_assessed'
 assert unresolved['requirement_status'] == 'unresolved' and unresolved['capacity_verdict'] != 'feasible'

@@ -478,11 +478,17 @@ RUNNING, duplicate start), inference (RUNNING required, CREATED/
 STARTING/STOPPED/FAILED refused, validation, timeout, malformed
 response, token usage, prompts not persisted), and lifecycle (stop,
 restart freshness, crash overlay, stale-running inference with
-currentness, stale START after STOP blocked). T1 uses an explicit
-vLLM HTTP protocol fixture. T2 is a clean-wheel install of that same
-suite plus the product chain. T3/T5 on a real GPU host are required
-for L3 closure. Direct curl to vLLM is not T5 evidence. Do not treat
-T0/T1/T2 as real serving proof.
+currentness, stale START after STOP blocked). T0/T1 also cover
+runtime-aware `ModelRequirement` (context/runtime/quant/concurrency
+basis, vLLM serving composition, unresolved ≠ feasible), derived
+`ResourceSummary` current available (SAFE minus ACTIVE; own-reservation
+exclusion; storage not double-counted), and feasibility against that
+snapshot (eligible vs feasible, AUTO/MANUAL within the feasible set,
+dynamic shrink/expand when an unrelated reservation is held). T1 uses
+an explicit vLLM HTTP protocol fixture. T2 is a clean-wheel install of
+that same suite plus the product chain. T3/T5 on a real GPU host are
+required for L3 closure. Direct curl to vLLM is not T5 evidence. Do not
+treat T0/T1/T2 as real serving proof.
 
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.

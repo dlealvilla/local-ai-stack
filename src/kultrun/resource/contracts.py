@@ -342,6 +342,12 @@ class DeviceResourceSummary(Contract):
     available_bytes: Maybe[int] = meaning(
         "SAFE minus reserved, or 0 when overcommitted; never negative"
     )
+    vendor: Maybe[str] = meaning(
+        "accelerator family from host facts, when known", default=NOT_PROVIDED
+    )
+    device_identity: Maybe[str] = meaning(
+        "reported device model, when known", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="resource.summary", version=1)
@@ -377,3 +383,31 @@ class ResourceSummary(Contract):
     active_count: int = meaning("ACTIVE reservations", default=0)
     serving: bool = meaning("always false; reserved is not running", default=False)
     running_instances: int = meaning("always 0 in 1.5A", default=0)
+    snapshot_basis: str = meaning(
+        "fingerprint of SAFE envelope plus ACTIVE commitments at read time",
+        default="",
+    )
+    active_reservation_ids: tuple[str, ...] = meaning(
+        "ACTIVE reservation identities included in this view", default=()
+    )
+    excluded_reservation_id: Maybe[str] = meaning(
+        "own reservation omitted so revalidation does not double-subtract",
+        default=NOT_PROVIDED,
+    )
+    derived_at: dt.datetime | None = meaning(
+        "when this derived view was computed, UTC", default=None
+    )
+    safe_storage_bytes: Maybe[int] = meaning(
+        "SAFE free space from the current storage authority", default=NOT_PROVIDED
+    )
+    available_storage_bytes: Maybe[int] = meaning(
+        "SAFE storage minus ACTIVE incremental reservations; not stored "
+        "artifact bytes already reflected in free space",
+        default=NOT_PROVIDED,
+    )
+    storage_source: Maybe[str] = meaning(
+        "pool identity that supplied storage availability", default=NOT_PROVIDED
+    )
+    snapshot_version: str = meaning(
+        "arithmetic version of this derived current-capacity view", default=""
+    )

@@ -67,6 +67,13 @@ def selection_basis(
         f"{item.model_id}:{item.requirement_basis}:{item.capacity_fit}"
         for item in sorted(feasible, key=lambda item: item.model_id)
     )
+    snapshot = ""
+    for item in feasible:
+        evaluation = item.evaluation
+        token = evaluation.snapshot_basis
+        if is_resolved(token) and token:
+            snapshot = token
+            break
     material = "|".join(
         (
             MODEL_SELECTION_SCHEMA,
@@ -74,6 +81,7 @@ def selection_basis(
             foundation,
             profile,
             envelope.host_fingerprint,
+            snapshot,
             policy_version,
             members,
         )
@@ -457,7 +465,9 @@ class ModelSelectionService:
                 model=token,
                 reason="model_requirement_unresolved",
             )
-        if item.capacity_verdict == "infeasible":
+        if item.capacity_verdict == "infeasible" or item.capacity_verdict.startswith(
+            "infeasible_"
+        ):
             raise PreconditionFailedError(
                 "infeasible model cannot be selected",
                 model=token,

@@ -14,11 +14,18 @@ from enum import StrEnum
 from kultrun.capacity.contracts import CapacityEnvelope
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.catalogue import ModelCatalogue
-from kultrun.model.contracts import ModelCatalogEntry, ModelRequirement
+from kultrun.model.contracts import (
+    ArtifactState,
+    ModelCatalogEntry,
+    ModelRequirement,
+    VerificationState,
+)
+from kultrun.model.inventory import ModelInventory
 from kultrun.model.ports import ModelRequirementEstimator
 from kultrun.planning.contracts import (
     CapacityFitClass,
     CompatibilityVerdict,
+    DeploymentCapacity,
     FeasibleModelCandidate,
     ModelEvaluation,
     SelectionPolicy,
@@ -55,6 +62,11 @@ def requirement_basis(
     runtime: str,
     runtime_version: str,
     estimator_version: str,
+    *,
+    source_revision: str = "",
+    quantization: str = "",
+    context_tokens: str = "",
+    batch_size: str = "1",
 ) -> str:
     """Short fingerprint of the current requirement inputs."""
     material = "|".join(
@@ -66,18 +78,30 @@ def requirement_basis(
             runtime,
             runtime_version,
             estimator_version,
+            source_revision,
+            quantization,
+            context_tokens,
+            batch_size,
         )
     )
     return hashlib.sha256(material.encode()).hexdigest()[:16]
 
 
-def capacity_verdict(fit: CapacityFitClass | None, *, assessed: bool) -> str:
-    """Map existing fit classes. Not a new capacity vocabulary."""
+def capacity_verdict(
+    fit: CapacityFitClass | None,
+    *,
+    assessed: bool,
+    reasons: tuple[str, ...] = (),
+) -> str:
+    """Map existing fit classes plus dimension-specific infeasible codes."""
     if not assessed:
         return "not_assessed"
     if fit is None or fit is CapacityFitClass.UNRESOLVED:
         return "unresolved"
     if fit is CapacityFitClass.EXCEEDS_SAFE:
+        for code in ("infeasible_vram", "infeasible_ram", "infeasible_storage"):
+            if code in reasons:
+                return code
         return "infeasible"
     return "feasible"
 
@@ -110,6 +134,49 @@ class RequirementAssessment:
     source_ref: str | None
     source_revision: object
     evaluation: ModelEvaluation | None
+    available_ram_bytes: object = NOT_PROVIDED
+    available_vram_bytes: object = NOT_PROVIDED
+    incremental_storage_bytes: object = NOT_PROVIDED
+    available_storage_bytes: object = NOT_PROVIDED
+    snapshot_basis: str | None = None
+
+
+def incremental_storage_demand(
+    entry: ModelCatalogEntry,
+    requirement: ModelRequirement,
+    inventory: ModelInventory | None,
+) -> Maybe[int]:
+    """Acquisition footprint still required.
+
+    Stored exact artifacts are not re-charged.
+    """
+    peak = requirement.peak_additional_bytes
+    if inventory is None:
+        return peak
+    revision = entry.metadata.source_revision
+    if not is_resolved(revision) or not isinstance(revision, str):
+        return peak
+    quantization = (
+        str(entry.metadata.quantization)
+        if is_resolved(entry.metadata.quantization)
+        else None
+    )
+    found = inventory.find_stored(
+        model_id=entry.metadata.model_id,
+        revision=revision,
+        quantization=quantization,
+        artifact_format=None,
+    )
+    if found is None:
+        return peak
+    if found.state is not ArtifactState.STORED:
+        return peak
+    if found.verification_state not in {
+        VerificationState.PASSED,
+        VerificationState.NOT_VERIFIED,
+    }:
+        return peak
+    return 0
 
 
 def _token(value: object) -> str | None:
@@ -131,6 +198,9 @@ def assess_entry(
     envelope: CapacityEnvelope,
     estimator: ModelRequirementEstimator,
     policy: SelectionPolicy,
+    *,
+    capacity: DeploymentCapacity | None = None,
+    inventory: ModelInventory | None = None,
 ) -> RequirementAssessment:
     """Derive one requirement. BLOCKED and UNRESOLVED skip the estimator."""
     ident = entry.metadata.model_id.value
@@ -207,8 +277,19 @@ def assess_entry(
             assessed=False,
         )
 
-    capacity = deployment_capacity(envelope)
+    placement = capacity if capacity is not None else deployment_capacity(envelope)
     version_token = version if isinstance(version, str) else ""
+    request = estimation_request(
+        entry,
+        placement.placement,
+        runtime=runtime,
+        runtime_version=version,
+    )
+    revision = (
+        str(request.source_revision) if is_resolved(request.source_revision) else ""
+    )
+    quant = str(request.quantization) if is_resolved(request.quantization) else ""
+    context = str(request.context_tokens) if is_resolved(request.context_tokens) else ""
     basis = requirement_basis(
         view_id,
         profile_id,
@@ -216,12 +297,10 @@ def assess_entry(
         runtime,
         version_token,
         estimator.version,
-    )
-    request = estimation_request(
-        entry,
-        capacity.placement,
-        runtime=runtime,
-        runtime_version=version,
+        source_revision=revision,
+        quantization=quant,
+        context_tokens=context,
+        batch_size=str(request.batch_size),
     )
     requirement = bind_runtime(
         estimator.estimate(request),
@@ -229,12 +308,14 @@ def assess_entry(
         runtime_version=version,
         basis=basis,
     )
+    incremental = incremental_storage_demand(entry, requirement, inventory)
     evaluation = evaluate(
         entry.metadata,
         requirement,
-        capacity,
+        placement,
         policy,
         runtime_compatibility=CompatibilityVerdict.COMPATIBLE,
+        incremental_storage_bytes=incremental,
     )
     return _row(
         entry,
@@ -258,6 +339,9 @@ def assess_catalog(
     envelope: CapacityEnvelope,
     estimator: ModelRequirementEstimator,
     policy: SelectionPolicy,
+    *,
+    capacity: DeploymentCapacity | None = None,
+    inventory: ModelInventory | None = None,
 ) -> tuple[RequirementAssessment, ...]:
     """Catalog entries plus extras. Does not mutate metadata or inventory."""
     seen: set[str] = set()
@@ -267,7 +351,17 @@ def assess_catalog(
         if ident in seen:
             continue
         seen.add(ident)
-        rows.append(assess_entry(view, entry, envelope, estimator, policy))
+        rows.append(
+            assess_entry(
+                view,
+                entry,
+                envelope,
+                estimator,
+                policy,
+                capacity=capacity,
+                inventory=inventory,
+            )
+        )
     return tuple(rows)
 
 
@@ -351,6 +445,11 @@ def _row(
     vram: object = NOT_PROVIDED
     safe_ram: object = NOT_PROVIDED
     safe_vram: object = NOT_PROVIDED
+    available_ram: object = NOT_PROVIDED
+    available_vram: object = NOT_PROVIDED
+    incremental: object = NOT_PROVIDED
+    available_storage: object = NOT_PROVIDED
+    snapshot: str | None = None
     fit_class: CapacityFitClass | None = None
     if evaluation is not None:
         fit = evaluation.capacity_fit.value
@@ -358,6 +457,16 @@ def _row(
         vram = evaluation.required_vram_bytes
         safe_ram = evaluation.safe_ram_bytes
         safe_vram = evaluation.safe_vram_bytes
+        available_ram = evaluation.available_ram_bytes
+        available_vram = evaluation.available_vram_bytes
+        incremental = evaluation.incremental_storage_bytes
+        available_storage = evaluation.available_storage_bytes
+        snapshot = (
+            evaluation.snapshot_basis
+            if is_resolved(evaluation.snapshot_basis)
+            and isinstance(evaluation.snapshot_basis, str)
+            else None
+        )
         fit_class = evaluation.capacity_fit
     return RequirementAssessment(
         model_id=entry.metadata.model_id.value,
@@ -376,7 +485,9 @@ def _row(
         reasons=reasons,
         capacity_assessed=assessed,
         capacity_fit=fit,
-        capacity_verdict=capacity_verdict(fit_class, assessed=assessed),
+        capacity_verdict=capacity_verdict(
+            fit_class, assessed=assessed, reasons=reasons
+        ),
         required_ram_bytes=ram,
         required_vram_bytes=vram,
         safe_ram_bytes=safe_ram,
@@ -384,6 +495,11 @@ def _row(
         source_ref=entry.metadata.source_ref,
         source_revision=entry.metadata.source_revision,
         evaluation=evaluation,
+        available_ram_bytes=available_ram,
+        available_vram_bytes=available_vram,
+        incremental_storage_bytes=incremental,
+        available_storage_bytes=available_storage,
+        snapshot_basis=snapshot,
     )
 
 
@@ -420,9 +536,63 @@ def assessment_payload(row: RequirementAssessment) -> dict[str, object]:
         "safe_vram_bytes": (
             row.safe_vram_bytes if is_resolved(row.safe_vram_bytes) else None
         ),
+        "available_ram_bytes": (
+            row.available_ram_bytes if is_resolved(row.available_ram_bytes) else None
+        ),
+        "available_vram_bytes": (
+            row.available_vram_bytes if is_resolved(row.available_vram_bytes) else None
+        ),
+        "incremental_storage_bytes": (
+            row.incremental_storage_bytes
+            if is_resolved(row.incremental_storage_bytes)
+            else None
+        ),
+        "available_storage_bytes": (
+            row.available_storage_bytes
+            if is_resolved(row.available_storage_bytes)
+            else None
+        ),
+        "snapshot_basis": row.snapshot_basis,
         "assumed_runtime": (
             requirement.assumed_runtime
             if requirement is not None and is_resolved(requirement.assumed_runtime)
+            else None
+        ),
+        "assumed_context_tokens": (
+            requirement.assumed_context_tokens
+            if requirement is not None
+            and is_resolved(requirement.assumed_context_tokens)
+            else None
+        ),
+        "assumed_batch_size": (
+            requirement.assumed_batch_size
+            if requirement is not None and is_resolved(requirement.assumed_batch_size)
+            else None
+        ),
+        "vram_weights_bytes": (
+            requirement.vram_weights_bytes
+            if requirement is not None and is_resolved(requirement.vram_weights_bytes)
+            else None
+        ),
+        "vram_kv_cache_bytes": (
+            requirement.vram_kv_cache_bytes
+            if requirement is not None and is_resolved(requirement.vram_kv_cache_bytes)
+            else None
+        ),
+        "vram_overhead_bytes": (
+            requirement.vram_overhead_bytes
+            if requirement is not None and is_resolved(requirement.vram_overhead_bytes)
+            else None
+        ),
+        "safety_allowance_bytes": (
+            requirement.safety_allowance_bytes
+            if requirement is not None
+            and is_resolved(requirement.safety_allowance_bytes)
+            else None
+        ),
+        "estimator_provider": (
+            requirement.estimator_provider
+            if requirement is not None and is_resolved(requirement.estimator_provider)
             else None
         ),
         "mutations": False,

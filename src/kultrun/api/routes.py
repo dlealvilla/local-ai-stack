@@ -39,6 +39,10 @@ from kultrun.planning.contracts import CompatibilityVerdict
 from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
+from kultrun.platform.capacity_snapshot import (
+    planning_capacity,
+    revalidation_plan_basis,
+)
 from kultrun.platform.contracts import HealthReport, PlatformState, StartupReport
 from kultrun.platform.deployment_instance import DeploymentInstanceService
 from kultrun.platform.deployment_plan import (
@@ -485,15 +489,29 @@ def register(router: Router, plane: ControlPlane) -> Router:
 
     def _assessments(
         host: HostCapabilities,
+        *,
+        pending_model: str | None = None,
     ) -> tuple[EligibleModelView, CapacityEnvelope, tuple[RequirementAssessment, ...]]:
         view = _eligible_view(host)
         envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        stored_plan = plane.deployment_plan.stored(host)
         rows = assess_catalog(
             view,
             plane.models,
             envelope,
             plane.selection.estimator,
             plane.selection.policy,
+            capacity=planning_capacity(
+                plane.resources,
+                envelope,
+                host,
+                plan_basis=revalidation_plan_basis(
+                    stored_plan,
+                    plane.model_selection.stored(host),
+                    pending_model=pending_model,
+                ),
+            ),
+            inventory=plane.inventory,
         )
         return view, envelope, rows
 
@@ -720,7 +738,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
             request.query.get("model") or request.query.get("model_id") or ""
         ).strip()
         host = plane.hosts.current
-        view, envelope, rows = _assessments(host)
+        view, envelope, rows = _assessments(host, pending_model=token or None)
         if mode == "auto" and not token:
             overview = plane.model_selection.select_auto(host, view, envelope, rows)
         elif mode == "manual" or (token and mode != "auto"):
@@ -816,7 +834,10 @@ def register(router: Router, plane: ControlPlane) -> Router:
                     1 for item in rows if item.capacity_verdict == "feasible"
                 ),
                 "infeasible": sum(
-                    1 for item in rows if item.capacity_verdict == "infeasible"
+                    1
+                    for item in rows
+                    if item.capacity_verdict == "infeasible"
+                    or item.capacity_verdict.startswith("infeasible_")
                 ),
                 "not_assessed": sum(
                     1 for item in rows if item.capacity_verdict == "not_assessed"
@@ -944,7 +965,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
         """SAFE / RESERVED / AVAILABLE. Reserved is not running."""
         host = plane.hosts.current
         envelope = plane.capacity.compute(host, plane.stored_sanity(host))
-        summary = plane.resources.summary(envelope)
+        summary = plane.resources.snapshot(envelope, host=host)
         items = plane.instances.list()
         running = _running(items)
         return {

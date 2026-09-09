@@ -363,7 +363,7 @@ def test_requirement_versus_safe_capacity(tmp_path: Path) -> None:
     small = assess_entry(view, _named(models, SMALL), envelope, estimator, policy)
     large = assess_entry(view, _named(models, LARGE), envelope, estimator, policy)
     assert small.capacity_verdict == "feasible"
-    assert large.capacity_verdict == "infeasible"
+    assert large.capacity_verdict == "infeasible_vram"
     assert small.eligibility_status == large.eligibility_status == "eligible"
 
 
@@ -387,7 +387,7 @@ def test_free_vram_does_not_change_eligibility(tmp_path: Path) -> None:
     tight = _assess(view, _named(models, SEVEN), poor, estimator)
     assert rich.eligibility_status == tight.eligibility_status == "eligible"
     assert rich.capacity_verdict == "feasible"
-    assert tight.capacity_verdict == "infeasible"
+    assert tight.capacity_verdict == "infeasible_vram"
 
 
 def test_catalog_metadata_is_not_mutated(tmp_path: Path) -> None:
@@ -618,7 +618,7 @@ def test_product_surfaces(
     names = {item["logical_name"]: item for item in payload["assessments"]}
     assert names[SMALL]["requirement_status"] == "ready"
     assert names[SMALL]["capacity_verdict"] == "feasible"
-    assert names[LARGE]["capacity_verdict"] == "infeasible"
+    assert names[LARGE]["capacity_verdict"] == "infeasible_vram"
     assert names[BLOCKED]["requirement_status"] == "refused"
     assert names[BLOCKED]["capacity_verdict"] == "not_assessed"
     assert names[UNRESOLVED]["requirement_status"] == "unresolved"

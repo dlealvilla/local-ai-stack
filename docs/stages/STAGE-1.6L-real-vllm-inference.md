@@ -36,6 +36,7 @@ ACCEPTANCE LEVEL             L3 required. T0/T1/T2 local is not closure.
 ADMIN SURFACE                POST /v1/inference/instances/start|stop|infer;
                              kultrun instances start|inspect|infer|stop.
 DEBT ENTRIES                 K-66, K-77 remain OPEN. K-95 deferred depth.
+                             K-96 llmfit plan is not native vLLM serving.
 ```
 
 ## Flow
@@ -90,5 +91,11 @@ Streaming, cancellation, automatic crash recovery, request queues,
 harder-than-runtime GPU memory enforcement, and richer observability
 remain K-95. Admitted VRAM is translated into vLLM
 `--gpu-memory-utilization` on the native serving path; that is a runtime
-budget control, not a kernel-enforced VRAM cgroup. T3/T5 on a real GPU
-host remain required for close.
+budget control, not a kernel-enforced VRAM cgroup.
+
+Feasibility compares a runtime-specific `ModelRequirement` to current
+available capacity (`ResourceSummary`: SAFE minus ACTIVE), not to
+physical host totals and not to SAFE alone. Stored artifacts consume
+storage via live free space; they do not consume VRAM. ResourceManager
+remains final admission. T3/T5 on a real GPU host remain required for
+close.

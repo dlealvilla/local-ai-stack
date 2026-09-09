@@ -54,12 +54,13 @@ class TestFixtureComparison:
             for field in tiny["fields"]
             if field["field"] == "estimated_vram_bytes"
         )
-        assert vram["classification"] == "GOOD"
+        assert vram["classification"] == "UNAVAILABLE"
+        assert vram["notes"] == ["both unresolved"]
         ram = next(field for field in tiny["fields"] if field["field"] == "ram_bytes")
         assert ram["classification"] == "LARGE_DIFFERENCE"
         assert ram["llmfit"] == 8 * GiB
 
-    def test_qwen_7b_awq_vram_is_a_large_documented_gap(self) -> None:
+    def test_qwen_7b_awq_vllm_llmfit_total_is_unresolved(self) -> None:
         report = compare_catalog(live=False)
         qwen = next(
             item
@@ -71,9 +72,10 @@ class TestFixtureComparison:
             for field in qwen["fields"]
             if field["field"] == "estimated_vram_bytes"
         )
-        assert vram["classification"] == "LARGE_DIFFERENCE"
-        assert vram["lower_provider"] == "llmfit"
-        assert qwen["overall_classification"] == "LARGE_DIFFERENCE"
+        assert vram["classification"] == "UNAVAILABLE"
+        assert vram["notes"] == ["llmfit unresolved"]
+        assert vram["kultrun"] is not None
+        assert vram["kultrun"] > 8 * GiB
 
     def test_same_request_identity_for_every_overlap(self) -> None:
         report = compare_catalog(live=False)

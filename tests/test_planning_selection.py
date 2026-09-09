@@ -278,8 +278,10 @@ class TestProviderIndependence:
         assert right.estimator_provider == "llmfit"
         assert left.required_vram_bytes == kultrun.estimated_vram_bytes
         assert right.required_vram_bytes == llmfit.estimated_vram_bytes
-        assert left.capacity_fit is CapacityFitClass.UNDERUTILIZED
-        assert right.capacity_fit is CapacityFitClass.UNDERUTILIZED
+        assert left.capacity_fit is CapacityFitClass.UNRESOLVED
+        assert right.capacity_fit is CapacityFitClass.UNRESOLVED
+        assert not is_resolved(kultrun.estimated_vram_bytes)
+        assert not is_resolved(llmfit.estimated_vram_bytes)
 
     def test_estimator_c_flows_through_selection_without_planning_edits(self) -> None:
         class EstimatorC:

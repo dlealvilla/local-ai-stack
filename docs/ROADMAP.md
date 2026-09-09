@@ -1354,7 +1354,9 @@ Evolve the existing vLLM runtime adapter into the first product serving
 path: exact verified `RuntimeInstallation`, exact local `ModelArtifact`,
 plan placement, structured `RuntimeLaunchSpec`, `NativeProcessExecutor`,
 deterministic readiness (alive + health + served-model match), reservation
-VRAM translated into `--gpu-memory-utilization`, and one
+VRAM translated into `--gpu-memory-utilization`, runtime-aware
+`ModelRequirement` vs current available capacity (SAFE minus ACTIVE),
+and one
 bounded non-streaming `InferenceRequest` → `InferenceResponse`. Loopback
 bind only. No reference-runtime fallback. No streaming, cancellation,
 container GPU, multi-GPU, or additional runtimes.
@@ -2720,6 +2722,9 @@ THIS STAGE'S REQUIRED OUTPUT Exact RuntimeInstallation launch; local
                              ModelArtifact; loopback RuntimeLaunchSpec;
                              deterministic readiness; generic
                              InferenceRequest/Response; API + CLI infer.
+                             Runtime-aware ModelRequirement vs current
+                             available capacity; feasible set before
+                             AUTO/MANUAL selection.
 CORE CONTRACTS AFFECTED      runtime.launch_request optional serving
                              fields; inference.request@1;
                              inference.response@1. No VllmRuntimeV2.
@@ -2741,6 +2746,8 @@ ADMIN SURFACE                POST /v1/inference/instances/start|stop|infer;
                              Console modest probe.
 DEBT ENTRIES                 K-66, K-77 remain OPEN.
                              K-95 records deferred depth of this vertical.
+                             K-96: llmfit plan minimum is not native
+                             vLLM serving demand.
 MUST NOT                     Reopen 1.6B–1.6K; container GPU; llama.cpp;
                              MLX; streaming; cancellation; routing; RAG;
                              trust_remote_code by default; PATH python;

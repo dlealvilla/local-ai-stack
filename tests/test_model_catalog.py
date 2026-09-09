@@ -218,7 +218,7 @@ class TestSelectionSurface:
         encoded = str(payload)
         assert "RequirementEvidenceReconciler" not in encoded
 
-    def test_auto_mode_api_uses_llmfit_when_the_plan_succeeds(
+    def test_auto_mode_vllm_falls_back_when_llmfit_plan_is_not_serving_demand(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from kultrun.adapters.estimators.llmfit import fixture_plan
@@ -234,9 +234,9 @@ class TestSelectionSurface:
         platform = _ready_platform(tmp_path)
         payload = _call(platform, "/models/selection")
         assert payload["estimator_mode"] == "auto"
-        assert payload["estimator_provider"] == "llmfit"
         assert payload["requested_primary"] == "llmfit"
-        assert payload["fallback_used"] is False
+        assert payload["estimator_provider"] == "kultrun"
+        assert payload["fallback_used"] is True
         assert "kultrun_estimate" not in payload
         assert "llmfit_estimate" not in payload
         assert "comparison" not in payload

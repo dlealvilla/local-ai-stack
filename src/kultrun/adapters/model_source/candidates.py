@@ -25,7 +25,7 @@ GiB = 1024**3
 CURATED = "curated"
 FORMULA = "formula_v0"
 PROVIDER = "kultrun"
-PROVIDER_VERSION = "1.4B.0"
+PROVIDER_VERSION = "1.6L.0"
 
 #: Stage 1.4A regression fixtures. Numbers on these six must not drift.
 ORIGINAL_FIXTURES = (
@@ -333,7 +333,7 @@ _CANDIDATES: tuple[ModelCatalogEntry, ...] = (
         vram_overhead_gib=0.4,
         estimated_vram_gib=1.0,
         assumed_context=2048,
-        kv_per_token=NOT_PROVIDED,
+        kv_per_token=12_288,
         confidence=Confidence.LOW,
         method=FORMULA,
     ),

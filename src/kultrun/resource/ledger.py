@@ -6,9 +6,7 @@ from kultrun.capacity.contracts import CapacityEnvelope
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.contracts import MemoryPlacement
 from kultrun.resource.contracts import (
-    POLICY_VERSION,
     AdmissionReason,
-    DeviceResourceSummary,
     LedgerHealth,
     ReservationState,
     ResourceReservation,
@@ -109,37 +107,9 @@ def summarize(
     envelope: CapacityEnvelope, reservations: tuple[ResourceReservation, ...]
 ) -> ResourceSummary:
     """Recompute availability. Do not persist these numbers as authority."""
-    held = active(reservations)
-    ram_safe = as_int(envelope.memory.safe_bytes)
-    ram_reserved = reserved_ram(reservations)
-    devices = []
-    for accelerator in envelope.accelerators:
-        safe = as_int(accelerator.memory.safe_bytes)
-        reserved = reserved_accelerator(reservations, accelerator.index)
-        devices.append(
-            DeviceResourceSummary(
-                index=accelerator.index,
-                safe_bytes=accelerator.memory.safe_bytes,
-                reserved_bytes=reserved,
-                available_bytes=available_for_new_work(safe, reserved),
-            )
-        )
-    return ResourceSummary(
-        host_id=envelope.host_id,
-        host_fingerprint=envelope.host_fingerprint,
-        health=device_health(envelope, reservations),
-        policy_version=POLICY_VERSION,
-        capacity_policy_version=envelope.policy_version,
-        safe_ram_bytes=envelope.memory.safe_bytes,
-        reserved_ram_bytes=ram_reserved,
-        available_ram_bytes=available_for_new_work(ram_safe, ram_reserved),
-        accelerators=tuple(devices),
-        reserved_unified_bytes=reserved_unified(reservations),
-        reserved_incremental_storage_bytes=reserved_incremental_storage(reservations),
-        active_count=len(held),
-        serving=False,
-        running_instances=0,
-    )
+    from kultrun.resource.snapshot import current_capacity_snapshot
+
+    return current_capacity_snapshot(envelope, reservations)
 
 
 def insufficient_reason(

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from kultrun.capacity.contracts import CapacityEnvelope
+from kultrun.host.contracts import HostCapabilities
 from kultrun.kernel.clock import Clock
 from kultrun.kernel.errors import NotFoundError, ValidationError
 from kultrun.kernel.persistence import Store
-from kultrun.kernel.unresolved import NOT_PROVIDED
+from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.model.contracts import ArtifactState, MemoryPlacement, ModelArtifact
 from kultrun.resource.contracts import (
     POLICY_VERSION,
@@ -31,9 +32,9 @@ from kultrun.resource.ledger import (
     reserved_accelerator,
     reserved_ram,
     reserved_unified,
-    summarize,
 )
 from kultrun.resource.lock import AdmissionLock
+from kultrun.resource.snapshot import current_capacity_snapshot
 
 
 class ResourceManager:
@@ -58,7 +59,43 @@ class ResourceManager:
         return self._store.get(ResourceReservation, reservation_id.value)
 
     def summary(self, envelope: CapacityEnvelope) -> ResourceSummary:
-        return summarize(envelope, self.reservations(include_released=True))
+        return self.snapshot(envelope)
+
+    def snapshot(
+        self,
+        envelope: CapacityEnvelope,
+        *,
+        exclude_reservation_id: ReservationId | str | None = None,
+        host: HostCapabilities | None = None,
+    ) -> ResourceSummary:
+        """Derived current available capacity. Never stored as host truth."""
+        return current_capacity_snapshot(
+            envelope,
+            self.reservations(include_released=True),
+            exclude_reservation_id=exclude_reservation_id,
+            host=host,
+            derived_at=self._clock.now(),
+        )
+
+    def active_reservation_for_plan(
+        self, plan_basis: object
+    ) -> ResourceReservation | None:
+        """ACTIVE grant for this plan, if exactly one matches. Not admission."""
+        if not is_resolved(plan_basis) or not isinstance(plan_basis, str):
+            return None
+        token = plan_basis.strip()
+        if not token:
+            return None
+        matches = [
+            item
+            for item in self.reservations()
+            if item.state is ReservationState.ACTIVE
+            and is_resolved(item.plan_fingerprint)
+            and item.plan_fingerprint == token
+        ]
+        if len(matches) != 1:
+            return None
+        return matches[0]
 
     def admit(
         self,

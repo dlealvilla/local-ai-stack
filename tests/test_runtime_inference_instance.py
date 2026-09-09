@@ -36,12 +36,21 @@ def _prepare(platform) -> dict[str, object]:
 
 
 def _other_feasible(platform, recommended: str) -> str:
+    """A different feasible model. Prefer the smallest so leftover grants still fit."""
     selection = _call(platform, "/models/selection").body["payload"]
-    return next(
+    requirements = _call(platform, "/models/requirements").body["payload"]
+    vram = {
+        row["logical_name"]: row["required_vram_bytes"]
+        for row in requirements["assessments"]
+        if isinstance(row.get("required_vram_bytes"), int)
+    }
+    others = [
         item["logical_name"]
         for item in selection["feasible"]
         if item["logical_name"] != recommended
-    )
+    ]
+    others.sort(key=lambda name: vram.get(name, 1 << 62))
+    return others[0]
 
 
 def _create(platform, **query: str):
@@ -170,6 +179,7 @@ def test_same_model_plan_basis_mismatch_refused(tmp_path: Path) -> None:
     assert refused.body["error"]["context"]["reason"] in {
         "reservation_plan_mismatch",
         "reservation_request_mismatch",
+        "plan_stale",
     }
     assert platform.instances.list() == ()
 
@@ -196,6 +206,7 @@ def test_legacy_artifact_reservation_is_not_instance_authority(
         "artifact_plan_mismatch",
         "reservation_plan_mismatch",
         "reservation_request_mismatch",
+        "plan_stale",
     }
     assert platform.instances.list() == ()
 

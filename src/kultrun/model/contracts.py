@@ -379,6 +379,18 @@ class ModelRequirement(Contract):
         "fingerprint of eligibility view, profile, model, and estimator",
         default=NOT_PROVIDED,
     )
+    assumed_batch_size: Maybe[int] = meaning(
+        "concurrency assumption these figures use; v0 is one max-length sequence",
+        default=NOT_PROVIDED,
+    )
+    vram_kv_cache_bytes: Maybe[int] = meaning(
+        "KV cache for the assumed context and concurrency, when derived",
+        default=NOT_PROVIDED,
+    )
+    safety_allowance_bytes: Maybe[int] = meaning(
+        "explicit bounded safety/engine allowance included in the total",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="model.inventory_record", version=1)

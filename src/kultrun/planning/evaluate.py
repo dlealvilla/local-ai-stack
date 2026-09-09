@@ -1,7 +1,8 @@
 """Host-independent requirement math lives in estimators; this is fit.
 
-Planning consumes ModelRequirement and CapacityEnvelope.SAFE. It does not
-import an estimator adapter.
+Planning consumes ModelRequirement and current available capacity
+(SAFE minus ACTIVE). It does not import an estimator adapter or the
+reservation ledger.
 """
 
 from __future__ import annotations
@@ -11,8 +12,6 @@ from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.unresolved import (
     NOT_PROVIDED,
     Maybe,
-    Unresolved,
-    UnresolvedReason,
     is_resolved,
 )
 from kultrun.model.contracts import MemoryPlacement, ModelMetadata, ModelRequirement
@@ -72,6 +71,10 @@ def deployment_capacity(envelope: CapacityEnvelope) -> DeploymentCapacity:
             safe_unified_bytes=NOT_PROVIDED,
             safe_storage_bytes=storage,
             envelope_policy_version=envelope.policy_version,
+            available_ram_bytes=envelope.memory.safe_bytes,
+            available_vram_bytes=gpu.memory.safe_bytes,
+            available_unified_bytes=NOT_PROVIDED,
+            available_storage_bytes=storage,
         )
     return DeploymentCapacity(
         host_id=envelope.host_id,
@@ -83,27 +86,38 @@ def deployment_capacity(envelope: CapacityEnvelope) -> DeploymentCapacity:
         safe_unified_bytes=NOT_PROVIDED,
         safe_storage_bytes=storage,
         envelope_policy_version=envelope.policy_version,
+        available_ram_bytes=envelope.memory.safe_bytes,
+        available_vram_bytes=NOT_PROVIDED,
+        available_unified_bytes=NOT_PROVIDED,
+        available_storage_bytes=storage,
     )
 
 
-def _ratio(required: object, safe: object) -> Maybe[float]:
-    if not is_resolved(required) or not is_resolved(safe):
+def _budget(available: Maybe[int], safe: Maybe[int]) -> Maybe[int]:
+    """Current available when present; otherwise SAFE (zero-commitment case)."""
+    if is_resolved(available):
+        return available
+    return safe
+
+
+def _ratio(required: object, budget: object) -> Maybe[float]:
+    if not is_resolved(required) or not is_resolved(budget):
         return NOT_PROVIDED
-    if not isinstance(required, int) or not isinstance(safe, int):
+    if not isinstance(required, int) or not isinstance(budget, int):
         return NOT_PROVIDED
-    if safe <= 0:
-        return Unresolved(
-            UnresolvedReason.UNSUPPORTED,
-            "safe capacity is not a positive quantity",
-        )
-    return required / safe
+    if budget <= 0:
+        return 2.0 if required > 0 else 0.0
+    return required / budget
 
 
 def utilization(
     requirement: ModelRequirement, capacity: DeploymentCapacity
 ) -> CapacityUtilization:
-    """Limiting-resource ratio. Storage is not included."""
-    ram_ratio = _ratio(requirement.ram_bytes, capacity.safe_ram_bytes)
+    """Limiting-resource ratio against current available capacity. Storage excluded."""
+    ram_ratio = _ratio(
+        requirement.ram_bytes,
+        _budget(capacity.available_ram_bytes, capacity.safe_ram_bytes),
+    )
     if capacity.placement is MemoryPlacement.CPU_ONLY:
         limiting = ram_ratio
         ram_known = is_resolved(requirement.ram_bytes)
@@ -118,7 +132,8 @@ def utilization(
         )
     if capacity.placement is MemoryPlacement.UNIFIED_MEMORY:
         unified_ratio = _ratio(
-            requirement.unified_memory_bytes, capacity.safe_unified_bytes
+            requirement.unified_memory_bytes,
+            _budget(capacity.available_unified_bytes, capacity.safe_unified_bytes),
         )
         load = requirement.unified_memory_bytes
         return CapacityUtilization(
@@ -129,7 +144,9 @@ def utilization(
             unified_ratio=unified_ratio,
         )
     vram = requirement.estimated_vram_bytes
-    vram_ratio = _ratio(vram, capacity.safe_vram_bytes)
+    vram_ratio = _ratio(
+        vram, _budget(capacity.available_vram_bytes, capacity.safe_vram_bytes)
+    )
     if not is_resolved(vram):
         return CapacityUtilization(
             ratio=NOT_PROVIDED,
@@ -170,8 +187,9 @@ def evaluate(
     policy: SelectionPolicy,
     *,
     runtime_compatibility: CompatibilityVerdict,
+    incremental_storage_bytes: Maybe[int] | None = None,
 ) -> ModelEvaluation:
-    """One candidate, one envelope, one policy. Deterministic.
+    """One candidate, current available capacity, one policy. Deterministic.
 
     Runtime/model compatibility is supplied by the eligible-model view.
     Callers always pass that token. There is no omit-mapping COMPATIBLE
@@ -194,17 +212,24 @@ def evaluate(
             compatibility = CompatibilityVerdict.UNRESOLVED
         reasons.extend(requirement.assumptions or (str(method),))
 
-    storage_ok: object = NOT_PROVIDED
-    peak = requirement.peak_additional_bytes
-    if not is_resolved(peak):
-        unresolved.append("peak_additional_bytes")
+    storage_demand: Maybe[int] = (
+        requirement.peak_additional_bytes
+        if incremental_storage_bytes is None
+        else incremental_storage_bytes
+    )
+    storage_budget = _budget(
+        capacity.available_storage_bytes, capacity.safe_storage_bytes
+    )
+    storage_ok: Maybe[bool] = NOT_PROVIDED
+    if not is_resolved(storage_demand):
+        unresolved.append("incremental_storage_bytes")
         storage_ok = NOT_PROVIDED
-    elif is_resolved(capacity.safe_storage_bytes):
-        storage_ok = peak <= capacity.safe_storage_bytes
-        if not storage_ok:
-            reasons.append("peak acquisition exceeds SAFE storage")
+    elif is_resolved(storage_budget):
+        storage_ok = storage_demand <= storage_budget
+        if storage_ok is False:
+            reasons.append("infeasible_storage")
     else:
-        unresolved.append("safe_storage_bytes")
+        unresolved.append("available_storage_bytes")
         storage_ok = NOT_PROVIDED
 
     used = utilization(requirement, capacity)
@@ -213,27 +238,37 @@ def evaluate(
     if compatibility is CompatibilityVerdict.UNSUPPORTED:
         fit = CapacityFitClass.EXCEEDS_SAFE
         reasons.append("unsupported; not a capacity-fit candidate")
-    elif storage_ok is False:
-        fit = CapacityFitClass.EXCEEDS_SAFE
-    elif compatibility is CompatibilityVerdict.UNRESOLVED or not is_resolved(
-        used.ratio
-    ):
+    elif compatibility is CompatibilityVerdict.UNRESOLVED:
         fit = CapacityFitClass.UNRESOLVED
-        if not is_resolved(used.ratio):
-            unresolved.append("capacity_utilization")
-            reasons.append("load-bearing requirement or SAFE capacity is unknown")
+        reasons.append("runtime eligibility unresolved; capacity not a fit")
     else:
-        ratio = used.ratio
-        if ratio > policy.maximum_capacity_utilization:
+        failed = _hard_capacity_failures(requirement, capacity, storage_ok)
+        if failed:
             fit = CapacityFitClass.EXCEEDS_SAFE
-            reasons.append("estimated deployment requirement exceeds safe capacity")
-        elif ratio < policy.minimum_capacity_utilization:
-            fit = CapacityFitClass.UNDERUTILIZED
-            reasons.append("underutilizes available deployment capacity")
+            reasons.extend(failed)
+        elif not is_resolved(used.ratio):
+            fit = CapacityFitClass.UNRESOLVED
+            unresolved.append("capacity_utilization")
+            reasons.append(
+                "load-bearing requirement or current available capacity is unknown"
+            )
         else:
-            fit = CapacityFitClass.PREFERRED
-            preferred = True
-            reasons.append("inside the preferred capacity-fit band")
+            ratio = used.ratio
+            if ratio > policy.maximum_capacity_utilization:
+                fit = CapacityFitClass.EXCEEDS_SAFE
+                limiting = (
+                    used.limiting_resource
+                    if is_resolved(used.limiting_resource)
+                    else "vram"
+                )
+                reasons.append(f"infeasible_{limiting}")
+            elif ratio < policy.minimum_capacity_utilization:
+                fit = CapacityFitClass.UNDERUTILIZED
+                reasons.append("underutilizes available deployment capacity")
+            else:
+                fit = CapacityFitClass.PREFERRED
+                preferred = True
+                reasons.append("inside the preferred capacity-fit band")
 
     return ModelEvaluation(
         model_id=metadata.model_id,
@@ -245,10 +280,22 @@ def evaluate(
         required_ram_bytes=requirement.ram_bytes,
         required_vram_bytes=requirement.estimated_vram_bytes,
         required_unified_bytes=requirement.unified_memory_bytes,
-        required_storage_bytes=requirement.peak_additional_bytes,
+        required_storage_bytes=storage_demand,
         safe_ram_bytes=capacity.safe_ram_bytes,
         safe_vram_bytes=capacity.safe_vram_bytes,
         safe_unified_bytes=capacity.safe_unified_bytes,
+        available_ram_bytes=_budget(
+            capacity.available_ram_bytes, capacity.safe_ram_bytes
+        ),
+        available_vram_bytes=_budget(
+            capacity.available_vram_bytes, capacity.safe_vram_bytes
+        ),
+        available_unified_bytes=_budget(
+            capacity.available_unified_bytes, capacity.safe_unified_bytes
+        ),
+        available_storage_bytes=storage_budget,
+        incremental_storage_bytes=storage_demand,
+        snapshot_basis=capacity.snapshot_basis,
         utilization=used,
         preferred=preferred,
         reasons=tuple(reasons),
@@ -267,6 +314,46 @@ def evaluate(
             requirement.supported_runtimes or metadata.supported_runtimes
         ),
     )
+
+
+def _exceeds(required: object, budget: object) -> bool | None:
+    if not is_resolved(required) or not is_resolved(budget):
+        return None
+    if not isinstance(required, int) or not isinstance(budget, int):
+        return None
+    return required > budget
+
+
+def _hard_capacity_failures(
+    requirement: ModelRequirement,
+    capacity: DeploymentCapacity,
+    storage_ok: object,
+) -> tuple[str, ...]:
+    """Dimension-specific hard failures. Compatibility is handled by the caller."""
+    failed: list[str] = []
+    if capacity.placement is MemoryPlacement.DISCRETE_GPU:
+        vram = _exceeds(
+            requirement.estimated_vram_bytes,
+            _budget(capacity.available_vram_bytes, capacity.safe_vram_bytes),
+        )
+        if vram is True:
+            failed.append("infeasible_vram")
+    elif capacity.placement is MemoryPlacement.UNIFIED_MEMORY:
+        unified = _exceeds(
+            requirement.unified_memory_bytes,
+            _budget(capacity.available_unified_bytes, capacity.safe_unified_bytes),
+        )
+        if unified is True:
+            failed.append("infeasible_vram")
+    ram = _exceeds(
+        requirement.ram_bytes,
+        _budget(capacity.available_ram_bytes, capacity.safe_ram_bytes),
+    )
+    if ram is True:
+        failed.append("infeasible_ram")
+    if storage_ok is False and "infeasible_storage" not in failed:
+        failed.append("infeasible_storage")
+    return tuple(failed)
 
 
 def not_assessed(

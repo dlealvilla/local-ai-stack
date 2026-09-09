@@ -662,16 +662,20 @@ Label:        PROVISIONAL
 Owner stage:  1.4A
 Subsystem:    model
 Authorizes:   NO
-What:         Weight, RAM, VRAM, overhead and KV figures on the curated
-              original six are coarse estimates with method `curated`.
-              Expanded 1.4B variants use `formula_v0`. They are not
-              measured runtime evidence. Compared with llmfit, Kultrun
+What:         Weight, RAM, overhead and KV components on the curated
+              original six remain coarse packaged estimates with method
+              `curated`. Expanded 1.4B variants use `formula_v0`. They
+              are not measured runtime evidence. For native vLLM, the
+              Kultrun estimator recomposes those components with
+              requested context, batch size, and an explicit engine
+              workspace allowance; the packaged `estimated_vram_gib`
+              total is catalog data, not the serving demand used for
+              feasibility. Compared with llmfit `plan` minimum, Kultrun
               VRAM is typically conservative; some 20% / 100% band
-              crossings (Qwen 7B AWQ, Phi-3.5 Mini, Qwen 32B Q4) are
-              expected calibration gaps, not unit bugs. Do not rewrite
-              production estimates to match llmfit.
+              crossings remain expected calibration gaps, not unit bugs.
+              Do not rewrite production estimates to match llmfit.
 Why now:      Stage 1.4B needs *some* host-independent requirement to
-              filter against SAFE capacity. Inventing a precise
+              filter against capacity. Inventing a precise measured
               estimator now would be untested intelligence.
 To make real: Runtime-specific estimation (seam now) plus Stage 1.6
               predicted-vs-actual evidence. Load-bearing unknowns stay
@@ -687,10 +691,12 @@ Subsystem:    adapters / estimators
 Authorizes:   NO
 What:         llmfit is not a Kultrun hard dependency. Default mode is
               AUTO (llmfit primary, Kultrun fallback on typed failure).
-              Strict `llmfit` does not fall back when the executable is
-              missing — estimation is unavailable/unresolved. Strict
-              `kultrun` does not require llmfit. AUTO fallback is not
-              estimate shopping and is not a product reconciler.
+              For native vLLM on a discrete GPU, llmfit `plan` minimum
+              is not serving demand (K-96); AUTO falls back to Kultrun
+              composition. Strict `llmfit` does not fall back when the
+              executable is missing — estimation is unavailable/unresolved.
+              Strict `kultrun` does not require llmfit. AUTO fallback is
+              not estimate shopping and is not a product reconciler.
 Why now:      T0/T1 must not require the binary; T2 proves it from a
               clean install with the optional extra. K-03 forbids a
               `schema_version` bump, so `config.platform@1
@@ -1634,6 +1640,30 @@ To make real: Later stages that own each concern separately.
 Retire when:  the named depth is an accepted stage output.
 Status:       OPEN
 
+### K-96 — llmfit plan minimum is not native vLLM serving demand
+Label:        PROVISIONAL
+Owner stage:  1.6L
+Subsystem:    adapters / estimators
+Authorizes:   NO
+What:         Captured `llmfit plan` for Qwen2.5-7B-Instruct-AWQ at
+              context 8192 reports a minimum of about 4.75 GiB VRAM
+              (fp16 KV 0.4375 GiB). Native vLLM serving needs weights,
+              KV for the requested context, runtime overhead, optional
+              activation, and engine/workspace remainder. The llmfit
+              adapter therefore does not authorize a discrete-GPU vLLM
+              serving total from that plan minimum. AUTO falls back to
+              Kultrun vLLM composition. Strict llmfit stays unresolved.
+Why now:      Fresh-host T3 admitted 8.0 GiB from the packaged Kultrun
+              total after llmfit was unavailable; the runtime then
+              lacked KV for context 8192. Do not hard-code that host's
+              observed remainder.
+To make real: A provider that estimates native vLLM serving demand for
+              the requested model, revision, quantization, context, and
+              concurrency — or measured calibration that stays advisory.
+Retire when:  that serving total is the product estimate for vLLM, or
+              llmfit is dropped for this runtime family.
+Status:       OPEN
+
 ## Runtime-first migration ledger (after 1.6K)
 
 Not a second architecture. Existing components still to migrate, in
@@ -1643,7 +1673,7 @@ order. Do not begin automatically.
 |---|---|---|---|---|---|
 | Runtime/model compatibility | `EligibleModelView` / `RuntimeEligibleModelCandidate` | same | done in 1.6F | composition copy of eligibility → `CompatibilityVerdict` (planning ⟂ runtime) | ✅ |
 | ModelRequirement | `RuntimeEligibleModelCandidate` + fresh VERIFIED profile + selected runtime | same | done in 1.6G | none | ✅ |
-| CapacityAssessment | remapped `ModelRequirement` + host SAFE envelope | same | done in 1.6G; existing SAFE math | none | ✅ |
+| CapacityAssessment | remapped `ModelRequirement` + current available (`ResourceSummary` = SAFE minus ACTIVE) | same | done in 1.6G; 1.6L binds snapshot instead of SAFE-only | none | ✅ |
 | ModelSelector | `FeasibleModelCandidate[]` from eligible + ready + feasible assessments | same | done in 1.6H; existing capacity-band ranking | `SelectionService.recommend()` isolated tests only | ✅ |
 | Bounded model selection | host-scoped `ModelSelection` AUTO\|MANUAL; recommended ≠ selected | same | done in 1.6H | none | ✅ |
 | Authoritative DeploymentPlan | current foundation + VERIFIED runtime + ModelSelection + READY requirement + feasible capacity | same | done in 1.6I; CURRENT vs STALE from `plan_basis` | `plan_from` demoted (`plan_authoritative: false`) for recommendation display | ✅ |

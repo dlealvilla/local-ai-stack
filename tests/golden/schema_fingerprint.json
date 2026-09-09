@@ -3396,6 +3396,13 @@
         "optional": true,
         "type": "int | Unresolved"
       },
+      "assumed_batch_size": {
+        "may_be_unresolved": true,
+        "meaning": "concurrency assumption these figures use; v0 is one max-length sequence",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "assumed_context_tokens": {
         "may_be_unresolved": true,
         "meaning": "context length the memory estimates assume; distinct from the model's maximum advertised context",
@@ -3536,6 +3543,13 @@
         "optional": true,
         "type": "str | Unresolved"
       },
+      "safety_allowance_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "explicit bounded safety/engine allowance included in the total",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "storage_bytes": {
         "may_be_unresolved": true,
         "meaning": "steady-state size once installed",
@@ -3562,6 +3576,13 @@
         "meaning": "accelerator memory per token of context",
         "nullable": false,
         "optional": false,
+        "type": "int | Unresolved"
+      },
+      "vram_kv_cache_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "KV cache for the assumed context and concurrency, when derived",
+        "nullable": false,
+        "optional": true,
         "type": "int | Unresolved"
       },
       "vram_overhead_bytes": {
@@ -3630,6 +3651,34 @@
         "optional": true,
         "type": "int | None"
       },
+      "available_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current RAM available for another workload; SAFE minus ACTIVE",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "available_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current incremental storage available; SAFE free space minus pending reservations",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "available_unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current unified memory available for another workload",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "available_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current device memory available for another workload; SAFE minus ACTIVE",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "envelope_policy_version": {
         "may_be_unresolved": false,
         "meaning": "headroom policy of the source envelope",
@@ -3685,6 +3734,13 @@
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "snapshot_basis": {
+        "may_be_unresolved": true,
+        "meaning": "current-capacity snapshot identity used for this comparison",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       }
     },
     "python": "DeploymentCapacity"
@@ -3983,6 +4039,34 @@
   },
   "planning.model_evaluation@1": {
     "fields": {
+      "available_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current available RAM used for the hard predicate",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "available_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current available incremental storage used for the hard predicate",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "available_unified_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current available unified memory used for the hard predicate",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "available_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current available VRAM used for the hard predicate",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "capacity_fit": {
         "may_be_unresolved": false,
         "meaning": "preferred-band class",
@@ -4045,6 +4129,13 @@
         "nullable": false,
         "optional": true,
         "type": "bool"
+      },
+      "incremental_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "acquisition footprint still required; zero when the exact artifact is stored",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
       },
       "logical_name": {
         "may_be_unresolved": false,
@@ -4143,6 +4234,13 @@
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "snapshot_basis": {
+        "may_be_unresolved": true,
+        "meaning": "current-capacity snapshot identity for this row",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "source_ref": {
         "may_be_unresolved": false,
@@ -4771,6 +4869,13 @@
         "optional": false,
         "type": "int | Unresolved"
       },
+      "device_identity": {
+        "may_be_unresolved": true,
+        "meaning": "reported device model, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "index": {
         "may_be_unresolved": false,
         "meaning": "which assigned accelerator",
@@ -4791,6 +4896,13 @@
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "vendor": {
+        "may_be_unresolved": true,
+        "meaning": "accelerator family from host facts, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       }
     },
     "python": "DeviceResourceSummary"
@@ -5185,11 +5297,25 @@
         "optional": true,
         "type": "int"
       },
+      "active_reservation_ids": {
+        "may_be_unresolved": false,
+        "meaning": "ACTIVE reservation identities included in this view",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
       "available_ram_bytes": {
         "may_be_unresolved": true,
         "meaning": "SAFE RAM minus reserved, or 0 when overcommitted; never negative",
         "nullable": false,
         "optional": false,
+        "type": "int | Unresolved"
+      },
+      "available_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE storage minus ACTIVE incremental reservations; not stored artifact bytes already reflected in free space",
+        "nullable": false,
+        "optional": true,
         "type": "int | Unresolved"
       },
       "available_unified_bytes": {
@@ -5205,6 +5331,20 @@
         "nullable": false,
         "optional": false,
         "type": "str"
+      },
+      "derived_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this derived view was computed, UTC",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "excluded_reservation_id": {
+        "may_be_unresolved": true,
+        "meaning": "own reservation omitted so revalidation does not double-subtract",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "health": {
         "may_be_unresolved": false,
@@ -5269,6 +5409,13 @@
         "optional": false,
         "type": "int | Unresolved"
       },
+      "safe_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE free space from the current storage authority",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "safe_unified_bytes": {
         "may_be_unresolved": true,
         "meaning": "current SAFE unified memory",
@@ -5282,6 +5429,27 @@
         "nullable": false,
         "optional": true,
         "type": "bool"
+      },
+      "snapshot_basis": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of SAFE envelope plus ACTIVE commitments at read time",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "snapshot_version": {
+        "may_be_unresolved": false,
+        "meaning": "arithmetic version of this derived current-capacity view",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "storage_source": {
+        "may_be_unresolved": true,
+        "meaning": "pool identity that supplied storage availability",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       }
     },
     "python": "ResourceSummary"

@@ -99,6 +99,10 @@ from kultrun.planning.contracts import CompatibilityVerdict
 from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
+from kultrun.platform.capacity_snapshot import (
+    planning_capacity,
+    revalidation_plan_basis,
+)
 from kultrun.platform.contracts import (
     ComponentHealth,
     HealthStatus,
@@ -768,8 +772,22 @@ def build(
             ),
         )
         envelope = capacity.compute(host, _stored_sanity_with(sanity, host))
+        stored_plan = deployment_plan.stored(host)
         rows = assess_catalog(
-            view, models, envelope, selection.estimator, selection.policy
+            view,
+            models,
+            envelope,
+            selection.estimator,
+            selection.policy,
+            capacity=planning_capacity(
+                resources,
+                envelope,
+                host,
+                plan_basis=revalidation_plan_basis(
+                    stored_plan, model_selection.stored(host)
+                ),
+            ),
+            inventory=inventory,
         )
         chosen = model_selection.view(host, view, envelope, rows)
         return deployment_plan.view(
@@ -1371,16 +1389,30 @@ def _runtime_compat(platform: Platform) -> Mapping[str, CompatibilityVerdict]:
 
 def _assessments(
     platform: Platform,
+    *,
+    pending_model: str | None = None,
 ) -> tuple[EligibleModelView, CapacityEnvelope, tuple[RequirementAssessment, ...]]:
     view = _eligible_view(platform)
     host = platform.hosts.current
     envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    stored_plan = platform.deployment_plan.stored(host)
     rows = assess_catalog(
         view,
         platform.models,
         envelope,
         platform.selection.estimator,
         platform.selection.policy,
+        capacity=planning_capacity(
+            platform.resources,
+            envelope,
+            host,
+            plan_basis=revalidation_plan_basis(
+                stored_plan,
+                platform.model_selection.stored(host),
+                pending_model=pending_model,
+            ),
+        ),
+        inventory=platform.inventory,
     )
     return view, envelope, rows
 
@@ -2201,7 +2233,9 @@ def select_named_model(arguments: Sequence[str]) -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     host = platform.hosts.current
-    view, envelope, rows = _assessments(platform)
+    view, envelope, rows = _assessments(
+        platform, pending_model=None if auto else names[0]
+    )
     try:
         if auto:
             overview = platform.model_selection.select_auto(host, view, envelope, rows)
@@ -2240,10 +2274,11 @@ def show_requirements() -> int:
         return 0
     for item in rows:
         eligibility = item.eligibility_status or "-"
-        vram = _bytes(item.required_vram_bytes)
         print(
-            f"{item.requirement_status.value:12} {item.capacity_verdict:12} "
-            f"{item.logical_name:32} eligibility {eligibility}  vram {vram}"
+            f"{item.requirement_status.value:12} {item.capacity_verdict:16} "
+            f"{item.logical_name:32} eligibility {eligibility}  "
+            f"vram {_bytes(item.required_vram_bytes)}/"
+            f"{_bytes(item.available_vram_bytes)}"
         )
     return 0
 

@@ -82,8 +82,9 @@ class SelectionPolicy(Contract):
 @contract(kind="planning.deployment_capacity", version=1)
 @dataclass(frozen=True, slots=True)
 class DeploymentCapacity(Contract):
-    """SAFE slice of the envelope for one proposed placement.
+    """SAFE envelope plus current available for one proposed placement.
 
+    Available is SAFE minus ACTIVE commitments when a snapshot is bound.
     Not a universal server score. Storage is carried for the separate
     hard check and is not a utilization input.
     """
@@ -105,6 +106,27 @@ class DeploymentCapacity(Contract):
     accelerator_index: int | None = meaning(
         "assigned accelerator for discrete GPU; none for CPU-only",
         default=None,
+    )
+    available_ram_bytes: Maybe[int] = meaning(
+        "current RAM available for another workload; SAFE minus ACTIVE",
+        default=NOT_PROVIDED,
+    )
+    available_vram_bytes: Maybe[int] = meaning(
+        "current device memory available for another workload; SAFE minus ACTIVE",
+        default=NOT_PROVIDED,
+    )
+    available_unified_bytes: Maybe[int] = meaning(
+        "current unified memory available for another workload",
+        default=NOT_PROVIDED,
+    )
+    available_storage_bytes: Maybe[int] = meaning(
+        "current incremental storage available; SAFE free space minus "
+        "pending reservations",
+        default=NOT_PROVIDED,
+    )
+    snapshot_basis: Maybe[str] = meaning(
+        "current-capacity snapshot identity used for this comparison",
+        default=NOT_PROVIDED,
     )
 
 
@@ -174,6 +196,27 @@ class ModelEvaluation(Contract):
     )
     fallback_reason: Maybe[str] = meaning(
         "typed primary failure that caused fallback", default=NOT_PROVIDED
+    )
+    available_ram_bytes: Maybe[int] = meaning(
+        "current available RAM used for the hard predicate", default=NOT_PROVIDED
+    )
+    available_vram_bytes: Maybe[int] = meaning(
+        "current available VRAM used for the hard predicate", default=NOT_PROVIDED
+    )
+    available_unified_bytes: Maybe[int] = meaning(
+        "current available unified memory used for the hard predicate",
+        default=NOT_PROVIDED,
+    )
+    available_storage_bytes: Maybe[int] = meaning(
+        "current available incremental storage used for the hard predicate",
+        default=NOT_PROVIDED,
+    )
+    incremental_storage_bytes: Maybe[int] = meaning(
+        "acquisition footprint still required; zero when the exact artifact is stored",
+        default=NOT_PROVIDED,
+    )
+    snapshot_basis: Maybe[str] = meaning(
+        "current-capacity snapshot identity for this row", default=NOT_PROVIDED
     )
 
 

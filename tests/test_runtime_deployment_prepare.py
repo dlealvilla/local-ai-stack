@@ -319,12 +319,10 @@ def test_admission_failure_no_fallback(tmp_path: Path) -> None:
     decision = platform.resources.admit(competing, envelope, artifact)
     assert decision.verdict.value == "admitted"
     admitted = _call(platform, "/deployments/plan/admit", Method.POST)
-    assert admitted.status == 200
-    payload = admitted.body["payload"]
-    assert payload["admission"]["verdict"] == "rejected"
-    assert payload["reservation"] is None
+    assert admitted.status == 412
+    assert admitted.body["error"]["context"]["reason"] == "plan_stale"
     later = _call(platform, "/deployments/plan").body["payload"]
-    assert later["status"] == "current"
+    assert later["status"] == "stale"
     assert later["selected_model"] == plan["selected_model"]
     assert later["runtime"] == plan["runtime"]
     assert (

@@ -63,6 +63,14 @@ def _tiny() -> ModelCatalogEntry:
     return packaged_candidates()[0]
 
 
+def _seven() -> ModelCatalogEntry:
+    return next(
+        entry
+        for entry in packaged_candidates()
+        if entry.metadata.logical_name.value == "qwen2.5-7b-instruct-awq"
+    )
+
+
 def _llmfit() -> LlmfitRequirementEstimator:
     return LlmfitRequirementEstimator(plan=fixture_plan(FIXTURE_ROOT))
 
@@ -110,11 +118,28 @@ class TestAutoFailover:
         router = EstimatorRouter(
             mode="auto", providers=(llmfit, kultrun), allow_fallback=True
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven(), runtime="llama.cpp"))
         assert result.estimator_provider == "llmfit"
         assert result.fallback_used is False
         assert llmfit.calls == 1
         assert kultrun.calls == 0
+
+    def test_vllm_llmfit_plan_minimum_falls_back_to_kultrun(self) -> None:
+        llmfit = CountingEstimator(_llmfit())
+        kultrun = CountingEstimator(KultrunRequirementEstimator())
+        router = EstimatorRouter(
+            mode="auto", providers=(llmfit, kultrun), allow_fallback=True
+        )
+        result = router.estimate(_request(_seven(), context=8192))
+        assert result.estimator_provider == "kultrun"
+        assert result.fallback_used is True
+        assert result.fallback_reason == (
+            EstimatorFailureReason.MISSING_LOAD_BEARING_REQUIREMENT.value
+        )
+        assert llmfit.calls == 1
+        assert kultrun.calls == 1
+        assert is_resolved(result.estimated_vram_bytes)
+        assert result.estimated_vram_bytes > 8 * (1024**3)
 
     def test_unavailable_llmfit_falls_back_to_kultrun(self) -> None:
         def missing(model: str, context: int, quant: str) -> dict[str, object]:
@@ -125,7 +150,7 @@ class TestAutoFailover:
         router = EstimatorRouter(
             mode="auto", providers=(llmfit, kultrun), allow_fallback=True
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.estimator_provider == "kultrun"
         assert result.fallback_used is True
         assert result.fallback_reason == (
@@ -147,7 +172,7 @@ class TestAutoFailover:
             ),
             allow_fallback=True,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.fallback_used is True
         assert result.fallback_reason == EstimatorFailureReason.PROVIDER_TIMEOUT.value
         assert result.estimator_provider == "kultrun"
@@ -164,7 +189,7 @@ class TestAutoFailover:
             ),
             allow_fallback=True,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.fallback_reason == (
             EstimatorFailureReason.INVALID_PROVIDER_OUTPUT.value
         )
@@ -189,7 +214,7 @@ class TestAutoFailover:
             ),
             allow_fallback=True,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.fallback_reason == (
             EstimatorFailureReason.ASSUMPTION_MISMATCH.value
         )
@@ -212,7 +237,7 @@ class TestAutoFailover:
             ),
             allow_fallback=True,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.fallback_reason == (
             EstimatorFailureReason.MISSING_LOAD_BEARING_REQUIREMENT.value
         )
@@ -242,7 +267,7 @@ class TestAutoFailover:
             providers=(LlmfitRequirementEstimator(plan=missing), EmptyKultrun()),
             allow_fallback=True,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.fallback_used is True
         assert not is_resolved(result.estimated_vram_bytes)
         assert result.estimated_vram_bytes != 0
@@ -257,7 +282,7 @@ class TestAutoFailover:
             providers=(LlmfitRequirementEstimator(plan=missing),),
             allow_fallback=False,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.estimator_provider == "llmfit"
         assert result.fallback_used is False
         assert not is_resolved(result.estimated_vram_bytes)
@@ -275,7 +300,7 @@ class TestAutoFailover:
             ),
             allow_fallback=True,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.fallback_reason == (
             EstimatorFailureReason.PROVIDER_EXECUTION_ERROR.value
         )
@@ -302,7 +327,7 @@ class TestAutoFailover:
             providers=(Incompatible(), KultrunRequirementEstimator()),
             allow_fallback=True,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.fallback_reason == (
             EstimatorFailureReason.INCOMPATIBLE_PROVIDER_VERSION.value
         )
@@ -328,7 +353,7 @@ class TestAutoFailover:
             providers=(UnknownToPrimary(), KultrunRequirementEstimator()),
             allow_fallback=True,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.fallback_reason == EstimatorFailureReason.UNSUPPORTED_MODEL.value
         assert result.estimator_provider == "kultrun"
         assert is_resolved(result.estimated_vram_bytes)
@@ -355,7 +380,7 @@ class TestAutoFailover:
             providers=(StrictConfig(), KultrunRequirementEstimator()),
             allow_fallback=True,
         )
-        result = router.estimate(_request(_tiny()))
+        result = router.estimate(_request(_seven()))
         assert result.fallback_reason == (
             EstimatorFailureReason.UNSUPPORTED_CONFIGURATION.value
         )
@@ -397,7 +422,7 @@ class TestNoEstimateShopping:
         router = EstimatorRouter(
             mode="auto", providers=(llmfit, kultrun), allow_fallback=True
         )
-        request = _request(_tiny())
+        request = _request(_tiny(), runtime="llama.cpp")
         requirement = router.estimate(request)
         envelope = capacity_service().compute(
             host(
@@ -426,7 +451,7 @@ class TestNoEstimateShopping:
         router = EstimatorRouter(
             mode="auto", providers=(llmfit, kultrun), allow_fallback=True
         )
-        requirement = router.estimate(_request(_tiny()))
+        requirement = router.estimate(_request(_tiny(), runtime="llama.cpp"))
         envelope = capacity_service().compute(
             host(
                 memory_total=64 * GIB,
@@ -464,7 +489,7 @@ class TestNoEstimateShopping:
         recommendation = service.recommend(
             envelope=envelope,
             candidates=packaged_candidates()[:6],
-            runtime="vllm",
+            runtime="llama.cpp",
             runtime_compatibility={
                 item.metadata.model_id.value: CompatibilityVerdict.COMPATIBLE
                 for item in packaged_candidates()[:6]

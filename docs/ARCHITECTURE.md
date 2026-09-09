@@ -294,6 +294,7 @@ always runs the same path as a fresh choice:
 
 ```text
 stored artifact → ModelRequirement + current CapacityEnvelope
+                → current available (SAFE minus ACTIVE)
                 → feasibility → reuse, or reject and reselect
 ```
 
@@ -776,7 +777,8 @@ matching `RuntimeInstallation`, a fresh VERIFIED
 catalog facts. That view is contextual: the same `ModelMetadata` may be
 ELIGIBLE under one foundation and BLOCKED under another. Stage 1.6G
 derives `ModelRequirement` from an ELIGIBLE candidate plus the selected
-fresh VERIFIED profile, then capacity-fit against SAFE. Stage 1.6H
+fresh VERIFIED profile, then capacity-fit against current available
+capacity (SAFE minus ACTIVE). Stage 1.6H
 ranks only currently feasible candidates and persists bounded
 AUTO/MANUAL `ModelSelection`. Stage 1.6I persists the authoritative
 current `DeploymentPlan` from those decisions. ELIGIBLE is not FEASIBLE.
@@ -787,7 +789,7 @@ current `DeploymentPlan` from those decisions. ELIGIBLE is not FEASIBLE.
 
 | | |
 |---|---|
-| **Owns** | `DeploymentCapacity` — the SAFE slice of the current envelope relevant to a proposed placement, never a universal server score. `CapacityUtilization` — max of required/safe across applicable deployment-limiting **memory** resources; storage is excluded. `SelectionPolicy` — configurable preferred-band bounds (v0 defaults 0.20–1.00), never architecture constants. `FeasibilityResult` — compatibility verdicts (`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`) plus capacity-fit class (`PREFERRED`, `UNDERUTILIZED`, `EXCEEDS_SAFE`) with per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, reasons and evidence references. Underutilized is not unsupported. `FeasibleModelCandidate` — derived ranking input (eligible + currently feasible; not persisted). `ModelSelection` — host-scoped AUTO\|MANUAL recommended versus selected model; not a DeploymentPlan. `DeploymentPlan`. `SelectionRecommendation` (primary, preferred alternatives, underutilized alternatives, rejected candidates, rationale, policy version). Selection, with recorded rejection reasons. `NO_PREFERRED_CANDIDATE` and `NO_FEASIBLE_CANDIDATE` are explicit outcomes. |
+| **Owns** | `DeploymentCapacity` — the SAFE slice of the current envelope plus current available bytes for a proposed placement, never a universal server score. `CapacityUtilization` — max of required/available across applicable deployment-limiting **memory** resources; storage is excluded. `SelectionPolicy` — configurable preferred-band bounds (v0 defaults 0.20–1.00), never architecture constants. `FeasibilityResult` — compatibility verdicts (`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`) plus capacity-fit class (`PREFERRED`, `UNDERUTILIZED`, `EXCEEDS_SAFE`) with per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, reasons and evidence references. Underutilized is not unsupported. `FeasibleModelCandidate` — derived ranking input (eligible + currently feasible; not persisted). `ModelSelection` — host-scoped AUTO\|MANUAL recommended versus selected model; not a DeploymentPlan. `DeploymentPlan`. `SelectionRecommendation` (primary, preferred alternatives, underutilized alternatives, rejected candidates, rationale, policy version). Selection, with recorded rejection reasons. `NO_PREFERRED_CANDIDATE` and `NO_FEASIBLE_CANDIDATE` are explicit outcomes. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` · `components` · `capacity` · `model` |
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
@@ -829,7 +831,10 @@ owns how feasibility and selection are computed. Do not introduce a
 generic selection or dependency-graph engine here (K-83). Planning must
 not import `runtime`; the eligibility → verdict copy lives in
 `platform.eligibility`. Requirement derivation lives in
-`platform.requirement`. Bounded model selection persistence lives in
+`platform.requirement`. Current available capacity is bound in
+`platform.capacity_snapshot` from `resource.ResourceSummary`
+(SAFE minus ACTIVE; derived on read). Bounded model selection
+persistence lives in
 `platform.model_selection`. Authoritative DeploymentPlan persistence
 lives in `platform.deployment_plan`. Plan-driven acquire/admit lives in
 `platform.deployment_prepare` and converts plan + artifact into a
@@ -842,10 +847,10 @@ planner or deployment controller.
 
 | | |
 |---|---|
-| **Owns** | `Workload` and the generic workload types, `ResourceRequest`, `AdmissionDecision`, `ResourceReservation`, `WorkloadProfile`, `ResourceSummary`. The Resource Manager. |
+| **Owns** | `Workload` and the generic workload types, `ResourceRequest`, `AdmissionDecision`, `ResourceReservation`, `WorkloadProfile`, `ResourceSummary`. The Resource Manager. `ResourceSummary` is the derived current-available view (SAFE minus ACTIVE commitments). It is recomputed on read and is never persisted as host truth. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `capacity` safe layer · `model` requirement |
-| **Produces** | `AdmissionDecision` · `ResourceReservation`, persisted and reconciled |
-| **Must not** | Import `planning`, `runtime` or `inference`. Know selection ranking. Admit against a reported or effective value. Conflate requested requirement, admitted reservation, observed consumption and peak observed consumption. Treat a manual override as authority to exceed SAFE bounds. |
+| **Produces** | `AdmissionDecision` · `ResourceReservation`, persisted and reconciled · `ResourceSummary` as a derived snapshot |
+| **Must not** | Import `planning`, `runtime` or `inference`. Know selection ranking or model feasibility. Admit against a reported or effective value. Conflate requested requirement, admitted reservation, observed consumption and peak observed consumption. Treat a manual override as authority to exceed SAFE bounds. Persist current availability as host fact. |
 | **Created** | 1.5A admission and reservation · **Deepened** 4.1 workload types, 4.2 oversubscription, 4.3 concurrency |
 
 The ordering this module enforces is the mutation contract for the whole
@@ -1116,6 +1121,8 @@ requested deployment assumptions
         ↓
 ModelRequirement
         ↓
+CurrentCapacitySnapshot (SAFE minus ACTIVE)
+        ↓
 CapacityAssessment
         ↓
 [STOP 1.6G]
@@ -1123,7 +1130,7 @@ CapacityAssessment
 
 Stage 1.6H ModelSelector + bounded model selection consumes those
 assessments. It does not reconstruct eligibility, requirements, or
-SAFE capacity. It does not execute a deployment.
+SAFE versus current available capacity. It does not execute a deployment.
 
 ```text
 RuntimeEligibleModelCandidate
@@ -1218,7 +1225,8 @@ persisted class.
 | Bounded selected foundation | `FoundationSelection` |
 | Runtime-aware model eligibility | `EligibleModelView` / `RuntimeEligibleModelCandidate` |
 | Runtime-aware model requirement | `ModelRequirement` from an ELIGIBLE candidate + selected VERIFIED profile |
-| Runtime-aware capacity fit | existing `ModelEvaluation` / `CapacityFitClass` via composition |
+| Runtime-aware capacity fit | existing `ModelEvaluation` / `CapacityFitClass` vs current available |
+| Current available capacity | `ResourceSummary` derived from SAFE minus ACTIVE |
 | Currently feasible ranking input | `FeasibleModelCandidate` (derived) |
 | Bounded model selection | `ModelSelection` AUTO\|MANUAL; recommended ≠ selected |
 | Authoritative current deployment decision | `DeploymentPlan`; CURRENT vs STALE vs UNAVAILABLE |
@@ -1487,7 +1495,7 @@ adapters/container/       docker · recording  (podman · containerd later)
 adapters/runtime/         reference_process · vllm (declared support) · (llama_cpp · mlx later)
 adapters/provisioning/    fixture · vllm_native
 adapters/model_source/    huggingface · local_file
-adapters/estimators/      kultrun · llmfit
+adapters/estimators/      kultrun · llmfit  (vLLM serving composition is estimator-seam arithmetic, not a third provider)
 adapters/acquisition/     huggingface · fixture · (local_file · object_storage later)
 adapters/capacity/        accelerate · benchmark  (llmfit is a requirement estimator, not capacity authority)
 adapters/usage/           partitioned_local · exporter
@@ -1503,14 +1511,18 @@ adapters/adaptation/      peft · merge
 Every adapter is replaceable. Default product mode is **AUTO**: llmfit is
 the primary requirement estimator; the Kultrun estimator is the built-in
 fallback when llmfit cannot produce valid evidence for the exact request.
-Strict `llmfit` and `kultrun` remain available; explicit `llmfit` does
-not fall back, and explicit `kultrun` does not require llmfit.
-Composition (`main.resolve_estimator`) builds `EstimatorRouter`; planning
-consumes only the port. Cross-provider comparison lives in `tools/` and
-tests, not in `planning`. The previous attempt used llmfit as capacity
-evidence and found `recommend` nondeterministic on a real host; this
-rebuild uses `llmfit plan` as a requirement estimate only, and Kultrun
-SAFE capacity remains the fit boundary.
+For native vLLM on a discrete GPU, `llmfit plan` minimum is not serving
+demand: AUTO falls back to Kultrun vLLM composition rather than admitting
+that minimum. Strict `llmfit` and `kultrun` remain available; explicit
+`llmfit` does not fall back, and explicit `kultrun` does not require
+llmfit. Composition (`main.resolve_estimator`) builds `EstimatorRouter`;
+planning consumes only the port. Cross-provider comparison lives in
+`tools/` and tests, not in `planning`. The previous attempt used llmfit
+as capacity evidence and found `recommend` nondeterministic on a real
+host; this rebuild uses `llmfit plan` as a requirement estimate only.
+Planning compares demand to **current available** capacity (SAFE minus
+ACTIVE). ResourceManager remains the final admission authority against
+SAFE minus ACTIVE.
 
 Note how much of `adapters/host/` names a third-party tool. That is the
 point: every one of those is a commodity enumerator that someone else
@@ -1628,13 +1640,15 @@ curated candidates → ModelMetadata (unresolved fields explicit)
     no silent substitution)
   → ModelRequirementEstimator port
   → EstimatorRouter (auto: llmfit primary → typed failure → Kultrun fallback;
+    vLLM serving demand that llmfit cannot authorize also falls back;
     or a strict provider)
   → one ModelRequirement (bytes, method, confidence, effective provider,
-    failover provenance)
-  → capacity CapacityEnvelope (SAFE layer only for the fit boundary)
+    failover provenance, runtime/context/concurrency basis)
+  → capacity CapacityEnvelope (SAFE layer)
+  → ResourceSummary current available (SAFE minus ACTIVE; derived)
   → planning DeploymentCapacity for the proposed placement
   → planning FeasibilityResult per candidate: compatibility, storage,
-    memory, CapacityUtilization, preferred-band status, reasons
+    memory vs current available, CapacityUtilization, preferred-band status, reasons
   → planning Selector, deterministic under a recorded SelectionPolicy
   → SelectionRecommendation + DeploymentPlan
        (primary, preferred alternatives, underutilized alternatives,
@@ -1689,7 +1703,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6I | Authoritative DeploymentPlan | 1.6H | ✅ closed L1 |
 | 1.6J | Plan-driven Acquisition + Resource admission | 1.6I | ✅ closed L1 |
 | 1.6K | Plan-driven InferenceInstance create | 1.6J | ✅ closed L1 |
-| 1.6L | first real native vLLM serving + bounded inference | 1.6K | OPEN; T0/T1/T2 local; T3/T5 pending |
+| 1.6L | first real native vLLM serving + bounded inference; runtime-aware requirement; current available capacity | 1.6K | OPEN; T0/T1/T2 local; T3/T5 pending |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; 1.6L is the serving vertical |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

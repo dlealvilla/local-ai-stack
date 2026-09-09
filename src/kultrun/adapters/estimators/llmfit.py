@@ -15,6 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from kultrun.adapters.estimators.common import unavailable_requirement
+from kultrun.adapters.estimators.vllm_serving import (
+    compose_vllm_vram,
+    is_vllm_runtime,
+)
 from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
@@ -187,6 +191,35 @@ class LlmfitRequirementEstimator:
         weights: Maybe[int] = NOT_PROVIDED
         if isinstance(vram_bytes, int) and isinstance(kv_bytes, int):
             weights = max(0, vram_bytes - kv_bytes)
+        assumptions: tuple[str, ...] = (
+            "llmfit plan minimum; host fit flags ignored",
+            "gb fields treated as GiB",
+            "no cpu offload",
+        )
+        estimated = vram_bytes
+        kv_total: Maybe[int] = kv_bytes
+        safety: Maybe[int] = NOT_PROVIDED
+        if (
+            is_vllm_runtime(request.runtime)
+            and request.placement is MemoryPlacement.DISCRETE_GPU
+        ):
+            composed = compose_vllm_vram(
+                weights_bytes=weights,
+                kv_per_token=per_token,
+                context_tokens=context,
+                batch_size=request.batch_size,
+                overhead_bytes=NOT_PROVIDED,
+                activation_bytes=NOT_PROVIDED,
+            )
+            estimated = composed.total_bytes
+            kv_total = composed.kv_cache_bytes
+            safety = composed.safety_allowance_bytes
+            assumptions = (
+                *assumptions,
+                *composed.assumptions,
+                *composed.unresolved,
+                "llmfit plan minimum is not native vLLM serving demand",
+            )
         return ModelRequirement(
             model_id=request.model_id,
             confidence=Confidence.MEDIUM,
@@ -198,18 +231,19 @@ class LlmfitRequirementEstimator:
             ram_bytes=_bytes(ram_gb),
             unified_memory_bytes=NOT_PROVIDED,
             activation_bytes=NOT_PROVIDED,
-            estimated_vram_bytes=vram_bytes,
+            estimated_vram_bytes=estimated,
             assumed_context_tokens=context,
             supported_runtimes=(),
             estimation_method="llmfit-plan",
             estimator_provider=IDENTITY.value,
             estimator_version=self.version,
-            assumptions=(
-                "llmfit plan minimum; host fit flags ignored",
-                "gb fields treated as GiB",
-                "no cpu offload",
-            ),
+            assumptions=assumptions,
             measured=False,
+            assumed_runtime=request.runtime,
+            assumed_runtime_version=request.runtime_version,
+            assumed_batch_size=request.batch_size,
+            vram_kv_cache_bytes=kv_total,
+            safety_allowance_bytes=safety,
         )
 
     def _fail(

@@ -50,6 +50,7 @@ def _request(
     tensor_parallel: int = 1,
     batch_size: int = 1,
     placement: MemoryPlacement = MemoryPlacement.DISCRETE_GPU,
+    runtime: str = "vllm",
 ) -> ModelEstimationRequest:
     candidate = entry or packaged_candidates()[0]
     meta = candidate.metadata
@@ -61,7 +62,7 @@ def _request(
         artifact_format=NOT_PROVIDED,
         quantization=meta.quantization if quantization is None else quantization,
         context_tokens=(req.assumed_context_tokens if context is None else context),
-        runtime="vllm",
+        runtime=runtime,
         placement=placement,
         offload_allowed=offload,
         tensor_parallel=tensor_parallel,
@@ -121,7 +122,8 @@ class TestKultrunEstimator:
         result = estimator.estimate(_request(tiny))
         assert result.estimator_provider == "kultrun"
         assert result.estimation_method == "curated"
-        assert result.estimated_vram_bytes == tiny.requirement.estimated_vram_bytes
+        assert not is_resolved(result.estimated_vram_bytes)
+        assert "vram_kv_cache_bytes" in result.assumptions
         assert result.measured is False
 
     def test_expanded_candidates_report_formula_v0(self) -> None:
@@ -140,9 +142,20 @@ class TestKultrunEstimator:
         assert not is_resolved(result.estimated_vram_bytes)
         assert result.estimated_vram_bytes != 0
 
-    def test_context_mismatch_is_unsupported(self) -> None:
-        result = KultrunRequirementEstimator().estimate(_request(context=13))
-        assert result.estimation_method == "unsupported"
+    def test_context_change_recomputes_vllm_demand(self) -> None:
+        seven = next(
+            entry
+            for entry in packaged_candidates()
+            if entry.metadata.logical_name.value == "qwen2.5-7b-instruct-awq"
+        )
+        estimator = KultrunRequirementEstimator()
+        short = estimator.estimate(_request(seven, context=4096))
+        long = estimator.estimate(_request(seven, context=8192))
+        assert is_resolved(short.estimated_vram_bytes)
+        assert is_resolved(long.estimated_vram_bytes)
+        assert long.estimated_vram_bytes > short.estimated_vram_bytes
+        assert long.vram_kv_cache_bytes > short.vram_kv_cache_bytes
+        assert long.assumed_batch_size == 1
 
     def test_offload_is_unsupported(self) -> None:
         result = KultrunRequirementEstimator().estimate(_request(offload=True))
@@ -160,7 +173,9 @@ class TestLlmfitEstimator:
             for entry in packaged_candidates()
             if entry.metadata.logical_name.value == "tinyllama-1.1b-chat-q4"
         )
-        result = _fixture_llmfit().estimate(_request(tiny))
+        result = _fixture_llmfit().estimate(
+            _request(tiny, runtime="llama.cpp")
+        )
         assert result.estimator_provider == "llmfit"
         assert result.estimator_version == TESTED_VERSION
         assert result.estimation_method == "llmfit-plan"
@@ -262,9 +277,14 @@ class TestLlmfitAbsenceDoesNotBreakKultrun:
         )
         platform = build(configuration)
         assert platform.selection.estimator.identity.value == "auto"
-        tiny = packaged_candidates()[0]
-        result = platform.selection.estimator.estimate(_request(tiny))
+        seven = next(
+            entry
+            for entry in packaged_candidates()
+            if entry.metadata.logical_name.value == "qwen2.5-7b-instruct-awq"
+        )
+        result = platform.selection.estimator.estimate(_request(seven))
         assert result.estimator_provider == "kultrun"
         assert result.fallback_used is True
         assert result.fallback_reason == "provider_unavailable"
         assert is_resolved(result.estimated_vram_bytes)
+        assert result.estimated_vram_bytes > 8 * GiB
