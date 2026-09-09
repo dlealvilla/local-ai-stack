@@ -742,6 +742,25 @@
     },
     "python": "PlatformSettings"
   },
+  "config.telemetry@1": {
+    "fields": {
+      "database_path": {
+        "may_be_unresolved": true,
+        "meaning": "explicit sqlite path; unresolved means <state_root>/telemetry/kultrun-telemetry.sqlite3",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "enabled": {
+        "may_be_unresolved": false,
+        "meaning": "whether this installation writes local operational telemetry",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      }
+    },
+    "python": "TelemetrySettings"
+  },
   "entitlement.claim@1": {
     "fields": {
       "claim": {
@@ -8429,6 +8448,1082 @@
       }
     },
     "python": "ReconciliationReport"
+  },
+  "telemetry.capacity_snapshot@1": {
+    "fields": {
+      "accelerator_index": {
+        "may_be_unresolved": false,
+        "meaning": "device the VRAM figures refer to",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "active_reservation_count": {
+        "may_be_unresolved": false,
+        "meaning": "ACTIVE reservation count on the snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "available_ram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "available system memory from the snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "available_storage_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "available incremental storage from the snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "available_vram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "available device memory from the snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "basis_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "snapshot_basis from the authoritative snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "committed_ram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "ACTIVE reserved system memory from the snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "committed_vram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "ACTIVE reserved device memory from the snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "envelope / host identity on the snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host the snapshot describes",
+        "nullable": true,
+        "optional": true,
+        "type": "HostId | None"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the snapshot was copied, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "safe_ram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "SAFE system memory from the snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "safe_vram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "SAFE device memory from the authoritative snapshot",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "snapshot_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this copied snapshot",
+        "nullable": false,
+        "optional": false,
+        "type": "ObservationId"
+      }
+    },
+    "python": "CapacitySnapshotObservation"
+  },
+  "telemetry.deployment_event@1": {
+    "fields": {
+      "correlation_id": {
+        "may_be_unresolved": false,
+        "meaning": "deployment or probe run this belongs to",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "duration_ms": {
+        "may_be_unresolved": false,
+        "meaning": "duration of this milestone when timed",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "event_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this event",
+        "nullable": false,
+        "optional": false,
+        "type": "TelemetryEventId"
+      },
+      "event_type": {
+        "may_be_unresolved": false,
+        "meaning": "which milestone",
+        "nullable": false,
+        "optional": false,
+        "type": "DeploymentEventType"
+      },
+      "occurred_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it happened, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "succeeded, failed, or a domain state",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      }
+    },
+    "python": "DeploymentEventObservation"
+  },
+  "telemetry.deployment_run@1": {
+    "fields": {
+      "artifact_id": {
+        "may_be_unresolved": false,
+        "meaning": "artifact identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "deployment_run_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this run",
+        "nullable": false,
+        "optional": false,
+        "type": "TelemetryRunId"
+      },
+      "duration_ms": {
+        "may_be_unresolved": false,
+        "meaning": "wall time of the attempt",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "ended_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the attempt ended, UTC",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      },
+      "executor": {
+        "may_be_unresolved": false,
+        "meaning": "executor identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "failure_reason_code": {
+        "may_be_unresolved": false,
+        "meaning": "typed failure when the attempt failed",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host the attempt ran on",
+        "nullable": true,
+        "optional": true,
+        "type": "HostId | None"
+      },
+      "instance_id": {
+        "may_be_unresolved": false,
+        "meaning": "InferenceInstance identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "plan_id": {
+        "may_be_unresolved": false,
+        "meaning": "DeploymentPlan identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "reservation_id": {
+        "may_be_unresolved": false,
+        "meaning": "reservation identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "run_kind": {
+        "may_be_unresolved": false,
+        "meaning": "deployment versus runtime-memory probe",
+        "nullable": false,
+        "optional": true,
+        "type": "DeploymentRunKind"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "runtime version",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "selected_model": {
+        "may_be_unresolved": false,
+        "meaning": "selected model identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "selected_revision": {
+        "may_be_unresolved": false,
+        "meaning": "selected artifact revision",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "started_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the attempt began, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "state": {
+        "may_be_unresolved": false,
+        "meaning": "run state, e.g. started or failed",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      }
+    },
+    "python": "DeploymentRunObservation"
+  },
+  "telemetry.host_observation@1": {
+    "fields": {
+      "accelerator_count": {
+        "may_be_unresolved": false,
+        "meaning": "how many accelerators Host Discovery reported",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "architecture": {
+        "may_be_unresolved": false,
+        "meaning": "processor architecture",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "cpu_logical_cores": {
+        "may_be_unresolved": false,
+        "meaning": "logical processor count",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "cpu_model": {
+        "may_be_unresolved": false,
+        "meaning": "processor model as reported",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "cpu_physical_cores": {
+        "may_be_unresolved": false,
+        "meaning": "physical core count",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "cpu_vendor": {
+        "may_be_unresolved": false,
+        "meaning": "processor vendor as reported",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "driver_version": {
+        "may_be_unresolved": false,
+        "meaning": "primary accelerator driver",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "duration_ms": {
+        "may_be_unresolved": false,
+        "meaning": "host-discovery duration when the boundary was timed",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "gpu_architecture": {
+        "may_be_unresolved": false,
+        "meaning": "primary accelerator architecture when known",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "gpu_index": {
+        "may_be_unresolved": false,
+        "meaning": "primary accelerator ordinal",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "gpu_model": {
+        "may_be_unresolved": false,
+        "meaning": "primary accelerator model",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "gpu_total_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "factual installed device memory",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "gpu_vendor": {
+        "may_be_unresolved": false,
+        "meaning": "primary accelerator family",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "host fingerprint at observation",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host these facts describe",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "observation_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this observation",
+        "nullable": false,
+        "optional": false,
+        "type": "ObservationId"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when discovery facts were recorded, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "os_name": {
+        "may_be_unresolved": false,
+        "meaning": "operating system family",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "os_version": {
+        "may_be_unresolved": false,
+        "meaning": "operating system version",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "producer_build_version": {
+        "may_be_unresolved": false,
+        "meaning": "Kultrun build that recorded this observation",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "ram_available_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "factual free system memory at detection",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "ram_limit_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "execution-context memory ceiling when reported",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "ram_total_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "factual installed system memory",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "storage_free_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "factual free space of that mount; never authorizes a write",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "storage_mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "primary reported mount; not a StoragePool",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "storage_total_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "factual filesystem size of that mount",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      }
+    },
+    "python": "HostObservation"
+  },
+  "telemetry.model_sizing_observation@1": {
+    "fields": {
+      "architecture": {
+        "may_be_unresolved": false,
+        "meaning": "model architecture family",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "capacity_basis": {
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot basis used for the comparison",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "cheap_filter_result": {
+        "may_be_unresolved": false,
+        "meaning": "cheap weight-gate outcome when one was produced",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "concurrency": {
+        "may_be_unresolved": false,
+        "meaning": "assumed concurrency",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "requirement confidence",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "deep_feasibility_result": {
+        "may_be_unresolved": false,
+        "meaning": "deep capacity verdict when one was produced",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "duration_ms": {
+        "may_be_unresolved": false,
+        "meaning": "sizing duration when the boundary was timed",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "estimated_final_requirement_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "static estimated final VRAM requirement",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "estimated_kv_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "estimated KV cache bytes for the assumed context",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "estimated_minimum_vram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "raw estimator minimum VRAM, when reported",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "estimated_recommended_vram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "raw estimator recommended VRAM, when reported",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "estimated_runtime_overhead_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "static estimated runtime overhead",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "estimator_mode": {
+        "may_be_unresolved": false,
+        "meaning": "configured estimator mode",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "estimator_provider": {
+        "may_be_unresolved": false,
+        "meaning": "which estimator produced the estimate",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "estimator_version": {
+        "may_be_unresolved": false,
+        "meaning": "estimator version",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "factual_weight_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "factual Safetensors / stored-weight lower bound",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "candidate model identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "observation_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this observation",
+        "nullable": false,
+        "optional": false,
+        "type": "ObservationId"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when sizing was recorded, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "quantization": {
+        "may_be_unresolved": false,
+        "meaning": "quantization family",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "requested_context": {
+        "may_be_unresolved": false,
+        "meaning": "assumed context tokens",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "required_ram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "required system memory",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "required_storage_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "required incremental storage",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "revision": {
+        "may_be_unresolved": false,
+        "meaning": "source revision",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "assumed runtime",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "assumed runtime version",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "source_model_ref": {
+        "may_be_unresolved": false,
+        "meaning": "upstream source reference",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      }
+    },
+    "python": "ModelSizingObservation"
+  },
+  "telemetry.runtime_memory_profile@1": {
+    "fields": {
+      "architecture": {
+        "may_be_unresolved": false,
+        "meaning": "model architecture family",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "basis_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "execution basis the operational profile is valid for",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "calibrated_required_vram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "raise-only calibrated serving demand",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "capability_profile_id": {
+        "may_be_unresolved": false,
+        "meaning": "RuntimeCapabilityProfile bound to the probe",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "class_key": {
+        "may_be_unresolved": false,
+        "meaning": "runtime-memory validation class",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "concurrency": {
+        "may_be_unresolved": false,
+        "meaning": "concurrency the probe assumed",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "profile confidence",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "context_tokens": {
+        "may_be_unresolved": false,
+        "meaning": "context the probe assumed",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "derived_non_kv_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "derived B minus K",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "derived_runtime_extra_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "derived non-KV minus model-load when valid",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "estimated_kv_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "static estimated KV component at probe time",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "estimated_static_requirement_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "static estimated-feasible total at probe time",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "factual_weight_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "factual stored-weight component when known",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "failure_reason": {
+        "may_be_unresolved": false,
+        "meaning": "why the probe produced no usable serving profile",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "gpu_architecture": {
+        "may_be_unresolved": false,
+        "meaning": "accelerator architecture at measurement",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "gpu_model": {
+        "may_be_unresolved": false,
+        "meaning": "accelerator model at measurement",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "host fingerprint at measurement",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host the probe ran on",
+        "nullable": true,
+        "optional": true,
+        "type": "HostId | None"
+      },
+      "measured_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the profile facts were captured, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "measured_available_kv_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "runtime-reported available KV cache K; may be negative",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "measured_model_load_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "runtime-reported model-load memory",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "measured_peak_gpu_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "observed peak device memory when captured",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "measurement_quality": {
+        "may_be_unresolved": false,
+        "meaning": "short quality token when one exists",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "sentinel or member model",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "observation_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this analytical copy",
+        "nullable": false,
+        "optional": false,
+        "type": "ObservationId"
+      },
+      "probe_budget_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "admitted SAFE VRAM budget B",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "profile_id": {
+        "may_be_unresolved": false,
+        "meaning": "operational RuntimeMemoryProfile identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "profile_status": {
+        "may_be_unresolved": false,
+        "meaning": "measured, failed, or unresolved",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "quantization": {
+        "may_be_unresolved": false,
+        "meaning": "quantization family",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "revision": {
+        "may_be_unresolved": false,
+        "meaning": "artifact revision probed",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact runtime version",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      }
+    },
+    "python": "RuntimeMemoryObservation"
+  },
+  "telemetry.runtime_observation@1": {
+    "fields": {
+      "capability_profile_id": {
+        "may_be_unresolved": false,
+        "meaning": "RuntimeCapabilityProfile identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "duration_ms": {
+        "may_be_unresolved": false,
+        "meaning": "foundation/verification duration when timed",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "executor": {
+        "may_be_unresolved": false,
+        "meaning": "executor identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "foundation_id": {
+        "may_be_unresolved": false,
+        "meaning": "FoundationSelection identity when one exists",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "foundation_role": {
+        "may_be_unresolved": false,
+        "meaning": "how this stack is being used, e.g. selected_foundation",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "host fingerprint at observation",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host the stack was observed on",
+        "nullable": true,
+        "optional": true,
+        "type": "HostId | None"
+      },
+      "installation_id": {
+        "may_be_unresolved": false,
+        "meaning": "RuntimeInstallation identity",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "observation_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this observation",
+        "nullable": false,
+        "optional": false,
+        "type": "ObservationId"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when these runtime facts were recorded, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "runtime_version": {
+        "may_be_unresolved": false,
+        "meaning": "exact runtime version",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "selection_mode": {
+        "may_be_unresolved": false,
+        "meaning": "AUTO or MANUAL",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "verification_status": {
+        "may_be_unresolved": false,
+        "meaning": "effective verification status",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      }
+    },
+    "python": "RuntimeObservation"
+  },
+  "telemetry.status@1": {
+    "fields": {
+      "applied_version": {
+        "may_be_unresolved": false,
+        "meaning": "highest applied migration version, when the database opened",
+        "nullable": true,
+        "optional": true,
+        "type": "int | None"
+      },
+      "available": {
+        "may_be_unresolved": false,
+        "meaning": "whether the store is open and usable",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "capacity_snapshots": {
+        "may_be_unresolved": false,
+        "meaning": "rows in capacity_snapshot",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "database_path": {
+        "may_be_unresolved": false,
+        "meaning": "resolved sqlite path, when one was chosen",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "deployment_events": {
+        "may_be_unresolved": false,
+        "meaning": "rows in deployment_event",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "deployment_runs": {
+        "may_be_unresolved": false,
+        "meaning": "rows in deployment_run",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "enabled": {
+        "may_be_unresolved": false,
+        "meaning": "whether local telemetry is configured on",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "host_observations": {
+        "may_be_unresolved": false,
+        "meaning": "rows in host_observation",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "last_error": {
+        "may_be_unresolved": false,
+        "meaning": "most recent persistence failure; absent means none recorded",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "model_sizing_observations": {
+        "may_be_unresolved": false,
+        "meaning": "rows in model_sizing_observation",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "runtime_memory_profiles": {
+        "may_be_unresolved": false,
+        "meaning": "rows in runtime_memory_profile",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "runtime_observations": {
+        "may_be_unresolved": false,
+        "meaning": "rows in runtime_observation",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      }
+    },
+    "python": "TelemetryStatus"
   },
   "training.dataset_snapshot@1": {
     "fields": {

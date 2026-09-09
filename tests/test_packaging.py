@@ -182,6 +182,18 @@ class TestThePackageCanBeBuilt:
         for pattern in ("fixtures/*/*.json", "fixtures/*/*.xml", "fixtures/*/*.csv"):
             assert pattern in declared
 
+    def test_telemetry_migrations_are_declared_for_the_wheel(
+        self, project: dict[str, object]
+    ) -> None:
+        """SQL migrations are not Python, so the wheel must name them.
+
+        Without this an installed Kultrun would create an empty telemetry
+        directory and fail only after a real host opened the store.
+        """
+        wheel = project["tool"]["hatch"]["build"]["targets"]["wheel"]  # type: ignore[index]
+        declared = " ".join(wheel["include"])
+        assert "telemetry/migrations/*.sql" in declared
+
     def test_every_replayable_shape_has_readable_evidence(self) -> None:
         from kultrun.adapters.host import fixtures
 

@@ -1731,6 +1731,23 @@ Retire when:  that policy is an accepted stage output, or the extra
               is dropped.
 Status:       OPEN
 
+### K-99 — later data-warehouse phases
+Label:        DEFERRED
+Owner stage:  data warehousing after Phase 0
+Subsystem:    telemetry / analytics / vendor
+Authorizes:   NO
+What:         Phase 0 is local SQLite operational metadata only.
+              Not yet implemented: typed writer deepening, content-free
+              usage/outcome events, sanitized exporter, hosted ingestion,
+              PostgreSQL warehouse, cohort intelligence, licensing DB,
+              retention UI, or vendor product telemetry.
+Why now:      Capture structured operational evidence without building
+              a warehouse before any local history exists.
+To make real: After Phase 0 is accepted and a later data increment is
+              opened. UsageEvent remains `analytics` at Stage 1.7.
+Retire when:  the corresponding later phase is accepted.
+Status:       OPEN
+
 ## Runtime-first migration ledger (after 1.6K)
 
 Not a second architecture. Existing components still to migrate, in
