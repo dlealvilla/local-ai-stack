@@ -59,10 +59,15 @@ class TestLlmfitDiagnostic:
             _request(_qwen(), context=8192)
         )
         assert serving.estimator_provider == "llmfit"
-        assert not is_resolved(serving.estimated_vram_bytes)
+        assert is_resolved(serving.estimated_vram_bytes)
+        assert serving.estimated_vram_bytes > raw.estimated_vram_bytes
+        assert (
+            "vLLM serving refinement after llmfit plan components"
+            in serving.assumptions
+        )
         assert (
             "llmfit plan minimum is not native vLLM serving demand"
-            in serving.assumptions
+            not in serving.assumptions
         )
 
 

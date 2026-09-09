@@ -2722,9 +2722,10 @@ THIS STAGE'S REQUIRED OUTPUT Exact RuntimeInstallation launch; local
                              ModelArtifact; loopback RuntimeLaunchSpec;
                              deterministic readiness; generic
                              InferenceRequest/Response; API + CLI infer.
-                             Runtime-aware ModelRequirement vs current
-                             available capacity; feasible set before
-                             AUTO/MANUAL selection.
+                             Staged Available Models funnel before
+                             ModelSelector; runtime-aware ModelRequirement
+                             vs one CurrentCapacitySnapshot; AUTO/MANUAL
+                             only among Available Models.
 CORE CONTRACTS AFFECTED      runtime.launch_request optional serving
                              fields; inference.request@1;
                              inference.response@1. No VllmRuntimeV2.
@@ -2741,13 +2742,18 @@ CANCELLATION / CLEANUP       Existing stop; readiness timeout stops the
                              release; artifact retained.
 ACCEPTANCE LEVEL             L3 required. Stage stays OPEN until T5.
                              T0/T1/T2 local is not closure.
-ADMIN SURFACE                POST /v1/inference/instances/start|stop|infer;
-                             kultrun instances start|inspect|infer|stop;
-                             Console modest probe.
+ADMIN SURFACE                GET /v1/models/available;
+                             POST /v1/models/available/refresh;
+                             kultrun models available;
+                             Console Available Models before selection;
+                             POST /v1/inference/instances/start|stop|infer;
+                             kultrun instances start|inspect|infer|stop.
 DEBT ENTRIES                 K-66, K-77 remain OPEN.
                              K-95 records deferred depth of this vertical.
                              K-96: llmfit plan minimum is not native
-                             vLLM serving demand.
+                             vLLM serving demand; AUTO refines, does not
+                             shop. K-97 Hub ingest deferred. K-98 live
+                             Accelerate skeleton deferred.
 MUST NOT                     Reopen 1.6B–1.6K; container GPU; llama.cpp;
                              MLX; streaming; cancellation; routing; RAG;
                              trust_remote_code by default; PATH python;

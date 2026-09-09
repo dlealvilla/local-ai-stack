@@ -7,6 +7,8 @@ reservation ledger.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from kultrun.capacity.contracts import CapacityEnvelope
 from kultrun.evidence.contracts import Confidence
 from kultrun.kernel.unresolved import (
@@ -14,7 +16,13 @@ from kultrun.kernel.unresolved import (
     Maybe,
     is_resolved,
 )
-from kultrun.model.contracts import MemoryPlacement, ModelMetadata, ModelRequirement
+from kultrun.model.contracts import (
+    CheapSizeClass,
+    MemoryPlacement,
+    ModelMetadata,
+    ModelRequirement,
+    WeightFootprintEvidence,
+)
 from kultrun.planning.contracts import (
     CapacityFitClass,
     CapacityUtilization,
@@ -354,6 +362,45 @@ def _hard_capacity_failures(
     if storage_ok is False and "infeasible_storage" not in failed:
         failed.append("infeasible_storage")
     return tuple(failed)
+
+
+@dataclass(frozen=True, slots=True)
+class CheapSizeDecision:
+    """Stage C gate. PASS and UNKNOWN continue; only proven-impossible excludes."""
+
+    classification: CheapSizeClass
+    allowed_placement_bytes: Maybe[int]
+    reason: str | None = None
+
+
+def cheap_weight_fit(
+    evidence: WeightFootprintEvidence,
+    capacity: DeploymentCapacity,
+    *,
+    gpu_resident: bool,
+) -> CheapSizeDecision:
+    """Reject only when factual weight bytes exceed the current placement budget.
+
+    Equality is conservative: weights that fill the budget leave no room for
+    KV, runtime, or workspace, so they are proven impossible for GPU-resident
+    serving. Unknown evidence never rejects. Offload-enabled policy must not
+    apply a GPU-only impossibility.
+    """
+    weight = evidence.serialized_weight_tensor_bytes
+    if not gpu_resident or capacity.placement is not MemoryPlacement.DISCRETE_GPU:
+        return CheapSizeDecision(CheapSizeClass.UNKNOWN, NOT_PROVIDED)
+    allowed = _budget(capacity.available_vram_bytes, capacity.safe_vram_bytes)
+    if not is_resolved(weight) or not isinstance(weight, int):
+        return CheapSizeDecision(CheapSizeClass.UNKNOWN, allowed)
+    if not is_resolved(allowed) or not isinstance(allowed, int):
+        return CheapSizeDecision(CheapSizeClass.UNKNOWN, allowed)
+    if weight >= allowed:
+        return CheapSizeDecision(
+            CheapSizeClass.PROVEN_IMPOSSIBLE,
+            allowed,
+            "weights_exceed_available_placement",
+        )
+    return CheapSizeDecision(CheapSizeClass.PASS, allowed)
 
 
 def not_assessed(

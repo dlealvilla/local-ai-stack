@@ -18,7 +18,9 @@ from kultrun.model.contracts import (
     ModelCatalogEntry,
     ModelEstimationRequest,
     ModelRequirement,
+    WeightFootprintEvidence,
 )
+from kultrun.model.discovery import DiscoveryQuery, DiscoveryResult
 
 
 @runtime_checkable
@@ -32,6 +34,29 @@ class ModelSource(Protocol):
 
     def candidates(self) -> tuple[ModelCatalogEntry, ...]:
         """The current candidate set. Does not fetch the whole Hub."""
+        ...
+
+
+@runtime_checkable
+class ModelDiscoverySource(Protocol):
+    """Optional Stage A listing. Remote filters are hints, not eligibility."""
+
+    def discover(self, query: DiscoveryQuery) -> DiscoveryResult:
+        """Reduce a source universe. Must not drop the curated catalog."""
+        ...
+
+
+@runtime_checkable
+class WeightEvidenceProvider(Protocol):
+    """Cheap factual weight footprint. Never downloads full weights."""
+
+    @property
+    def identity(self) -> Name:
+        """Stable provider name."""
+        ...
+
+    def footprint(self, entry: ModelCatalogEntry) -> WeightFootprintEvidence:
+        """Serialized tensor bytes or typed unknown. Not a VRAM requirement."""
         ...
 
 

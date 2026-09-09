@@ -128,7 +128,9 @@ class TestCapacitySnapshotLayers:
         artifact = _artifact()
         manager.admit(_request(artifact, envelope, vram=12 * GIB), envelope, artifact)
         second = manager.snapshot(envelope)
-        assert first.derived_at == INSTANT
+        assert first.observed_at == INSTANT
+        assert not hasattr(first, "captured_at")
+        assert not hasattr(first, "derived_at")
         assert second.accelerators[0].available_bytes == 18 * GIB
         assert first.snapshot_basis != second.snapshot_basis
         reread = manager.snapshot(envelope)

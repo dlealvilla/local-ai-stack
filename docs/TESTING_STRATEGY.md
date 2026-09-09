@@ -484,7 +484,13 @@ basis, vLLM serving composition, unresolved ≠ feasible), derived
 `ResourceSummary` current available (SAFE minus ACTIVE; own-reservation
 exclusion; storage not double-counted), and feasibility against that
 snapshot (eligible vs feasible, AUTO/MANUAL within the feasible set,
-dynamic shrink/expand when an unrelated reservation is held). T1 uses
+dynamic shrink/expand when an unrelated reservation is held). T0/T1
+also cover the staged model funnel: source discovery filter, local
+compatibility prefilter that skips the deep estimator, cheap Safetensors
+weight evidence, optional Accelerate structural provider, one
+`CurrentCapacitySnapshot` per Available Models pass, persisted
+`AvailableModelView` before ModelSelector, CLI/API/Console print order,
+and MANUAL limited to current members. T1 uses
 an explicit vLLM HTTP protocol fixture. T2 is a clean-wheel install of
 that same suite plus the product chain. T3/T5 on a real GPU host are
 required for L3 closure. Direct curl to vLLM is not T5 evidence. Do not

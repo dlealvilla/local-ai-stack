@@ -55,12 +55,13 @@ class TestFixtureComparison:
             if field["field"] == "estimated_vram_bytes"
         )
         assert vram["classification"] == "UNAVAILABLE"
-        assert vram["notes"] == ["both unresolved"]
+        assert vram["notes"] == ["kultrun unresolved"]
+        assert vram["llmfit"] is not None
         ram = next(field for field in tiny["fields"] if field["field"] == "ram_bytes")
         assert ram["classification"] == "LARGE_DIFFERENCE"
         assert ram["llmfit"] == 8 * GiB
 
-    def test_qwen_7b_awq_vllm_llmfit_total_is_unresolved(self) -> None:
+    def test_qwen_7b_awq_vllm_llmfit_total_is_refined(self) -> None:
         report = compare_catalog(live=False)
         qwen = next(
             item
@@ -72,10 +73,12 @@ class TestFixtureComparison:
             for field in qwen["fields"]
             if field["field"] == "estimated_vram_bytes"
         )
-        assert vram["classification"] == "UNAVAILABLE"
-        assert vram["notes"] == ["llmfit unresolved"]
+        assert vram["llmfit"] is not None
         assert vram["kultrun"] is not None
+        assert vram["llmfit"] > round(4.7453082559999995 * GiB)
         assert vram["kultrun"] > 8 * GiB
+        assert vram["classification"] != "UNAVAILABLE"
+        assert "llmfit unresolved" not in vram["notes"]
 
     def test_same_request_identity_for_every_overlap(self) -> None:
         report = compare_catalog(live=False)

@@ -20,6 +20,8 @@ PREDECESSOR OUTPUTS          Stage 1.6K CLOSED L1
 THIS STAGE'S REQUIRED OUTPUT Exact RuntimeInstallation; local artifact;
                              loopback RuntimeLaunchSpec; readiness;
                              InferenceRequest/Response; API + CLI infer.
+                             Staged Available Models funnel before
+                             ModelSelector.
 CORE CONTRACTS AFFECTED      runtime.launch_request optional serving
                              fields; inference.request@1;
                              inference.response@1. No VllmRuntimeV2.
@@ -33,15 +35,37 @@ CANCELLATION / CLEANUP       Readiness timeout stops the process.
                              Reservation remains until explicit release.
                              Artifact retained.
 ACCEPTANCE LEVEL             L3 required. T0/T1/T2 local is not closure.
-ADMIN SURFACE                POST /v1/inference/instances/start|stop|infer;
+ADMIN SURFACE                GET /v1/models/available; POST /v1/models/available/refresh;
+                             kultrun models available; Console Available Models
+                             before Model selection; POST /v1/inference/instances/start|stop|infer;
                              kultrun instances start|inspect|infer|stop.
 DEBT ENTRIES                 K-66, K-77 remain OPEN. K-95 deferred depth.
                              K-96 llmfit plan is not native vLLM serving.
+                             K-97 Hub ingest deferred. K-98 live Accelerate
+                             skeleton deferred.
 ```
 
 ## Flow
 
 ```text
+MODEL UNIVERSE
+        ↓
+source discovery (hints)
+        ↓
+Kultrun compatibility prefilter
+        ↓
+cheap factual weight bound
+        ↓
+deep ModelRequirement
+        ↓
+one CurrentCapacitySnapshot
+        ↓
+AvailableModelView
+        ↓
+PRINT / API / Admin
+        ↓
+ModelSelector
+        ↓
 DeploymentPlan
         ↓
 ModelArtifact
@@ -79,6 +103,11 @@ substitute for product vLLM.
 
 ## Surfaces
 
+- `GET /v1/models/available` (no persist, no recommendation)
+- `POST /v1/models/available/refresh` (persist; does not select)
+- `kultrun models available` (funnel + Available Models; no recommend)
+- `kultrun models recommend|select` print Available Models first
+- Console Available Models panel before Model selection
 - `POST /v1/inference/instances/start`
 - `POST /v1/inference/instances/infer`
 - `POST /v1/inference/instances/stop`
@@ -93,9 +122,13 @@ remain K-95. Admitted VRAM is translated into vLLM
 `--gpu-memory-utilization` on the native serving path; that is a runtime
 budget control, not a kernel-enforced VRAM cgroup.
 
-Feasibility compares a runtime-specific `ModelRequirement` to current
-available capacity (`ResourceSummary`: SAFE minus ACTIVE), not to
-physical host totals and not to SAFE alone. Stored artifacts consume
-storage via live free space; they do not consume VRAM. ResourceManager
-remains final admission. T3/T5 on a real GPU host remain required for
-close.
+Available Models is produced before ModelSelector. Recommendation does
+not define availability. Cheap weight evidence is a lower bound, not a
+serving total. Accelerate is optional and is not vLLM authority. AUTO
+refines successful llmfit vLLM plan components rather than shopping
+estimators. Feasibility compares a runtime-specific `ModelRequirement`
+to one `CurrentCapacitySnapshot` (SAFE minus ACTIVE) for the whole
+pass. Hypothetical candidates do not consume capacity. Stored artifacts
+consume storage via live free space; they do not consume VRAM.
+ResourceManager remains final admission. T3/T5 on a real GPU host
+remain required for close.

@@ -394,8 +394,8 @@ class ResourceSummary(Contract):
         "own reservation omitted so revalidation does not double-subtract",
         default=NOT_PROVIDED,
     )
-    derived_at: dt.datetime | None = meaning(
-        "when this derived view was computed, UTC", default=None
+    observed_at: dt.datetime | None = meaning(
+        "when this derived current-capacity view was observed, UTC", default=None
     )
     safe_storage_bytes: Maybe[int] = meaning(
         "SAFE free space from the current storage authority", default=NOT_PROVIDED

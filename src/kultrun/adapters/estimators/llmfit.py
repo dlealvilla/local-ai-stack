@@ -208,7 +208,7 @@ class LlmfitRequirementEstimator:
                 kv_per_token=per_token,
                 context_tokens=context,
                 batch_size=request.batch_size,
-                overhead_bytes=NOT_PROVIDED,
+                overhead_bytes=0,
                 activation_bytes=NOT_PROVIDED,
             )
             estimated = composed.total_bytes
@@ -217,8 +217,9 @@ class LlmfitRequirementEstimator:
             assumptions = (
                 *assumptions,
                 *composed.assumptions,
-                *composed.unresolved,
-                "llmfit plan minimum is not native vLLM serving demand",
+                "vLLM serving refinement after llmfit plan components",
+                "engine workspace is Kultrun-owned normalization, "
+                "not a second estimator",
             )
         return ModelRequirement(
             model_id=request.model_id,
@@ -227,7 +228,7 @@ class LlmfitRequirementEstimator:
             peak_additional_bytes=NOT_PROVIDED,
             vram_weights_bytes=weights,
             vram_kv_bytes_per_token=per_token,
-            vram_overhead_bytes=NOT_PROVIDED,
+            vram_overhead_bytes=0,
             ram_bytes=_bytes(ram_gb),
             unified_memory_bytes=NOT_PROVIDED,
             activation_bytes=NOT_PROVIDED,

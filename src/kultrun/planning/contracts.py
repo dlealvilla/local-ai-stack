@@ -475,6 +475,137 @@ class DeploymentPlan(Contract):
     )
 
 
+class AvailableModelViewId(EntityId):
+    """Deterministic identity of the current Available Models view on one host."""
+
+    prefix = "amv"
+
+
+class AvailableViewStatus(StrEnum):
+    """Whether the persisted Available Models view may be treated as authority."""
+
+    CURRENT = "current"
+    STALE = "stale"
+    UNAVAILABLE = "unavailable"
+
+
+class FunnelStage(StrEnum):
+    """Which analysis stage excluded a candidate. Not a ranking class."""
+
+    DISCOVERY = "discovery"
+    COMPATIBILITY = "compatibility"
+    CHEAP_SIZE_BOUND = "cheap_size_bound"
+    DEEP_CAPACITY = "deep_capacity"
+
+
+@contract(kind="planning.available_model_member", version=1)
+@dataclass(frozen=True, slots=True)
+class AvailableModelMember(Contract):
+    """One model currently available to deploy as the next workload."""
+
+    model_id: str = meaning("catalog model identity")
+    logical_name: str = meaning("catalog logical name")
+    source_ref: str = meaning("upstream identity")
+    source_revision: Maybe[str] = meaning("immutable revision, when known")
+    runtime: str = meaning("selected verified runtime family")
+    runtime_version: Maybe[str] = meaning("selected runtime version")
+    quantization: Maybe[str] = meaning("variant identity")
+    requested_context_tokens: Maybe[int] = meaning(
+        "serving context this availability assumed"
+    )
+    required_vram_bytes: Maybe[int] = meaning("deep ModelRequirement VRAM")
+    available_vram_bytes: Maybe[int] = meaning(
+        "current available VRAM from the snapshot used for this view"
+    )
+    required_ram_bytes: Maybe[int] = meaning("deep ModelRequirement RAM")
+    available_ram_bytes: Maybe[int] = meaning("current available RAM")
+    incremental_storage_bytes: Maybe[int] = meaning(
+        "acquisition footprint still required"
+    )
+    available_storage_bytes: Maybe[int] = meaning("current incremental storage")
+    requirement_provider: Maybe[str] = meaning("estimator that produced demand")
+    requirement_confidence: Maybe[str] = meaning("requirement confidence")
+    requirement_basis: str = meaning("ModelRequirement input fingerprint")
+    weight_evidence_source: Maybe[str] = meaning(
+        "cheap weight-footprint provider, when one ran", default=NOT_PROVIDED
+    )
+    weight_lower_bound_bytes: Maybe[int] = meaning(
+        "serialized tensor bytes lower bound, when known", default=NOT_PROVIDED
+    )
+    result: str = meaning(
+        "always available for members of this view", default="available"
+    )
+
+
+@contract(kind="planning.available_model_exclusion", version=1)
+@dataclass(frozen=True, slots=True)
+class AvailableModelExclusion(Contract):
+    """Why a discovered or catalog model is not currently available."""
+
+    model_id: str = meaning("catalog or synthetic identity")
+    logical_name: str = meaning("display name")
+    stage: FunnelStage = meaning("which funnel stage excluded this candidate")
+    reason: str = meaning("normalized reason code")
+    notes: tuple[str, ...] = meaning("short factual notes", default=())
+    weight_lower_bound_bytes: Maybe[int] = meaning(
+        "cheap lower bound when Stage C rejected", default=NOT_PROVIDED
+    )
+    allowed_placement_bytes: Maybe[int] = meaning(
+        "placement budget used for the cheap bound", default=NOT_PROVIDED
+    )
+    required_vram_bytes: Maybe[int] = meaning(
+        "deep required VRAM when Stage E rejected", default=NOT_PROVIDED
+    )
+    available_vram_bytes: Maybe[int] = meaning(
+        "snapshot available VRAM when Stage E rejected", default=NOT_PROVIDED
+    )
+    weight_evidence_source: Maybe[str] = meaning(
+        "cheap evidence provider", default=NOT_PROVIDED
+    )
+
+
+@contract(kind="planning.available_model_view", version=1)
+@dataclass(frozen=True, slots=True)
+class AvailableModelView(Contract):
+    """Models that can individually be the next workload. Not a recommendation.
+
+    Persisted. Recommendation and selection are forbidden from this basis.
+    """
+
+    view_id: AvailableModelViewId = meaning(
+        "fingerprint of host, foundation, snapshot, requirements, and policy"
+    )
+    host_id: HostId = meaning("host this view applies to")
+    status: AvailableViewStatus = meaning("current, stale, or unavailable")
+    evaluated_at: dt.datetime = meaning("when this view was computed, UTC")
+    view_basis: str = meaning("fingerprint of material availability inputs")
+    snapshot_basis: str = meaning(
+        "CurrentCapacitySnapshot identity used for every member"
+    )
+    host_fingerprint: str = meaning("capacity envelope identity")
+    eligible_view_id: str = meaning("EligibleModelView identity consumed")
+    runtime: Maybe[str] = meaning("selected verified runtime family")
+    runtime_version: Maybe[str] = meaning("selected runtime version")
+    requested_context_tokens: Maybe[int] = meaning(
+        "serving context assumed for this pass, when one global value applied"
+    )
+    universe_count: int = meaning("source records considered before remote filter")
+    discovered_count: int = meaning("records after remote filter plus curated catalog")
+    compatibility_count: int = meaning("survivors of local runtime compatibility")
+    cheap_reject_count: int = meaning("proven impossible by cheap weight bound")
+    deep_analyzed_count: int = meaning("candidates that invoked deep estimation")
+    available_count: int = meaning("members of this view")
+    excluded_count: int = meaning("recorded exclusions")
+    estimator_invocations: int = meaning("deep estimator calls for this pass")
+    members: tuple[AvailableModelMember, ...] = meaning(
+        "currently available models, unsorted product set", default=()
+    )
+    exclusions: tuple[AvailableModelExclusion, ...] = meaning(
+        "why other candidates are not available", default=()
+    )
+    policy_version: str = meaning("selection/capacity policy of this pass", default="")
+
+
 def envelope_fingerprint(envelope: CapacityEnvelope) -> str:
     """Stable identity of the envelope a recommendation was computed against."""
     return envelope.host_fingerprint

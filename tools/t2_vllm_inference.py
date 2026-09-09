@@ -131,6 +131,47 @@ def main() -> int:
             return 1
         evidence["version"] = version.stdout.strip()
 
+        for command in (
+            [str(kultrun), "runtimes", "select", "--auto"],
+            [str(kultrun), "runtimes", "realize"],
+            [str(kultrun), "runtimes", "verify", "--selected"],
+        ):
+            step = run(command, env)
+            if step.returncode != 0:
+                print(step.stderr or step.stdout)
+                return 1
+
+        available_cli = run([str(kultrun), "models", "available"], env)
+        if available_cli.returncode != 0:
+            print(available_cli.stderr or available_cli.stdout)
+            return 1
+        available_print = (available_cli.stdout or "").strip()
+        evidence["available_cli"] = available_print
+        if "MODEL FEASIBILITY FUNNEL" not in available_print:
+            print("FAIL: Available Models funnel missing", available_print)
+            return 1
+        if "AVAILABLE MODELS" not in available_print:
+            print("FAIL: Available Models table missing", available_print)
+            return 1
+        if "RECOMMENDED MODEL" in available_print:
+            print("FAIL: models available recommended a model", available_print)
+            return 1
+
+        recommend_cli = run([str(kultrun), "models", "recommend"], env)
+        if recommend_cli.returncode != 0:
+            print(recommend_cli.stderr or recommend_cli.stdout)
+            return 1
+        recommend_print = (recommend_cli.stdout or "").strip()
+        evidence["recommend_cli"] = recommend_print
+        if recommend_print.index("AVAILABLE MODELS") > recommend_print.index(
+            "RECOMMENDED MODEL"
+        ):
+            print("FAIL: recommendation printed before Available Models")
+            return 1
+        if "SELECTED MODEL:" not in recommend_print or "MODE:" not in recommend_print:
+            print("FAIL: selection print missing", recommend_print)
+            return 1
+
         suite = run(
             [
                 str(python),
@@ -176,6 +217,13 @@ def call(path, method=Method.GET, **query):
 assert call('/v1/runtimes/foundation/select', Method.POST, mode='auto').status == 200
 assert call('/v1/runtimes/foundation/realize', Method.POST).status == 200
 assert call('/v1/runtimes/foundation/verify', Method.POST).status == 200
+available = call('/v1/models/available')
+assert available.status == 200
+assert available.body['payload']['recommendation'] is False
+assert available.body['payload']['selection'] is False
+refreshed = call('/v1/models/available/refresh', Method.POST)
+assert refreshed.status == 200
+assert refreshed.body['payload']['mutations'] is True
 created = call('/v1/deployments/plan', Method.POST)
 assert created.status == 200
 plan = created.body['payload']
@@ -208,6 +256,9 @@ assert running.runtime.value == 'reference-serving'
 p.instances.stop(ref.instance_id)
 chat = p.router.handle(ApiRequest(Method.GET, '/v1/chat/completions'))
 print(json.dumps({
+    'available_count': available.body['payload']['counts']['available'],
+    'funnel': available.body['payload']['counts'],
+    'available_status': available.body['payload']['status'],
     'plan_status': plan['status'],
     'instance_id': body['instance_id'],
     'runtime': body['runtime'],
@@ -247,6 +298,8 @@ print(json.dumps({
                 " 'Inference instances' in html,"
                 " '/inference/instances/infer' in js,"
                 " 'Infer' in js,"
+                " html.find('Available Models') < html.find('Model selection'),"
+                " '/models/available' in js,"
                 " 'chat' not in js,"
                 " 'Active Pool' not in js)",
             ],
@@ -269,7 +322,7 @@ print(json.dumps({
         if evidence.get("chat_status") != 404:
             print("FAIL: chat route exists")
             return 1
-        if "True True True True True True" not in console.stdout:
+        if "True True True True True True True True" not in console.stdout:
             print("FAIL: Console", console.stdout)
             return 1
     return 0

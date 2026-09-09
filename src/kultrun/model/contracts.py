@@ -393,6 +393,56 @@ class ModelRequirement(Contract):
     )
 
 
+class WeightEvidenceSource(StrEnum):
+    """Where cheap weight-footprint evidence came from. Not a requirement."""
+
+    HUGGINGFACE_SAFETENSORS = "huggingface_safetensors"
+    SOURCE_ARTIFACT_SIZE = "source_artifact_size"
+    ACCELERATE_STRUCTURAL = "accelerate_structural"
+    UNAVAILABLE = "unavailable"
+
+
+class CheapSizeClass(StrEnum):
+    """Cheap numeric gate. Only PROVEN_IMPOSSIBLE excludes a candidate."""
+
+    PASS = "pass"
+    PROVEN_IMPOSSIBLE = "proven_impossible"
+    UNKNOWN = "unknown"
+
+
+@contract(kind="model.weight_footprint_evidence", version=1)
+@dataclass(frozen=True, slots=True)
+class WeightFootprintEvidence(Contract):
+    """Factual stored-weight lower bound. Not ModelRequirement and not VRAM.
+
+    Serialized tensor bytes omit KV, runtime, activations, and workspace.
+    ``weight_bytes <= available`` is not feasibility. ``weight_bytes``
+    exceeding the current placement budget can prove impossibility.
+    """
+
+    model_id: ModelId = meaning("which candidate this footprint describes")
+    source_ref: str = meaning("upstream identity used to fetch metadata")
+    evidence_source: WeightEvidenceSource = meaning("which provider produced this")
+    serialized_weight_tensor_bytes: Maybe[int] = meaning(
+        "sum of stored tensor extents; unresolved when metadata is absent"
+    )
+    confidence: Confidence = meaning(
+        "factual storage lower bound, structural, or unknown"
+    )
+    provenance: tuple[str, ...] = meaning(
+        "how the bytes were derived; never a traceback", default=()
+    )
+    source_revision: Maybe[str] = meaning(
+        "revision the metadata named, when known", default=NOT_PROVIDED
+    )
+    shard_count: Maybe[int] = meaning(
+        "how many weight files were aggregated", default=NOT_PROVIDED
+    )
+    provider_failure: Maybe[str] = meaning(
+        "typed failure when metadata could not be used", default=NOT_PROVIDED
+    )
+
+
 @contract(kind="model.inventory_record", version=1)
 @dataclass(frozen=True, slots=True)
 class ModelInventoryRecord(Contract):

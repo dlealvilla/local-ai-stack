@@ -613,6 +613,7 @@ def test_api_cli_and_console_surfaces(tmp_path: Path) -> None:
     ).read_text(encoding="utf-8")
     assert "/models/eligible" in script
     assert "Eligible models" in html
+    assert "Available Models" in html
     assert "Select Model" not in script
     assert "declared runtimes" in script
 

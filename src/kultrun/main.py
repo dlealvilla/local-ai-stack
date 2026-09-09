@@ -27,8 +27,10 @@ from kultrun.adapters.execution.container import ContainerExecutor
 from kultrun.adapters.execution.native_process import NativeProcessExecutor
 from kultrun.adapters.host import fixtures, hwloc, native_linux, nvidia
 from kultrun.adapters.install import apt
+from kultrun.adapters.model_source.accelerate_fit import AccelerateStructuralProvider
 from kultrun.adapters.model_source.candidates import acceptance_candidate
 from kultrun.adapters.model_source.huggingface import HuggingFaceSource
+from kultrun.adapters.model_source.safetensors import SafetensorsWeightEvidenceProvider
 from kultrun.adapters.persistence import file_store
 from kultrun.adapters.provisioning.fixture import FixtureRuntimeProvisioner
 from kultrun.adapters.provisioning.vllm_native import VllmNativeProvisioner
@@ -99,6 +101,13 @@ from kultrun.planning.contracts import CompatibilityVerdict
 from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
+from kultrun.platform.available_models import (
+    AvailableModelsLock,
+    AvailableModelsService,
+    FunnelPass,
+    format_available_models,
+    format_funnel,
+)
 from kultrun.platform.capacity_snapshot import (
     planning_capacity,
     revalidation_plan_basis,
@@ -128,7 +137,6 @@ from kultrun.platform.model_selection import (
 from kultrun.platform.probe_run import ExecutorProbeRunner
 from kultrun.platform.requirement import (
     RequirementAssessment,
-    assess_catalog,
 )
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
@@ -306,6 +314,7 @@ class Platform:
     foundation: FoundationSelectionService
     eligibility: ModelEligibilityService
     model_selection: ModelSelectionService
+    available_models: AvailableModelsService
     deployment_plan: DeploymentPlanningService
     deployment_prepare: DeploymentPreparationService
     deployment_instance: DeploymentInstanceService
@@ -733,6 +742,17 @@ def build(
         models,
         ModelSelectionLock(state_root),
     )
+    available_models = AvailableModelsService(
+        store,
+        resolved_clock,
+        models,
+        selection.estimator,
+        selection.policy,
+        AvailableModelsLock(state_root),
+        weights=SafetensorsWeightEvidenceProvider(),
+        structural=AccelerateStructuralProvider(),
+        inventory=inventory,
+    )
     deployment_plan = DeploymentPlanningService(
         store,
         resolved_clock,
@@ -773,25 +793,20 @@ def build(
         )
         envelope = capacity.compute(host, _stored_sanity_with(sanity, host))
         stored_plan = deployment_plan.stored(host)
-        rows = assess_catalog(
-            view,
-            models,
+        bound = planning_capacity(
+            resources,
             envelope,
-            selection.estimator,
-            selection.policy,
-            capacity=planning_capacity(
-                resources,
-                envelope,
-                host,
-                plan_basis=revalidation_plan_basis(
-                    stored_plan, model_selection.stored(host)
-                ),
+            host,
+            plan_basis=revalidation_plan_basis(
+                stored_plan, model_selection.stored(host)
             ),
-            inventory=inventory,
         )
-        chosen = model_selection.view(host, view, envelope, rows)
+        funnel = available_models.evaluate(host, view, envelope, bound, persist=False)
+        chosen = model_selection.view(
+            host, view, envelope, funnel.assessments, funnel.available
+        )
         return deployment_plan.view(
-            host, view, envelope, rows, chosen, foundation.stored(host)
+            host, view, envelope, funnel.assessments, chosen, foundation.stored(host)
         )
 
     deployment_prepare = DeploymentPreparationService(
@@ -836,6 +851,7 @@ def build(
         foundation=foundation,
         eligibility=eligibility,
         model_selection=model_selection,
+        available_models=available_models,
         deployment_plan=deployment_plan,
         deployment_prepare=deployment_prepare,
         deployment_instance=deployment_instance,
@@ -871,6 +887,7 @@ def build(
         foundation=foundation,
         eligibility=eligibility,
         model_selection=model_selection,
+        available_models=available_models,
         deployment_plan=deployment_plan,
         deployment_prepare=deployment_prepare,
         deployment_instance=deployment_instance,
@@ -1387,22 +1404,21 @@ def _runtime_compat(platform: Platform) -> Mapping[str, CompatibilityVerdict]:
     )
 
 
-def _assessments(
+def _funnel(
     platform: Platform,
     *,
+    persist: bool = False,
     pending_model: str | None = None,
-) -> tuple[EligibleModelView, CapacityEnvelope, tuple[RequirementAssessment, ...]]:
+) -> FunnelPass:
     view = _eligible_view(platform)
     host = platform.hosts.current
     envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
     stored_plan = platform.deployment_plan.stored(host)
-    rows = assess_catalog(
+    return platform.available_models.evaluate(
+        host,
         view,
-        platform.models,
         envelope,
-        platform.selection.estimator,
-        platform.selection.policy,
-        capacity=planning_capacity(
+        planning_capacity(
             platform.resources,
             envelope,
             host,
@@ -1412,30 +1428,52 @@ def _assessments(
                 pending_model=pending_model,
             ),
         ),
-        inventory=platform.inventory,
+        persist=persist,
     )
-    return view, envelope, rows
+
+
+def _assessments(
+    platform: Platform,
+    *,
+    pending_model: str | None = None,
+) -> tuple[EligibleModelView, CapacityEnvelope, tuple[RequirementAssessment, ...]]:
+    result = _funnel(platform, pending_model=pending_model)
+    return result.eligible, result.envelope, result.assessments
 
 
 def _model_overview(platform: Platform) -> ModelSelectionOverview:
     host = platform.hosts.current
-    view, envelope, rows = _assessments(platform)
-    return platform.model_selection.view(host, view, envelope, rows)
+    result = _funnel(platform)
+    return platform.model_selection.view(
+        host, result.eligible, result.envelope, result.assessments, result.available
+    )
 
 
 def _deployment_overview(
     platform: Platform, *, persist: bool = False
 ) -> DeploymentPlanOverview:
     host = platform.hosts.current
-    view, envelope, rows = _assessments(platform)
-    selection = platform.model_selection.view(host, view, envelope, rows)
+    result = _funnel(platform)
+    selection = platform.model_selection.view(
+        host, result.eligible, result.envelope, result.assessments, result.available
+    )
     foundation = platform.foundation.stored(host)
     if persist:
         return platform.deployment_plan.refresh(
-            host, view, envelope, rows, selection, foundation
+            host,
+            result.eligible,
+            result.envelope,
+            result.assessments,
+            selection,
+            foundation,
         )
     return platform.deployment_plan.view(
-        host, view, envelope, rows, selection, foundation
+        host,
+        result.eligible,
+        result.envelope,
+        result.assessments,
+        selection,
+        foundation,
     )
 
 
@@ -1875,6 +1913,8 @@ def _models(arguments: Sequence[str]) -> int:
     if not arguments:
         return show_models()
     command = arguments[0]
+    if command == "available":
+        return show_available_models()
     if command == "recommend":
         return show_recommendation()
     if command == "selection":
@@ -1893,7 +1933,8 @@ def _models(arguments: Sequence[str]) -> int:
         return delete_named(arguments[1:])
     print(
         "usage: kultrun models ["
-        "recommend|selection|select|eligible|requirements|inventory|acquire|delete]",
+        "available|recommend|selection|select|eligible|requirements|"
+        "inventory|acquire|delete]",
         file=sys.stderr,
     )
     return 2
@@ -2113,13 +2154,35 @@ def delete_named(arguments: Sequence[str]) -> int:
     return 0
 
 
+def show_available_models() -> int:
+    """Print Available Models. Does not recommend or select."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    result = _funnel(platform, persist=True)
+    print(format_funnel(result.available))
+    print()
+    print(format_available_models(result.available))
+    return 0
+
+
 def show_recommendation() -> int:
     """Select using the configured estimator. Does not download or reserve."""
     from kultrun.planning.service import plan_from
 
     platform = build()
     _warn_if_state_root_defaulted(platform)
-    overview = _model_overview(platform)
+    result = _funnel(platform, persist=True)
+    print(format_funnel(result.available))
+    print()
+    print(format_available_models(result.available))
+    print()
+    overview = platform.model_selection.view(
+        platform.hosts.current,
+        result.eligible,
+        result.envelope,
+        result.assessments,
+        result.available,
+    )
     recommendation = overview.recommendation
     recommendation_mode = recommendation.estimator_mode
     fallback = (
@@ -2183,6 +2246,13 @@ def show_recommendation() -> int:
             f"runtime {planned.runtime if is_resolved(planned.runtime) else '-'}  "
             f"authoritative no"
         )
+    print()
+    print("RECOMMENDED MODEL:")
+    print(rec if isinstance(rec, str) else "none")
+    print("SELECTED MODEL:")
+    print(sel if isinstance(sel, str) else "none")
+    print("MODE:")
+    print(overview.selection.selection_mode.value.upper())
     return 0
 
 
@@ -2233,15 +2303,28 @@ def select_named_model(arguments: Sequence[str]) -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     host = platform.hosts.current
-    view, envelope, rows = _assessments(
-        platform, pending_model=None if auto else names[0]
-    )
+    result = _funnel(platform, persist=True, pending_model=None if auto else names[0])
+    print(format_funnel(result.available))
+    print()
+    print(format_available_models(result.available))
+    print()
     try:
         if auto:
-            overview = platform.model_selection.select_auto(host, view, envelope, rows)
+            overview = platform.model_selection.select_auto(
+                host,
+                result.eligible,
+                result.envelope,
+                result.assessments,
+                result.available,
+            )
         else:
             overview = platform.model_selection.select_manual(
-                names[0], host, view, envelope, rows
+                names[0],
+                host,
+                result.eligible,
+                result.envelope,
+                result.assessments,
+                result.available,
             )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)
@@ -2254,6 +2337,13 @@ def select_named_model(arguments: Sequence[str]) -> int:
         f"recommended {rec if isinstance(rec, str) else '-'}  "
         f"selected {sel if isinstance(sel, str) else '-'}"
     )
+    print()
+    print("RECOMMENDED MODEL:")
+    print(rec if isinstance(rec, str) else "none")
+    print("SELECTED MODEL:")
+    print(sel if isinstance(sel, str) else "none")
+    print("MODE:")
+    print(overview.selection.selection_mode.value.upper())
     return 0
 
 

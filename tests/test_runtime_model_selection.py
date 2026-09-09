@@ -484,6 +484,8 @@ def test_cli_and_console_surfaces(
     assert "/models/selection" in script
     assert "Select Model" not in script
     assert "Model selection" in html
+    assert "Available Models" in html
+    assert html.index("Available Models") < html.index("Model selection")
 
 
 def test_architecture_guards() -> None:
@@ -496,6 +498,8 @@ def test_architecture_guards() -> None:
     assert "class SelectionFramework" not in text
     assert "class GenericSelection" not in text
     assert "class SelectedDeploymentCandidate" not in text
+    assert "class AvailableModelsV2" not in text
+    assert "class GenericConstraintEngine" not in text
     routes = (SOURCE / "kultrun" / "api" / "routes.py").read_text(encoding="utf-8")
     assert "plane.selection.recommend" not in routes
     assert "rank_feasible" in (

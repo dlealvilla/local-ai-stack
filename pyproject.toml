@@ -16,6 +16,7 @@ kultrun = "kultrun.main:main"
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "build>=1.2", "hatchling>=1.25"]
 estimators = ["llmfit==1.1.14"]
 acquisition = ["huggingface_hub>=0.23,<1"]
+analysis = ["accelerate>=0.33"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kultrun"]

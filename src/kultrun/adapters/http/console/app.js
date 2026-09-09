@@ -33,6 +33,7 @@ const SUBSYSTEMS = [
   { name: 'Runtime capability profiles', probe: '/runtimes/capability-profiles' },
   { name: 'Model catalog', probe: '/models' },
   { name: 'Eligible models', probe: '/models/eligible' },
+  { name: 'Available models', probe: '/models/available' },
   { name: 'Model requirements', probe: '/models/requirements' },
   { name: 'Model selection', probe: '/models/selection' },
   { name: 'Deployment plan', probe: '/deployments/plan' },
@@ -936,6 +937,78 @@ async function renderEligibleModels() {
   }
 }
 
+async function renderAvailableModels() {
+  const panel = document.getElementById('available-panel');
+  const summary = document.getElementById('available-summary');
+  const target = document.getElementById('available');
+  if (!panel || !summary || !target) return;
+  try {
+    const state = await get('/models/available');
+    panel.classList.remove('hidden');
+    const counts = state.counts || {};
+    const tone = state.status === 'current' ? 'ok'
+      : state.status === 'stale' ? 'warn' : 'unknown';
+    rows(summary, [
+      ['status', state.status || 'not reported'],
+      ['available', String(counts.available || 0)],
+      ['runtime', state.runtime || 'none'],
+      ['version', state.runtime_version || 'none'],
+      ['context', state.requested_context_tokens || 'per-model'],
+      ['universe', String(counts.universe || 0)],
+      ['discovered', String(counts.discovered || 0)],
+      ['compatibility', String(counts.compatibility || 0)],
+      ['cheap rejects', String(counts.cheap_reject || 0)],
+      ['deep analyzed', String(counts.deep_analyzed || 0)],
+      ['excluded', String(counts.excluded || 0)],
+    ]);
+    target.replaceChildren();
+    target.append(pill(fmt(state.status), tone));
+    const list = document.createElement('div');
+    for (const item of state.available || []) {
+      const line = document.createElement('div');
+      line.className = 'pool';
+      const head = document.createElement('div');
+      head.className = 'muted';
+      head.textContent = `${item.logical_name}  ${item.quantization || '-'}`;
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      rows(grid, [
+        ['context', item.requested_context],
+        ['required VRAM', bytes(item.required_vram_bytes)],
+        ['available VRAM', bytes(item.available_vram_bytes)],
+        ['provider', item.requirement_provider],
+        ['confidence', item.requirement_confidence],
+      ]);
+      line.append(head, grid);
+      list.append(line);
+    }
+    if (!state.available || state.available.length === 0) {
+      target.append(span('muted', 'No currently available models.'));
+    } else {
+      target.append(list);
+    }
+    if (state.excluded && state.excluded.length) {
+      const excluded = document.createElement('div');
+      excluded.className = 'muted';
+      excluded.style.marginTop = '0.8rem';
+      for (const item of state.excluded.slice(0, 8)) {
+        const line = document.createElement('div');
+        line.textContent = `${item.logical_name}  ${item.stage}  ${item.reason}`;
+        excluded.append(line);
+      }
+      target.append(excluded);
+    }
+    json(document.getElementById('available-json'), state);
+  } catch (error) {
+    if (error.message.startsWith('404')) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    failure(target, error);
+  }
+}
+
 function catalogCard(entry) {
   const meta = entry.metadata || {};
   const req = entry.requirement || {};
@@ -1736,6 +1809,7 @@ async function refresh() {
     await renderRuntimeCandidates();
     await renderCatalog();
     await renderEligibleModels();
+    await renderAvailableModels();
     await renderSelection();
     await renderDeploymentPlan();
     await renderInventory();

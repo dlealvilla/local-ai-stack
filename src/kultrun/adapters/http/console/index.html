@@ -99,12 +99,24 @@
       <details><summary>View JSON</summary><pre id="eligible-json"></pre></details>
     </section>
 
+    <section id="available-panel" class="hidden">
+      <h2>Available Models</h2>
+      <p class="note">
+        Models Kultrun currently determines can individually be the next
+        workload. This panel is produced before recommendation. It does
+        not rank, acquire, or start inference.
+      </p>
+      <div class="grid" id="available-summary"></div>
+      <div id="available"></div>
+      <details><summary>View JSON</summary><pre id="available-json"></pre></details>
+    </section>
+
     <section id="selection-panel" class="hidden">
       <h2>Model selection</h2>
       <p class="note">
-        Feasible models only: runtime eligible and capacity feasible.
-        AUTO follows the recommendation. MANUAL chooses another feasible
-        model. This panel does not download, reserve, or start inference.
+        AUTO follows the recommendation among Available Models. MANUAL
+        may choose another member of the current Available Models view.
+        This panel does not download, reserve, or start inference.
       </p>
       <div class="grid" id="selection-summary"></div>
       <div id="selection"></div>

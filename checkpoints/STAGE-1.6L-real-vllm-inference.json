@@ -59,9 +59,17 @@
   "k96": {
     "status": "OPEN",
     "implemented": false,
-    "note": "llmfit plan minimum is not native vLLM serving demand; AUTO falls back to Kultrun composition"
+    "note": "llmfit plan minimum is not native vLLM serving demand; AUTO refines successful llmfit vLLM plan components through Kultrun composition and does not shop estimators"
   },
-  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95", "K-96"],
+  "k97": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "k98": {
+    "status": "OPEN",
+    "implemented": false
+  },
+  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95", "K-96", "K-97", "K-98"],
   "t2": {
     "passed": true,
     "clean_source": true,
@@ -96,9 +104,9 @@
     "method": "T0/T1 plus T2 clean wheel. T3/T5 required for close."
   },
   "test_modes": {
-    "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within feasible set; no reference fallback",
-    "T1": "vLLM HTTP protocol fixture; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible",
-    "T2": "clean wheel; isolated install; full suite against wheel; product start fails without real vLLM; infer refused; no chat frontend",
+    "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; staged Available Models funnel; cheap Safetensors bound; optional Accelerate; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within Available Models; no reference fallback",
+    "T1": "vLLM HTTP protocol fixture; funnel fixture 20/12/7/2/5/3; Available Models printed before selector; estimator invocations saved; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible",
+    "T2": "clean wheel; isolated install; full suite against wheel; Available Models CLI/API before recommend; product start fails without real vLLM; infer refused; no chat frontend",
     "T3": "required; not yet performed",
     "T5": "required; Kultrun prompt to generated response; not yet performed"
   },

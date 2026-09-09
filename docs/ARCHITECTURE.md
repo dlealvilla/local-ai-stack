@@ -758,7 +758,7 @@ ended up with a 48-minute capacity query.
 | **Owns** | `ModelMetadata` and `ModelArtifact` normalized from any source. `ModelInventoryRecord` with explicit artifact states (remote, acquiring, stored, invalid, updating, deleted) and lineage — parent model and revision, derivation type, owner, dataset reference, promotion state. Running is not an inventory state. `ModelRequirement`, host-independent: weight memory, artifact and peak-acquisition storage, estimated RAM / VRAM / unified memory, context, quantization (via the candidate's metadata), supported runtimes, architecture/device needs, runtime overhead, KV/cache, estimation method, confidence and evidence basis. `EstimatorRouter` and typed `EstimatorFailureReason` — ordered provider attempts and failover provenance, not ranking. The acquisition workflow and `AcquisitionReceipt`. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `storage` ports and contracts · `capacity` contracts (SAFE preflight only) |
 | **Produces** | `ModelInventoryRecord v1` · `ModelRequirement v1` · `AcquisitionReceipt` · `ModelArtifact` |
-| **Ports** | `ModelSource` · `ModelRequirementEstimator` · `ModelAcquisitionProvider` · `ModelMetadataEnricher` |
+| **Ports** | `ModelSource` · `ModelDiscoverySource` · `WeightEvidenceProvider` · `ModelRequirementEstimator` · `ModelAcquisitionProvider` · `ModelMetadataEnricher` |
 | **Implements** | `storage.ports.ManagedUsageSource` |
 | **Must not** | Let a model requirement depend on the host — feasibility is where host and requirement meet. Fill a missing metadata field with a guess; absent values stay unresolved and are reported. Treat unknown requirement as zero or as a fit. Let an external source failure mark the local platform unhealthy. Collapse inventory into a single `current_model`. Treat a stored artifact as a running workload. Rank or recommend — that is `planning`. Let `ModelSource` download, store or own lifecycle. Collapse acquisition into `HuggingFaceSource`. Expose raw Hugging Face or llmfit objects as domain contracts. Reconcile multiple estimators in the product path. Reserve resources or start an InferenceInstance. |
 | **Created** | 1.4A catalog/metadata · 1.4C acquisition and plural inventory · **Deepened** 2.5 source, 2.6 acquisition, 3.1 requirement |
@@ -778,8 +778,9 @@ catalog facts. That view is contextual: the same `ModelMetadata` may be
 ELIGIBLE under one foundation and BLOCKED under another. Stage 1.6G
 derives `ModelRequirement` from an ELIGIBLE candidate plus the selected
 fresh VERIFIED profile, then capacity-fit against current available
-capacity (SAFE minus ACTIVE). Stage 1.6H
-ranks only currently feasible candidates and persists bounded
+capacity (SAFE minus ACTIVE). Stage 1.6L produces the first-class
+`AvailableModelView` from that funnel before ranking. Stage 1.6H
+ranks only currently available members and persists bounded
 AUTO/MANUAL `ModelSelection`. Stage 1.6I persists the authoritative
 current `DeploymentPlan` from those decisions. ELIGIBLE is not FEASIBLE.
 
@@ -789,7 +790,7 @@ current `DeploymentPlan` from those decisions. ELIGIBLE is not FEASIBLE.
 
 | | |
 |---|---|
-| **Owns** | `DeploymentCapacity` — the SAFE slice of the current envelope plus current available bytes for a proposed placement, never a universal server score. `CapacityUtilization` — max of required/available across applicable deployment-limiting **memory** resources; storage is excluded. `SelectionPolicy` — configurable preferred-band bounds (v0 defaults 0.20–1.00), never architecture constants. `FeasibilityResult` — compatibility verdicts (`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`) plus capacity-fit class (`PREFERRED`, `UNDERUTILIZED`, `EXCEEDS_SAFE`) with per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, reasons and evidence references. Underutilized is not unsupported. `FeasibleModelCandidate` — derived ranking input (eligible + currently feasible; not persisted). `ModelSelection` — host-scoped AUTO\|MANUAL recommended versus selected model; not a DeploymentPlan. `DeploymentPlan`. `SelectionRecommendation` (primary, preferred alternatives, underutilized alternatives, rejected candidates, rationale, policy version). Selection, with recorded rejection reasons. `NO_PREFERRED_CANDIDATE` and `NO_FEASIBLE_CANDIDATE` are explicit outcomes. |
+| **Owns** | `DeploymentCapacity` — the SAFE slice of the current envelope plus current available bytes for a proposed placement, never a universal server score. `CapacityUtilization` — max of required/available across applicable deployment-limiting **memory** resources; storage is excluded. `SelectionPolicy` — configurable preferred-band bounds (v0 defaults 0.20–1.00), never architecture constants. `FeasibilityResult` — compatibility verdicts (`COMPATIBLE`, `CONDITIONALLY_COMPATIBLE`, `UNSUPPORTED`, `UNRESOLVED`) plus capacity-fit class (`PREFERRED`, `UNDERUTILIZED`, `EXCEEDS_SAFE`) with per-resource `{required, safe_available, fits, margin, limiting}`, limiting factor, reasons and evidence references. Underutilized is not unsupported. `FeasibleModelCandidate` — derived ranking input (eligible + currently feasible; not persisted). `AvailableModelView` — host-scoped CURRENT/STALE/UNAVAILABLE set of models that can individually be the next workload; recommendation and selection are not part of its basis. `ModelSelection` — host-scoped AUTO\|MANUAL recommended versus selected model; not a DeploymentPlan. `DeploymentPlan`. `SelectionRecommendation` (primary, preferred alternatives, underutilized alternatives, rejected candidates, rationale, policy version). Selection, with recorded rejection reasons. `NO_PREFERRED_CANDIDATE` and `NO_FEASIBLE_CANDIDATE` are explicit outcomes. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` · `components` · `capacity` · `model` |
 | **Produces** | `FeasibilityResult` · `DeploymentPlan` · a selection decision with explained rejections |
 | **Ports** | `Selector`, which becomes `ModelMixOptimizer` at 12.3 behind the same contract |
@@ -805,8 +806,8 @@ Unknown load-bearing requirements yield `UNRESOLVED`, never a silent fit.
 `SelectionRecommendation` already distinguishes a primary from preferred
 and underutilized alternatives and rejected candidates. Stage 1.6H
 keeps **recommended** distinct from **selected** on `ModelSelection`.
-AUTO follows the current recommendation. MANUAL holds another currently
-feasible model. Invalid MANUAL choice is refused. Return-to-AUTO
+AUTO follows the current recommendation among Available Models. MANUAL holds another currently
+available member. Invalid MANUAL choice is refused. Return-to-AUTO
 recomputes the current recommendation and selects it. The global model
 catalog is not the eligible view; Stage 1.6F derives runtime
 compatibility and composition supplies `CompatibilityVerdict` tokens.
@@ -1125,21 +1126,20 @@ CurrentCapacitySnapshot (SAFE minus ACTIVE)
         ↓
 CapacityAssessment
         ↓
-[STOP 1.6G]
+AvailableModelView
+        ↓
+[STOP 1.6G funnel; ranking is 1.6H]
 ```
 
 Stage 1.6H ModelSelector + bounded model selection consumes those
-assessments. It does not reconstruct eligibility, requirements, or
-SAFE versus current available capacity. It does not execute a deployment.
+Available Models. It does not reconstruct eligibility, requirements,
+or SAFE versus current available capacity. It does not expand the
+available set. It does not execute a deployment.
 
 ```text
-RuntimeEligibleModelCandidate
-        +
-ModelRequirement
-        +
-CapacityAssessment
+AvailableModelView
         ↓
-FeasibleModelCandidate[]
+FeasibleModelCandidate[] (members only)
         ↓
 existing deterministic ranking
         ↓
@@ -1227,7 +1227,8 @@ persisted class.
 | Runtime-aware model requirement | `ModelRequirement` from an ELIGIBLE candidate + selected VERIFIED profile |
 | Runtime-aware capacity fit | existing `ModelEvaluation` / `CapacityFitClass` vs current available |
 | Current available capacity | `ResourceSummary` derived from SAFE minus ACTIVE |
-| Currently feasible ranking input | `FeasibleModelCandidate` (derived) |
+| Currently available models | `AvailableModelView`; produced before recommendation |
+| Currently feasible ranking input | `FeasibleModelCandidate` (derived from Available Models) |
 | Bounded model selection | `ModelSelection` AUTO\|MANUAL; recommended ≠ selected |
 | Authoritative current deployment decision | `DeploymentPlan`; CURRENT vs STALE vs UNAVAILABLE |
 | Plan-driven stored bytes | exact `ModelArtifact` for the CURRENT plan |
@@ -1635,21 +1636,29 @@ stored is not running
 **Trace E — a model is chosen** (1.4B v0; 3.3–3.5 deepened)
 
 ```text
-curated candidates → ModelMetadata (unresolved fields explicit)
+MODEL UNIVERSE
+  → A source discovery filter (hints, not compatibility)
+  → DISCOVERED MODELS
+  → B Kultrun compatibility prefilter (EligibleModelView)
+  → COMPATIBLE CANDIDATES
+  → C cheap factual weight bound (Safetensors / optional Accelerate)
+  → DEEP-ANALYSIS CANDIDATES
   → ModelEstimationRequest (identity, quant, context, runtime, placement;
     no silent substitution)
   → ModelRequirementEstimator port
   → EstimatorRouter (auto: llmfit primary → typed failure → Kultrun fallback;
-    vLLM serving demand that llmfit cannot authorize also falls back;
+    successful llmfit vLLM evidence is refined, not shopped against Kultrun;
     or a strict provider)
   → one ModelRequirement (bytes, method, confidence, effective provider,
     failover provenance, runtime/context/concurrency basis)
   → capacity CapacityEnvelope (SAFE layer)
   → ResourceSummary current available (SAFE minus ACTIVE; derived)
-  → planning DeploymentCapacity for the proposed placement
-  → planning FeasibilityResult per candidate: compatibility, storage,
-    memory vs current available, CapacityUtilization, preferred-band status, reasons
-  → planning Selector, deterministic under a recorded SelectionPolicy
+  → one CurrentCapacitySnapshot / DeploymentCapacity for the whole pass
+  → per-candidate fit against that same snapshot (no hypothetical subtraction)
+  → AvailableModelView (CURRENT; empty is valid; no recommendation in basis)
+  → persist Available Models
+  → PRINT / API / Admin
+  → planning Selector over Available Models only
   → SelectionRecommendation + DeploymentPlan
        (primary, preferred alternatives, underutilized alternatives,
         rejected, rationale, policy version, effective estimator only)
@@ -1657,6 +1666,7 @@ curated candidates → ModelMetadata (unresolved fields explicit)
 
 every rejected or excluded candidate records why
 a recommendation is recomputed; it is not stored as permanent truth
+recommendation does not define availability
 planning never reserves
 planning never reconciles estimators
 ```
@@ -1703,7 +1713,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6I | Authoritative DeploymentPlan | 1.6H | ✅ closed L1 |
 | 1.6J | Plan-driven Acquisition + Resource admission | 1.6I | ✅ closed L1 |
 | 1.6K | Plan-driven InferenceInstance create | 1.6J | ✅ closed L1 |
-| 1.6L | first real native vLLM serving + bounded inference; runtime-aware requirement; current available capacity | 1.6K | OPEN; T0/T1/T2 local; T3/T5 pending |
+| 1.6L | first real native vLLM serving + bounded inference; staged Available Models funnel; runtime-aware requirement; current available capacity | 1.6K | OPEN; T0/T1/T2 local; T3/T5 pending |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; 1.6L is the serving vertical |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

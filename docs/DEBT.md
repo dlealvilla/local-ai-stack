@@ -643,16 +643,21 @@ Owner stage:  1.4A
 Subsystem:    adapters / model_source
 Authorizes:   NO
 What:         The first `ModelSource` uses Hugging Face identity
-              (`source_ref`) and a packaged curated candidate set. It
-              does not call `huggingface_hub` or search the Hub.
-              File acquisition is a separate adapter
-              (`HuggingFaceAcquisitionProvider`).
+              (`source_ref`) and a packaged curated candidate set. Live
+              Hub listing is an optional injectable `list_models`
+              callback; product `build()` does not call
+              `huggingface_hub` and does not search the Hub. Curated
+              catalog members are retained even when a remote listing is
+              empty or lacks a vLLM app tag. File acquisition is a
+              separate adapter (`HuggingFaceAcquisitionProvider`).
 Why now:      v0 must be T0/T1/T2 without a network or a GPU. Whole-Hub
               search is explicitly out of scope. Packaged metadata is
-              enough to prove normalization and the catalog surface.
-To make real: An optional live enricher behind the same `ModelSource`
-              port, with the packaged catalog as the mandatory fallback
-              when the Hub is absent, slow or disagreed with.
+              enough to prove normalization, the catalog surface, and
+              the staged discovery filter seam.
+To make real: An optional live enricher behind the same
+              `ModelDiscoverySource` port, with the packaged catalog as
+              the mandatory fallback when the Hub is absent, slow or
+              disagreed with. Pagination and ranking remain K-97.
 Retire when:  a stage claims a real source fetch (L2) or product policy
               requires live Hub metadata.
 Status:       OPEN
@@ -690,13 +695,15 @@ Owner stage:  1.4B
 Subsystem:    adapters / estimators
 Authorizes:   NO
 What:         llmfit is not a Kultrun hard dependency. Default mode is
-              AUTO (llmfit primary, Kultrun fallback on typed failure).
-              For native vLLM on a discrete GPU, llmfit `plan` minimum
-              is not serving demand (K-96); AUTO falls back to Kultrun
-              composition. Strict `llmfit` does not fall back when the
-              executable is missing — estimation is unavailable/unresolved.
-              Strict `kultrun` does not require llmfit. AUTO fallback is
-              not estimate shopping and is not a product reconciler.
+              AUTO (llmfit primary, Kultrun fallback on typed failure
+              only). For native vLLM on a discrete GPU, a successful
+              llmfit `plan` is refined into serving demand (K-96);
+              AUTO does not fall back merely because the plan minimum
+              is smaller than Kultrun composition. Strict `llmfit`
+              does not fall back when the executable is missing —
+              estimation is unavailable/unresolved. Strict `kultrun`
+              does not require llmfit. AUTO fallback is not estimate
+              shopping and is not a product reconciler.
 Why now:      T0/T1 must not require the binary; T2 proves it from a
               clean install with the optional extra. K-03 forbids a
               `schema_version` bump, so `config.platform@1
@@ -1650,18 +1657,59 @@ What:         Captured `llmfit plan` for Qwen2.5-7B-Instruct-AWQ at
               (fp16 KV 0.4375 GiB). Native vLLM serving needs weights,
               KV for the requested context, runtime overhead, optional
               activation, and engine/workspace remainder. The llmfit
-              adapter therefore does not authorize a discrete-GPU vLLM
-              serving total from that plan minimum. AUTO falls back to
-              Kultrun vLLM composition. Strict llmfit stays unresolved.
+              adapter therefore refines plan components through Kultrun
+              vLLM composition (overhead treated as 0 so the engine
+              workspace is not double-counted) rather than authorizing
+              the plan minimum as the serving total. AUTO does not
+              shop llmfit versus Kultrun and pick the larger. Strict
+              llmfit stays unresolved on typed provider failure.
 Why now:      Fresh-host T3 admitted 8.0 GiB from the packaged Kultrun
               total after llmfit was unavailable; the runtime then
               lacked KV for context 8192. Do not hard-code that host's
-              observed remainder.
+              observed remainder. Root cause of that 8 GiB figure was
+              catalog `estimated_vram_gib=8.0` used when llmfit was
+              absent, not a mapped llmfit field.
 To make real: A provider that estimates native vLLM serving demand for
               the requested model, revision, quantization, context, and
               concurrency — or measured calibration that stays advisory.
 Retire when:  that serving total is the product estimate for vLLM, or
               llmfit is dropped for this runtime family.
+Status:       OPEN
+
+### K-97 — exhaustive Hub listing and remote ranking
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    adapters / model_source
+Authorizes:   NO
+What:         Remote discovery is a bounded injectable listing seam.
+              There is no Hub pagination optimizer, large-scale search
+              ranking, or distributed metadata cache. Absence of a vLLM
+              app tag does not drop a curated catalog model.
+Why now:      Stage 1.6L needs the funnel order, not Hub ingest.
+To make real: A later catalog-ingest stage with explicit pagination,
+              ranking, and cache policy.
+Retire when:  that ingest is an accepted stage output.
+Status:       OPEN
+
+### K-98 — live Accelerate skeleton analysis
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    adapters / model_source
+Authorizes:   NO
+What:         `AccelerateStructuralProvider` is an optional replaceable
+              cheap-weight seam. Product `build()` does not call
+              `from_pretrained`, `init_empty_weights`, or
+              `infer_auto_device_map` (those would download configs).
+              An injected analyzer can supply structural bytes. Missing
+              Accelerate, missing analyzer, or `trust_remote_code`
+              continues the candidate as UNKNOWN. Accelerate never
+              marks a model AVAILABLE.
+Why now:      Torch + Transformers + Accelerate are not control-plane
+              dependencies. T2 must not hit the network.
+To make real: A local-config structural analyzer behind the same port
+              that still refuses silent `trust_remote_code`.
+Retire when:  that analyzer is an accepted stage output, or the extra
+              is dropped.
 Status:       OPEN
 
 ## Runtime-first migration ledger (after 1.6K)
@@ -1674,7 +1722,7 @@ order. Do not begin automatically.
 | Runtime/model compatibility | `EligibleModelView` / `RuntimeEligibleModelCandidate` | same | done in 1.6F | composition copy of eligibility → `CompatibilityVerdict` (planning ⟂ runtime) | ✅ |
 | ModelRequirement | `RuntimeEligibleModelCandidate` + fresh VERIFIED profile + selected runtime | same | done in 1.6G | none | ✅ |
 | CapacityAssessment | remapped `ModelRequirement` + current available (`ResourceSummary` = SAFE minus ACTIVE) | same | done in 1.6G; 1.6L binds snapshot instead of SAFE-only | none | ✅ |
-| ModelSelector | `FeasibleModelCandidate[]` from eligible + ready + feasible assessments | same | done in 1.6H; existing capacity-band ranking | `SelectionService.recommend()` isolated tests only | ✅ |
+| ModelSelector | `AvailableModelView` members only (`FeasibleModelCandidate[]` ranked inside that set) | same | done in 1.6H ranking; 1.6L binds Available Models first | `SelectionService.recommend()` isolated tests only | ✅ |
 | Bounded model selection | host-scoped `ModelSelection` AUTO\|MANUAL; recommended ≠ selected | same | done in 1.6H | none | ✅ |
 | Authoritative DeploymentPlan | current foundation + VERIFIED runtime + ModelSelection + READY requirement + feasible capacity | same | done in 1.6I; CURRENT vs STALE from `plan_basis` | `plan_from` demoted (`plan_authoritative: false`) for recommendation display | ✅ |
 | Acquisition | CURRENT DeploymentPlan identity for normal executable acquire; STORE_ONLY catalog path preserved | same | done in 1.6J | STORE_ONLY remains plan-independent | ✅ |

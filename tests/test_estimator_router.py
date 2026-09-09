@@ -124,22 +124,23 @@ class TestAutoFailover:
         assert llmfit.calls == 1
         assert kultrun.calls == 0
 
-    def test_vllm_llmfit_plan_minimum_falls_back_to_kultrun(self) -> None:
+    def test_vllm_llmfit_is_refined_not_shopped(self) -> None:
         llmfit = CountingEstimator(_llmfit())
         kultrun = CountingEstimator(KultrunRequirementEstimator())
         router = EstimatorRouter(
             mode="auto", providers=(llmfit, kultrun), allow_fallback=True
         )
         result = router.estimate(_request(_seven(), context=8192))
-        assert result.estimator_provider == "kultrun"
-        assert result.fallback_used is True
-        assert result.fallback_reason == (
-            EstimatorFailureReason.MISSING_LOAD_BEARING_REQUIREMENT.value
-        )
+        assert result.estimator_provider == "llmfit"
+        assert result.fallback_used is False
         assert llmfit.calls == 1
-        assert kultrun.calls == 1
+        assert kultrun.calls == 0
         assert is_resolved(result.estimated_vram_bytes)
-        assert result.estimated_vram_bytes > 8 * (1024**3)
+        assert result.estimated_vram_bytes > round(4.7453082559999995 * (1024**3))
+        assert (
+            "vLLM serving refinement after llmfit plan components"
+            in result.assumptions
+        )
 
     def test_unavailable_llmfit_falls_back_to_kultrun(self) -> None:
         def missing(model: str, context: int, quant: str) -> dict[str, object]:

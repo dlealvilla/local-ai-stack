@@ -41,7 +41,7 @@ def current_capacity_snapshot(
     *,
     exclude_reservation_id: ReservationId | str | None = None,
     host: HostCapabilities | None = None,
-    derived_at: dt.datetime | None = None,
+    observed_at: dt.datetime | None = None,
 ) -> ResourceSummary:
     """Recompute SAFE minus *other* ACTIVE commitments.
 
@@ -91,7 +91,7 @@ def current_capacity_snapshot(
         snapshot_basis=basis,
         active_reservation_ids=active_ids,
         excluded_reservation_id=excluded if excluded else NOT_PROVIDED,
-        derived_at=derived_at,
+        observed_at=observed_at,
         safe_storage_bytes=storage_safe if storage_safe is not None else NOT_PROVIDED,
         available_storage_bytes=available_for_new_work(storage_safe, storage_reserved),
         storage_source=storage_source,

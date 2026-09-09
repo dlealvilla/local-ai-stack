@@ -27,6 +27,8 @@ from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import ModelCatalogEntry
 from kultrun.planning.contracts import (
+    AvailableModelView,
+    AvailableViewStatus,
     FeasibleModelCandidate,
     ModelSelection,
     ModelSelectionId,
@@ -59,6 +61,7 @@ def selection_basis(
     envelope: CapacityEnvelope,
     policy_version: str,
     feasible: Sequence[FeasibleModelCandidate],
+    available: AvailableModelView | None = None,
 ) -> str:
     """Fingerprint of the inputs that make a selection current."""
     foundation = _token(view.selected_candidate_id) or ""
@@ -74,6 +77,11 @@ def selection_basis(
         if is_resolved(token) and token:
             snapshot = token
             break
+    available_token = ""
+    if available is not None:
+        available_token = f"{available.view_id.value}:{available.view_basis}"
+        if not snapshot:
+            snapshot = available.snapshot_basis
     material = "|".join(
         (
             MODEL_SELECTION_SCHEMA,
@@ -84,6 +92,7 @@ def selection_basis(
             snapshot,
             policy_version,
             members,
+            available_token,
         )
     )
     return hashlib.sha256(material.encode()).hexdigest()[:16]
@@ -123,6 +132,7 @@ class ModelSelectionOverview:
     assessments: tuple[RequirementAssessment, ...]
     view: EligibleModelView
     reasons: tuple[str, ...]
+    available: AvailableModelView | None = None
 
     def payload(self) -> dict[str, object]:
         """API-shaped view. GET callers must not treat this as a mutation."""
@@ -170,6 +180,17 @@ class ModelSelectionOverview:
             "selected_runtime": _token(self.view.runtime),
             "selected_runtime_version": _token(self.view.runtime_version),
             "assessments": [assessment_payload(item) for item in self.assessments],
+            "available_count": (
+                self.available.available_count
+                if self.available is not None
+                else len(self.feasible)
+            ),
+            "available_view_id": (
+                self.available.view_id.value if self.available is not None else None
+            ),
+            "available_status": (
+                self.available.status.value if self.available is not None else None
+            ),
             "mutations": False,
             "acquire": False,
             "admit": False,
@@ -203,10 +224,11 @@ class ModelSelectionService:
         eligible: EligibleModelView,
         envelope: CapacityEnvelope,
         assessments: Sequence[RequirementAssessment],
+        available: AvailableModelView | None = None,
     ) -> ModelSelectionOverview:
         """Classify the current set. GET must not persist."""
         with self._lock.hold():
-            return self._view(host, eligible, envelope, assessments)
+            return self._view(host, eligible, envelope, assessments, available)
 
     def select_auto(
         self,
@@ -214,10 +236,12 @@ class ModelSelectionService:
         eligible: EligibleModelView,
         envelope: CapacityEnvelope,
         assessments: Sequence[RequirementAssessment],
+        available: AvailableModelView | None = None,
     ) -> ModelSelectionOverview:
         """Follow the current recommendation. Does not acquire or admit."""
         with self._lock.hold():
-            overview = self._view(host, eligible, envelope, assessments)
+            overview = self._view(host, eligible, envelope, assessments, available)
+            _require_current_available(available)
             self._persist(
                 host,
                 ModelSelectionMode.AUTO,
@@ -226,7 +250,7 @@ class ModelSelectionService:
                 overview.selection.selection_basis,
                 selected_id=_token(overview.selection.recommended_model_id),
             )
-            return self._view(host, eligible, envelope, assessments)
+            return self._view(host, eligible, envelope, assessments, available)
 
     def select_manual(
         self,
@@ -235,18 +259,20 @@ class ModelSelectionService:
         eligible: EligibleModelView,
         envelope: CapacityEnvelope,
         assessments: Sequence[RequirementAssessment],
+        available: AvailableModelView | None = None,
     ) -> ModelSelectionOverview:
-        """Hold a currently feasible model. Recommendation stays distinct."""
+        """Hold a currently available model. Recommendation stays distinct."""
         if not token.strip():
             raise ValidationError("a model is required", parameter="model")
         with self._lock.hold():
-            overview = self._view(host, eligible, envelope, assessments)
+            overview = self._view(host, eligible, envelope, assessments, available)
             entry = self._resolve(token)
             if entry is None:
                 raise NotFoundError("no such model", model=token)
             ident = entry.metadata.model_id.value
             if ident not in {item.model_id for item in overview.feasible}:
-                self._refuse(token, ident, overview.assessments, eligible)
+                self._refuse(token, ident, overview.assessments, eligible, available)
+            _require_current_available(available, token=token)
             self._persist(
                 host,
                 ModelSelectionMode.MANUAL,
@@ -255,7 +281,7 @@ class ModelSelectionService:
                 overview.selection.selection_basis,
                 selected_id=ident,
             )
-            return self._view(host, eligible, envelope, assessments)
+            return self._view(host, eligible, envelope, assessments, available)
 
     def _view(
         self,
@@ -263,15 +289,27 @@ class ModelSelectionService:
         eligible: EligibleModelView,
         envelope: CapacityEnvelope,
         assessments: Sequence[RequirementAssessment],
+        available: AvailableModelView | None = None,
     ) -> ModelSelectionOverview:
         feasible = feasible_candidates(assessments)
-        recommendation = recommend_from_view(self._ranking, envelope, assessments)
+        if available is not None:
+            allowed = {item.model_id for item in available.members}
+            feasible = tuple(item for item in feasible if item.model_id in allowed)
+            recommendation = self._ranking.rank_feasible(
+                feasible, host_fingerprint=envelope.host_fingerprint
+            )
+        else:
+            recommendation = recommend_from_view(self._ranking, envelope, assessments)
         basis = selection_basis(
-            eligible, envelope, self._ranking.policy.policy_version, feasible
+            eligible,
+            envelope,
+            self._ranking.policy.policy_version,
+            feasible,
+            available,
         )
         stored = self._load(host.host_id.value)
         selection, status, reasons = self._effective(
-            host, stored, recommendation, feasible, eligible, basis
+            host, stored, recommendation, feasible, eligible, basis, available
         )
         return ModelSelectionOverview(
             selection=selection,
@@ -281,6 +319,7 @@ class ModelSelectionService:
             assessments=tuple(assessments),
             view=eligible,
             reasons=reasons,
+            available=available,
         )
 
     def _effective(
@@ -291,6 +330,7 @@ class ModelSelectionService:
         feasible: tuple[FeasibleModelCandidate, ...],
         eligible: EligibleModelView,
         basis: str,
+        available: AvailableModelView | None = None,
     ) -> tuple[ModelSelection, ModelSelectionStatus, tuple[str, ...]]:
         rec_id, rec_name, rec_ref, rec_rev = _recommended_identity(
             recommendation, feasible
@@ -312,7 +352,7 @@ class ModelSelectionService:
                 selected_at=now,
                 generation=0,
             )
-            status, reasons = _status(eligible, record, feasible, basis)
+            status, reasons = _status(eligible, record, feasible, basis, available)
             return record, status, reasons
 
         selected_id = stored.selected_model_id
@@ -338,7 +378,7 @@ class ModelSelectionService:
         )
         if stored.selection_mode is ModelSelectionMode.AUTO:
             record = replace(record, selection_basis=basis)
-        status, reasons = _status(eligible, record, feasible, basis)
+        status, reasons = _status(eligible, record, feasible, basis, available)
         return record, status, reasons
 
     def _persist(
@@ -434,7 +474,23 @@ class ModelSelectionService:
         ident: str,
         assessments: Sequence[RequirementAssessment],
         eligible: EligibleModelView,
+        available: AvailableModelView | None = None,
     ) -> None:
+        if available is not None and available.status is AvailableViewStatus.STALE:
+            raise PreconditionFailedError(
+                "model selection basis is stale",
+                model=token,
+                reason="selection_basis_stale",
+            )
+        if (
+            available is not None
+            and available.status is AvailableViewStatus.UNAVAILABLE
+        ):
+            raise PreconditionFailedError(
+                "model selection basis is unavailable",
+                model=token,
+                reason="selection_basis_stale",
+            )
         if eligible.status is EligibleViewStatus.UNAVAILABLE:
             raise PreconditionFailedError(
                 "model selection basis is unavailable",
@@ -483,9 +539,29 @@ class ModelSelectionService:
                 reason="selection_basis_stale",
             )
         raise PreconditionFailedError(
-            "model is not in the current feasible set",
+            "model is not in the current available set",
             model=token,
             reason="model_not_in_current_feasible_set",
+        )
+
+
+def _require_current_available(
+    available: AvailableModelView | None, *, token: str = ""
+) -> None:
+    """MANUAL and AUTO may only bind a CURRENT Available Models view."""
+    if available is None:
+        return
+    if available.status is AvailableViewStatus.STALE:
+        raise PreconditionFailedError(
+            "model selection basis is stale",
+            model=token,
+            reason="selection_basis_stale",
+        )
+    if available.status is AvailableViewStatus.UNAVAILABLE:
+        raise PreconditionFailedError(
+            "model selection basis is unavailable",
+            model=token,
+            reason="selection_basis_stale",
         )
 
 
@@ -526,7 +602,15 @@ def _status(
     selection: ModelSelection,
     feasible: tuple[FeasibleModelCandidate, ...],
     current_basis: str,
+    available: AvailableModelView | None = None,
 ) -> tuple[ModelSelectionStatus, tuple[str, ...]]:
+    if available is not None and available.status is AvailableViewStatus.UNAVAILABLE:
+        return (
+            ModelSelectionStatus.UNAVAILABLE,
+            ("available models view is unavailable",),
+        )
+    if available is not None and available.status is AvailableViewStatus.STALE:
+        return ModelSelectionStatus.STALE, ("available models view is stale",)
     if eligible.status is EligibleViewStatus.UNAVAILABLE:
         return ModelSelectionStatus.UNAVAILABLE, (
             "selected verified foundation is unavailable",
@@ -538,7 +622,7 @@ def _status(
     if selection.selection_mode is ModelSelectionMode.MANUAL:
         if selected is None or selected not in ids:
             return ModelSelectionStatus.INVALID, (
-                "selected model is not in the current feasible set",
+                "selected model is not in the current available set",
             )
         if selection.selection_basis != current_basis:
             return ModelSelectionStatus.STALE, ("model selection basis changed",)

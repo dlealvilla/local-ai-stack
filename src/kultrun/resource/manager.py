@@ -74,7 +74,7 @@ class ResourceManager:
             self.reservations(include_released=True),
             exclude_reservation_id=exclude_reservation_id,
             host=host,
-            derived_at=self._clock.now(),
+            observed_at=self._clock.now(),
         )
 
     def active_reservation_for_plan(

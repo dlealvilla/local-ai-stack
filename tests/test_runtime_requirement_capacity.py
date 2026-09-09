@@ -649,6 +649,7 @@ def test_product_surfaces(
     assert "/models/requirements" in script
     assert "Select Model" not in script
     assert "Eligible models" in html
+    assert "Available Models" in html
 
 
 def test_recommend_from_view_skips_blocked(tmp_path: Path) -> None:

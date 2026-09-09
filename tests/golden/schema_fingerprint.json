@@ -3602,6 +3602,453 @@
     },
     "python": "ModelRequirement"
   },
+  "model.weight_footprint_evidence@1": {
+    "fields": {
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "factual storage lower bound, structural, or unknown",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "evidence_source": {
+        "may_be_unresolved": false,
+        "meaning": "which provider produced this",
+        "nullable": false,
+        "optional": false,
+        "type": "WeightEvidenceSource"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "which candidate this footprint describes",
+        "nullable": false,
+        "optional": false,
+        "type": "ModelId"
+      },
+      "provenance": {
+        "may_be_unresolved": false,
+        "meaning": "how the bytes were derived; never a traceback",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "provider_failure": {
+        "may_be_unresolved": true,
+        "meaning": "typed failure when metadata could not be used",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "serialized_weight_tensor_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "sum of stored tensor extents; unresolved when metadata is absent",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "shard_count": {
+        "may_be_unresolved": true,
+        "meaning": "how many weight files were aggregated",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "source_ref": {
+        "may_be_unresolved": false,
+        "meaning": "upstream identity used to fetch metadata",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "source_revision": {
+        "may_be_unresolved": true,
+        "meaning": "revision the metadata named, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "WeightFootprintEvidence"
+  },
+  "planning.available_model_exclusion@1": {
+    "fields": {
+      "allowed_placement_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "placement budget used for the cheap bound",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "available_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "snapshot available VRAM when Stage E rejected",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "display name",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "catalog or synthetic identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "notes": {
+        "may_be_unresolved": false,
+        "meaning": "short factual notes",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "reason": {
+        "may_be_unresolved": false,
+        "meaning": "normalized reason code",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "required_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "deep required VRAM when Stage E rejected",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "stage": {
+        "may_be_unresolved": false,
+        "meaning": "which funnel stage excluded this candidate",
+        "nullable": false,
+        "optional": false,
+        "type": "FunnelStage"
+      },
+      "weight_evidence_source": {
+        "may_be_unresolved": true,
+        "meaning": "cheap evidence provider",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "weight_lower_bound_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "cheap lower bound when Stage C rejected",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "AvailableModelExclusion"
+  },
+  "planning.available_model_member@1": {
+    "fields": {
+      "available_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current available RAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "available_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current incremental storage",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "available_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current available VRAM from the snapshot used for this view",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "incremental_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "acquisition footprint still required",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "catalog logical name",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "catalog model identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "variant identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "requested_context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "serving context this availability assumed",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "required_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "deep ModelRequirement RAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "required_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "deep ModelRequirement VRAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "requirement_basis": {
+        "may_be_unresolved": false,
+        "meaning": "ModelRequirement input fingerprint",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "requirement_confidence": {
+        "may_be_unresolved": true,
+        "meaning": "requirement confidence",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "requirement_provider": {
+        "may_be_unresolved": true,
+        "meaning": "estimator that produced demand",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "result": {
+        "may_be_unresolved": false,
+        "meaning": "always available for members of this view",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "selected verified runtime family",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "selected runtime version",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "source_ref": {
+        "may_be_unresolved": false,
+        "meaning": "upstream identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "source_revision": {
+        "may_be_unresolved": true,
+        "meaning": "immutable revision, when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "weight_evidence_source": {
+        "may_be_unresolved": true,
+        "meaning": "cheap weight-footprint provider, when one ran",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "weight_lower_bound_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "serialized tensor bytes lower bound, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "AvailableModelMember"
+  },
+  "planning.available_model_view@1": {
+    "fields": {
+      "available_count": {
+        "may_be_unresolved": false,
+        "meaning": "members of this view",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "cheap_reject_count": {
+        "may_be_unresolved": false,
+        "meaning": "proven impossible by cheap weight bound",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "compatibility_count": {
+        "may_be_unresolved": false,
+        "meaning": "survivors of local runtime compatibility",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "deep_analyzed_count": {
+        "may_be_unresolved": false,
+        "meaning": "candidates that invoked deep estimation",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "discovered_count": {
+        "may_be_unresolved": false,
+        "meaning": "records after remote filter plus curated catalog",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "eligible_view_id": {
+        "may_be_unresolved": false,
+        "meaning": "EligibleModelView identity consumed",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "estimator_invocations": {
+        "may_be_unresolved": false,
+        "meaning": "deep estimator calls for this pass",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "evaluated_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this view was computed, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "excluded_count": {
+        "may_be_unresolved": false,
+        "meaning": "recorded exclusions",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "exclusions": {
+        "may_be_unresolved": false,
+        "meaning": "why other candidates are not available",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[AvailableModelExclusion, ...]"
+      },
+      "host_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "capacity envelope identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this view applies to",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "members": {
+        "may_be_unresolved": false,
+        "meaning": "currently available models, unsorted product set",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[AvailableModelMember, ...]"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "selection/capacity policy of this pass",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "requested_context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "serving context assumed for this pass, when one global value applied",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "runtime": {
+        "may_be_unresolved": true,
+        "meaning": "selected verified runtime family",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "runtime_version": {
+        "may_be_unresolved": true,
+        "meaning": "selected runtime version",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "snapshot_basis": {
+        "may_be_unresolved": false,
+        "meaning": "CurrentCapacitySnapshot identity used for every member",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "current, stale, or unavailable",
+        "nullable": false,
+        "optional": false,
+        "type": "AvailableViewStatus"
+      },
+      "universe_count": {
+        "may_be_unresolved": false,
+        "meaning": "source records considered before remote filter",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "view_basis": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of material availability inputs",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "view_id": {
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of host, foundation, snapshot, requirements, and policy",
+        "nullable": false,
+        "optional": false,
+        "type": "AvailableModelViewId"
+      }
+    },
+    "python": "AvailableModelView"
+  },
   "planning.capacity_utilization@1": {
     "fields": {
       "limiting_resource": {
@@ -5332,13 +5779,6 @@
         "optional": false,
         "type": "str"
       },
-      "derived_at": {
-        "may_be_unresolved": false,
-        "meaning": "when this derived view was computed, UTC",
-        "nullable": true,
-        "optional": true,
-        "type": "datetime | None"
-      },
       "excluded_reservation_id": {
         "may_be_unresolved": true,
         "meaning": "own reservation omitted so revalidation does not double-subtract",
@@ -5366,6 +5806,13 @@
         "nullable": false,
         "optional": false,
         "type": "HostId"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this derived current-capacity view was observed, UTC",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
       },
       "policy_version": {
         "may_be_unresolved": false,

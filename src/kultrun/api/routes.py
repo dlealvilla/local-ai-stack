@@ -39,6 +39,11 @@ from kultrun.planning.contracts import CompatibilityVerdict
 from kultrun.planning.service import SelectionService
 from kultrun.platform.admission import AdmissionService
 from kultrun.platform.approval import ApprovalLog
+from kultrun.platform.available_models import (
+    AvailableModelsService,
+    FunnelPass,
+    available_payload,
+)
 from kultrun.platform.capacity_snapshot import (
     planning_capacity,
     revalidation_plan_basis,
@@ -56,7 +61,6 @@ from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.model_selection import ModelSelectionService
 from kultrun.platform.requirement import (
     RequirementAssessment,
-    assess_catalog,
     assessment_payload,
 )
 from kultrun.platform.startup import Startup
@@ -111,6 +115,7 @@ class ControlPlane:
     foundation: FoundationSelectionService
     eligibility: ModelEligibilityService
     model_selection: ModelSelectionService
+    available_models: AvailableModelsService
     deployment_plan: DeploymentPlanningService
     deployment_prepare: DeploymentPreparationService
     deployment_instance: DeploymentInstanceService
@@ -487,21 +492,20 @@ def register(router: Router, plane: ControlPlane) -> Router:
         )
         return view, mapping
 
-    def _assessments(
+    def _funnel(
         host: HostCapabilities,
         *,
+        persist: bool = False,
         pending_model: str | None = None,
-    ) -> tuple[EligibleModelView, CapacityEnvelope, tuple[RequirementAssessment, ...]]:
+    ) -> FunnelPass:
         view = _eligible_view(host)
         envelope = plane.capacity.compute(host, plane.stored_sanity(host))
         stored_plan = plane.deployment_plan.stored(host)
-        rows = assess_catalog(
+        return plane.available_models.evaluate(
+            host,
             view,
-            plane.models,
             envelope,
-            plane.selection.estimator,
-            plane.selection.policy,
-            capacity=planning_capacity(
+            planning_capacity(
                 plane.resources,
                 envelope,
                 host,
@@ -511,9 +515,16 @@ def register(router: Router, plane: ControlPlane) -> Router:
                     pending_model=pending_model,
                 ),
             ),
-            inventory=plane.inventory,
+            persist=persist,
         )
-        return view, envelope, rows
+
+    def _assessments(
+        host: HostCapabilities,
+        *,
+        pending_model: str | None = None,
+    ) -> tuple[EligibleModelView, CapacityEnvelope, tuple[RequirementAssessment, ...]]:
+        result = _funnel(host, pending_model=pending_model)
+        return result.eligible, result.envelope, result.assessments
 
     def _selected_runtime(view: EligibleModelView) -> str:
         token = view.runtime
@@ -719,8 +730,14 @@ def register(router: Router, plane: ControlPlane) -> Router:
     def models_selection(_: ApiRequest) -> dict[str, object]:
         """Current feasible set, recommendation, and AUTO|MANUAL selection."""
         host = plane.hosts.current
-        view, envelope, rows = _assessments(host)
-        overview = plane.model_selection.view(host, view, envelope, rows)
+        result = _funnel(host)
+        overview = plane.model_selection.view(
+            host,
+            result.eligible,
+            result.envelope,
+            result.assessments,
+            result.available,
+        )
         payload = overview.payload()
         stored = plane.foundation.stored(host)
         payload["foundation_stale"] = (
@@ -738,12 +755,23 @@ def register(router: Router, plane: ControlPlane) -> Router:
             request.query.get("model") or request.query.get("model_id") or ""
         ).strip()
         host = plane.hosts.current
-        view, envelope, rows = _assessments(host, pending_model=token or None)
+        result = _funnel(host, pending_model=token or None)
         if mode == "auto" and not token:
-            overview = plane.model_selection.select_auto(host, view, envelope, rows)
+            overview = plane.model_selection.select_auto(
+                host,
+                result.eligible,
+                result.envelope,
+                result.assessments,
+                result.available,
+            )
         elif mode == "manual" or (token and mode != "auto"):
             overview = plane.model_selection.select_manual(
-                token, host, view, envelope, rows
+                token,
+                host,
+                result.eligible,
+                result.envelope,
+                result.assessments,
+                result.available,
             )
         else:
             raise ValidationError("mode must be auto or manual", parameter="mode")
@@ -761,15 +789,31 @@ def register(router: Router, plane: ControlPlane) -> Router:
     def _plan_overview(
         host: HostCapabilities, *, persist: bool
     ) -> DeploymentPlanOverview:
-        view, envelope, rows = _assessments(host)
-        selection = plane.model_selection.view(host, view, envelope, rows)
+        result = _funnel(host)
+        selection = plane.model_selection.view(
+            host,
+            result.eligible,
+            result.envelope,
+            result.assessments,
+            result.available,
+        )
         foundation = plane.foundation.stored(host)
         if persist:
             return plane.deployment_plan.refresh(
-                host, view, envelope, rows, selection, foundation
+                host,
+                result.eligible,
+                result.envelope,
+                result.assessments,
+                selection,
+                foundation,
             )
         return plane.deployment_plan.view(
-            host, view, envelope, rows, selection, foundation
+            host,
+            result.eligible,
+            result.envelope,
+            result.assessments,
+            selection,
+            foundation,
         )
 
     def deployments_plan(_: ApiRequest) -> dict[str, object]:
@@ -845,6 +889,21 @@ def register(router: Router, plane: ControlPlane) -> Router:
             },
             "assessments": [assessment_payload(item) for item in rows],
         }
+
+    def models_available(_: ApiRequest) -> dict[str, object]:
+        """Current Available Models. GET does not persist or recommend."""
+        result = _funnel(plane.hosts.current, persist=False)
+        payload = available_payload(result.available)
+        payload["discovery"] = result.discovery.payload()
+        return payload
+
+    def refresh_available_models(_: ApiRequest) -> dict[str, object]:
+        """Recompute and persist Available Models. Does not select."""
+        result = _funnel(plane.hosts.current, persist=True)
+        payload = available_payload(result.available)
+        payload["discovery"] = result.discovery.payload()
+        payload["mutations"] = True
+        return payload
 
     def models_eligible(_: ApiRequest) -> dict[str, object]:
         """Runtime-aware eligible models. GET does not acquire or mutate."""
@@ -960,6 +1019,8 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/deployments/plan/prepare", prepare_deployment_plan)
     router.get("/models/eligible", models_eligible)
     router.get("/models/requirements", models_requirements)
+    router.get("/models/available", models_available)
+    router.post("/models/available/refresh", refresh_available_models)
 
     def resources_summary(_: ApiRequest) -> object:
         """SAFE / RESERVED / AVAILABLE. Reserved is not running."""

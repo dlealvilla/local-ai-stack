@@ -27,6 +27,11 @@ class ModelCatalogue:
         """The bounded candidate set. Order is the source's order."""
         return self._source.candidates()
 
+    @property
+    def source(self) -> ModelSource:
+        """The configured origin. Discovery, if any, is on this adapter."""
+        return self._source
+
     def extras(self) -> tuple[ModelCatalogEntry, ...]:
         """Known non-catalog targets (bounded acceptance). Not recommendations."""
         return self._extras
