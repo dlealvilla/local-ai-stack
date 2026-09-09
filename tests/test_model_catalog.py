@@ -318,6 +318,13 @@ class TestArchitecture:
         ).read_text(encoding="utf-8")
         assert "import huggingface_hub" not in source
         assert "from huggingface_hub" not in source
+        hub = (
+            Path(__file__).resolve().parent.parent
+            / "src/kultrun/adapters/model_source/hub_client.py"
+        ).read_text(encoding="utf-8")
+        assert "import huggingface_hub" not in hub
+        assert "from huggingface_hub" not in hub
+        assert 'import_module("huggingface_hub")' in hub
 
 
 class TestConsoleHonesty:

@@ -37,6 +37,11 @@ def _qwen():
 
 class TestLlmfitDiagnostic:
     def test_captured_llmfit_minimum_is_below_eight_gib(self) -> None:
+        raw = LlmfitRequirementEstimator(plan=fixture_plan(FIXTURE_ROOT)).invoke_plan(
+            SOURCE_REF, 8192, "AWQ-4bit"
+        )
+        assert raw["minimum"]["vram_gb"] < 8.0
+        assert raw["context"] == 8192
         payload = json.loads(
             (FIXTURE_ROOT / "qwen2.5-7b-instruct-awq.json").read_text(encoding="utf-8")
         )

@@ -39,6 +39,192 @@ def run(
     )
 
 
+def _isolated_path(venv_bin: Path) -> str:
+    """Venv binaries first; host extras such as llmfit cannot leak in."""
+    return os.pathsep.join([str(venv_bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin"])
+
+
+def _t2_connected(wheel: Path, digest: str) -> dict[str, object]:
+    """Same wheel with declared extras. Proves live optional providers."""
+    extras = f"{wheel}[acquisition,estimators,analysis]"
+    extras_used = ["acquisition", "estimators", "analysis"]
+    with tempfile.TemporaryDirectory(prefix="kultrun-t2-16l-b-") as workspace:
+        root = Path(workspace)
+        environment = root / "env"
+        EnvBuilder(with_pip=True, system_site_packages=False).create(environment)
+        python = environment / "bin" / "python"
+        kultrun = environment / "bin" / "kultrun"
+        state = root / "state"
+        cache = root / "hf"
+        env = os.environ.copy()
+        env["PATH"] = _isolated_path(environment / "bin")
+        env["KULTRUN_STATE_ROOT"] = str(state)
+        env["KULTRUN_FIXTURE"] = "linux-x86_64-nvidia-blackwell-rtxpro4500"
+        env["KULTRUN_MODEL_ACQUISITION_PROVIDER"] = "fixture"
+        env["KULTRUN_RUNTIME_PROVISIONER"] = "fixture"
+        env["KULTRUN_RUNTIME_VERIFIER"] = "fixture"
+        env["KULTRUN_MODEL_SOURCE_MODE"] = "live"
+        env["PYTHONNOUSERSITE"] = "1"
+        env["HF_HOME"] = str(cache)
+        env["HF_HUB_CACHE"] = str(cache / "hub")
+        env["TRANSFORMERS_CACHE"] = str(cache / "transformers")
+        env["HUGGINGFACE_HUB_CACHE"] = str(cache / "hub")
+        env.pop("PYTHONPATH", None)
+        env.pop("KULTRUN_EXECUTOR", None)
+        env.pop("HF_HUB_OFFLINE", None)
+        env.pop("TRANSFORMERS_OFFLINE", None)
+        installed = run(
+            [str(python), "-m", "pip", "install", "--quiet", extras],
+            env,
+        )
+        if installed.returncode != 0:
+            return {
+                "ok": False,
+                "error": installed.stderr or installed.stdout,
+                "sha256": digest,
+            }
+        origin = run(
+            [str(python), "-c", "import kultrun; print(kultrun.__file__)"], env
+        )
+        if str(REPOSITORY) in (origin.stdout or ""):
+            return {"ok": False, "error": "source checkout", "sha256": digest}
+        for command in (
+            [str(kultrun), "runtimes", "select", "--auto"],
+            [str(kultrun), "runtimes", "realize"],
+            [str(kultrun), "runtimes", "verify", "--selected"],
+        ):
+            step = run(command, env)
+            if step.returncode != 0:
+                return {
+                    "ok": False,
+                    "error": step.stderr or step.stdout,
+                    "sha256": digest,
+                }
+        providers = run(
+            [str(python), str(REPOSITORY / "tools" / "t2b_provider_probe.py")],
+            env,
+            cwd=NEUTRAL,
+        )
+        if providers.returncode != 0:
+            return {
+                "ok": False,
+                "error": providers.stderr or providers.stdout,
+                "sha256": digest,
+                "extras": extras_used,
+            }
+        try:
+            provider_payload = json.loads(providers.stdout.strip().splitlines()[-1])
+        except json.JSONDecodeError:
+            return {"ok": False, "error": providers.stdout, "sha256": digest}
+        if not provider_payload.get("hf_discovery_live"):
+            return {
+                "ok": False,
+                "error": "hf discovery not live",
+                "sha256": digest,
+                **provider_payload,
+            }
+        if provider_payload.get("full_weight_download"):
+            return {
+                "ok": False,
+                "error": "weight files appeared in HF cache",
+                "sha256": digest,
+                **provider_payload,
+            }
+        if provider_payload.get("safetensors_status") != "ok":
+            return {
+                "ok": False,
+                "error": "safetensors metadata missing",
+                "sha256": digest,
+                **provider_payload,
+            }
+        if provider_payload.get("actual_weights_loaded"):
+            return {
+                "ok": False,
+                "error": "accelerate loaded weights",
+                "sha256": digest,
+                **provider_payload,
+            }
+        if not provider_payload.get("meta_device"):
+            return {
+                "ok": False,
+                "error": "accelerate meta device missing",
+                "sha256": digest,
+                **provider_payload,
+            }
+        if provider_payload.get("estimator_provider") != "llmfit":
+            return {
+                "ok": False,
+                "error": "estimator_provider",
+                "sha256": digest,
+                **provider_payload,
+            }
+        min_gb = provider_payload.get("raw_minimum_vram_gb")
+        refined = provider_payload.get("refined_vram_bytes")
+        if not isinstance(min_gb, (int, float)) or not isinstance(refined, int):
+            return {
+                "ok": False,
+                "error": "missing llmfit numbers",
+                "sha256": digest,
+                **provider_payload,
+            }
+        if refined <= int(min_gb * 1024**3):
+            return {
+                "ok": False,
+                "error": "llmfit minimum used as serving demand",
+                "sha256": digest,
+                **provider_payload,
+            }
+        available_cli = run([str(kultrun), "models", "available"], env)
+        if available_cli.returncode != 0:
+            return {
+                "ok": False,
+                "error": available_cli.stderr or available_cli.stdout,
+                "sha256": digest,
+                **provider_payload,
+            }
+        recommend_cli = run([str(kultrun), "models", "recommend"], env)
+        if recommend_cli.returncode != 0:
+            return {
+                "ok": False,
+                "error": recommend_cli.stderr or recommend_cli.stdout,
+                "sha256": digest,
+                **provider_payload,
+            }
+        printed = (recommend_cli.stdout or "").strip()
+        if printed.index("AVAILABLE MODELS") > printed.index("RECOMMENDED MODEL"):
+            return {
+                "ok": False,
+                "error": "ordering",
+                "print": printed,
+                **provider_payload,
+            }
+        if "effective llmfit" not in printed:
+            return {
+                "ok": False,
+                "error": "llmfit did not win AUTO",
+                "print": printed,
+                **provider_payload,
+            }
+        if "fallback provider_unavailable" in printed:
+            return {
+                "ok": False,
+                "error": "fallback provider_unavailable",
+                "print": printed,
+                **provider_payload,
+            }
+        return {
+            "ok": True,
+            "sha256": digest,
+            "extras": extras_used,
+            "same_wheel": True,
+            "source_checkout": False,
+            "editable": False,
+            "available_cli": (available_cli.stdout or "").strip(),
+            "recommend_cli": printed,
+            **provider_payload,
+        }
+
+
 def main() -> int:
     wheel = latest_wheel()
     digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
@@ -65,10 +251,16 @@ def main() -> int:
         env["KULTRUN_RUNTIME_PROVISIONER"] = "fixture"
         env["KULTRUN_RUNTIME_VERIFIER"] = "fixture"
         env["PYTHONNOUSERSITE"] = "1"
+        env["PATH"] = _isolated_path(environment / "bin")
+        env["HF_HUB_OFFLINE"] = "1"
+        env["TRANSFORMERS_OFFLINE"] = "1"
         env.pop("PYTHONPATH", None)
         env.pop("KULTRUN_EXECUTOR", None)
+        env.pop("KULTRUN_MODEL_SOURCE_MODE", None)
         suite_env = os.environ.copy()
         suite_env["PYTHONNOUSERSITE"] = "1"
+        suite_env["PATH"] = env["PATH"]
+        suite_env["HF_HUB_OFFLINE"] = "1"
         suite_env.pop("PYTHONPATH", None)
         for key in (
             "KULTRUN_STATE_ROOT",
@@ -77,6 +269,7 @@ def main() -> int:
             "KULTRUN_RUNTIME_PROVISIONER",
             "KULTRUN_RUNTIME_VERIFIER",
             "KULTRUN_EXECUTOR",
+            "KULTRUN_MODEL_SOURCE_MODE",
         ):
             suite_env.pop(key, None)
 
@@ -170,6 +363,12 @@ def main() -> int:
             return 1
         if "SELECTED MODEL:" not in recommend_print or "MODE:" not in recommend_print:
             print("FAIL: selection print missing", recommend_print)
+            return 1
+        if "effective llmfit" in recommend_print:
+            print("FAIL: T2-A used llmfit without extras")
+            return 1
+        if "effective kultrun" not in recommend_print:
+            print("FAIL: T2-A fallback estimator missing", recommend_print)
             return 1
 
         suite = run(
@@ -306,7 +505,6 @@ print(json.dumps({
             env,
         )
         evidence["console"] = console.stdout.strip()
-        print(json.dumps(evidence, indent=2))
         if evidence.get("runtime") != "vllm":
             print("FAIL: runtime", evidence)
             return 1
@@ -325,6 +523,12 @@ print(json.dumps({
         if "True True True True True True True True" not in console.stdout:
             print("FAIL: Console", console.stdout)
             return 1
+        offline = dict(evidence)
+    connected = _t2_connected(wheel, digest)
+    print(json.dumps({"t2a_offline": offline, "t2b_connected": connected}, indent=2))
+    if not connected.get("ok"):
+        print("FAIL: T2-B", connected.get("error"))
+        return 1
     return 0
 
 

@@ -42,7 +42,8 @@ ADMIN SURFACE                GET /v1/models/available; POST /v1/models/available
 DEBT ENTRIES                 K-66, K-77 remain OPEN. K-95 deferred depth.
                              K-96 llmfit plan is not native vLLM serving.
                              K-97 Hub ingest deferred. K-98 live Accelerate
-                             skeleton deferred.
+                             remains optional/structural-only; default
+                             product path stays offline.
 ```
 
 ## Flow

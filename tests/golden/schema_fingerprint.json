@@ -725,6 +725,13 @@
         "optional": true,
         "type": "str"
       },
+      "model_source_mode": {
+        "may_be_unresolved": false,
+        "meaning": "offline uses the packaged catalog only; live may call optional Hugging Face listing/metadata and Accelerate structural extras",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
       "state_root": {
         "may_be_unresolved": false,
         "meaning": "directory the platform owns for its records",

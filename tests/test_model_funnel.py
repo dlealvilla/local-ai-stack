@@ -7,6 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from kultrun.adapters.estimators.llmfit import (
+    LlmfitRequirementEstimator,
+    fixture_plan,
+)
 from kultrun.adapters.host import fixtures
 from kultrun.adapters.model_source.accelerate_fit import AccelerateStructuralProvider
 from kultrun.adapters.model_source.candidates import (
@@ -44,6 +48,7 @@ from kultrun.model.discovery import (
     FunnelQuery,
     RemoteDiscoveryHit,
 )
+from kultrun.model.ports import WeightEvidenceProvider
 from kultrun.planning.contracts import (
     AvailableViewStatus,
     DeploymentPlan,
@@ -155,10 +160,24 @@ def _meta_offsets(total: int) -> dict[str, object]:
 
 
 def _fetch_map(mapping: dict[str, dict[str, object] | None]):
-    def fetch(source_ref: str) -> dict[str, object] | None:
-        return mapping.get(source_ref)
+    def fetch(entry: ModelCatalogEntry) -> dict[str, object] | None:
+        return mapping.get(entry.metadata.source_ref)
 
     return fetch
+
+
+class _CountingProvider:
+    def __init__(self, inner: WeightEvidenceProvider) -> None:
+        self.inner = inner
+        self.calls: list[str] = []
+
+    @property
+    def identity(self) -> Name:
+        return self.inner.identity
+
+    def footprint(self, entry: ModelCatalogEntry):
+        self.calls.append(entry.metadata.source_ref)
+        return self.inner.footprint(entry)
 
 
 def _view_for(
@@ -321,12 +340,8 @@ class TestSafetensors:
         total, shards = serialized_tensor_bytes(
             {
                 "files": {
-                    "a.safetensors": {
-                        "tensors": {"w": {"data_offsets": [0, 40]}}
-                    },
-                    "b.safetensors": {
-                        "tensors": {"w": {"data_offsets": [0, 60]}}
-                    },
+                    "a.safetensors": {"tensors": {"w": {"data_offsets": [0, 40]}}},
+                    "b.safetensors": {"tensors": {"w": {"data_offsets": [0, 60]}}},
                 }
             }
         )
@@ -351,7 +366,7 @@ class TestSafetensors:
         assert not is_resolved(evidence.serialized_weight_tensor_bytes)
 
     def test_malformed_is_typed_failure(self) -> None:
-        def fetch(_ref: str) -> dict[str, object]:
+        def fetch(_entry: ModelCatalogEntry) -> dict[str, object]:
             return {"files": {"x": {"tensors": {"w": {"shape": [1]}}}}}
 
         evidence = SafetensorsWeightEvidenceProvider(fetch=fetch).footprint(
@@ -363,7 +378,7 @@ class TestSafetensors:
     def test_provenance_retained(self) -> None:
         entry = packaged_candidates()[0]
 
-        def fetch(_ref: str) -> dict[str, object]:
+        def fetch(_entry: ModelCatalogEntry) -> dict[str, object]:
             return _meta_offsets(1024)
 
         evidence = SafetensorsWeightEvidenceProvider(fetch=fetch).footprint(entry)
@@ -376,7 +391,7 @@ class TestCheapRejection:
     def test_lower_bound_above_placement_is_impossible(self) -> None:
         entry = packaged_candidates()[0]
         evidence = SafetensorsWeightEvidenceProvider(
-            fetch=lambda _ref: _meta_offsets(41 * GIB)
+            fetch=lambda _entry: _meta_offsets(41 * GIB)
         ).footprint(entry)
         decision = cheap_weight_fit(
             evidence, _capacity(vram=24 * GIB), gpu_resident=True
@@ -387,7 +402,7 @@ class TestCheapRejection:
     def test_lower_bound_below_passes_to_deep(self) -> None:
         entry = packaged_candidates()[0]
         evidence = SafetensorsWeightEvidenceProvider(
-            fetch=lambda _ref: _meta_offsets(15 * GIB)
+            fetch=lambda _entry: _meta_offsets(15 * GIB)
         ).footprint(entry)
         decision = cheap_weight_fit(
             evidence, _capacity(vram=24 * GIB), gpu_resident=True
@@ -396,7 +411,7 @@ class TestCheapRejection:
 
     def test_equality_is_conservative_impossible(self) -> None:
         evidence = SafetensorsWeightEvidenceProvider(
-            fetch=lambda _ref: _meta_offsets(24 * GIB)
+            fetch=lambda _entry: _meta_offsets(24 * GIB)
         ).footprint(packaged_candidates()[0])
         decision = cheap_weight_fit(
             evidence, _capacity(vram=24 * GIB), gpu_resident=True
@@ -411,7 +426,7 @@ class TestCheapRejection:
 
     def test_offload_enabled_does_not_gpu_reject(self) -> None:
         evidence = SafetensorsWeightEvidenceProvider(
-            fetch=lambda _ref: _meta_offsets(41 * GIB)
+            fetch=lambda _entry: _meta_offsets(41 * GIB)
         ).footprint(packaged_candidates()[0])
         decision = cheap_weight_fit(
             evidence, _capacity(vram=24 * GIB), gpu_resident=False
@@ -616,6 +631,10 @@ class TestAvailableModels:
         }
         for item in deep:
             mapping[item.metadata.source_ref] = _meta_offsets(GIB)
+        weights = _CountingProvider(
+            SafetensorsWeightEvidenceProvider(fetch=_fetch_map(mapping))
+        )
+        structural = _CountingProvider(AccelerateStructuralProvider())
         models = ModelCatalogue(
             _ScriptedSource(all_entries, discovered, universe=20),
         )
@@ -634,7 +653,8 @@ class TestAvailableModels:
             tmp_path,
             models,
             estimator,
-            weights=SafetensorsWeightEvidenceProvider(fetch=_fetch_map(mapping)),
+            weights=weights,
+            structural=structural,
         ).evaluate(
             gpu_host,
             _view_for(
@@ -657,6 +677,8 @@ class TestAvailableModels:
         assert view.deep_analyzed_count == 5
         assert view.available_count == 3
         assert view.estimator_invocations == 5
+        assert len(weights.calls) == 7
+        assert structural.calls == []
         names = {item.logical_name for item in view.members}
         assert names == {item.metadata.logical_name.value for item in deep[:3]}
         skipped = {
@@ -678,6 +700,73 @@ class TestAvailableModels:
         assert stored.status is AvailableViewStatus.CURRENT
         assert not hasattr(stored, "recommended_model_id")
         assert not hasattr(stored, "selected_model_id")
+
+    def test_t1_llmfit_provider_after_cheap_bound(self, tmp_path: Path) -> None:
+        qwen = next(
+            item
+            for item in packaged_candidates()
+            if item.metadata.logical_name.value == "qwen2.5-7b-instruct-awq"
+        )
+        catalog = (qwen,)
+        ident = qwen.metadata.model_id.value
+        estimator = LlmfitRequirementEstimator(
+            plan=fixture_plan(
+                Path(__file__).resolve().parent / "fixtures" / "estimators" / "llmfit"
+            )
+        )
+        weights = _CountingProvider(
+            SafetensorsWeightEvidenceProvider(
+                fetch=_fetch_map({qwen.metadata.source_ref: _meta_offsets(GIB)})
+            )
+        )
+        structural = _CountingProvider(AccelerateStructuralProvider(enabled=True))
+        models = ModelCatalogue(_ScriptedSource(catalog, catalog, universe=1))
+        host = host_facts()
+        envelope, gpu_host = _envelope(host, vram=30 * GIB)
+        capacity = replace(
+            _capacity(vram=30 * GIB),
+            host_id=gpu_host.host_id,
+            host_fingerprint=envelope.host_fingerprint,
+            snapshot_basis="snap-llmfit",
+            available_vram_bytes=30 * GIB,
+            available_ram_bytes=64 * GIB,
+            available_storage_bytes=500 * GIB,
+        )
+        result = _service(
+            tmp_path,
+            models,
+            estimator,
+            weights=weights,
+            structural=structural,
+        ).evaluate(
+            gpu_host,
+            _view_for(gpu_host, catalog, eligible={ident}),
+            envelope,
+            capacity,
+        )
+        assert weights.calls == [qwen.metadata.source_ref]
+        assert structural.calls == []
+        assert result.available.estimator_invocations == 1
+        assert result.available.available_count == 1
+        member = result.available.members[0]
+        assert member.requirement_provider == "llmfit"
+        assert member.result == "available"
+        serving = estimator.estimate(
+            ModelEstimationRequest(
+                model_id=qwen.metadata.model_id,
+                source_ref=qwen.metadata.source_ref,
+                source_revision=qwen.metadata.source_revision,
+                artifact_format=NOT_PROVIDED,
+                quantization=qwen.metadata.quantization,
+                context_tokens=8192,
+                runtime="vllm",
+                placement=MemoryPlacement.DISCRETE_GPU,
+            )
+        )
+        assert (
+            "vLLM serving refinement after llmfit plan components"
+            in serving.assumptions
+        )
 
     def test_same_snapshot_for_every_member(self, tmp_path: Path) -> None:
         catalog = packaged_candidates()[:3]
@@ -701,9 +790,7 @@ class TestAvailableModels:
             capacity,
         )
         snapshots = {
-            item.snapshot_basis
-            for item in result.assessments
-            if item.snapshot_basis
+            item.snapshot_basis for item in result.assessments if item.snapshot_basis
         }
         assert snapshots == {"same-snap"}
         assert result.available.snapshot_basis == "same-snap"

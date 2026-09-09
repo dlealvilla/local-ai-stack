@@ -11,6 +11,7 @@ import json
 import shutil
 import subprocess
 from collections.abc import Callable
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,14 @@ TESTED_VERSION = "1.1.14"
 GiB = 1024**3
 PLAN_TIMEOUT_SECONDS = 60
 MAX_PLAN_OUTPUT_BYTES = 1_048_576
+
+
+def _installed_version() -> str:
+    try:
+        return importlib_metadata.version("llmfit")
+    except importlib_metadata.PackageNotFoundError:
+        return TESTED_VERSION
+
 
 #: Kultrun quantization → llmfit --quant. Unmapped → unsupported.
 _QUANT = {
@@ -61,10 +70,10 @@ class LlmfitRequirementEstimator:
         self,
         *,
         plan: PlanFn | None = None,
-        version: str = TESTED_VERSION,
+        version: str | None = None,
     ) -> None:
         self._plan = plan if plan is not None else _subprocess_plan
-        self._version = version
+        self._version = version if version is not None else _installed_version()
 
     @property
     def identity(self) -> Name:
@@ -73,6 +82,10 @@ class LlmfitRequirementEstimator:
     @property
     def version(self) -> str:
         return self._version
+
+    def invoke_plan(self, source_ref: str, context: int, quant: str) -> dict[str, Any]:
+        """Return the provider JSON. Not a ModelRequirement and not capacity."""
+        return self._plan(source_ref, context, quant)
 
     def estimate(self, request: ModelEstimationRequest) -> ModelRequirement:
         if request.tensor_parallel != 1 or request.batch_size != 1:
@@ -267,7 +280,7 @@ class LlmfitRequirementEstimator:
 def build(
     *,
     plan: PlanFn | None = None,
-    version: str = TESTED_VERSION,
+    version: str | None = None,
 ) -> LlmfitRequirementEstimator:
     return LlmfitRequirementEstimator(plan=plan, version=version)
 

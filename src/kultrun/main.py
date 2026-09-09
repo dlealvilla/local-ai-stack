@@ -29,8 +29,11 @@ from kultrun.adapters.host import fixtures, hwloc, native_linux, nvidia
 from kultrun.adapters.install import apt
 from kultrun.adapters.model_source.accelerate_fit import AccelerateStructuralProvider
 from kultrun.adapters.model_source.candidates import acceptance_candidate
-from kultrun.adapters.model_source.huggingface import HuggingFaceSource
-from kultrun.adapters.model_source.safetensors import SafetensorsWeightEvidenceProvider
+from kultrun.adapters.model_source.huggingface import HuggingFaceSource, hub_list_models
+from kultrun.adapters.model_source.safetensors import (
+    SafetensorsWeightEvidenceProvider,
+    huggingface_safetensors_payload,
+)
 from kultrun.adapters.persistence import file_store
 from kultrun.adapters.provisioning.fixture import FixtureRuntimeProvisioner
 from kultrun.adapters.provisioning.vllm_native import VllmNativeProvisioner
@@ -355,6 +358,8 @@ ESTIMATOR_VARIABLE = "KULTRUN_MODEL_REQUIREMENT_ESTIMATOR"
 ESTIMATOR_MODES = ("auto", "llmfit", "kultrun")
 ACQUISITION_VARIABLE = "KULTRUN_MODEL_ACQUISITION_PROVIDER"
 ACQUISITION_MODES = ("huggingface", "fixture")
+SOURCE_MODE_VARIABLE = "KULTRUN_MODEL_SOURCE_MODE"
+SOURCE_MODES = ("offline", "live")
 EXECUTOR_VARIABLE = "KULTRUN_EXECUTOR"
 PROVISIONER_VARIABLE = "KULTRUN_RUNTIME_PROVISIONER"
 VERIFIER_VARIABLE = "KULTRUN_RUNTIME_VERIFIER"
@@ -402,6 +407,7 @@ def resolve_configuration(
     configured = source.get(STATE_ROOT_VARIABLE, "").strip()
     estimator = source.get(ESTIMATOR_VARIABLE, "").strip()
     acquisition = source.get(ACQUISITION_VARIABLE, "").strip()
+    source_mode = source.get(SOURCE_MODE_VARIABLE, "").strip()
     overrides: dict[str, object] = {}
     if configured:
         overrides["state_root"] = configured
@@ -409,6 +415,8 @@ def resolve_configuration(
         overrides["model_requirement_estimator"] = estimator
     if acquisition:
         overrides["model_acquisition_provider"] = acquisition
+    if source_mode:
+        overrides["model_source_mode"] = source_mode
     return config_schema().load({"platform": overrides} if overrides else {})
 
 
@@ -458,6 +466,31 @@ def acquisition_registry() -> AdapterRegistry[ModelAcquisitionProvider]:
     registry.register("fixture", fixture_acquisition.build)
     registry.register("huggingface", huggingface_acquisition.build)
     return registry
+
+
+def resolve_model_source(
+    mode: str,
+) -> tuple[
+    HuggingFaceSource, SafetensorsWeightEvidenceProvider, AccelerateStructuralProvider
+]:
+    """Offline catalog, or optional live Hub/Accelerate extras. Not a plugin bus."""
+    if mode not in SOURCE_MODES:
+        raise ConfigError(
+            "unknown model source mode",
+            requested=mode,
+            registered=list(SOURCE_MODES),
+        )
+    if mode == "live":
+        return (
+            HuggingFaceSource(list_models=hub_list_models),
+            SafetensorsWeightEvidenceProvider(fetch=huggingface_safetensors_payload),
+            AccelerateStructuralProvider(enabled=True),
+        )
+    return (
+        HuggingFaceSource(),
+        SafetensorsWeightEvidenceProvider(),
+        AccelerateStructuralProvider(),
+    )
 
 
 def resolve_acquisition(name: str) -> ModelAcquisitionProvider:
@@ -639,7 +672,10 @@ def build(
             VllmRuntimeSupport(),
         )
     )
-    models = ModelCatalogue(HuggingFaceSource(), extras=(acceptance_candidate(),))
+    source, weight_evidence, structural_evidence = resolve_model_source(
+        settings.model_source_mode
+    )
+    models = ModelCatalogue(source, extras=(acceptance_candidate(),))
     selection = SelectionService(
         resolve_estimator(settings.model_requirement_estimator),
         resolved_clock,
@@ -749,8 +785,8 @@ def build(
         selection.estimator,
         selection.policy,
         AvailableModelsLock(state_root),
-        weights=SafetensorsWeightEvidenceProvider(),
-        structural=AccelerateStructuralProvider(),
+        weights=weight_evidence,
+        structural=structural_evidence,
         inventory=inventory,
     )
     deployment_plan = DeploymentPlanningService(

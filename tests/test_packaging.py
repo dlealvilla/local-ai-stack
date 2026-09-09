@@ -118,7 +118,7 @@ class TestThePackageCanBeBuilt:
         extras = project["project"]["optional-dependencies"]  # type: ignore[index]
         assert extras["estimators"] == ["llmfit==1.1.14"]
         assert extras["acquisition"] == ["huggingface_hub>=0.23,<1"]
-        assert extras["analysis"] == ["accelerate>=0.33"]
+        assert extras["analysis"] == ["accelerate>=0.33", "transformers>=4.40"]
         section = project["project"]
         assert isinstance(section, dict)
         required = section.get("dependencies", [])

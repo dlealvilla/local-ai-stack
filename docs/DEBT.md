@@ -637,29 +637,26 @@ Retire when:  authentication arrives, or mutating execution endpoints pass
               through admission and audit.
 Status:       OPEN
 
-### K-35 — the Hugging Face adapter does not fetch the live Hub
+### K-35 — live Hub listing is optional and not compatibility authority
 Label:        DEFERRED
-Owner stage:  1.4A
+Owner stage:  1.4A / 1.6L
 Subsystem:    adapters / model_source
 Authorizes:   NO
-What:         The first `ModelSource` uses Hugging Face identity
-              (`source_ref`) and a packaged curated candidate set. Live
-              Hub listing is an optional injectable `list_models`
-              callback; product `build()` does not call
-              `huggingface_hub` and does not search the Hub. Curated
-              catalog members are retained even when a remote listing is
-              empty or lacks a vLLM app tag. File acquisition is a
-              separate adapter (`HuggingFaceAcquisitionProvider`).
-Why now:      v0 must be T0/T1/T2 without a network or a GPU. Whole-Hub
-              search is explicitly out of scope. Packaged metadata is
-              enough to prove normalization, the catalog surface, and
-              the staged discovery filter seam.
-To make real: An optional live enricher behind the same
-              `ModelDiscoverySource` port, with the packaged catalog as
-              the mandatory fallback when the Hub is absent, slow or
-              disagreed with. Pagination and ranking remain K-97.
-Retire when:  a stage claims a real source fetch (L2) or product policy
-              requires live Hub metadata.
+What:         Product default `model_source_mode=offline` (`KULTRUN_MODEL_SOURCE_MODE`)
+              uses the packaged catalog only and does not require network
+              access. `live` may call optional `huggingface_hub` listing
+              and Safetensors metadata behind the existing
+              `HuggingFaceSource` / `SafetensorsWeightEvidenceProvider`
+              seams. Hub failure keeps the curated catalog and records
+              typed `source_failure`. Remote tags and app hints are
+              discovery filters, never Kultrun compatibility or
+              availability. File acquisition remains a separate adapter.
+Why now:      v0 must remain usable offline. Whole-Hub search, pagination
+              and ranking stay out of scope (K-97).
+To make real: Pagination, ranking, and a metadata cache when a catalog-
+              ingest stage claims them.
+Retire when:  that ingest is an accepted stage output, or product policy
+              requires live Hub metadata as the only catalog.
 Status:       OPEN
 
 ### K-36 — ModelRequirement v0 estimates are curated and conservative
@@ -1696,19 +1693,22 @@ Label:        DEFERRED
 Owner stage:  1.6L
 Subsystem:    adapters / model_source
 Authorizes:   NO
-What:         `AccelerateStructuralProvider` is an optional replaceable
-              cheap-weight seam. Product `build()` does not call
-              `from_pretrained`, `init_empty_weights`, or
-              `infer_auto_device_map` (those would download configs).
-              An injected analyzer can supply structural bytes. Missing
-              Accelerate, missing analyzer, or `trust_remote_code`
-              continues the candidate as UNKNOWN. Accelerate never
-              marks a model AVAILABLE.
+What:         `AccelerateStructuralProvider` may run empty-skeleton
+              analysis when `model_source_mode=live` and the optional
+              `analysis` extra is installed. Product default remains
+              offline and does not import torch/transformers/accelerate.
+              The analyzer uses `init_empty_weights` and never
+              `load_checkpoint_and_dispatch` or silent
+              `trust_remote_code=True`. When Safetensors already
+              resolved the cheap bound, Accelerate is not invoked.
+              Accelerate never marks a model AVAILABLE; vLLM feasibility
+              remains ModelRequirement vs CurrentCapacitySnapshot.
 Why now:      Torch + Transformers + Accelerate are not control-plane
-              dependencies. T2 must not hit the network.
-To make real: A local-config structural analyzer behind the same port
-              that still refuses silent `trust_remote_code`.
-Retire when:  that analyzer is an accepted stage output, or the extra
+              dependencies. Offline T2 must not require them.
+To make real: Drop the extra, or a later stage that treats structural
+              placement as a documented cheap input without expanding
+              Accelerate into a selector.
+Retire when:  that policy is an accepted stage output, or the extra
               is dropped.
 Status:       OPEN
 

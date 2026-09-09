@@ -2753,7 +2753,7 @@ DEBT ENTRIES                 K-66, K-77 remain OPEN.
                              K-96: llmfit plan minimum is not native
                              vLLM serving demand; AUTO refines, does not
                              shop. K-97 Hub ingest deferred. K-98 live
-                             Accelerate skeleton deferred.
+                             Accelerate remains optional/structural-only.
 MUST NOT                     Reopen 1.6B–1.6K; container GPU; llama.cpp;
                              MLX; streaming; cancellation; routing; RAG;
                              trust_remote_code by default; PATH python;

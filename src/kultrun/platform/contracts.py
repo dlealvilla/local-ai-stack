@@ -213,3 +213,8 @@ class PlatformSettings(Contract):
         "acquisition adapter: huggingface (product default) or fixture",
         default="huggingface",
     )
+    model_source_mode: str = meaning(
+        "offline uses the packaged catalog only; live may call optional "
+        "Hugging Face listing/metadata and Accelerate structural extras",
+        default="offline",
+    )

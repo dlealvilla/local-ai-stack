@@ -491,10 +491,15 @@ weight evidence, optional Accelerate structural provider, one
 `CurrentCapacitySnapshot` per Available Models pass, persisted
 `AvailableModelView` before ModelSelector, CLI/API/Console print order,
 and MANUAL limited to current members. T1 uses
-an explicit vLLM HTTP protocol fixture. T2 is a clean-wheel install of
-that same suite plus the product chain. T3/T5 on a real GPU host are
-required for L3 closure. Direct curl to vLLM is not T5 evidence. Do not
-treat T0/T1/T2 as real serving proof.
+an explicit vLLM HTTP protocol fixture. T2 has two isolated clean-wheel
+modes of the same artifact: T2-A core-only (offline catalog, optional
+providers absent, Kultrun fallback) and T2-B the same wheel with
+declared extras (`acquisition`, `estimators`, `analysis`) proving live
+Hub metadata, Safetensors headers without weight download, optional
+Accelerate empty-skeleton analysis, and AUTO selecting real llmfit.
+T3/T5 on a real GPU host are required for L3 closure and must install
+that provider-enabled wheel. Direct curl to vLLM is not T5 evidence.
+Do not treat T0/T1/T2 as real serving proof.
 
 **Stage 1.5C** is T0/T1 contract reconciliation. An executor contract
 suite runs against `NativeProcessExecutor` and a recording fixture.

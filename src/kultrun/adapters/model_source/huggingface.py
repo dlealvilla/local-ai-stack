@@ -10,6 +10,10 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from kultrun.adapters.model_source.candidates import IDENTITY, packaged_candidates
+from kultrun.adapters.model_source.hub_client import (
+    LIST_TIMEOUT_NOTE,
+    list_model_infos,
+)
 from kultrun.kernel.ids import Name
 from kultrun.model.contracts import ModelCatalogEntry
 from kultrun.model.discovery import (
@@ -72,7 +76,7 @@ class HuggingFaceSource:
             catalog_entries=catalog,
             remote_hits=remote,
             live=True,
-            notes=tuple(notes),
+            notes=(*notes, LIST_TIMEOUT_NOTE),
         )
 
 
@@ -85,6 +89,76 @@ def _universe_count(
     if isinstance(declared, int) and declared >= 0:
         return declared
     return max(len(remote), len(catalog))
+
+
+def hub_list_models(query: DiscoveryQuery) -> tuple[RemoteDiscoveryHit, ...]:
+    """Live Hub listing through the installed huggingface_hub signature.
+
+    Remote filters are discovery hints. Absence of a vLLM app/tag never
+    drops a curated catalog member — that policy lives in discover().
+    """
+    kwargs = _listing_kwargs(query)
+    infos = list_model_infos(kwargs)
+    hits = tuple(_hit(item) for item in infos)
+    hub_list_models.universe_count = max(query.limit, len(hits))  # type: ignore[attr-defined]
+    return hits
+
+
+def _listing_kwargs(query: DiscoveryQuery) -> dict[str, object]:
+    apps = list(query.apps) if query.apps else ["vllm"]
+    kwargs: dict[str, object] = {
+        "pipeline_tag": query.pipeline_tag,
+        "gated": query.gated,
+        "search": query.search,
+        "limit": query.limit,
+        "apps": apps,
+        "tags": list(query.tags) if query.tags else None,
+        "filter": None,
+        "num_parameters": _num_parameters(query),
+    }
+    return kwargs
+
+
+def _num_parameters(query: DiscoveryQuery) -> str | None:
+    if query.parameter_min is None and query.parameter_max is None:
+        return None
+    parts: list[str] = []
+    if query.parameter_min is not None:
+        parts.append(f"min:{query.parameter_min}")
+    if query.parameter_max is not None:
+        parts.append(f"max:{query.parameter_max}")
+    return ",".join(parts)
+
+
+def _hit(info: object) -> RemoteDiscoveryHit:
+    ident = str(getattr(info, "id", "") or getattr(info, "modelId", "") or "")
+    tags = getattr(info, "tags", None)
+    tag_values = (
+        tuple(str(item) for item in tags) if isinstance(tags, (list, tuple)) else ()
+    )
+    gated = getattr(info, "gated", None)
+    gated_flag = None if gated is None else bool(gated)
+    return RemoteDiscoveryHit(
+        source_ref=ident,
+        pipeline_tag=getattr(info, "pipeline_tag", None),
+        gated=gated_flag,
+        tags=tag_values,
+        parameter_count=_parameter_total(info),
+    )
+
+
+def _parameter_total(info: object) -> int | None:
+    safetensors = getattr(info, "safetensors", None)
+    counts = (
+        getattr(safetensors, "parameters", None) if safetensors is not None else None
+    )
+    if isinstance(counts, dict) and counts:
+        total = 0
+        for value in counts.values():
+            if isinstance(value, int):
+                total += value
+        return total or None
+    return None
 
 
 def build(*, list_models: ListModelsFn | None = None) -> HuggingFaceSource:

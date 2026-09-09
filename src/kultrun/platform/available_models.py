@@ -307,7 +307,12 @@ class AvailableModelsService:
         deep_entries: list[tuple[ModelCatalogEntry, WeightFootprintEvidence]] = []
         cheap_reject = 0
         for entry in compatible:
-            evidence = _weight_evidence(entry, self._weights, self._structural)
+            evidence = _weight_evidence(
+                entry,
+                self._weights,
+                self._structural,
+                available_vram_bytes=capacity.available_vram_bytes,
+            )
             decision = cheap_weight_fit(
                 evidence,
                 capacity,
@@ -488,11 +493,7 @@ def _extra_compatibility(
             )
     requested = funnel.requested_context_tokens
     advertised = meta.context_length_tokens
-    if (
-        requested is not None
-        and isinstance(advertised, int)
-        and requested > advertised
-    ):
+    if requested is not None and isinstance(advertised, int) and requested > advertised:
         return _exclusion(
             entry,
             FunnelStage.COMPATIBILITY,
@@ -506,6 +507,8 @@ def _weight_evidence(
     entry: ModelCatalogEntry,
     weights: WeightEvidenceProvider | None,
     structural: WeightEvidenceProvider | None,
+    *,
+    available_vram_bytes: object = NOT_PROVIDED,
 ) -> WeightFootprintEvidence:
     if weights is None:
         return WeightFootprintEvidence(
@@ -523,7 +526,11 @@ def _weight_evidence(
         return evidence
     if structural is None:
         return evidence
-    extra = structural.footprint(entry)
+    bound = structural
+    placer = getattr(structural, "for_placement", None)
+    if callable(placer):
+        bound = placer(available_vram_bytes)
+    extra = bound.footprint(entry)
     if is_resolved(extra.serialized_weight_tensor_bytes):
         return extra
     return evidence
@@ -607,8 +614,7 @@ def _member(
         context = row.requirement.assumed_context_tokens
     available_vram = (
         evaluation.available_vram_bytes
-        if evaluation is not None
-        and is_resolved(evaluation.available_vram_bytes)
+        if evaluation is not None and is_resolved(evaluation.available_vram_bytes)
         else capacity.available_vram_bytes
     )
     return AvailableModelMember(
@@ -822,9 +828,7 @@ def format_funnel(view: AvailableModelView) -> str:
 def format_available_models(view: AvailableModelView) -> str:
     """Print Available Models before any recommendation."""
     runtime = view.runtime if isinstance(view.runtime, str) else "-"
-    version = (
-        view.runtime_version if isinstance(view.runtime_version, str) else "-"
-    )
+    version = view.runtime_version if isinstance(view.runtime_version, str) else "-"
     context = (
         str(view.requested_context_tokens)
         if isinstance(view.requested_context_tokens, int)
@@ -889,13 +893,19 @@ def _format_member(index: int, item: AvailableModelMember) -> list[str]:
         if isinstance(item.available_vram_bytes, int)
         else "unknown"
     )
+    revision = item.source_revision if isinstance(item.source_revision, str) else "-"
+    provider = (
+        item.requirement_provider if isinstance(item.requirement_provider, str) else "-"
+    )
     return [
         f"{index}. {item.logical_name}",
         f"   quantization: {quant}",
+        f"   revision: {revision}",
         f"   weight lower-bound: {weight}",
         f"   weight evidence: {source}",
         f"   required VRAM: {required}",
         f"   available VRAM: {available}",
+        f"   requirement provider: {provider}",
         "   result: AVAILABLE",
     ]
 
