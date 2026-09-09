@@ -99,6 +99,7 @@ class ReferenceServingRuntime:
         bound_address: str | None = None,
         bound_port: int | None = None,
         expected_served_model: str | None = None,
+        probe_timeout: float | None = None,
     ) -> RuntimeReadiness:
         del stderr, expected_served_model
         if not execution_alive:
@@ -109,7 +110,7 @@ class ReferenceServingRuntime:
         port = bound_port if bound_port is not None else published
         if host is None or port is None:
             return RuntimeReadiness(ready=False, reason="bind address not published")
-        if not _health_ok(host, port):
+        if not _health_ok(host, port, probe_timeout):
             return RuntimeReadiness(
                 ready=False,
                 address=host,
@@ -137,10 +138,11 @@ def _ready_from_stdout(stdout: str) -> tuple[str, int] | None:
     return None
 
 
-def _health_ok(host: str, port: int) -> bool:
+def _health_ok(host: str, port: int, timeout: float | None = None) -> bool:
     url = f"http://{host}:{port}/health"
+    bounded = 0.4 if timeout is None else max(0.001, min(0.4, timeout))
     try:
-        with urllib.request.urlopen(url, timeout=0.4) as response:
+        with urllib.request.urlopen(url, timeout=bounded) as response:
             body = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, ValueError, OSError):
         return False

@@ -47,19 +47,25 @@ class ExecutionService:
             for record in self._store.records(ExecutorHandle)
         )
 
-    def observe(self, execution_id: ExecutionId) -> ExecutorHandle:
-        """Refresh one execution. Unknown ids fail closed."""
+    def observe(
+        self, execution_id: ExecutionId, *, persist: bool = True
+    ) -> ExecutorHandle:
+        """Refresh one execution. Unknown ids fail closed.
+
+        Readiness polling passes persist=False so a growing stdout capture
+        cannot fsync the store on every tick and miss the startup deadline.
+        """
         recorded = self._store.get(ExecutorHandle, execution_id.value)
         if recorded is None:
             raise NotFoundError("no such execution", execution_id=execution_id.value)
         refreshed = self._executor.observe(recorded)
-        if refreshed != recorded:
+        if persist and refreshed != recorded:
             self._store.put(execution_id.value, refreshed)
         return refreshed
 
     def stop(self, execution_id: ExecutionId) -> ExecutorHandle:
         """Stop one owned execution. Unverified processes are not signalled."""
-        handle = self.observe(execution_id)
+        handle = self.observe(execution_id, persist=False)
         if handle.ownership is not ExecutionOwnership.OWNED:
             return handle
         if handle.observed_state in (ExecutionState.EXITED, ExecutionState.FAILED):

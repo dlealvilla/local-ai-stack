@@ -270,7 +270,9 @@ class InstanceService:
         )
         if outcome.kind != "ready":
             self._safe_stop(handle.execution_id)
-            refreshed = self._executions.observe(handle.execution_id)
+            refreshed = self._executions.observe(
+                handle.execution_id, persist=False
+            )
             return self._fail(
                 instance,
                 outcome.message,
@@ -500,8 +502,14 @@ class InstanceService:
                 )
             return instance
         if handle.ownership is ExecutionOwnership.UNVERIFIED:
+            latest = self._store.get(InferenceInstance, instance.instance_id.value)
+            current = latest if latest is not None else instance
+            if current.observed_state is ObservedState.STARTING:
+                # Another process holds the live executor handle. Inspect
+                # must not clobber an in-flight start as a restart.
+                return current
             return self._write(
-                instance,
+                current,
                 observed_state=ObservedState.UNKNOWN,
                 lifecycle_state=LifecycleState.UNKNOWN,
                 health=HealthState.UNKNOWN,
@@ -539,11 +547,12 @@ class InstanceService:
                     exit_code=handle.exit_code,
                 )
         if (
-            instance.observed_state is ObservedState.RUNNING
-            and handle.ownership is ExecutionOwnership.OWNED
+            handle.ownership is ExecutionOwnership.OWNED
             and handle.observed_state is ExecutionState.RUNNING
             and instance.endpoint is not None
         ):
+            if instance.observed_state is ObservedState.STARTING:
+                return instance
             verdict = self._runtimes.inspect_readiness(
                 instance.runtime,
                 stdout=handle.stdout,
@@ -553,15 +562,30 @@ class InstanceService:
                 bound_port=instance.endpoint.port,
                 expected_served_model=served_model_identity(instance),
             )
-            ready = verdict.ready
-            return self._write(
-                instance,
-                health=HealthState.HEALTHY if ready else HealthState.UNHEALTHY,
-                ready=ready,
-                reachable=ready,
-                pid=handle.pid,
-                last_observed_at=self._clock.now(),
-            )
+            if instance.observed_state is ObservedState.UNKNOWN:
+                if not verdict.ready:
+                    return instance
+                return self._write(
+                    instance,
+                    observed_state=ObservedState.RUNNING,
+                    lifecycle_state=LifecycleState.RUNNING,
+                    health=HealthState.HEALTHY,
+                    ready=True,
+                    reachable=True,
+                    pid=handle.pid,
+                    last_observed_at=self._clock.now(),
+                    failure_reason=NOT_MEASURED,
+                )
+            if instance.observed_state is ObservedState.RUNNING:
+                ready = verdict.ready
+                return self._write(
+                    instance,
+                    health=HealthState.HEALTHY if ready else HealthState.UNHEALTHY,
+                    ready=ready,
+                    reachable=ready,
+                    pid=handle.pid,
+                    last_observed_at=self._clock.now(),
+                )
         return instance
 
     def _require_create(
@@ -666,8 +690,19 @@ class InstanceService:
         expected_served_model: str | None,
     ) -> _ReadyOutcome:
         deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            handle = self._executions.observe(execution_id)
+        poll = 0.05
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                handle = self._executions.observe(execution_id, persist=False)
+            except NotFoundError:
+                return _ReadyOutcome(
+                    kind="exited",
+                    reason="runtime_process_exited",
+                    message="process exited before ready (unknown)",
+                )
             alive = handle.observed_state is ExecutionState.RUNNING
             verdict = self._runtimes.inspect_readiness(
                 instance.runtime,
@@ -677,6 +712,7 @@ class InstanceService:
                 bound_address=bound_address,
                 bound_port=bound_port,
                 expected_served_model=expected_served_model,
+                probe_timeout=remaining,
             )
             if (
                 is_resolved(verdict.reason)
@@ -711,10 +747,13 @@ class InstanceService:
                     reason="runtime_process_exited",
                     message=message,
                 )
-            time.sleep(0.05)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(poll, remaining))
         evidence = ""
         try:
-            handle = self._executions.observe(execution_id)
+            handle = self._executions.observe(execution_id, persist=False)
             evidence = _bounded_log(handle.stderr or handle.stdout)
         except NotFoundError:
             evidence = ""
@@ -763,7 +802,7 @@ class InstanceService:
         if execution_id is None:
             return False
         try:
-            handle = self._executions.observe(execution_id)
+            handle = self._executions.observe(execution_id, persist=False)
         except NotFoundError:
             return False
         return (
@@ -773,7 +812,7 @@ class InstanceService:
         )
 
     def _pid_of(self, execution_id: ExecutionId) -> object:
-        handle = self._executions.observe(execution_id)
+        handle = self._executions.observe(execution_id, persist=False)
         return handle.pid
 
     def _require(self, instance_id: InstanceId) -> InferenceInstance:

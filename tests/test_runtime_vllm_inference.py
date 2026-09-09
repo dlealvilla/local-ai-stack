@@ -351,6 +351,7 @@ def _vllm_stack(
     timeout: float = 3.0,
     delay: float = 0.3,
     slow: float = 2.0,
+    log_bytes: int = 0,
 ) -> _Stack:
     stack = _Stack(tmp_path)
     stack.runtimes = RuntimeCatalogue(
@@ -365,7 +366,7 @@ def _vllm_stack(
         spec = original(self, request)
         captured["spec"] = spec
         return wrap_launch_with_protocol(
-            original, mode=mode, delay=delay, slow=slow
+            original, mode=mode, delay=delay, slow=slow, log_bytes=log_bytes
         )(self, request)
 
     monkeypatch.setattr(VllmRuntimeSupport, "launch_spec", wrapped)

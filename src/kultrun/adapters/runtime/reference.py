@@ -77,8 +77,10 @@ class ReferenceProcessRuntime:
         bound_address: str | None = None,
         bound_port: int | None = None,
         expected_served_model: str | None = None,
+        probe_timeout: float | None = None,
     ) -> RuntimeReadiness:
         del stdout, stderr, bound_address, bound_port, expected_served_model
+        del probe_timeout
         if not execution_alive:
             return RuntimeReadiness(ready=False, reason="execution is not alive")
         return RuntimeReadiness(

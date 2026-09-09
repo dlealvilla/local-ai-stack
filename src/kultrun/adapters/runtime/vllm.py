@@ -232,8 +232,10 @@ class VllmRuntimeSupport:
         bound_address: str | None = None,
         bound_port: int | None = None,
         expected_served_model: str | None = None,
+        probe_timeout: float | None = None,
     ) -> RuntimeReadiness:
         del stdout, stderr
+        timeout = _probe_timeout(probe_timeout)
         if not execution_alive:
             return RuntimeReadiness(ready=False, reason="execution is not alive")
         host = bound_address or LOOPBACK
@@ -243,14 +245,14 @@ class VllmRuntimeSupport:
                 address=host,
                 reason="bind port not allocated",
             )
-        if not _health_ok(host, bound_port):
+        if not _health_ok(host, bound_port, timeout):
             return RuntimeReadiness(
                 ready=False,
                 address=host,
                 port=bound_port,
                 reason="health probe failed",
             )
-        reported = _listed_models(host, bound_port)
+        reported = _listed_models(host, bound_port, timeout)
         if reported is None:
             return RuntimeReadiness(
                 ready=False,
@@ -419,19 +421,29 @@ def _gpu_memory_bindings(request: RuntimeLaunchRequest) -> tuple[list[str], list
     )
 
 
-def _health_ok(host: str, port: int) -> bool:
+def _probe_timeout(requested: float | None) -> float:
+    if requested is None:
+        return _HEALTH_TIMEOUT_SECONDS
+    if requested <= 0:
+        return 0.001
+    return min(_HEALTH_TIMEOUT_SECONDS, requested)
+
+
+def _health_ok(host: str, port: int, timeout: float = _HEALTH_TIMEOUT_SECONDS) -> bool:
     url = f"http://{host}:{port}/health"
     try:
-        status, _body = _http_json(url, _HEALTH_TIMEOUT_SECONDS)
+        status, _body = _http_json(url, timeout)
     except (TimeoutError, urllib.error.URLError, OSError, ValueError):
         return False
     return status < 400
 
 
-def _listed_models(host: str, port: int) -> list[str] | None:
+def _listed_models(
+    host: str, port: int, timeout: float = _HEALTH_TIMEOUT_SECONDS
+) -> list[str] | None:
     url = f"http://{host}:{port}/v1/models"
     try:
-        status, body = _http_json(url, _HEALTH_TIMEOUT_SECONDS)
+        status, body = _http_json(url, timeout)
     except (TimeoutError, urllib.error.URLError, OSError, ValueError):
         return None
     if status >= 400 or not isinstance(body, dict):
@@ -456,8 +468,9 @@ def _http_json(
         headers["Content-Type"] = "application/json"
     method = "POST" if data else "GET"
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
+    bounded = timeout if timeout > 0 else 0.001
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=bounded) as response:
             raw = response.read()
             status = int(getattr(response, "status", 200))
     except TimeoutError:

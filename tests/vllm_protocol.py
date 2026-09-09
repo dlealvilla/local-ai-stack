@@ -24,10 +24,24 @@ PORT = int(os.environ.get("KULTRUN_VLLM_FIXTURE_PORT", "0"))
 MODEL = os.environ.get("KULTRUN_VLLM_FIXTURE_MODEL", "fixture")
 DELAY = float(os.environ.get("KULTRUN_VLLM_FIXTURE_DELAY", "0"))
 SLOW = float(os.environ.get("KULTRUN_VLLM_FIXTURE_SLOW", "2"))
+LOG_BYTES = int(os.environ.get("KULTRUN_VLLM_FIXTURE_LOG_BYTES", "0"))
 STARTED = time.monotonic()
 
 if MODE == "exit-immediately":
     raise SystemExit(1)
+
+if LOG_BYTES > 0:
+    import threading
+    def _flood():
+        sent = 0
+        chunk = ("noise " * 128) + "\n"
+        while sent < LOG_BYTES:
+            sys.stdout.write(chunk)
+            sys.stdout.flush()
+            sys.stderr.write(chunk)
+            sys.stderr.flush()
+            sent += 2 * len(chunk)
+    threading.Thread(target=_flood, daemon=True).start()
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -192,6 +206,7 @@ def wrap_launch_with_protocol(
     mode: str = "healthy",
     delay: float = 0.4,
     slow: float = 2.0,
+    log_bytes: int = 0,
 ) -> Any:
     """Keep real launch validation, exec the protocol fixture instead of vLLM."""
 
@@ -209,6 +224,7 @@ def wrap_launch_with_protocol(
             f"KULTRUN_VLLM_FIXTURE_MODEL={served}",
             f"KULTRUN_VLLM_FIXTURE_DELAY={delay}",
             f"KULTRUN_VLLM_FIXTURE_SLOW={slow}",
+            f"KULTRUN_VLLM_FIXTURE_LOG_BYTES={log_bytes}",
         )
         return replace(
             spec,
