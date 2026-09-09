@@ -571,9 +571,15 @@ What:         `NativeProcessExecutor` proves ownership by holding the
               `Popen` object. After a control-plane restart a recorded PID
               that still exists is `UNVERIFIED` and is never signalled.
               There is no start-time check, no `/proc/<pid>/stat` cookie,
-              and no supervisor that reaps orphans.
+              and no supervisor that reaps orphans. A concurrent
+              `instances inspect` from another process is not a restart:
+              it must not persist UNKNOWN over an in-flight STARTING
+              transition. Persisted RUNNING after a genuine restart
+              remains untrusted (UNVERIFIED / UNKNOWN).
 Why now:      Stage 1.3 proves start/observe/stop in one process. Claiming
               a PID we cannot prove is ours would be a false success.
+              Stage 1.6L T3 showed inspect during start writing UNKNOWN
+              while the launching process still owned the Popen.
 To make real: A durable process cookie (start time, or an equivalent) and
               a bounded reattach path that still refuses to signal
               unverified processes.
@@ -1664,6 +1670,11 @@ What:         Captured `llmfit plan` for Qwen2.5-7B-Instruct-AWQ at
               runtime-extra are composed separately. Measured
               RuntimeMemoryProfile calibration is the vLLM Available
               gate; it is not an advisory overlay on static membership.
+              The first post-calibration fresh-host T3 proved calibrated
+              bytes through plan, ResourceRequest, and reservation, and
+              launched a healthy vLLM process, but Kultrun did not
+              persist RUNNING. That start-completion defect is fixed
+              locally; it does not close this entry.
 Why now:      Fresh-host T3 admitted 8.0 GiB from the packaged Kultrun
               total after llmfit was unavailable; the runtime then
               lacked KV for context 8192. Do not hard-code that host's
@@ -1672,10 +1683,10 @@ Why now:      Fresh-host T3 admitted 8.0 GiB from the packaged Kultrun
               absent, not a mapped llmfit field.
 To make real: Measured highest-pressure vLLM runtime-memory
               calibration is now the Available gate (this
-              continuation). Close K-96 when fresh-host T3 proves
-              the calibrated serving total, not the disproven
-              static 10.37 GiB figure, is what Available and
-              admission use.
+              continuation). Close K-96 when a new GPU host (not
+              `216.81.151.62`) proves READY using the calibrated
+              serving total, not the disproven static 10.37 GiB
+              figure. Local lineage tests are not closure.
 Retire when:  that serving total is the product estimate for vLLM
               after real T3, or llmfit is dropped for this runtime
               family.

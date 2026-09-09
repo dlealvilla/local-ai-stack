@@ -5,13 +5,13 @@
   "output": "first real native vLLM serving vertical: exact RuntimeInstallation + local ModelArtifact + NativeProcessExecutor + readiness + bounded InferenceRequest/Response; highest-pressure runtime-memory calibration before Available Models",
   "status": "open",
   "gate": "L3",
-  "evidence_level": "T2-A/T2-B local plus T0/T1 calibration; T3/T5 not started",
+  "evidence_level": "T2 local plus T0/T1 calibration; first T3 hung on start; local readiness fix; T3/T5 retry not started",
   "t3_required": true,
   "t5_required": true,
   "ready_for_t3": false,
   "ready_for_integration": false,
   "runtime_calibration": "implemented",
-  "t3_after_calibration": "NOT_STARTED",
+  "t3_after_calibration": "FAILED_START_HANG_THEN_LOCAL_FIX",
   "t5_status": "NOT_STARTED",
   "stage_1_6m": "NOT_STARTED",
   "integration_artifact": "NOT_YET_CREATED",
@@ -25,6 +25,8 @@
     "safety_branch": "safety/pre-real-vllm-inference-1e51f13ec",
     "pre_calibration_safety": "safety/pre-runtime-calibration-36195a9",
     "pre_calibration_commit": "36195a9ab9093a9a47e38e85135ed06897b1e44f",
+    "pre_readiness_fix_safety": "safety/pre-1.6L-readiness-fix-d9097f2",
+    "pre_readiness_fix_commit": "d9097f2bac8e5bc0b5f3a4c90d192ba2a0544840",
     "feature_branch": "stage/1.6L-real-vllm-inference",
     "predecessor_closed": true,
     "do_not_reopen": ["1.6A", "1.6B", "1.6C", "1.6D", "1.6E", "1.6F", "1.6G", "1.6H", "1.6I", "1.6J", "1.6K"]
@@ -34,20 +36,21 @@
       "owner": "Runtime / Deployment Engineering",
       "branch": "stage/1.6L-real-vllm-inference",
       "calibration_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
-      "state": "CLEAN_PUSHED_THEN_FREEZE",
+      "pre_readiness_fix_commit": "d9097f2bac8e5bc0b5f3a4c90d192ba2a0544840",
+      "state": "LOCAL_READINESS_FIX_THEN_FREEZE",
       "frozen": true,
-      "awaiting": "STREAM_B"
+      "awaiting": "NEW_INTEGRATION_WHEEL_THEN_NEW_GPU_HOST"
     },
     "stream_b": {
       "owner": "Data Engineering / Data Warehousing",
       "worktree": "/Users/usyd/Projects/ai-stack-data-warehouse",
       "branch": "data/phase-0-local-telemetry",
-      "committed_head": "25e3712bd70bffb89cc44d6d159e42b0cbe1a7b2",
+      "committed_head": "792b0ea336112cab33b0e67d7fd1d2f2c5f0595a",
       "pushed": true,
-      "tree": "DIRTY",
-      "frozen": false,
-      "independent_evidence": false,
-      "note": "implementation exists uncommitted; not frozen"
+      "tree": "not modified this task",
+      "frozen": true,
+      "independent_evidence": true,
+      "note": "Stream B freeze unchanged; do not rebase or edit in this task"
     }
   },
   "contracts": {
@@ -98,7 +101,7 @@
   "k96": {
     "status": "OPEN",
     "implemented": false,
-    "note": "calibration is the vLLM Available gate; fixture proof that plan/ResourceRequest carry calibrated bytes does not close K-96. Close only when fresh-host T3 proves the calibrated total is what Available and admission use."
+    "note": "calibration is the vLLM Available gate; first post-calibration T3 proved calibrated bytes and a healthy vLLM process but not Kultrun READY. Local start/readiness fix is not closure. Close only when a new host T3 proves READY using the calibrated total."
   },
   "k97": {
     "status": "OPEN",
@@ -145,14 +148,14 @@
     "required": "L3",
     "real_host": false,
     "date": "2026-09-09",
-    "method": "Stream A freeze after runtime-memory calibration. Historical T2-A/T2-B retained. Fresh T3/T5 require Stream B freeze + integration artifact. Do not claim L3."
+    "method": "Stream A local start/readiness fix after first physical T3 hang. K-96 remains OPEN. Next T3/T5 require new integration with frozen Stream B 792b0ea and a completely fresh GPU host. Do not claim L3."
   },
   "test_modes": {
     "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; staged Available Models funnel; runtime-memory class/sentinel/raise-only calibration; optional live Hub listing; cheap Safetensors metadata bound; optional Accelerate empty-skeleton; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within Available Models; no reference fallback",
     "T1": "vLLM HTTP protocol fixture; funnel fixture; llmfit fixture after cheap bound; Available Models printed before selector; estimator invocations saved; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible; estimated-feasible is not Available without calibration",
     "T2": "same clean wheel, two isolated installs: T2-A core-only offline catalog+fallback; T2-B extras prove live Hub/Safetensors/Accelerate/llmfit then Available Models before recommend. Historical evidence predates calibration-as-gate.",
-    "T3": "required; NOT STARTED after calibration; blocked until Stream B is frozen and a temporary integration artifact exists; must use a completely fresh GPU host",
-    "T5": "required; NOT STARTED; same integration and fresh-host constraints as T3"
+    "T3": "required; first physical attempt failed (vLLM healthy, Kultrun start hung past 1800s); local start/readiness fix in this freeze; retry needs a new integration wheel and a new GPU host, not 216.81.151.62",
+    "T5": "required; NOT STARTED; blocked on T3 retry"
   },
   "not_begun": [
     "streaming",
@@ -177,6 +180,6 @@
     "acceptance_source_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
     "stream_a_wheel_sha256": "c828b72bbcbfd50eba4c7cd28e1c2877b36fa71df572ab2c76da28433ed57c39",
     "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
-    "next": "STOP and await independent Stream B PASTE BACK. Then create temporary worktree /Users/usyd/Projects/ai-stack-acceptance on acceptance/1.6L-with-telemetry combining exact frozen Stream A + exact frozen Stream B, build one clean integration wheel, and run T3/T5 on a completely fresh GPU host. Do not reuse 213.173.108.47. Do not begin Stage 1.6M."
+    "next": "STOP. Return the new Stream A freeze. Next bounded task: rebuild integration with frozen Stream B 792b0ea336112cab33b0e67d7fd1d2f2c5f0595a, then deploy that exact integration wheel to a completely fresh GPU host. Do not reuse 216.81.151.62. Do not begin Stage 1.6M."
   }
 }

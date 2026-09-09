@@ -2,8 +2,8 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN — Stream A frozen; awaiting Stream B freeze, then a
-temporary integration artifact, then fresh-host T3/T5 L3 evidence.**
+Status: **OPEN — Stream A start/readiness local fix; K-96 still requires a
+new integration wheel on a new GPU host. Stage 1.6M not started.**
 Checkpoint: `checkpoints/STAGE-1.6L-real-vllm-inference.json`.
 
 This stage extends the authoritative preparation chain into real serving.
@@ -146,9 +146,11 @@ consume storage via live free space; they do not consume VRAM.
 ResourceManager remains final admission. Provider-enabled T2 is the
 same wheel in two isolated installs: T2-A core-only offline catalog
 and Kultrun fallback; T2-B extras `acquisition,estimators,analysis`
-with `KULTRUN_MODEL_SOURCE_MODE=live`. T3/T5 are not ready from
-Stream A alone. They require Stream B frozen, a temporary integration
-artifact that combines the exact frozen Stream A commit with the exact
-frozen Stream B commit, and a completely fresh GPU host. The current
-Stream A wheel is packaging evidence only. Do not begin T3/T5 or
-Stage 1.6M from this freeze.
+with `KULTRUN_MODEL_SOURCE_MODE=live`. A first fresh-host T3 proved
+calibrated admission and a healthy vLLM process, but `instances start`
+did not return: readiness polling persisted growing execution logs
+through FileStore fsync, and a concurrent inspect could write UNKNOWN
+over STARTING. Local Stream A now bounds that loop and refuses to treat
+inspect-during-STARTING as a control-plane restart. K-96 stays OPEN
+until a **new** integration wheel on a **new** GPU host observes READY.
+Do not reuse `216.81.151.62`. Do not begin Stage 1.6M from this freeze.
