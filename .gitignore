@@ -34,6 +34,11 @@ logs/
 /models/
 .cache/
 
+# Live product telemetry (never source)
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
 # NOTE: /checkpoints/ is intentionally NOT ignored. Under the clean-slate
 # roadmap it holds versioned stage checkpoints (docs/ROADMAP.md §3), which
 # must be committed. Model weights and runtime state belong in /models/
