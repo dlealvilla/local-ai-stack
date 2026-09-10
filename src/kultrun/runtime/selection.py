@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 from kultrun.host.contracts import HostCapabilities
 from kultrun.kernel.clock import Clock
@@ -40,6 +41,10 @@ from kultrun.runtime.plan import find_candidate, is_provisionable
 from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import ExecutorCapabilityView, resolve
 from kultrun.runtime.verify import VerificationService
+from kultrun.storage.contracts import StorageCapacityEvidence
+from kultrun.storage.feasibility import requirement_fits
+from kultrun.storage.footprint import runtime_provisioning_requirement
+from kultrun.storage.topology import mount_for_path
 
 STALE_DOMAINS: tuple[str, ...] = (
     "eligible_model_view",
@@ -106,9 +111,7 @@ class FoundationOverview:
                 if item.role == ROLE_RECOMMENDED
             ],
             "other_provisionable": [
-                item.candidate_id
-                for item in self.candidates
-                if item.role == ROLE_OTHER
+                item.candidate_id for item in self.candidates if item.role == ROLE_OTHER
             ],
             "blocked": list(self.blocked_ids),
             "verified_executable": list(self.verified_executable_ids),
@@ -145,16 +148,23 @@ class FoundationSelectionService:
         provisioning: ProvisioningService,
         verification: VerificationService,
         lock: SelectionLock,
+        runtime_root: Path | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
         self._provisioning = provisioning
         self._verification = verification
         self._lock = lock
+        self._runtime_root = runtime_root
 
     def stored(self, host: HostCapabilities) -> FoundationSelection | None:
         """Persisted selection, if any. Does not resolve or probe."""
         return self._load(host.host_id.value)
+
+    def _dest_mount(self, host: HostCapabilities) -> str | None:
+        if self._runtime_root is None:
+            return None
+        return mount_for_path(self._runtime_root, host)
 
     def view(
         self,
@@ -164,10 +174,20 @@ class FoundationSelectionService:
         policy: RuntimePolicy | None = None,
         *,
         components: Mapping[str, str] | None = None,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
+        require_storage: bool = False,
     ) -> FoundationOverview:
         """Classify the current set. GET must not persist or probe."""
         with self._lock.hold():
-            return self._view(host, executors, descriptors, policy, components)
+            return self._view(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components,
+                storage_evidence=storage_evidence,
+                require_storage=require_storage,
+            )
 
     def select_auto(
         self,
@@ -177,17 +197,35 @@ class FoundationSelectionService:
         policy: RuntimePolicy | None = None,
         *,
         components: Mapping[str, str] | None = None,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
+        require_storage: bool = False,
     ) -> FoundationOverview:
         """Follow the current recommendation. Does not provision or verify."""
         with self._lock.hold():
-            overview = self._view(host, executors, descriptors, policy, components)
+            overview = self._view(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components,
+                storage_evidence=storage_evidence,
+                require_storage=require_storage,
+            )
             self._persist(
                 host,
                 FoundationSelectionMode.AUTO,
                 overview.selection.recommended_candidate_id,
                 overview.selection.recommended_candidate_id,
             )
-            return self._view(host, executors, descriptors, policy, components)
+            return self._view(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components,
+                storage_evidence=storage_evidence,
+                require_storage=require_storage,
+            )
 
     def select_manual(
         self,
@@ -198,6 +236,8 @@ class FoundationSelectionService:
         policy: RuntimePolicy | None = None,
         *,
         components: Mapping[str, str] | None = None,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
+        require_storage: bool = False,
     ) -> FoundationOverview:
         """Hold a provisionable candidate. Not proof it is executable."""
         if not candidate_id.strip():
@@ -205,7 +245,15 @@ class FoundationSelectionService:
                 "a candidate id is required", parameter="candidate_id"
             )
         with self._lock.hold():
-            overview = self._view(host, executors, descriptors, policy, components)
+            overview = self._view(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components,
+                storage_evidence=storage_evidence,
+                require_storage=require_storage,
+            )
             candidate = find_candidate(overview.resolution, candidate_id)
             if candidate is None:
                 raise NotFoundError(
@@ -222,7 +270,15 @@ class FoundationSelectionService:
                 overview.selection.recommended_candidate_id,
                 candidate.candidate_id.value,
             )
-            return self._view(host, executors, descriptors, policy, components)
+            return self._view(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components,
+                storage_evidence=storage_evidence,
+                require_storage=require_storage,
+            )
 
     def realize_selected(
         self,
@@ -233,21 +289,36 @@ class FoundationSelectionService:
         *,
         components: Mapping[str, str] | None = None,
         retry: bool = False,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
+        require_storage: bool = False,
     ) -> RuntimeInstallation:
         """Plan and provision the selected candidate only. Does not verify."""
         with self._lock.hold():
-            overview = self._view(host, executors, descriptors, policy, components)
+            overview = self._view(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components,
+                storage_evidence=storage_evidence,
+                require_storage=require_storage,
+            )
             selected = overview.selection.selected_candidate_id
             if not isinstance(selected, str):
                 raise PreconditionFailedError("no selected foundation to realize")
             candidate = find_candidate(overview.resolution, selected)
             if candidate is None:
-                raise NotFoundError(
-                    "no such runtime candidate", candidate_id=selected
-                )
+                raise NotFoundError("no such runtime candidate", candidate_id=selected)
             if not is_provisionable(candidate):
                 raise PreconditionFailedError(
                     "selected foundation is not provisionable",
+                    candidate_id=selected,
+                )
+            if require_storage and not _storage_feasible(
+                storage_evidence, self._dest_mount(host)
+            ):
+                raise PreconditionFailedError(
+                    "authorizing storage is insufficient for this runtime",
                     candidate_id=selected,
                 )
             resolved_policy = policy or RuntimePolicy()
@@ -301,15 +372,29 @@ class FoundationSelectionService:
         descriptors: Sequence[RuntimeSupportDescriptor],
         policy: RuntimePolicy | None,
         components: Mapping[str, str] | None,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
+        require_storage: bool = False,
     ) -> FoundationOverview:
         resolved_policy = policy or RuntimePolicy()
         resolution = resolve(
             host, executors, descriptors, resolved_policy, components=components
         )
-        recommended = self._recommend(resolution)
+        recommended = self._recommend(
+            resolution,
+            storage_evidence,
+            require_storage,
+            dest_mount=self._dest_mount(host),
+        )
         stored = self._load(host.host_id.value)
         selection = self._effective(host, stored, recommended)
-        rows = self._classify(resolution, selection, host, executors)
+        rows = self._classify(
+            resolution,
+            selection,
+            host,
+            executors,
+            storage_ok=not require_storage
+            or _storage_feasible(storage_evidence, self._dest_mount(host)),
+        )
         provisionable = tuple(
             item.candidate_id
             for item in rows
@@ -348,10 +433,22 @@ class FoundationSelectionService:
             ),
         )
 
-    def _recommend(self, resolution: RuntimeResolution) -> str | None:
+    def _recommend(
+        self,
+        resolution: RuntimeResolution,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
+        require_storage: bool = False,
+        dest_mount: str | None = None,
+    ) -> str | None:
         provisionable = [
             item for item in resolution.candidates if is_provisionable(item)
         ]
+        if require_storage:
+            provisionable = [
+                item
+                for item in provisionable
+                if _storage_feasible(storage_evidence, dest_mount)
+            ]
         if not provisionable:
             return None
         preferred = resolution.preferred_candidate_id
@@ -402,6 +499,7 @@ class FoundationSelectionService:
         selection: FoundationSelection,
         host: HostCapabilities,
         executors: Sequence[ExecutorCapabilityView],
+        storage_ok: bool = True,
     ) -> tuple[ClassifiedRuntimeCandidate, ...]:
         recommended = selection.recommended_candidate_id
         selected = selection.selected_candidate_id
@@ -417,7 +515,7 @@ class FoundationSelectionService:
                 profile = self._verification.profile_for(
                     installation.installation_id, host, executors
                 )
-            confidence = _confidence(candidate, profile)
+            confidence = _confidence(candidate, profile, storage_ok=storage_ok)
             ident = candidate.candidate_id.value
             if confidence is FoundationConfidence.BLOCKED:
                 role = ROLE_BLOCKED
@@ -478,13 +576,9 @@ class FoundationSelectionService:
                 recommended_candidate_id=recommended,
                 selected_candidate_id=selected,
                 selected_at=now if changed else stored.selected_at,
-                generation=(
-                    stored.generation + 1 if changed else stored.generation
-                ),
+                generation=(stored.generation + 1 if changed else stored.generation),
                 downstream_stale=True if changed else stored.downstream_stale,
-                stale_domains=(
-                    STALE_DOMAINS if changed else stored.stale_domains
-                ),
+                stale_domains=(STALE_DOMAINS if changed else stored.stale_domains),
             )
         self._store.put(record.selection_id.value, record)
         return record
@@ -508,9 +602,33 @@ class FoundationSelectionService:
         return installed[-1] if installed else matches[-1]
 
 
+def _storage_feasible(
+    storage_evidence: Mapping[str, StorageCapacityEvidence] | None,
+    mount: str | None = None,
+) -> bool:
+    """Whether authorizing storage on the destination pool can hold a runtime."""
+    if not storage_evidence:
+        return False
+    requirement = runtime_provisioning_requirement(
+        mount_point=mount if mount is not None else NOT_PROVIDED
+    )
+    if mount is not None:
+        evidence = storage_evidence.get(mount)
+        return evidence is not None and requirement_fits(requirement, evidence) is True
+    return any(
+        requirement_fits(requirement, item) is True
+        for item in storage_evidence.values()
+    )
+
+
 def _confidence(
-    candidate: RuntimeCandidate, profile: RuntimeCapabilityProfile | None
+    candidate: RuntimeCandidate,
+    profile: RuntimeCapabilityProfile | None,
+    *,
+    storage_ok: bool = True,
 ) -> FoundationConfidence:
+    if not storage_ok and is_provisionable(candidate):
+        return FoundationConfidence.BLOCKED
     if profile is not None and profile.status is VerificationStatus.VERIFIED:
         return FoundationConfidence.VERIFIED_EXECUTABLE
     if is_provisionable(candidate):

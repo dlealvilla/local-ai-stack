@@ -11,7 +11,7 @@ import hashlib
 from kultrun.host.contracts import HostCapabilities
 from kultrun.kernel.errors import PreconditionFailedError
 from kultrun.kernel.ids import Name
-from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.runtime.contracts import (
     CompatibilityClass,
     ProvisioningComponent,
@@ -33,6 +33,7 @@ from kultrun.runtime.pins import (
     VLLM_PACKAGE,
     VLLM_VERSION,
 )
+from kultrun.storage.footprint import runtime_provisioning_requirement
 
 _SOLVABLE = {
     ResolutionReasonCode.REQUIRED_COMPONENT_MISSING,
@@ -112,9 +113,7 @@ def fingerprint_plan(
 
 def fingerprint_installation_id(plan_id: str) -> RuntimeInstallationId:
     """One installation identity per plan. Retry reuses it."""
-    digest = hashlib.sha256(
-        f"runtime.installation@1|{plan_id}".encode()
-    ).hexdigest()
+    digest = hashlib.sha256(f"runtime.installation@1|{plan_id}".encode()).hexdigest()
     return RuntimeInstallationId(f"rinst_{digest[:16]}")
 
 
@@ -125,6 +124,7 @@ def build_plan(
     mechanism: str,
     python_executable: str | None,
     created_at: dt.datetime,
+    destination_mount: Maybe[str] = NOT_PROVIDED,
 ) -> RuntimeProvisioningPlan:
     """Exact intended install. Refuses unsupported and unverified claims."""
     if not is_provisionable(candidate):
@@ -146,9 +146,7 @@ def build_plan(
             expected=VLLM_VERSION,
             got=version or "unresolved",
         )
-    fingerprint = (
-        host.fingerprint if is_resolved(host.fingerprint) else ""
-    )
+    fingerprint = host.fingerprint if is_resolved(host.fingerprint) else ""
     if not fingerprint:
         raise PreconditionFailedError("host fingerprint is unresolved")
     if fingerprint != (
@@ -180,6 +178,10 @@ def build_plan(
     )
     installation_id = fingerprint_installation_id(plan_id.value)
     root = f"runtimes/{candidate.runtime.value}/{version}/{installation_id.value}"
+    mount: Maybe[str] = (
+        destination_mount if isinstance(destination_mount, str) else NOT_PROVIDED
+    )
+    requirement = runtime_provisioning_requirement(mount_point=mount)
     return RuntimeProvisioningPlan(
         plan_id=plan_id,
         candidate_id=RuntimeCandidateId.parse(candidate.candidate_id.value),
@@ -205,4 +207,9 @@ def build_plan(
             f"schema={PLAN_SCHEMA}",
             f"pin={VLLM_PACKAGE}=={VLLM_VERSION}",
         ),
+        storage_mount=requirement.mount_point,
+        persistent_bytes=requirement.persistent_bytes,
+        peak_transient_bytes=requirement.peak_transient_bytes,
+        cache_bytes=requirement.cache_bytes,
+        required_peak_free_bytes=requirement.required_peak_free_bytes,
     )

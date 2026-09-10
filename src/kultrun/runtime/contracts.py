@@ -556,6 +556,22 @@ class RuntimeProvisioningPlan(Contract):
     provenance: tuple[str, ...] = meaning(
         "short lineage; never a vendor object", default=()
     )
+    storage_mount: Maybe[str] = meaning(
+        "destination pool for this install", default=NOT_PROVIDED
+    )
+    persistent_bytes: Maybe[int] = meaning(
+        "estimated persistent runtime footprint", default=NOT_PROVIDED
+    )
+    peak_transient_bytes: Maybe[int] = meaning(
+        "staging peak above persistent", default=NOT_PROVIDED
+    )
+    cache_bytes: Maybe[int] = meaning(
+        "managed install cache; zero when --no-cache-dir", default=NOT_PROVIDED
+    )
+    required_peak_free_bytes: Maybe[int] = meaning(
+        "conservative peak free space required before realize",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="runtime.installation", version=1)
@@ -1073,9 +1089,7 @@ class RuntimeMemoryProfile(Contract):
     capability_profile_id: Maybe[str] = meaning(
         "RuntimeCapabilityProfile this probe was bound to", default=NOT_PROVIDED
     )
-    accelerator_index: int | None = meaning(
-        "device the probe reserved", default=None
-    )
+    accelerator_index: int | None = meaning("device the probe reserved", default=None)
     accelerator_architecture: Maybe[str] = meaning(
         "selected accelerator architecture/model basis", default=NOT_PROVIDED
     )

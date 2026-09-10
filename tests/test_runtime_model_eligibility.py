@@ -154,15 +154,15 @@ def _verified(
     descriptors = descriptors or (VllmRuntimeSupport().support(),)
     eligibility, foundation = _services(tmp_path, scenario)
     args = (host, (native,), descriptors)
-    kwargs = {"components": {"vllm": "missing"}}
+    components = {"vllm": "missing"}
     if policy is not None:
-        foundation.select_auto(*args, policy, **kwargs)
-        foundation.realize_selected(*args, policy, **kwargs)
-        foundation.verify_selected(*args, policy, **kwargs)
+        foundation.select_auto(*args, policy, components=components)
+        foundation.realize_selected(*args, policy, components=components)
+        foundation.verify_selected(*args, policy, components=components)
     else:
-        foundation.select_auto(*args, **kwargs)
-        foundation.realize_selected(*args, **kwargs)
-        foundation.verify_selected(*args, **kwargs)
+        foundation.select_auto(*args, components=components)
+        foundation.realize_selected(*args, components=components)
+        foundation.verify_selected(*args, components=components)
     return eligibility, foundation, host, native, descriptors
 
 
@@ -394,9 +394,7 @@ def test_missing_profile_is_unavailable(tmp_path: Path) -> None:
     native = _native(host)
     eligibility, foundation = _services(tmp_path)
     descriptors = (VllmRuntimeSupport().support(),)
-    foundation.select_auto(
-        host, (native,), descriptors, components={"vllm": "missing"}
-    )
+    foundation.select_auto(host, (native,), descriptors, components={"vllm": "missing"})
     foundation.realize_selected(
         host, (native,), descriptors, components={"vllm": "missing"}
     )
@@ -529,9 +527,7 @@ def test_planning_tokens_use_eligible_view(tmp_path: Path) -> None:
     view = eligibility.evaluate(
         host, (native,), descriptors, _facts(), components={"vllm": "missing"}
     )
-    mapping = runtime_compatibility(
-        view, [item.model_id for item in _facts()]
-    )
+    mapping = runtime_compatibility(view, [item.model_id for item in _facts()])
     assert mapping["model_awq"] is CompatibilityVerdict.COMPATIBLE
     assert mapping["model_q4"] is CompatibilityVerdict.UNSUPPORTED
     assert mapping["model_tiny"] is CompatibilityVerdict.UNRESOLVED

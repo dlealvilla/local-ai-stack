@@ -225,10 +225,13 @@ class ProvisioningService:
                 self._write_metadata(staging, record)
                 self._promote(staging, final)
             except (OSError, TimeoutError) as error:
+                from kultrun.storage.failures import classify_oserror
+
+                classified = classify_oserror(error)
                 return self._fail(
                     record,
                     staging,
-                    code="installer_failed",
+                    code=classified.value,
                     message=str(error),
                 )
             python_executable = _relocated_after_promote(
@@ -449,9 +452,7 @@ def _relocated_after_promote(
     return value.replace(prefix, str(final))
 
 
-def _executor_available(
-    executors: Sequence[ExecutorCapabilityView], name: str
-) -> bool:
+def _executor_available(executors: Sequence[ExecutorCapabilityView], name: str) -> bool:
     for profile in executors:
         if profile.executor.value == name:
             token = getattr(profile.availability, "value", profile.availability)

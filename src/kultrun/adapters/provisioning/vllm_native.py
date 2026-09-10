@@ -103,9 +103,7 @@ class VllmNativeProvisioner:
                 failure_message="python 3.12 is not available",
             )
         venv_root = staging_dir / "venv"
-        created = self._runner.run(
-            [python_executable, "-m", "venv", str(venv_root)]
-        )
+        created = self._runner.run([python_executable, "-m", "venv", str(venv_root)])
         if created.returncode != 0:
             return InstallerOutcome(
                 succeeded=False,
@@ -130,6 +128,7 @@ class VllmNativeProvisioner:
                 PIP_INSTALLER,
                 "install",
                 "--disable-pip-version-check",
+                "--no-cache-dir",
                 "--report",
                 str(report),
                 package,
@@ -141,9 +140,7 @@ class VllmNativeProvisioner:
                 failure_code="installer_failed",
                 failure_message=installed.stderr.strip() or "pip install failed",
             )
-        probed = self._runner.run(
-            [str(venv_python), "-c", METADATA_PROBE]
-        )
+        probed = self._runner.run([str(venv_python), "-c", METADATA_PROBE])
         if probed.returncode != 0:
             return InstallerOutcome(
                 succeeded=False,
@@ -168,9 +165,7 @@ class VllmNativeProvisioner:
         )
 
     def _pip_version(self, venv_python: Path) -> str | None:
-        result = self._runner.run(
-            [str(venv_python), "-m", PIP_INSTALLER, "--version"]
-        )
+        result = self._runner.run([str(venv_python), "-m", PIP_INSTALLER, "--version"])
         if result.returncode != 0:
             return None
         return result.stdout.strip() or None
