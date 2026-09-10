@@ -1,9 +1,10 @@
-"""Tier 2 — storage as a set of pools.
+"""Storage as a set of pools.
 
-A mutation is admitted against the specific pool it will mutate. Pools are
-plural from v1 even though the reference host has one: the previous attempt
-designed multi-pool storage and never exercised it.
+A pool is the platform's interpretation of a mount as allocatable,
+quota-bounded, fingerprinted capacity. That is a different concept from the
+mount facts `host` reports, which is why they have different owners: one is
+inspection, the other is the domain against which a mutation is admitted.
 
-This package may never import `model`. Platform-managed usage arrives
-through a port that speaks bytes per pool and carries no entity identity.
+Ownership, topology, Storage Sonar evidence and empirical fallback live
+here. Capacity consumes the resulting contracts and never probes.
 """

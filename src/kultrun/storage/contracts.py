@@ -22,6 +22,7 @@ import datetime as dt
 from dataclasses import dataclass
 from enum import StrEnum
 
+from kultrun.evidence.contracts import Confidence, Provenance
 from kultrun.host.contracts import HostId
 from kultrun.kernel.ids import EntityId, Name
 from kultrun.kernel.schema import Contract, contract, meaning
@@ -164,8 +165,9 @@ class ProbeAttempt(Contract):
         "abandoned attempt still reserved something"
     )
     duration_seconds: float = meaning("how long it took, which is the cost")
-    detail: str | None = meaning("the underlying reason, when there was one",
-                                 default=None)
+    detail: str | None = meaning(
+        "the underlying reason, when there was one", default=None
+    )
 
 
 @contract(kind="storage.sanity_evidence", version=1)
@@ -218,8 +220,7 @@ class StorageSanityEvidence(Contract):
         "cumulative bytes reserved across the ladder — the probe's real cost",
         default=0,
     )
-    elapsed_seconds: float = meaning("wall clock across the whole ladder",
-                                     default=0.0)
+    elapsed_seconds: float = meaning("wall clock across the whole ladder", default=0.0)
     cleanup_verified: bool = meaning(
         "whether the probe artifact was confirmed gone. Confirmed by absence "
         "of the path, never by a free-space delta: deleting a 42,990 MiB "
@@ -228,5 +229,377 @@ class StorageSanityEvidence(Contract):
     )
     orphans_removed: int = meaning(
         "probe artifacts from an earlier interrupted run, cleaned before "
-        "this one started", default=0
+        "this one started",
+        default=0,
     )
+
+
+# -- ownership ---------------------------------------------------------------
+
+
+class OwnershipId(EntityId):
+    """Identifies one Kultrun-managed storage resource."""
+
+    prefix = "own"
+
+
+class InstallationGenerationId(EntityId):
+    """Identifies one managed installation generation."""
+
+    prefix = "igen"
+
+
+class ManagedResourceType(StrEnum):
+    """What kind of managed root this is. Ownership is at the root, not per file."""
+
+    STATE_ROOT = "state_root"
+    RUNTIME_STAGING = "runtime_staging"
+    RUNTIME_FINAL = "runtime_final"
+    INSTALL_CACHE = "install_cache"
+    MODEL_STAGING = "model_staging"
+    MODEL_ARTIFACT = "model_artifact"
+    DOWNLOAD_CACHE = "download_cache"
+    TEMP = "temp"
+    TELEMETRY = "telemetry"
+    LOGS = "logs"
+    GENERATED_CONFIG = "generated_config"
+    SONAR_PROBE = "sonar_probe"
+    INSTALLATION_GENERATION = "installation_generation"
+
+
+class LifecycleState(StrEnum):
+    """Where a managed resource is in its life."""
+
+    PREPARING = "preparing"
+    ACTIVE = "active"
+    FAILED = "failed"
+    DISPOSABLE = "disposable"
+    RETAINED = "retained"
+    UNRESOLVED = "unresolved"
+
+
+class CleanupPolicy(StrEnum):
+    """Whether Step 0 may delete this resource when otherwise eligible."""
+
+    DISPOSABLE = "disposable"
+    RETAIN = "retain"
+    MANUAL = "manual"
+
+
+class OwnershipConflict(StrEnum):
+    """Why automatic deletion is refused."""
+
+    NONE = "none"
+    MANIFEST_MISSING = "manifest_missing"
+    REGISTRY_MISSING = "registry_missing"
+    IDENTITY_MISMATCH = "manifest_registry_mismatch"
+    ACTIVE_REFERENCE = "active_reference"
+    PROTECTED = "protected"
+    LEGACY_UNLABELLED = "legacy_unlabelled"
+    PATH_ESCAPE = "path_escape"
+
+
+LOCAL_OWNER_FILENAME = ".kultrun-owner.json"
+
+
+@contract(kind="storage.ownership_record", version=1)
+@dataclass(frozen=True, slots=True)
+class OwnershipRecord(Contract):
+    """Positive ownership of one managed root. Dual with the local marker."""
+
+    ownership_id: OwnershipId = meaning("platform-minted identity of this resource")
+    host_id: HostId = meaning("host this managed root belongs to")
+    resource_type: ManagedResourceType = meaning("kind of managed root")
+    managed_root: str = meaning("absolute path of the owned root")
+    created_at: dt.datetime = meaning("when ownership was asserted, UTC")
+    kultrun_version: str = meaning("Kultrun version that created the resource")
+    created_by: str = meaning("always kultrun; never inferred from a path")
+    lifecycle_state: LifecycleState = meaning("current lifecycle classification")
+    cleanup_policy: CleanupPolicy = meaning("whether Step 0 may delete this root")
+    protected: bool = meaning("true when automatic cleanup is forbidden")
+    rollback_protected: bool = meaning(
+        "true when this generation is retained for rollback"
+    )
+    evidence_retained: bool = meaning(
+        "true when the root is kept as investigation evidence"
+    )
+    storage_pool_id: Maybe[str] = meaning(
+        "StoragePool identity of the quota domain", default=NOT_PROVIDED
+    )
+    quota_identity: Maybe[str] = meaning(
+        "quota domain this root spends from", default=NOT_PROVIDED
+    )
+    installation_generation_id: Maybe[str] = meaning(
+        "generation this root belongs to", default=NOT_PROVIDED
+    )
+    runtime_installation_id: Maybe[str] = meaning(
+        "RuntimeInstallation identity when this is a runtime root",
+        default=NOT_PROVIDED,
+    )
+    artifact_id: Maybe[str] = meaning(
+        "ModelArtifact identity when this is an artifact root",
+        default=NOT_PROVIDED,
+    )
+    deployment_id: Maybe[str] = meaning(
+        "DeploymentPlan identity when this is bound to a plan",
+        default=NOT_PROVIDED,
+    )
+
+
+@contract(kind="storage.installation_generation", version=1)
+@dataclass(frozen=True, slots=True)
+class InstallationGeneration(Contract):
+    """One managed generation: runtime, staging, caches, config references.
+
+    A seam, not an installer. Prepare / verify / promote / rollback GC come later.
+    """
+
+    generation_id: InstallationGenerationId = meaning("identity of this generation")
+    host_id: HostId = meaning("host this generation was created on")
+    created_at: dt.datetime = meaning("when the generation was opened, UTC")
+    lifecycle_state: LifecycleState = meaning("preparing, active, failed, or retained")
+    rollback_protected: bool = meaning("true while a prior generation must be kept")
+    ownership_ids: tuple[str, ...] = meaning(
+        "owned roots that belong to this generation", default=()
+    )
+
+
+# -- evidence ----------------------------------------------------------------
+
+
+class StorageEvidenceStatus(StrEnum):
+    """How storage evidence may be used. Names the authorization class."""
+
+    AUTHORITATIVE = "authoritative"
+    CORROBORATED = "corroborated"
+    PROBED = "probed"
+    BOUNDED = "bounded"
+    CONTRADICTED = "contradicted"
+    UNRESOLVED = "unresolved"
+
+
+class StorageFailureCode(StrEnum):
+    """Normalized write failures. Not installer flavour text."""
+
+    STORAGE_QUOTA_EXCEEDED = "storage_quota_exceeded"
+    STORAGE_SPACE_EXHAUSTED = "storage_space_exhausted"
+    STORAGE_PERMISSION_DENIED = "storage_permission_denied"
+    STORAGE_IO_FAILURE = "storage_io_failure"
+    STORAGE_UNRESOLVED = "storage_unresolved"
+
+
+class ManagedPathPurpose(StrEnum):
+    """Why a managed path exists. Used to bind paths to pools."""
+
+    STATE_ROOT = "state_root"
+    RUNTIME_STAGING = "runtime_staging"
+    RUNTIME_FINAL = "runtime_final"
+    INSTALL_CACHE = "install_cache"
+    MODEL_STAGING = "model_staging"
+    MODEL_FINAL = "model_final"
+    DOWNLOAD_CACHE = "download_cache"
+    TEMP = "temp"
+    TELEMETRY = "telemetry"
+    LOGS = "logs"
+
+
+@contract(kind="storage.capacity_evidence", version=1)
+@dataclass(frozen=True, slots=True)
+class StorageCapacityEvidence(Contract):
+    """Normalized capacity evidence for one pool. Capacity consumes this as data."""
+
+    host_id: HostId = meaning("host this evidence was gathered on")
+    mount_point: str = meaning("pool mount this describes")
+    quota_identity: Maybe[str] = meaning("quota domain, when known")
+    pool_fingerprint: str = meaning("pool identity; invalid when the mount changes")
+    observed_at: dt.datetime = meaning("when this evidence was produced, UTC")
+    status: StorageEvidenceStatus = meaning("authorization class of this evidence")
+    confidence: Confidence = meaning("how much weight this evidence carries")
+    provenance: Provenance = meaning("who produced it, when, under which policy")
+    reported_available_bytes: Maybe[int] = meaning(
+        "generic filesystem-reported free space; never authorizes alone",
+        default=NOT_PROVIDED,
+    )
+    declared_available_bytes: Maybe[int] = meaning(
+        "strongest native/declared available figure, when one exists",
+        default=NOT_PROVIDED,
+    )
+    probe_available_bytes: Maybe[int] = meaning(
+        "technology-specific probe available figure, when one ran",
+        default=NOT_PROVIDED,
+    )
+    hard_maximum_bytes: Maybe[int] = meaning(
+        "smallest known hard entitlement; a probe may not exceed it",
+        default=NOT_PROVIDED,
+    )
+    operational_available_bytes: Maybe[int] = meaning(
+        "available after arbitration, before Kultrun headroom; not SAFE",
+        default=NOT_PROVIDED,
+    )
+    authorizing_available_bytes: Maybe[int] = meaning(
+        "the only figure ResourceManager may spend; unresolved is not zero",
+        default=NOT_PROVIDED,
+    )
+    belief_bound_bytes: Maybe[int] = meaning(
+        "heuristic ceiling for display; never authorizing SAFE",
+        default=NOT_PROVIDED,
+    )
+    native_source: Maybe[str] = meaning(
+        "declared/native source identity", default=NOT_PROVIDED
+    )
+    probe_name: Maybe[str] = meaning(
+        "technology probe that ran, if any", default=NOT_PROVIDED
+    )
+    probe_available: bool = meaning("whether a compatible probe existed", default=False)
+    probe_executed: bool = meaning("whether that probe actually ran", default=False)
+    disagreement_ratio: Maybe[float] = meaning(
+        "abs(native-probe)/max(native,probe) when both exist", default=NOT_PROVIDED
+    )
+    selected_reason: str = meaning("why the operational value was chosen", default="")
+    administrator_bound_bytes: Maybe[int] = meaning(
+        "manual bound; never overrides a smaller hard or empirical failure",
+        default=NOT_PROVIDED,
+    )
+
+
+@contract(kind="storage.requirement", version=1)
+@dataclass(frozen=True, slots=True)
+class StorageRequirement(Contract):
+    """What a mutation would cost on one pool. Conservative bound admits."""
+
+    confidence: Confidence = meaning("how much weight this requirement carries")
+    persistent_bytes: Maybe[int] = meaning(
+        "bytes expected to remain after success", default=NOT_PROVIDED
+    )
+    peak_transient_bytes: Maybe[int] = meaning(
+        "staging/workspace peak above persistent", default=NOT_PROVIDED
+    )
+    cache_bytes: Maybe[int] = meaning(
+        "install/download cache if Kultrun-owned", default=NOT_PROVIDED
+    )
+    reserve_bytes: Maybe[int] = meaning(
+        "emergency headroom this operation must leave", default=NOT_PROVIDED
+    )
+    required_peak_free_bytes: Maybe[int] = meaning(
+        "conservative peak free space required before mutation",
+        default=NOT_PROVIDED,
+    )
+    mount_point: Maybe[str] = meaning("destination pool mount", default=NOT_PROVIDED)
+    quota_identity: Maybe[str] = meaning(
+        "destination quota domain", default=NOT_PROVIDED
+    )
+    source: Maybe[str] = meaning(
+        "how this requirement was produced", default=NOT_PROVIDED
+    )
+    notes: tuple[str, ...] = meaning("short factual notes", default=())
+
+
+@contract(kind="storage.managed_path", version=1)
+@dataclass(frozen=True, slots=True)
+class ManagedPathBinding(Contract):
+    """One significant path bound to a pool. Not a capacity claim."""
+
+    host_id: HostId = meaning("host this path belongs to")
+    purpose: ManagedPathPurpose = meaning("why this path exists")
+    path: str = meaning("absolute path")
+    mount_point: Maybe[str] = meaning(
+        "StoragePool mount that contains it", default=NOT_PROVIDED
+    )
+    quota_identity: Maybe[str] = meaning(
+        "quota domain it spends from", default=NOT_PROVIDED
+    )
+    ownership_id: Maybe[str] = meaning(
+        "ownership record, when asserted", default=NOT_PROVIDED
+    )
+    persistent: bool = meaning(
+        "true when the path is expected to survive restart", default=True
+    )
+
+
+@contract(kind="storage.probe_report", version=1)
+@dataclass(frozen=True, slots=True)
+class ProbeReport(Contract):
+    """Whether a technology probe existed, ran, and what it measured."""
+
+    probe_name: str = meaning("registered probe identity")
+    technology: str = meaning("storage technology this probe addresses")
+    compatible: bool = meaning("true when supports() matched this environment")
+    available: bool = meaning("true when the probe's method can actually run")
+    executed: bool = meaning("true when probe() was invoked")
+    available_bytes: Maybe[int] = meaning(
+        "available writable bytes the probe measured", default=NOT_PROVIDED
+    )
+    hard_maximum_bytes: Maybe[int] = meaning(
+        "hard entitlement the probe observed, if any", default=NOT_PROVIDED
+    )
+    detail: str = meaning("why it ran, skipped, or failed", default="")
+
+
+@contract(kind="storage.cleanup_report", version=1)
+@dataclass(frozen=True, slots=True)
+class CleanupReport(Contract):
+    """Outcome of Step 0. Absence of deletion is not a failure."""
+
+    host_id: HostId = meaning("host that was inventoried")
+    inspected: int = meaning("managed roots considered")
+    removed: int = meaning("roots actually deleted")
+    bytes_removed: int = meaning("bytes removed, best effort")
+    unresolved: tuple[str, ...] = meaning("roots that must not be deleted", default=())
+    protected: tuple[str, ...] = meaning(
+        "active, rollback, or evidence roots", default=()
+    )
+    legacy_unlabelled: tuple[str, ...] = meaning(
+        "kultrun-looking paths without positive ownership", default=()
+    )
+    rediscovery_required: bool = meaning("always true after Step 0", default=True)
+
+
+@contract(kind="storage.empirical_evidence", version=1)
+@dataclass(frozen=True, slots=True)
+class EmpiricalProbeEvidence(Contract):
+    """Bounded real-write search result. Evidence, not a selection."""
+
+    host_id: HostId = meaning("host the probe ran on")
+    mount_point: str = meaning("pool that was probed")
+    target_path: str = meaning("directory the probe file lived on")
+    max_probe_bytes: int = meaning("configured exploration ceiling")
+    bytes_physically_written: int = meaning("bytes actually written before cleanup")
+    search_granularity_bytes: int = meaning("smallest step the search used")
+    probe_ceiling_reached: bool = meaning(
+        "true when the ceiling was hit without a capacity failure"
+    )
+    confidence: Confidence = meaning("weight of this empirical bound")
+    provenance: Provenance = meaning("probe identity and time")
+    cleanup_success: bool = meaning("true when the owned probe file was confirmed gone")
+    verified_lower_bound_bytes: Maybe[int] = meaning(
+        "largest successful real write", default=NOT_PROVIDED
+    )
+    observed_failure_upper_bytes: Maybe[int] = meaning(
+        "smallest size that failed for space or quota", default=NOT_PROVIDED
+    )
+    failure_code: Maybe[str] = meaning(
+        "STORAGE_QUOTA_EXCEEDED / STORAGE_SPACE_EXHAUSTED when observed",
+        default=NOT_PROVIDED,
+    )
+    failure_errno: Maybe[int] = meaning(
+        "underlying errno when a write failed", default=NOT_PROVIDED
+    )
+    elapsed_seconds: float = meaning("wall clock of the search", default=0.0)
+    interrupted: bool = meaning("true when cancelled or timed out", default=False)
+
+
+@contract(kind="storage.low_space_guidance", version=1)
+@dataclass(frozen=True, slots=True)
+class LowSpaceGuidance(Contract):
+    """Administrator guidance when authorizing storage is too small to deploy."""
+
+    host_id: HostId = meaning("host this guidance is for")
+    mount_point: str = meaning("constrained storage domain")
+    quota_identity: Maybe[str] = meaning("quota domain, when known")
+    authorizing_available_bytes: Maybe[int] = meaning(
+        "what Kultrun can currently establish"
+    )
+    threshold_bytes: int = meaning("policy threshold that triggered guidance")
+    cleaned_bytes: int = meaning("owned disposable bytes Step 0 removed")
+    message: str = meaning("what the administrator is asked to do")
+    rediscovery_required: bool = meaning("true; the next attempt must rediscover")
