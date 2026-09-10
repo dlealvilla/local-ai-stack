@@ -100,9 +100,13 @@ def safe_storage(
                 known=[item.mount_point for item in envelope.pools],
             )
         return mount, pool.space.safe_bytes
-    for pool in envelope.pools:
-        if is_resolved(pool.space.safe_bytes):
-            return pool.mount_point, pool.space.safe_bytes
+    resolved = [
+        (item.mount_point, item.space.safe_bytes)
+        for item in envelope.pools
+        if is_resolved(item.space.safe_bytes)
+    ]
+    if len(resolved) == 1:
+        return resolved[0]
     return None, NOT_PROVIDED
 
 
@@ -134,6 +138,8 @@ class AcquisitionService:
         request: ModelAcquisitionRequest,
         envelope: CapacityEnvelope,
         host_id: HostId,
+        *,
+        destination_mount: str | None = None,
     ) -> AcquisitionReceipt:
         """Preflight SAFE storage, fetch into staging, verify, then STORED."""
         now = self._clock.now()
@@ -143,7 +149,7 @@ class AcquisitionService:
                 "storage requirement is unresolved; unknown is not zero",
                 reason=AcquisitionFailureReason.UNRESOLVED_STORAGE_REQUIREMENT.value,
             )
-        mount, safe = safe_storage(envelope)
+        mount, safe = safe_storage(envelope, destination_mount)
         if not is_resolved(safe) or not isinstance(safe, int):
             raise PreconditionFailedError(
                 "SAFE storage is unresolved; reported capacity authorizes nothing",
@@ -216,9 +222,7 @@ class AcquisitionService:
                         "provider must not substitute quantization",
                     )
                 verified = verify_staging(staging, resolved)
-                manifest = self._manifest(
-                    request, artifact_id, fetched, verified, now
-                )
+                manifest = self._manifest(request, artifact_id, fetched, verified, now)
                 self._promote(artifact_id, staging, manifest)
             except AcquisitionProviderError as error:
                 self._cleanup(staging)
@@ -528,8 +532,9 @@ def verify_staging(staging: Path, resolved_revision: str) -> _Verified:
             "artifact bytes are empty",
         )
     digest = hashlib.sha256(
-        "\n".join(f"{name}:{size}" for name, size in zip(names, sizes, strict=True))
-        .encode("utf-8")
+        "\n".join(
+            f"{name}:{size}" for name, size in zip(names, sizes, strict=True)
+        ).encode("utf-8")
     ).hexdigest()
     evidence.append(f"manifest_sha256:{digest}")
     evidence.append(f"files:{len(names)}")

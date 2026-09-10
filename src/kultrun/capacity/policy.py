@@ -22,7 +22,7 @@ _GIB: Final = 1024**3
 
 #: Bumped whenever any value below changes, so an envelope produced under an
 #: older policy stays explicable rather than merely stale.
-POLICY_VERSION: Final = "1.2.0-policy-only"
+POLICY_VERSION: Final = "1.6L.0-storage-truth"
 
 #: Filesystem families whose reported size does not corroborate usable
 #: capacity: their totals describe a backend or an aggregate rather than an

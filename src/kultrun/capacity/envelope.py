@@ -46,7 +46,12 @@ from kultrun.kernel.unresolved import (
     Maybe,
     is_resolved,
 )
-from kultrun.storage.contracts import SanityStatus, StorageSanityEvidence
+from kultrun.storage.contracts import (
+    SanityStatus,
+    StorageCapacityEvidence,
+    StorageEvidenceStatus,
+    StorageSanityEvidence,
+)
 
 PRODUCER: Final = Name("capacity")
 
@@ -68,18 +73,19 @@ class CapacityService:
         self,
         host: HostCapabilities,
         sanity: Mapping[str, StorageSanityEvidence] | None = None,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
     ) -> CapacityEnvelope:
         """Derive the envelope from host facts. Deterministic but for the clock.
 
-        `sanity` is empirical storage evidence already gathered, keyed by
-        mount point. Passed in rather than fetched, because computing
-        capacity must never be able to cause a filesystem probe — a read
-        that allocates storage is the previous implementation's mistake.
+        `sanity` and `storage_evidence` are already gathered. Passed in
+        rather than fetched, because computing capacity must never cause a
+        filesystem probe — a read that allocates storage is the previous
+        implementation's mistake.
         """
         defects: list[str] = []
         memory, memory_requirement, memory_note = self._memory(host, defects)
         accelerators = self._accelerators(host, defects)
-        pools = self._pools(host, defects, sanity or {})
+        pools = self._pools(host, defects, sanity or {}, storage_evidence or {})
 
         return CapacityEnvelope(
             host_id=host.host_id,
@@ -118,8 +124,9 @@ class CapacityService:
                 "exists and nothing may be admitted against memory"
             )
             return (
-                self._layered(NOT_PROVIDED, NOT_PROVIDED, NOT_PROVIDED,
-                              Confidence.UNKNOWN),
+                self._layered(
+                    NOT_PROVIDED, NOT_PROVIDED, NOT_PROVIDED, Confidence.UNKNOWN
+                ),
                 EvidenceRequirement.UNKNOWN,
                 "host discovery reported no memory total",
             )
@@ -143,8 +150,7 @@ class CapacityService:
         )
         if not is_resolved(safe):
             defects.append(
-                "the memory reserve exceeds effective memory, so no safe "
-                "memory remains"
+                "the memory reserve exceeds effective memory, so no safe memory remains"
             )
         return (
             self._layered(reported, effective, safe, Confidence.HIGH),
@@ -189,8 +195,9 @@ class CapacityService:
             )
             return AcceleratorCapacity(
                 index=accelerator.index,
-                memory=self._layered(NOT_PROVIDED, NOT_PROVIDED, NOT_PROVIDED,
-                                     Confidence.UNKNOWN),
+                memory=self._layered(
+                    NOT_PROVIDED, NOT_PROVIDED, NOT_PROVIDED, Confidence.UNKNOWN
+                ),
                 requirement=EvidenceRequirement.UNKNOWN,
                 note="the vendor interface reported no device memory",
             )
@@ -210,8 +217,9 @@ class CapacityService:
             )
             return AcceleratorCapacity(
                 index=accelerator.index,
-                memory=self._layered(reported, NOT_PROVIDED, NOT_PROVIDED,
-                                     Confidence.LOW),
+                memory=self._layered(
+                    reported, NOT_PROVIDED, NOT_PROVIDED, Confidence.LOW
+                ),
                 requirement=EvidenceRequirement.UNKNOWN,
                 note="unified memory unresolved; failing closed",
             )
@@ -223,8 +231,9 @@ class CapacityService:
             )
             return AcceleratorCapacity(
                 index=accelerator.index,
-                memory=self._layered(reported, NOT_PROVIDED, NOT_PROVIDED,
-                                     Confidence.LOW),
+                memory=self._layered(
+                    reported, NOT_PROVIDED, NOT_PROVIDED, Confidence.LOW
+                ),
                 requirement=EvidenceRequirement.EMPIRICAL_EVIDENCE_NEEDED,
                 note=(
                     "unified with system memory; a shared budget is deferred "
@@ -255,9 +264,15 @@ class CapacityService:
         host: HostCapabilities,
         defects: list[str],
         sanity: Mapping[str, StorageSanityEvidence],
+        storage_evidence: Mapping[str, StorageCapacityEvidence],
     ) -> tuple[PoolCapacity, ...]:
         return tuple(
-            self._pool(mount, defects, sanity.get(mount.mount_point))
+            self._pool(
+                mount,
+                defects,
+                sanity.get(mount.mount_point),
+                storage_evidence.get(mount.mount_point),
+            )
             for mount in host.mounts
             if not _is_volatile(mount)
         )
@@ -267,6 +282,7 @@ class CapacityService:
         mount: MountFacts,
         defects: list[str],
         evidence: StorageSanityEvidence | None,
+        capacity_evidence: StorageCapacityEvidence | None = None,
     ) -> PoolCapacity:
         """Free space, bounded when the filesystem's own figure proves nothing.
 
@@ -287,8 +303,9 @@ class CapacityService:
             )
             return PoolCapacity(
                 mount_point=mount.mount_point,
-                space=self._layered(NOT_PROVIDED, NOT_PROVIDED, NOT_PROVIDED,
-                                    Confidence.UNKNOWN),
+                space=self._layered(
+                    NOT_PROVIDED, NOT_PROVIDED, NOT_PROVIDED, Confidence.UNKNOWN
+                ),
                 requirement=EvidenceRequirement.UNKNOWN,
                 filesystem_type=mount.filesystem_type,
                 reported_total_bytes=mount.total_bytes,
@@ -309,8 +326,8 @@ class CapacityService:
             note = (
                 f"a {family} filesystem's reported size describes a backend "
                 f"rather than an entitlement, so it is not evidence of usable "
-                f"capacity; effective bounded at {ceiling} bytes pending "
-                f"empirical verification (Stage 2.2)"
+                f"capacity; effective is a belief bound of {ceiling} bytes "
+                "and does not authorize writes"
             )
         else:
             requirement = EvidenceRequirement.UNKNOWN
@@ -364,11 +381,35 @@ class CapacityService:
                 f"{requirement.value}"
             )
 
-        safe = self._withhold(
-            effective,
-            self._policy.storage_reserve_fraction,
-            self._policy.storage_reserve_floor_bytes,
-        )
+        authorizing = _authorizing_storage(capacity_evidence)
+        if authorizing is not None:
+            effective = authorizing
+            if capacity_evidence is not None and capacity_evidence.selected_reason:
+                note = capacity_evidence.selected_reason
+            safe = self._withhold(
+                effective,
+                self._policy.storage_reserve_fraction,
+                self._policy.storage_reserve_floor_bytes,
+            )
+        elif requirement is EvidenceRequirement.SUFFICIENT:
+            safe = self._withhold(
+                effective,
+                self._policy.storage_reserve_fraction,
+                self._policy.storage_reserve_floor_bytes,
+            )
+        else:
+            # Belief bounds and unverified FUSE/network figures may be
+            # displayed. They never populate SAFE — ResourceManager spends SAFE.
+            safe = NOT_PROVIDED
+            extra = (
+                "SAFE is unresolved until Storage Sonar produces authorizing "
+                "capacity; a heuristic ceiling is not proven writable capacity"
+            )
+            note = f"{note}; {extra}" if note else extra
+            defects.append(
+                f"pool {mount.mount_point} has no authorizing storage evidence, "
+                "so SAFE is unresolved"
+            )
         if requirement is EvidenceRequirement.SUFFICIENT:
             confidence = Confidence.HIGH
         elif status is SanityStatus.POLICY_CAP_VERIFIED:
@@ -381,8 +422,7 @@ class CapacityService:
         wants_check = (
             requirement is not EvidenceRequirement.SUFFICIENT
             and reported >= self._policy.sanity_trigger_bytes
-            and status
-            in (SanityStatus.NOT_CHECKED, SanityStatus.PARTIALLY_VERIFIED)
+            and status in (SanityStatus.NOT_CHECKED, SanityStatus.PARTIALLY_VERIFIED)
         )
         if wants_check:
             defects.append(
@@ -445,6 +485,20 @@ class CapacityService:
         )
 
 
+def _authorizing_storage(
+    evidence: StorageCapacityEvidence | None,
+) -> int | None:
+    """Operational available when Sonar settled the pool. Not a belief bound."""
+    if evidence is None:
+        return None
+    if evidence.status is StorageEvidenceStatus.UNRESOLVED:
+        return None
+    value = evidence.authorizing_available_bytes
+    if not is_resolved(value):
+        return None
+    return value
+
+
 def _first_resolved(*values: Maybe[bool]) -> Maybe[bool]:
     """The first value that is actually known, or unresolved."""
     for value in values:
@@ -466,4 +520,3 @@ def _is_volatile(mount: MountFacts) -> bool:
     it as storage would count the same bytes twice.
     """
     return _family(mount.filesystem_type) in VOLATILE_FAMILIES
-

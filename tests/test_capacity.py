@@ -306,10 +306,10 @@ class TestStorage:
         assert pool.space.effective_bytes == policy.unverified_pool_ceiling_bytes
         assert pool.requirement is EvidenceRequirement.EMPIRICAL_EVIDENCE_NEEDED
         assert pool.space.confidence is Confidence.LOW
-        assert isinstance(pool.space.safe_bytes, int)
-        assert pool.space.safe_bytes < policy.unverified_pool_ceiling_bytes
+        assert not is_resolved(pool.space.safe_bytes)
+        assert pool.space.authorizing_bytes != pool.space.effective_bytes
         assert pool.note is not None
-        assert "Stage 2.2" in pool.note
+        assert "belief bound" in pool.note
 
     def test_the_bound_is_explained_as_a_defect(self) -> None:
         """An administrator is told, not left to infer it from a number."""
@@ -319,9 +319,7 @@ class TestStorage:
         assert any("only" in d and "/workspace" in d for d in envelope.defects)
 
     def test_a_local_filesystem_is_believed(self) -> None:
-        envelope = service().compute(
-            host(mounts=(mount("/", "ext4", free=500 * GIB),))
-        )
+        envelope = service().compute(host(mounts=(mount("/", "ext4", free=500 * GIB),)))
         pool = envelope.pools[0]
         assert pool.space.effective_bytes == 500 * GIB
         assert pool.requirement is EvidenceRequirement.SUFFICIENT

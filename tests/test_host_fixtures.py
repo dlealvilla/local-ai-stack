@@ -90,9 +90,7 @@ class TestTheReferenceHostReplays:
 
     def test_two_providers_independently_agree_on_memory(self, replayed: Host) -> None:
         """A topology tool and /proc/meminfo concurring is itself evidence."""
-        (entry,) = [
-            p for p in replayed.provenance if p.path == "memory.total_bytes"
-        ]
+        (entry,) = [p for p in replayed.provenance if p.path == "memory.total_bytes"]
         assert {name.value for name in entry.providers} == {"hwloc", "native-linux"}
 
     def test_exactly_one_accelerator_is_usable(self, replayed: Host) -> None:
@@ -175,9 +173,7 @@ class TestNormalizationHasNotDrifted:
     ) -> None:
         assert [
             (a.vendor.value, a.memory_total_bytes) for a in replayed.accelerators
-        ] == [
-            (a["vendor"], a["memory_total_bytes"]) for a in captured["accelerators"]
-        ]
+        ] == [(a["vendor"], a["memory_total_bytes"]) for a in captured["accelerators"]]
 
     def test_every_normalized_value_is_unchanged(
         self, replayed: Host, captured: Captured
@@ -247,10 +243,12 @@ class TestCapacityAgainstTheRealHost:
             default_policy().unverified_pool_ceiling_bytes
         )
         assert pool.requirement is EvidenceRequirement.EMPIRICAL_EVIDENCE_NEEDED
-        assert isinstance(pool.space.safe_bytes, int)
-        # Six orders of magnitude between what the filesystem claims and what
-        # Kultrun will authorize, entirely from policy and no probing.
-        assert pool.space.safe_bytes < pool.space.reported_bytes / 1000
+        from kultrun.kernel.unresolved import is_resolved
+
+        assert not is_resolved(pool.space.safe_bytes)
+        # Belief bound is six orders of magnitude below the filesystem claim.
+        # SAFE stays unresolved until Storage Sonar authorizes.
+        assert pool.space.effective_bytes < pool.space.reported_bytes / 1000
 
     def test_the_container_root_is_believed(self, replayed: Host) -> None:
         """An overlay describes this container's own storage, so it counts."""

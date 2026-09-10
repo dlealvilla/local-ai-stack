@@ -42,6 +42,7 @@ from kultrun.runtime.contracts import (
     RuntimeEligibilityStatus,
     RuntimePolicy,
 )
+from kultrun.storage.topology import mount_for_path
 from tests.architecture import BANNED_IMPLEMENTATION_FIELDS, _imports_named, scan
 from tests.test_runtime_model_eligibility import _alt_descriptor, _verified
 
@@ -517,7 +518,10 @@ def test_reservations_do_not_change_planning_requirement(tmp_path: Path) -> None
     entry = platform.models.acquirable(SMALL)
     assert entry is not None
     receipt = platform.acquisition.acquire(
-        request_from_entry(entry), envelope, host.host_id
+        request_from_entry(entry),
+        envelope,
+        host.host_id,
+        destination_mount=mount_for_path(platform.plane.state_root / "models", host),
     )
     artifact = platform.inventory.get(receipt.artifact_id)
     assert artifact is not None

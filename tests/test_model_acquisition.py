@@ -52,6 +52,7 @@ from kultrun.model.contracts import (
 from kultrun.model.inventory import ModelInventory
 from kultrun.model.ports import ModelAcquisitionProvider
 from kultrun.model.store import ModelArtifactStore
+from kultrun.storage.topology import mount_for_path
 from tests.architecture import scan
 from tests.test_capacity import host as capacity_host
 from tests.test_capacity import mount
@@ -307,9 +308,7 @@ class TestFixtureLifecycle:
         assert receipt.outcome == "failed"
         assert receipt.state is ArtifactState.INVALID
         stored = [
-            item
-            for item in inventory.artifacts()
-            if item.state is ArtifactState.STORED
+            item for item in inventory.artifacts() if item.state is ArtifactState.STORED
         ]
         assert stored == []
         assert not any((artifacts.root / "artifacts").glob("*"))
@@ -319,12 +318,10 @@ class TestFixtureLifecycle:
         receipt = service.acquire(_request(), _envelope(), host_id)
         assert receipt.outcome == "failed"
         assert (
-            receipt.failure_reason
-            == AcquisitionFailureReason.VERIFICATION_FAILED.value
+            receipt.failure_reason == AcquisitionFailureReason.VERIFICATION_FAILED.value
         )
         assert all(
-            item.state is not ArtifactState.STORED
-            for item in inventory.artifacts()
+            item.state is not ArtifactState.STORED for item in inventory.artifacts()
         )
 
     def test_interrupted_acquisition_is_not_stored(self, tmp_path: Path) -> None:
@@ -534,7 +531,14 @@ class TestPipelineRegression:
         assert request.source_ref == entry.metadata.source_ref
         host = platform.hosts.current
         envelope = platform.capacity.compute(host, {})
-        receipt = platform.acquisition.acquire(request, envelope, host.host_id)
+        receipt = platform.acquisition.acquire(
+            request,
+            envelope,
+            host.host_id,
+            destination_mount=mount_for_path(
+                platform.plane.state_root / "models", host
+            ),
+        )
         stored = platform.inventory.get(receipt.artifact_id)
         assert stored is not None
         assert stored.model_id == entry.metadata.model_id

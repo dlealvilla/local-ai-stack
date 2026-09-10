@@ -46,11 +46,16 @@ _QUANT_RANK = {
 }
 
 
-def deployment_capacity(envelope: CapacityEnvelope) -> DeploymentCapacity:
+def deployment_capacity(
+    envelope: CapacityEnvelope, *, storage_mount: str | None = None
+) -> DeploymentCapacity:
     """SAFE slice for v0: first assigned GPU, else CPU-only.
 
     Unified memory is a seam: Stage 1.2 does not assert a GPU budget on
     unified hosts, so this does not invent one.
+
+    Storage is the named destination pool. Several mounts must not collapse
+    to the first SAFE figure — that reintroduces the FUSE first-pool leak.
     """
     gpu = next(
         (
@@ -60,14 +65,7 @@ def deployment_capacity(envelope: CapacityEnvelope) -> DeploymentCapacity:
         ),
         None,
     )
-    storage = next(
-        (
-            pool.space.safe_bytes
-            for pool in envelope.pools
-            if is_resolved(pool.space.safe_bytes)
-        ),
-        NOT_PROVIDED,
-    )
+    storage = _pool_safe(envelope, storage_mount)
     if gpu is not None:
         return DeploymentCapacity(
             host_id=envelope.host_id,
@@ -99,6 +97,27 @@ def deployment_capacity(envelope: CapacityEnvelope) -> DeploymentCapacity:
         available_unified_bytes=NOT_PROVIDED,
         available_storage_bytes=storage,
     )
+
+
+def _pool_safe(envelope: CapacityEnvelope, storage_mount: str | None) -> Maybe[int]:
+    """SAFE bytes on the destination pool.
+
+    Unnamed callers may use the unique pool that has resolved SAFE. Several
+    authorizing pools stay unresolved — that is not a first-pool shortcut.
+    """
+    if storage_mount:
+        for pool in envelope.pools:
+            if pool.mount_point == storage_mount:
+                return pool.space.safe_bytes
+        return NOT_PROVIDED
+    resolved = [
+        pool.space.safe_bytes
+        for pool in envelope.pools
+        if is_resolved(pool.space.safe_bytes)
+    ]
+    if len(resolved) == 1:
+        return resolved[0]
+    return NOT_PROVIDED
 
 
 def _budget(available: Maybe[int], safe: Maybe[int]) -> Maybe[int]:

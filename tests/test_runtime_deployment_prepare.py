@@ -16,6 +16,7 @@ from kultrun.model.contracts import ArtifactId, MemoryPlacement
 from kultrun.planning.contracts import DeploymentPlan
 from kultrun.platform.admission import request_from_plan
 from kultrun.resource.contracts import RequestId, ResourceRequest, WorkloadType
+from kultrun.storage.topology import mount_for_path
 from tests.architecture import BANNED_IMPLEMENTATION_FIELDS, _imports_named, scan
 from tests.test_runtime_deployment_plan import _call, _product, _realize
 
@@ -33,11 +34,22 @@ def _current_plan(platform):
 
 
 def _count_admit(platform) -> dict[str, int]:
+    """Count inference admissions only.
+
+    Model acquisition and runtime provisioning also call ResourceManager.
+    Those reservations are released before the plan-driven inference admit.
+    """
     original = platform.resources.admit
     state = {"count": 0}
 
     def wrapped(*args: object, **kwargs: object) -> object:
-        state["count"] += 1
+        request = args[0] if args else kwargs.get("request")
+        workload = getattr(request, "workload_type", None)
+        if workload not in {
+            WorkloadType.RUNTIME_PROVISIONING,
+            WorkloadType.MODEL_ACQUISITION,
+        }:
+            state["count"] += 1
         return original(*args, **kwargs)
 
     platform.resources.admit = wrapped  # type: ignore[method-assign]
@@ -108,14 +120,24 @@ def test_wrong_revision_and_quantization_not_reused(tmp_path: Path) -> None:
     entry = platform.models.acquirable(plan["selected_model"])
     assert entry is not None
     wrong_revision = replace(request_from_entry(entry), requested_revision="other-rev")
-    platform.acquisition.acquire(wrong_revision, envelope, host.host_id)
+    platform.acquisition.acquire(
+        wrong_revision,
+        envelope,
+        host.host_id,
+        destination_mount=mount_for_path(platform.plane.state_root / "models", host),
+    )
     base = request_from_entry(entry)
     wrong_quant = replace(
         base,
         requested_revision="fixture-rev-quant",
         quantization="fp16",
     )
-    platform.acquisition.acquire(wrong_quant, envelope, host.host_id)
+    platform.acquisition.acquire(
+        wrong_quant,
+        envelope,
+        host.host_id,
+        destination_mount=mount_for_path(platform.plane.state_root / "models", host),
+    )
     counted = _count_admit(platform)
     acquired = _call(platform, "/deployments/plan/acquire", Method.POST)
     assert acquired.status == 200

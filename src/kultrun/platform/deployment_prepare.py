@@ -30,6 +30,7 @@ from kultrun.model.inventory import ModelInventory
 from kultrun.planning.contracts import DeploymentPlan, DeploymentPlanStatus
 from kultrun.platform.admission import AdmissionService, artifact_matches_plan
 from kultrun.platform.deployment_plan import DeploymentPlanOverview
+from kultrun.platform.storage_acquire import StorageAwareAcquisition
 from kultrun.resource.contracts import AdmissionDecision, ResourceRequest
 from kultrun.storage.contracts import StorageSanityEvidence
 
@@ -125,6 +126,7 @@ class DeploymentPreparationService:
         capacity: CapacityService,
         stored_sanity: Callable[[HostCapabilities], dict[str, StorageSanityEvidence]],
         clock: Clock,
+        storage_acquire: StorageAwareAcquisition | None = None,
     ) -> None:
         self._overview = overview
         self._models = models
@@ -134,6 +136,7 @@ class DeploymentPreparationService:
         self._capacity = capacity
         self._stored_sanity = stored_sanity
         self._clock = clock
+        self._storage_acquire = storage_acquire
 
     def acquire(self, host: HostCapabilities) -> PlanAcquisitionResult:
         """Ensure the CURRENT plan's exact artifact exists. Does not admit."""
@@ -150,11 +153,18 @@ class DeploymentPreparationService:
                 receipt=receipt,
             )
         envelope = self._capacity.compute(host, self._stored_sanity(host))
-        receipt = self._acquisition.acquire(
-            acquisition_request_for_plan(plan, entry),
-            envelope,
-            host.host_id,
-        )
+        if self._storage_acquire is not None:
+            receipt = self._storage_acquire.acquire(
+                acquisition_request_for_plan(plan, entry),
+                host,
+                self._stored_sanity(host),
+            )
+        else:
+            receipt = self._acquisition.acquire(
+                acquisition_request_for_plan(plan, entry),
+                envelope,
+                host.host_id,
+            )
         artifact = self._inventory.get(receipt.artifact_id)
         if (
             artifact is None

@@ -89,9 +89,7 @@ class MemoryStore:
         return tuple(self.records)
 
     def records_of(self, contract_type: type) -> tuple[object, ...]:
-        return tuple(
-            v for v in self.records.values() if isinstance(v, contract_type)
-        )
+        return tuple(v for v in self.records.values() if isinstance(v, contract_type))
 
     # Store protocol spelling
     def reconcile(self) -> object:  # pragma: no cover - not exercised here
@@ -254,9 +252,9 @@ class TestEvidenceMayConfirmOrContradictButNeverExpand:
 
     def test_unsupported_does_not_lower_capacity(self) -> None:
         """No primitive means no evidence — not evidence of a small pool."""
-        pool = self.envelope(
-            self.evidence_with(SanityStatus.UNSUPPORTED, None)
-        ).pools[0]
+        pool = self.envelope(self.evidence_with(SanityStatus.UNSUPPORTED, None)).pools[
+            0
+        ]
         assert pool.space.effective_bytes == 64 * GIB
 
 
@@ -359,9 +357,7 @@ class TestBudgetsAndHonestPartialResults:
         assert not is_resolved(evidence.observed_failure_upper_bytes)
 
     def test_the_work_allowance_bounds_the_ladder(self) -> None:
-        sanity, probe, _ = service(
-            policy=SanityProbePolicy(work_budget_bytes=20 * GIB)
-        )
+        sanity, probe, _ = service(policy=SanityProbePolicy(work_budget_bytes=20 * GIB))
         evidence = sanity.check(
             "/pool",
             policy_target_bytes=64 * GIB,
@@ -424,9 +420,7 @@ class TestEvidencePersistenceAndReuse:
             host_fingerprint="h",
             pool_fingerprint="p",
         )
-        found = sanity.evidence_for(
-            "/pool", host_fingerprint="h", pool_fingerprint="p"
-        )
+        found = sanity.evidence_for("/pool", host_fingerprint="h", pool_fingerprint="p")
         assert found is not None
         assert found.verified_lower_bound_bytes == 64 * GIB
 

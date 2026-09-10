@@ -48,7 +48,7 @@ from kultrun.resource.contracts import (
     WorkloadType,
 )
 from kultrun.resource.manager import ResourceManager
-from kultrun.storage.contracts import StorageSanityEvidence
+from kultrun.storage.contracts import StorageCapacityEvidence, StorageSanityEvidence
 
 
 class AdmissionService:
@@ -65,6 +65,9 @@ class AdmissionService:
         clock: Clock,
         actor_id: SubjectId,
         reservation_in_use: Callable[[ReservationId], bool] | None = None,
+        stored_storage: (
+            Callable[[HostCapabilities], dict[str, StorageCapacityEvidence]] | None
+        ) = None,
     ) -> None:
         self._manager = manager
         self._inventory = inventory
@@ -75,6 +78,13 @@ class AdmissionService:
         self._clock = clock
         self._actor_id = actor_id
         self._reservation_in_use = reservation_in_use or (lambda _: False)
+
+        def _empty_storage(
+            _host: HostCapabilities,
+        ) -> dict[str, StorageCapacityEvidence]:
+            return {}
+
+        self._stored_storage = stored_storage or _empty_storage
 
     @property
     def manager(self) -> ResourceManager:
@@ -94,7 +104,7 @@ class AdmissionService:
         artifact = self._inventory.get(artifact_id)
         if artifact is None:
             raise NotFoundError("no such model artifact", artifact_id=artifact_id.value)
-        envelope = self._capacity.compute(host, sanity)
+        envelope = self._capacity.compute(host, sanity, self._stored_storage(host))
         request = request_from_artifact(
             artifact,
             envelope,
@@ -134,7 +144,7 @@ class AdmissionService:
                 artifact_id=artifact.artifact_id.value,
                 model_id=plan.model_id.value,
             )
-        envelope = self._capacity.compute(host, sanity)
+        envelope = self._capacity.compute(host, sanity, self._stored_storage(host))
         request = request_from_plan(plan, artifact, envelope)
         decision = self._manager.admit(request, envelope, artifact)
         self._audit(

@@ -27,12 +27,17 @@ from kultrun.platform.requirement import (
     incremental_storage_demand,
 )
 from kultrun.runtime.contracts import RuntimePolicy
+from kultrun.storage.topology import mount_for_path
 from tests.test_planning_selection import _capacity, _metadata, _requirement
 from tests.test_resource_admission import GIB, _request
 from tests.test_runtime_requirement_capacity import LARGE, SMALL, _product, _realize
 
 SEVEN = "qwen2.5-7b-instruct-awq"
 FOURTEEN = "qwen2.5-14b-instruct-awq"
+
+
+def _model_mount(platform, host) -> str | None:
+    return mount_for_path(platform.plane.state_root / "models", host)
 
 
 def _rows(platform, host, view, envelope):
@@ -43,7 +48,9 @@ def _rows(platform, host, view, envelope):
         envelope,
         platform.selection.estimator,
         platform.selection.policy,
-        capacity=bind_current_capacity(envelope, snapshot),
+        capacity=bind_current_capacity(
+            envelope, snapshot, storage_mount=_model_mount(platform, host)
+        ),
         inventory=platform.inventory,
     )
 
@@ -61,7 +68,7 @@ def _view_envelope(platform):
         RuntimePolicy(),
         components={"vllm": "missing"},
     )
-    envelope = platform.capacity.compute(host, {})
+    envelope = platform.capacity.compute(host, {}, platform.plane.stored_storage(host))
     return host, view, envelope
 
 
@@ -141,7 +148,10 @@ class TestDynamicShrinkExpand:
         entry = platform.models.acquirable(SMALL)
         assert entry is not None
         receipt = platform.acquisition.acquire(
-            request_from_entry(entry), envelope, host.host_id
+            request_from_entry(entry),
+            envelope,
+            host.host_id,
+            destination_mount=_model_mount(platform, host),
         )
         artifact = platform.inventory.get(receipt.artifact_id)
         assert artifact is not None
@@ -208,7 +218,10 @@ class TestIncrementalStorage:
         entry = platform.models.acquirable(SMALL)
         assert entry is not None
         receipt = platform.acquisition.acquire(
-            request_from_entry(entry), envelope, host.host_id
+            request_from_entry(entry),
+            envelope,
+            host.host_id,
+            destination_mount=_model_mount(platform, host),
         )
         artifact = platform.inventory.get(receipt.artifact_id)
         assert artifact is not None
