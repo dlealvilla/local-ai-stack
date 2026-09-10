@@ -171,6 +171,9 @@ class TestExecutorSpecRejectsAShell:
         source = Path(native_process.__file__).read_text(encoding="utf-8")
         assert "shell=True" not in source
         assert "shell = True" not in source
+        assert "kultrun-exec-capture" not in source
+        assert "stdout=subprocess.PIPE" not in source
+        assert "stderr=subprocess.PIPE" not in source
 
 
 class TestCompositionCopiesTheRecipe:

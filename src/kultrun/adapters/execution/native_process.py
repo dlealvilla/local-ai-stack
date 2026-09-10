@@ -4,6 +4,11 @@ PID reuse protection is limited to the lifetime of this adapter instance:
 we hold the Popen object. After a control-plane restart the service marks
 surviving PIDs UNVERIFIED rather than signalling them. See `docs/DEBT.md`
 K-31.
+
+Stdout and stderr are anonymous files, not pipes. Capture into the handle
+is a bounded prefix. The launching interpreter may exit while a serving
+child continues writing; pipe pumps must not keep that interpreter alive.
+Log-file growth across a long-lived child is K-99.
 """
 
 from __future__ import annotations
@@ -11,10 +16,10 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import tempfile
 import threading
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import IO
 
 from kultrun.evidence.contracts import Confidence
 from kultrun.execution.contracts import (
@@ -32,48 +37,19 @@ from kultrun.execution.contracts import (
 from kultrun.execution.resolve import is_interpreter_component, native_interpreter
 from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.clock import Clock, SystemClock
-from kultrun.kernel.errors import InternalError, ValidationError
+from kultrun.kernel.errors import ValidationError
 from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import NOT_MEASURED, NOT_PROVIDED, is_resolved
 
 IDENTITY = Name("native-process")
-
-#: Capture threads read this many bytes at a time.
-_CHUNK = 4096
-
-
-@dataclass
-class _Capture:
-    limit: int
-    chunks: list[bytes]
-    size: int = 0
-    truncated: bool = False
-    lock: threading.Lock = field(default_factory=threading.Lock)
-
-    def feed(self, data: bytes) -> None:
-        with self.lock:
-            if self.size >= self.limit:
-                self.truncated = True
-                return
-            take = data[: self.limit - self.size]
-            self.chunks.append(take)
-            self.size += len(take)
-            if len(data) > len(take):
-                self.truncated = True
-
-    def text(self) -> str:
-        with self.lock:
-            raw = b"".join(self.chunks)
-        return raw.decode("utf-8", errors="replace")
 
 
 @dataclass
 class _Live:
     spec: ExecutorSpec
     process: subprocess.Popen[bytes]
-    stdout: _Capture
-    stderr: _Capture
-    threads: tuple[threading.Thread, ...]
+    stdout_fd: int
+    stderr_fd: int
 
 
 class NativeProcessExecutor:
@@ -91,12 +67,8 @@ class NativeProcessExecutor:
     def capabilities(self, host: HostCapabilities) -> ExecutorCapabilityProfile:
         """Truthful native-process features on this host. Does not exec."""
         native = host.execution.native_process
-        process = (
-            FeatureSupport.SUPPORTED if native else FeatureSupport.UNSUPPORTED
-        )
-        vendors = tuple(
-            sorted({item.vendor.value for item in host.accelerators})
-        )
+        process = FeatureSupport.SUPPORTED if native else FeatureSupport.UNSUPPORTED
+        vendors = tuple(sorted({item.vendor.value for item in host.accelerators}))
         return ExecutorCapabilityProfile(
             executor=self.identity,
             executor_type=Name("process"),
@@ -153,21 +125,26 @@ class NativeProcessExecutor:
             parts = current.split(os.pathsep) if current else []
             if root not in parts:
                 env["PYTHONPATH"] = root + os.pathsep + current if current else root
-        stdout_cap = _Capture(limit=spec.output_limit_bytes, chunks=[])
-        stderr_cap = _Capture(limit=spec.output_limit_bytes, chunks=[])
         argv = [resolved, *spec.arguments]
+        stdout_r = stdout_w = stderr_r = stderr_w = -1
         try:
+            stdout_r, stdout_w = _anonymous_file()
+            stderr_r, stderr_w = _anonymous_file()
             process = subprocess.Popen(
                 argv,
                 cwd=spec.working_directory,
                 env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=stdout_w,
+                stderr=stderr_w,
                 stdin=subprocess.DEVNULL,
                 start_new_session=True,
-                bufsize=0,
+                close_fds=True,
             )
         except OSError as error:
+            _close_fd(stdout_r)
+            _close_fd(stdout_w)
+            _close_fd(stderr_r)
+            _close_fd(stderr_w)
             now = self._clock.now()
             return ExecutorHandle(
                 execution_id=ExecutionId.generate(),
@@ -183,20 +160,14 @@ class NativeProcessExecutor:
                 exited_at=now,
                 detail=str(error),
             )
-        if process.stdout is None or process.stderr is None:
-            process.kill()
-            raise InternalError("stdout and stderr pipes were not created")
-        threads = (
-            _pump(process.stdout, stdout_cap),
-            _pump(process.stderr, stderr_cap),
-        )
+        _close_fd(stdout_w)
+        _close_fd(stderr_w)
         execution_id = ExecutionId.generate()
         live = _Live(
             spec=spec,
             process=process,
-            stdout=stdout_cap,
-            stderr=stderr_cap,
-            threads=threads,
+            stdout_fd=stdout_r,
+            stderr_fd=stderr_r,
         )
         with self._lock:
             self._live[execution_id.value] = live
@@ -220,25 +191,33 @@ class NativeProcessExecutor:
         """Refresh from the live Popen, or refuse to claim a stranger PID."""
         with self._lock:
             live = self._live.get(handle.execution_id.value)
-        if live is None:
-            return _unclaimed(handle)
-        code = live.process.poll()
-        stdout = live.stdout.text()
-        stderr = live.stderr.text()
-        truncated = live.stdout.truncated or live.stderr.truncated
-        if code is None:
-            return replace(
-                handle,
-                observed_state=ExecutionState.RUNNING,
-                ownership=ExecutionOwnership.OWNED,
-                pid=live.process.pid,
-                stdout=stdout,
-                stderr=stderr,
-                output_truncated=truncated,
+            if live is None:
+                return _unclaimed(handle)
+            code = live.process.poll()
+            stdout, out_truncated = _read_prefix(
+                live.stdout_fd, live.spec.output_limit_bytes
             )
-        with self._lock:
+            stderr, err_truncated = _read_prefix(
+                live.stderr_fd, live.spec.output_limit_bytes
+            )
+            truncated = out_truncated or err_truncated
+            if code is None:
+                return replace(
+                    handle,
+                    observed_state=ExecutionState.RUNNING,
+                    ownership=ExecutionOwnership.OWNED,
+                    pid=live.process.pid,
+                    stdout=stdout,
+                    stderr=stderr,
+                    output_truncated=truncated,
+                )
             self._live.pop(handle.execution_id.value, None)
-        _join(live.threads)
+            stdout_fd = live.stdout_fd
+            stderr_fd = live.stderr_fd
+            live.stdout_fd = -1
+            live.stderr_fd = -1
+        _close_fd(stdout_fd)
+        _close_fd(stderr_fd)
         state = ExecutionState.EXITED if code == 0 else ExecutionState.FAILED
         return replace(
             handle,
@@ -317,36 +296,39 @@ def _which(name: str) -> str | None:
     return None
 
 
-def _pump(stream: IO[bytes], capture: _Capture) -> threading.Thread:
-    """Copy available pipe bytes as they arrive.
-
-    Buffered `read(n)` waits until n bytes or EOF. A hold workload writes a
-    short line and then sleeps, so the console would show empty stdout until
-    the process exited. `os.read` returns as soon as any data is in the pipe.
-    """
-
-    def run() -> None:
-        fd = stream.fileno()
-        try:
-            while True:
-                try:
-                    chunk = os.read(fd, _CHUNK)
-                except OSError:
-                    return
-                if not chunk:
-                    return
-                capture.feed(chunk)
-        finally:
-            stream.close()
-
-    thread = threading.Thread(target=run, name="kultrun-exec-capture", daemon=False)
-    thread.start()
-    return thread
+def _anonymous_file() -> tuple[int, int]:
+    """Read/write fds for an unlinked file the child can keep writing to."""
+    fd, name = tempfile.mkstemp(prefix="kultrun-exec-", suffix=".log")
+    try:
+        Path(name).unlink()
+    except OSError:
+        _close_fd(fd)
+        raise
+    write_fd = os.dup(fd)
+    os.set_inheritable(fd, False)
+    os.set_inheritable(write_fd, True)
+    return fd, write_fd
 
 
-def _join(threads: tuple[threading.Thread, ...]) -> None:
-    for thread in threads:
-        thread.join(timeout=1.0)
+def _read_prefix(fd: int, limit: int) -> tuple[str, bool]:
+    """Bounded prefix of a capture file. Does not drain or grow in memory."""
+    if fd < 0 or limit < 1:
+        return "", False
+    try:
+        data = os.pread(fd, limit + 1, 0)
+    except OSError:
+        return "", False
+    truncated = len(data) > limit
+    return data[:limit].decode("utf-8", errors="replace"), truncated
+
+
+def _close_fd(fd: int) -> None:
+    if fd < 0:
+        return
+    try:
+        os.close(fd)
+    except OSError:
+        return
 
 
 def _signal_group(process: subprocess.Popen[bytes], sig: int) -> None:

@@ -5,7 +5,7 @@
   "output": "first real native vLLM serving vertical: exact RuntimeInstallation + local ModelArtifact + NativeProcessExecutor + readiness + bounded InferenceRequest/Response; highest-pressure runtime-memory calibration before Available Models",
   "status": "open",
   "gate": "L3",
-  "evidence_level": "T2 local plus T0/T1 calibration; first T3 hung on start; local readiness fix; T3/T5 retry not started",
+  "evidence_level": "T2 local plus T0/T1 calibration; first T3 hung on start; second T3 reached READY then CLI stayed resident on capture threads; local capture-lifetime fix; T3/T5 retry not started",
   "t3_required": true,
   "t5_required": true,
   "ready_for_t3": false,
@@ -38,7 +38,9 @@
       "calibration_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
       "pre_readiness_fix_commit": "d9097f2bac8e5bc0b5f3a4c90d192ba2a0544840",
       "readiness_fix_commit": "4b9c9c9614459eaa37a32f0c4354a198df6b5cf5",
-      "state": "LOCAL_READINESS_FIX_THEN_FREEZE",
+      "pre_capture_lifetime_fix_commit": "6f1ef07c2356a32123b7cbdc5f992005fa97e6f3",
+      "pre_capture_lifetime_fix_safety": "safety/pre-exec-capture-lifetime-fix-6f1ef07c",
+      "state": "LOCAL_CAPTURE_LIFETIME_FIX_THEN_FREEZE",
       "frozen": true,
       "awaiting": "NEW_INTEGRATION_WHEEL_THEN_NEW_GPU_HOST"
     },
@@ -113,7 +115,12 @@
     "implemented": true,
     "note": "optional live empty-skeleton analyzer exists when model_source_mode=live and the analysis extra is installed; never vLLM availability authority; skipped when Safetensors already resolved the cheap bound"
   },
-  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95", "K-96", "K-97", "K-98"],
+  "k99": {
+    "status": "OPEN",
+    "implemented": false,
+    "note": "NativeProcessExecutor file-backed capture is a bounded handle prefix; serving children can grow unlinked capture inodes until exit; rotation deferred"
+  },
+  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95", "K-96", "K-97", "K-98", "K-99"],
   "current_artifact": {
     "source_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
     "wheel": "kultrun-0.1.0-py3-none-any.whl",
@@ -149,13 +156,13 @@
     "required": "L3",
     "real_host": false,
     "date": "2026-09-09",
-    "method": "Stream A local start/readiness fix after first physical T3 hang. K-96 remains OPEN. Next T3/T5 require new integration with frozen Stream B 792b0ea and a completely fresh GPU host. Do not claim L3."
+    "method": "Stream A local capture-lifetime fix after second physical T3 returned READY but left the start CLI resident. K-31 and K-96 remain OPEN. Next T3/T5 require new integration with frozen Stream B 792b0ea and a completely fresh GPU host. Do not claim L3."
   },
   "test_modes": {
     "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; staged Available Models funnel; runtime-memory class/sentinel/raise-only calibration; optional live Hub listing; cheap Safetensors metadata bound; optional Accelerate empty-skeleton; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within Available Models; no reference fallback",
     "T1": "vLLM HTTP protocol fixture; funnel fixture; llmfit fixture after cheap bound; Available Models printed before selector; estimator invocations saved; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible; estimated-feasible is not Available without calibration",
     "T2": "same clean wheel, two isolated installs: T2-A core-only offline catalog+fallback; T2-B extras prove live Hub/Safetensors/Accelerate/llmfit then Available Models before recommend. Historical evidence predates calibration-as-gate.",
-    "T3": "required; first physical attempt failed (vLLM healthy, Kultrun start hung past 1800s); local start/readiness fix in this freeze; retry needs a new integration wheel and a new GPU host, not 216.81.151.62",
+    "T3": "required; first physical attempt hung on FileStore readiness; second reached RUNNING/READY then CLI stayed resident on capture threads; local capture-lifetime fix in this freeze; retry needs a new integration wheel and a new GPU host, not 216.81.151.62",
     "T5": "required; NOT STARTED; blocked on T3 retry"
   },
   "not_begun": [

@@ -2,8 +2,10 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN — Stream A start/readiness local fix; K-96 still requires a
-new integration wheel on a new GPU host. Stage 1.6M not started.**
+Status: **OPEN — Stream A capture-lifetime fix after the second physical
+T3 returned READY but left `instances start` resident. K-96 still
+requires a new integration wheel on a new GPU host. Stage 1.6M not
+started.**
 Checkpoint: `checkpoints/STAGE-1.6L-real-vllm-inference.json`.
 
 This stage extends the authoritative preparation chain into real serving.
@@ -49,7 +51,8 @@ DEBT ENTRIES                 K-66, K-77 remain OPEN. K-95 deferred depth.
                              Available gate, still OPEN until T3.
                              K-97 Hub ingest deferred. K-98 live Accelerate
                              remains optional/structural-only; default
-                             product path stays offline.
+                             product path stays offline. K-99 native
+                             process capture files are not rotated.
 ```
 
 ## Flow
@@ -146,11 +149,19 @@ consume storage via live free space; they do not consume VRAM.
 ResourceManager remains final admission. Provider-enabled T2 is the
 same wheel in two isolated installs: T2-A core-only offline catalog
 and Kultrun fallback; T2-B extras `acquisition,estimators,analysis`
-with `KULTRUN_MODEL_SOURCE_MODE=live`. A first fresh-host T3 proved
-calibrated admission and a healthy vLLM process, but `instances start`
-did not return: readiness polling persisted growing execution logs
-through FileStore fsync, and a concurrent inspect could write UNKNOWN
-over STARTING. Local Stream A now bounds that loop and refuses to treat
-inspect-during-STARTING as a control-plane restart. K-96 stays OPEN
-until a **new** integration wheel on a **new** GPU host observes READY.
-Do not reuse `216.81.151.62`. Do not begin Stage 1.6M from this freeze.
+with `KULTRUN_MODEL_SOURCE_MODE=live`. A first fresh-host T3 proved calibrated admission and a healthy vLLM
+process, but `instances start` did not return: readiness polling
+persisted growing execution logs through FileStore fsync, and a
+concurrent inspect could write UNKNOWN over STARTING. Local Stream A
+bounded that loop and refuses to treat inspect-during-STARTING as a
+control-plane restart. A second physical T3 then reached RUNNING/READY
+and printed success, but the launching CLI stayed alive: non-daemon
+`kultrun-exec-capture` threads blocked on stdout/stderr pipes of a child
+that never EOF'd. NativeProcessExecutor now captures a bounded prefix from
+anonymous files so the launching interpreter can exit while the serving
+child keeps writing. K-31 remains OPEN: a later CLI still does not own
+Popen and must not signal the child; `instances infer` uses the
+persisted endpoint and does not require that ownership. Capture files
+are not rotated (K-99). K-96 stays OPEN until a **new** integration wheel
+on a **new** GPU host observes READY and a returned start CLI. Do not
+reuse `216.81.151.62`. Do not begin Stage 1.6M from this freeze.

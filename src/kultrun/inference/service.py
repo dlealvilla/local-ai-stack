@@ -270,9 +270,7 @@ class InstanceService:
         )
         if outcome.kind != "ready":
             self._safe_stop(handle.execution_id)
-            refreshed = self._executions.observe(
-                handle.execution_id, persist=False
-            )
+            refreshed = self._executions.observe(handle.execution_id, persist=False)
             return self._fail(
                 instance,
                 outcome.message,
@@ -303,7 +301,7 @@ class InstanceService:
         *,
         configuration_current: Maybe[bool] = NOT_MEASURED,
     ) -> InferenceResponse:
-        instance = self.observe(instance_id)
+        instance = self._require(instance_id)
         if instance.observed_state is ObservedState.FAILED:
             raise PreconditionFailedError(
                 "instance is not running",
@@ -342,11 +340,15 @@ class InstanceService:
                 "runtime process is not running",
                 reason="runtime_process_exited",
             )
-        handle = self._executions.observe(instance.execution_id)
-        if (
+        handle = self._executions.observe(instance.execution_id, persist=False)
+        # UNVERIFIED means this process does not hold the live executor.
+        # Inference uses the persisted endpoint; reconcile must not run
+        # first (K-31).
+        if handle.ownership is not ExecutionOwnership.UNVERIFIED and (
             handle.ownership is not ExecutionOwnership.OWNED
             or handle.observed_state is not ExecutionState.RUNNING
         ):
+            handle = self._executions.observe(instance.execution_id)
             failed = self._fail(
                 instance,
                 handle.detail or "process exited unexpectedly",
@@ -435,7 +437,12 @@ class InstanceService:
                 observed_state=ObservedState.STOPPED,
                 lifecycle_state=LifecycleState.STOPPED,
             )
-        if instance.observed_state is ObservedState.UNKNOWN and not owned:
+        if not owned and instance.observed_state in {
+            ObservedState.UNKNOWN,
+            ObservedState.RUNNING,
+            ObservedState.STARTING,
+            ObservedState.STOPPING,
+        }:
             return self._write(
                 instance,
                 desired_state=DesiredState.STOPPED,

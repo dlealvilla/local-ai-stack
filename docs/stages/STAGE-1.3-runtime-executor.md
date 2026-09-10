@@ -64,6 +64,11 @@ SIGTERM to the process group, then SIGKILL after the spec's grace period.
 Stdout and stderr are each truncated at `output_limit_bytes`. Capture
 threads are non-daemon and joined after exit.
 
+Stage 1.6L replaced those pipe-pump threads with file-backed prefix
+capture so a launching CLI can exit while a serving child continues
+writing. Bounded handle capture is unchanged; inode growth of a
+long-lived child is K-99.
+
 ## Acceptance
 
 | Layer | Result |

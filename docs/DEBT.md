@@ -575,11 +575,18 @@ What:         `NativeProcessExecutor` proves ownership by holding the
               `instances inspect` from another process is not a restart:
               it must not persist UNKNOWN over an in-flight STARTING
               transition. Persisted RUNNING after a genuine restart
-              remains untrusted (UNVERIFIED / UNKNOWN).
+              remains untrusted (UNVERIFIED / UNKNOWN). The launching CLI
+              may now exit after READY (file-backed capture); that does
+              not reattach Popen. A later CLI must not signal the child.
+              `instances infer` may use the persisted endpoint without
+              owning Popen. `instances stop` from a process that does not
+              own Popen still refuses to signal.
 Why now:      Stage 1.3 proves start/observe/stop in one process. Claiming
               a PID we cannot prove is ours would be a false success.
               Stage 1.6L T3 showed inspect during start writing UNKNOWN
-              while the launching process still owned the Popen.
+              while the launching process still owned the Popen. The
+              capture-lifetime fix makes a second CLI the normal T5
+              caller; it must still not pretend to own the process.
 To make real: A durable process cookie (start time, or an equivalent) and
               a bounded reattach path that still refuses to signal
               unverified processes.
@@ -1729,6 +1736,25 @@ To make real: Drop the extra, or a later stage that treats structural
               Accelerate into a selector.
 Retire when:  that policy is an accepted stage output, or the extra
               is dropped.
+Status:       OPEN
+
+### K-99 — native process capture files are not rotated
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    execution
+Authorizes:   NO
+What:         `NativeProcessExecutor` writes child stdout/stderr to
+              unlinked anonymous files and copies only an
+              `output_limit_bytes` prefix into the handle. A long-running
+              serving process can grow those inodes until it exits.
+              There is no rotation, retention, or operator log surface.
+Why now:      The launching CLI must not stay resident to drain pipes.
+              Rotation/retention would be a logging platform, outside
+              Option 2 of the capture-lifetime fix.
+To make real: executor-owned bounded logs with rotation, or a durable
+              supervisor that owns capture across control-plane
+              restarts.
+Retire when:  a later stage owns process logs or durable supervision.
 Status:       OPEN
 
 ## Runtime-first migration ledger (after 1.6K)
