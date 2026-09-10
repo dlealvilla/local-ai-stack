@@ -41,6 +41,7 @@ include = [
   "src/kultrun/adapters/host/fixtures/*/*.json",
   "src/kultrun/adapters/host/fixtures/*/*.xml",
   "src/kultrun/adapters/host/fixtures/*/*.csv",
+  "src/kultrun/telemetry/migrations/*.sql",
 ]
 
 [tool.pytest.ini_options]

@@ -1908,6 +1908,27 @@ Evidence:     `tests/test_storage_reduction.py`,
               `tests/test_storage_replan.py`; composition in
               `src/kultrun/platform/storage_replan.py`.
 
+### K-111 — later data-warehouse phases
+Label:        DEFERRED
+Owner stage:  data warehousing after Phase 0
+Subsystem:    telemetry / analytics / vendor
+Authorizes:   NO
+What:         Phase 0 is local SQLite operational metadata only.
+              Not yet implemented: typed writer deepening, content-free
+              usage/outcome events, sanitized exporter, hosted ingestion,
+              PostgreSQL warehouse, cohort intelligence, licensing DB,
+              retention UI, or vendor product telemetry.
+              Stream B freeze `792b0ea` labelled this entry K-99;
+              acceptance r3 assigned K-100 to avoid Stream A K-99;
+              this storage-first acceptance merge assigns K-111 so it
+              does not collide with 1.6L storage debt K-100–K-110.
+Why now:      Capture structured operational evidence without building
+              a warehouse before any local history exists.
+To make real: After Phase 0 is accepted and a later data increment is
+              opened. UsageEvent remains `analytics` at Stage 1.7.
+Retire when:  the corresponding later phase is accepted.
+Status:       OPEN
+
 ## Runtime-first migration ledger (after 1.6K)
 
 Not a second architecture. Existing components still to migrate, in

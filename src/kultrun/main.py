@@ -43,6 +43,7 @@ from kultrun.adapters.runtime.vllm import VllmModelCompatibility, VllmRuntimeSup
 from kultrun.adapters.runtime.vllm_memory import VllmMemoryInterpreter
 from kultrun.adapters.storage import default_probe_registry, posix_reservation, replayed
 from kultrun.adapters.storage.empirical_write import RealWritePort
+from kultrun.adapters.telemetry.sqlite import SQLiteTelemetryStore
 from kultrun.adapters.verification.fixture import (
     FixtureProbeRunner,
     FixtureRuntimeVerifier,
@@ -153,6 +154,11 @@ from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
 from kultrun.platform.storage_acquire import StorageAwareAcquisition
 from kultrun.platform.storage_replan import FoundationInputs, StorageReplanService
+from kultrun.platform.telemetry_observe import (
+    bind_available_models,
+    bind_deployment_instance,
+    record_startup,
+)
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
 from kultrun.resource import contracts as _resource_contracts  # noqa: F401
 from kultrun.resource.contracts import LedgerHealth
@@ -162,7 +168,9 @@ from kultrun.runtime import contracts as _runtime_contracts  # noqa: F401
 from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.runtime.contracts import (
     EligibleModelView,
+    RuntimeInstallation,
     RuntimeInstallationId,
+    RuntimeMemoryProfile,
     RuntimePolicy,
     RuntimeProvisioningPlanId,
     RuntimeResolverMode,
@@ -184,6 +192,14 @@ from kultrun.storage.ownership import OwnershipService
 from kultrun.storage.sanity import StorageSanityService
 from kultrun.storage.sonar import EmpiricalStorageProbe
 from kultrun.storage.topology import mount_for_path
+from kultrun.telemetry import contracts as _telemetry_contracts  # noqa: F401
+from kultrun.telemetry.contracts import TelemetrySettings
+from kultrun.telemetry.ports import TelemetryRecorder
+from kultrun.telemetry.service import (
+    BestEffortRecorder,
+    DisabledRecorder,
+    resolve_database_path,
+)
 from kultrun.training import contracts as _training_contracts  # noqa: F401
 
 PLATFORM_VERSION = "0.1.0"
@@ -336,6 +352,7 @@ class Platform:
     deployment_plan: DeploymentPlanningService
     deployment_prepare: DeploymentPreparationService
     deployment_instance: DeploymentInstanceService
+    telemetry: TelemetryRecorder
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: EvidenceMode
     #: The captured shape being replayed, when one is.
@@ -379,6 +396,8 @@ EXECUTOR_VARIABLE = "KULTRUN_EXECUTOR"
 PROVISIONER_VARIABLE = "KULTRUN_RUNTIME_PROVISIONER"
 VERIFIER_VARIABLE = "KULTRUN_RUNTIME_VERIFIER"
 CONTAINER_IMAGE_VARIABLE = "KULTRUN_CONTAINER_IMAGE"
+TELEMETRY_ENABLED_VARIABLE = "KULTRUN_TELEMETRY_ENABLED"
+TELEMETRY_DATABASE_VARIABLE = "KULTRUN_TELEMETRY_DATABASE"
 LIVE_EXECUTORS = ("native-process", "container-docker")
 REFERENCE_CONTAINER_IMAGE = "kultrun-reference-serving:stage-16a"
 
@@ -432,7 +451,24 @@ def resolve_configuration(
         overrides["model_acquisition_provider"] = acquisition
     if source_mode:
         overrides["model_source_mode"] = source_mode
-    return config_schema().load({"platform": overrides} if overrides else {})
+    telemetry_overrides: dict[str, object] = {}
+    enabled = source.get(TELEMETRY_ENABLED_VARIABLE, "").strip()
+    if enabled:
+        telemetry_overrides["enabled"] = enabled.lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+    database = source.get(TELEMETRY_DATABASE_VARIABLE, "").strip()
+    if database:
+        telemetry_overrides["database_path"] = database
+    payload: dict[str, object] = {}
+    if overrides:
+        payload["platform"] = overrides
+    if telemetry_overrides:
+        payload["telemetry"] = telemetry_overrides
+    return config_schema().load(payload)
 
 
 def resolve_live_executor(
@@ -460,7 +496,23 @@ def config_schema() -> ConfigSchema:
     """The configuration sections the platform recognises."""
     schema = ConfigSchema()
     schema.register("platform", PlatformSettings)
+    schema.register("telemetry", TelemetrySettings)
     return schema
+
+
+def compose_telemetry(
+    settings: TelemetrySettings, state_root: Path, clock: Clock
+) -> TelemetryRecorder:
+    """Open the local store, or a disabled recorder. Never raises to callers."""
+    if not settings.enabled:
+        return DisabledRecorder(enabled=False)
+    path = resolve_database_path(state_root, settings)
+    try:
+        return BestEffortRecorder(SQLiteTelemetryStore.open(path, clock))
+    except Exception as error:
+        return DisabledRecorder(
+            enabled=True, database_path=str(path), last_error=str(error)
+        )
 
 
 def estimator_registry() -> AdapterRegistry[ModelRequirementEstimator]:
@@ -1022,6 +1074,30 @@ def build(
         provisioning,
         state_root,
     )
+    telemetry = compose_telemetry(
+        resolved_config.section(TelemetrySettings),
+        state_root,
+        resolved_clock,
+    )
+    bind_available_models(
+        available_models,
+        telemetry,
+        resolved_clock,
+        lambda result: _profiles_for(store, result),
+    )
+    bind_deployment_instance(deployment_instance, telemetry, resolved_clock)
+    _record_startup_quietly(
+        telemetry,
+        clock=resolved_clock,
+        hosts=hosts,
+        resources=resources,
+        foundation=foundation,
+        verification=verification,
+        executions=executions,
+        container_executor=container_executor,
+        refresh_capacity=refresh_capacity,
+        store=store,
+    )
 
     plane = ControlPlane(
         state=state,
@@ -1091,6 +1167,7 @@ def build(
         deployment_plan=deployment_plan,
         deployment_prepare=deployment_prepare,
         deployment_instance=deployment_instance,
+        telemetry=telemetry,
         evidence_mode=mode,
         fixture_shape=shape,
         state_root=state_root,
@@ -3064,6 +3141,105 @@ def _id_or_dash(value: object) -> str:
     return str(ident)
 
 
+def _profiles_for(store: Store, result: object) -> tuple[RuntimeMemoryProfile, ...]:
+    validation = getattr(result, "validation", None)
+    if validation is None:
+        return ()
+    wanted = {
+        item.profile_id
+        for item in getattr(validation, "applied", ())
+        if getattr(item, "profile_id", None)
+    }
+    if not wanted:
+        return ()
+    return tuple(
+        item
+        for item in store.records(RuntimeMemoryProfile)
+        if item.profile_id.value in wanted
+    )
+
+
+def _record_startup_quietly(
+    telemetry: TelemetryRecorder,
+    *,
+    clock: Clock,
+    hosts: HostInventory,
+    resources: ResourceManager,
+    foundation: FoundationSelectionService,
+    verification: VerificationService,
+    executions: ExecutionService,
+    container_executor: ContainerExecutor,
+    refresh_capacity: object,
+    store: Store,
+) -> None:
+    """Startup capture must not prevent the control plane from serving."""
+    try:
+        current = hosts.current
+        envelope, bound = refresh_capacity(current)  # type: ignore[operator]
+        summary = resources.snapshot(envelope, host=current)
+        selection = foundation.stored(current)
+        executors = (
+            executions.capabilities(current),
+            container_executor.capabilities(current),
+        )
+        runtime_profiles = verification.profiles(current, executors)
+        selected = None
+        if selection is not None and is_resolved(selection.selected_candidate_id):
+            selected = selection.selected_candidate_id
+        matched = None
+        for item in runtime_profiles:
+            if selected is not None and item.candidate_id.value == selected:
+                matched = item
+                break
+        if matched is None and len(runtime_profiles) == 1:
+            matched = runtime_profiles[0]
+        installation = None
+        if matched is not None:
+            installation = store.get(RuntimeInstallation, matched.installation_id.value)
+        record_startup(
+            telemetry,
+            clock=clock,
+            host=current,
+            snapshot=summary,
+            selection=selection,
+            profile=matched,
+            installation=installation,
+            producer_build_version=build_identity().version,
+            capacity=bound,
+        )
+    except Exception:
+        return
+
+
+def _telemetry(arguments: Sequence[str]) -> int:
+    if not arguments or arguments[0] != "status":
+        print("usage: kultrun telemetry status", file=sys.stderr)
+        return 2
+    return show_telemetry_status()
+
+
+def show_telemetry_status() -> int:
+    """Report the local telemetry store. No SQL console."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    status = platform.telemetry.status()
+    print(f"Enabled: {'true' if status.enabled else 'false'}")
+    print(f"Database: {status.database_path or '-'}")
+    schema = status.applied_version if status.applied_version is not None else "-"
+    print(f"Schema version: {schema}")
+    if status.last_error:
+        print(f"Last error: {status.last_error}")
+    print()
+    print(f"Host observations: {status.host_observations}")
+    print(f"Runtime observations: {status.runtime_observations}")
+    print(f"Capacity snapshots: {status.capacity_snapshots}")
+    print(f"Model sizing observations: {status.model_sizing_observations}")
+    print(f"Runtime memory profiles: {status.runtime_memory_profiles}")
+    print(f"Deployment runs: {status.deployment_runs}")
+    print(f"Deployment events: {status.deployment_events}")
+    return 0
+
+
 COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "version": lambda _: show_version(),
     "host": lambda _: show_host(),
@@ -3074,6 +3250,7 @@ COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "storage": _storage,
     "runtime": _runtime,
     "runtimes": _runtimes,
+    "telemetry": _telemetry,
     "serve": lambda _: serve(),
 }
 

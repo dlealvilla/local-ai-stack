@@ -76,7 +76,7 @@ TIER 2   host · components · storage · capacity     what the machine is and c
 TIER 3   model                                      what can be served
 TIER 4   planning ⟂ resource                        recommend  /  authorize
 TIER 5   execution ⟂ runtime                        how to run  /  what to run
-TIER 6   inference · analytics · gateway            serving and the record of it
+TIER 6   inference · analytics · telemetry · gateway  serving and the record of it
 TIER 7   knowledge · training · brains              organisational intelligence
 TIER 8   platform · api                             control plane
 TIER 9   agents · intelligence · vendor · install   consumers and additive intelligence
@@ -143,8 +143,8 @@ This is the complete list. Any other intra-tier import is a violation.
 | 8 | `api` → `platform` | The API is a transport over control-plane services. |
 
 `evidence`, `policy` and `identity` import nothing but `kernel`.
-`inference` and `analytics` do not import each other. `training` imports
-nothing else in tier 7.
+`inference`, `analytics` and `telemetry` do not import each other.
+`training` imports nothing else in tier 7.
 
 ## 4. Enforced non-edges
 
@@ -1334,6 +1334,23 @@ blocking, and **a dropped event is counted as a fact**. Silent loss would
 violate the same principle that makes an interrupted probe inconclusive
 rather than successful.
 
+Operational deployment metadata is not a `UsageEvent`. That store is
+`telemetry` (Phase 0 local SQLite). See `docs/data/warehouse/`.
+
+### `telemetry`
+
+| | |
+|---|---|
+| **Owns** | Append-only local operational observations: host, runtime/foundation, `CurrentCapacitySnapshot`, model sizing, empirical `RuntimeMemoryProfile` copies, deployment runs and major lifecycle/timing events. Migration-managed SQLite under `<KULTRUN_STATE_ROOT>/telemetry/`. Domain A only. |
+| **Consumes** | `kernel` · `host.contracts` (identifiers) |
+| **Ports** | `TelemetryRecorder` — best-effort; failure never authorizes or blocks a deployment |
+| **Must not** | Recalculate capacity. Re-collect hardware. Store prompts, responses, documents, RAG content, secrets or raw request/response bodies. Become a hidden dependency of ResourceManager, ModelSelector, DeploymentPlan, InferenceInstance or runtime-memory calibration. Export off-host. Own vendor telemetry or licensing. |
+| **Created** | Data Warehousing Phase 0 |
+
+The operational `RuntimeMemoryProfile` remains authoritative for planning.
+Telemetry stores an analytical copy. SQLite never decides whether a
+deployment is valid.
+
 ### `gateway`
 
 | | |
@@ -1517,7 +1534,7 @@ adapters/inference/       local_endpoint · litellm
 adapters/identity/        local · oidc · scim
 adapters/knowledge/       managed_files · smb · webdav · sharepoint · google_drive
 adapters/embedding/       local_model · external
-adapters/telemetry/       posthog
+adapters/telemetry/       sqlite (local Domain A) · (posthog later, Domain B / vendor)
 adapters/entitlement/     offline_licence · vendor_service
 adapters/adaptation/      peft · merge
 ```
@@ -1572,6 +1589,7 @@ config → kernel.Store → platform state load
   → inference instance reconcile: status vs health, orphan process and port
   → gateway endpoint registry rebuild
   → analytics store open, partitions verified
+  → telemetry store open, migrations applied (best-effort; never blocks)
   → platform health aggregate → api serves
 ```
 

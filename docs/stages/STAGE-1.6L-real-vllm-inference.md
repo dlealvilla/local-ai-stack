@@ -2,10 +2,9 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN — Stream A capture-lifetime fix after the second physical
-T3 returned READY but left `instances start` resident. K-96 still
-requires a new integration wheel on a new GPU host. Stage 1.6M not
-started.**
+Status: **OPEN — Stream A capture-lifetime fix integrated with frozen
+Phase 0 telemetry. K-96 still requires this integration wheel on a new
+GPU host. Stage 1.6M not started.**
 Checkpoint: `checkpoints/STAGE-1.6L-real-vllm-inference.json`.
 
 This stage extends the authoritative preparation chain into real serving.
@@ -162,6 +161,32 @@ anonymous files so the launching interpreter can exit while the serving
 child keeps writing. K-31 remains OPEN: a later CLI still does not own
 Popen and must not signal the child; `instances infer` uses the
 persisted endpoint and does not require that ownership. Capture files
-are not rotated (K-99). K-96 stays OPEN until a **new** integration wheel
-on a **new** GPU host observes READY and a returned start CLI. Do not
-reuse `216.81.151.62`. Do not begin Stage 1.6M from this freeze.
+are not rotated (K-99). Stream B later warehouse phases are K-100 in
+this integration ledger. K-96 stays OPEN until this integration wheel on
+a **new** GPU host observes READY, a returned start CLI, and T5
+inference. Do not reuse `216.81.151.62`. Do not begin Stage 1.6M from
+this freeze.
+
+## Physical T3/T5 order
+
+Mandatory Stage 1.6L physical sequence:
+
+```text
+start instance
+→ start CLI returns
+→ DO NOT inspect/list/reconcile
+→ instances infer
+→ prove generated text
+→ capture non-destructive evidence
+```
+
+`instances inspect`, `instances list`, and `instances reconcile` from a
+second process persist UNKNOWN (K-31). That must not run before T5.
+
+Cross-process stop/restart is **not** a Stage 1.6L gate. K-31 refuses
+to signal a process this control plane did not start. In-process stop
+in a safely owning context remains optional.
+
+Acceptance host setup uses `tools/acceptance/sandbox/` on the
+acceptance branch only. Those scripts are not product code and are not
+in the wheel.

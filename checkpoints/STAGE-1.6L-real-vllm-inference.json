@@ -5,16 +5,16 @@
   "output": "first real native vLLM serving vertical: exact RuntimeInstallation + local ModelArtifact + NativeProcessExecutor + readiness + bounded InferenceRequest/Response; highest-pressure runtime-memory calibration before Available Models",
   "status": "open",
   "gate": "L3",
-  "evidence_level": "T2 local plus T0/T1 calibration; first T3 hung on start; second T3 reached READY then CLI stayed resident on capture threads; local capture-lifetime fix; T3/T5 retry not started",
+  "evidence_level": "T2 local plus T0/T1 calibration; first T3 hung on start; second T3 reached READY then CLI stayed resident; Stream A capture-lifetime freeze 6ed0422 merged with Stream B 792b0ea; T3/T5 retry not started",
   "t3_required": true,
   "t5_required": true,
   "ready_for_t3": false,
-  "ready_for_integration": false,
+  "ready_for_integration": true,
   "runtime_calibration": "implemented",
   "t3_after_calibration": "FAILED_START_HANG_THEN_LOCAL_FIX",
   "t5_status": "NOT_STARTED",
   "stage_1_6m": "NOT_STARTED",
-  "integration_artifact": "NOT_YET_CREATED",
+  "integration_artifact": "acceptance/1.6L-capture-fix-with-telemetry",
   "START_LINK": {
     "predecessor_accepted_commit": "1e51f13ec2a7c2e1fa34b6a3ec0c92f712d4b43e",
     "predecessor_checkpoints": [
@@ -40,9 +40,10 @@
       "readiness_fix_commit": "4b9c9c9614459eaa37a32f0c4354a198df6b5cf5",
       "pre_capture_lifetime_fix_commit": "6f1ef07c2356a32123b7cbdc5f992005fa97e6f3",
       "pre_capture_lifetime_fix_safety": "safety/pre-exec-capture-lifetime-fix-6f1ef07c",
-      "state": "LOCAL_CAPTURE_LIFETIME_FIX_THEN_FREEZE",
+      "capture_lifetime_fix_commit": "6ed042222bea7bdbc48244475597860e01bf0c4a",
+      "state": "FROZEN_CAPTURE_LIFETIME_FIX",
       "frozen": true,
-      "awaiting": "NEW_INTEGRATION_WHEEL_THEN_NEW_GPU_HOST"
+      "awaiting": "PHYSICAL_T3_T5_ON_NEW_GPU_HOST"
     },
     "stream_b": {
       "owner": "Data Engineering / Data Warehousing",
@@ -120,7 +121,12 @@
     "implemented": false,
     "note": "NativeProcessExecutor file-backed capture is a bounded handle prefix; serving children can grow unlinked capture inodes until exit; rotation deferred"
   },
-  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95", "K-96", "K-97", "K-98", "K-99"],
+  "k100": {
+    "status": "OPEN",
+    "implemented": false,
+    "note": "Stream B freeze labelled later warehouse phases K-99; acceptance merge records them as K-100 so Stream A capture-file debt keeps K-99"
+  },
+  "deferred": ["K-56", "K-66", "K-75", "K-77", "K-80", "K-81", "K-83", "K-88", "K-91", "K-95", "K-96", "K-97", "K-98", "K-99", "K-100"],
   "current_artifact": {
     "source_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
     "wheel": "kultrun-0.1.0-py3-none-any.whl",
@@ -156,14 +162,14 @@
     "required": "L3",
     "real_host": false,
     "date": "2026-09-09",
-    "method": "Stream A local capture-lifetime fix after second physical T3 returned READY but left the start CLI resident. K-31 and K-96 remain OPEN. Next T3/T5 require new integration with frozen Stream B 792b0ea and a completely fresh GPU host. Do not claim L3."
+    "method": "Local integration of Stream A 6ed0422 capture-lifetime freeze with frozen Stream B 792b0ea. K-31 and K-96 remain OPEN. Physical T5 order: start returns, then instances infer, without inspect/list/reconcile. Cross-process stop/restart is not a Stage 1.6L gate. Do not claim L3."
   },
   "test_modes": {
     "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; staged Available Models funnel; runtime-memory class/sentinel/raise-only calibration; optional live Hub listing; cheap Safetensors metadata bound; optional Accelerate empty-skeleton; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within Available Models; no reference fallback",
     "T1": "vLLM HTTP protocol fixture; funnel fixture; llmfit fixture after cheap bound; Available Models printed before selector; estimator invocations saved; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible; estimated-feasible is not Available without calibration",
     "T2": "same clean wheel, two isolated installs: T2-A core-only offline catalog+fallback; T2-B extras prove live Hub/Safetensors/Accelerate/llmfit then Available Models before recommend. Historical evidence predates calibration-as-gate.",
     "T3": "required; first physical attempt hung on FileStore readiness; second reached RUNNING/READY then CLI stayed resident on capture threads; local capture-lifetime fix in this freeze; retry needs a new integration wheel and a new GPU host, not 216.81.151.62",
-    "T5": "required; NOT STARTED; blocked on T3 retry"
+    "T5": "required; NOT STARTED; blocked on T3 retry; physical order is start CLI return then instances infer without inspect/list/reconcile"
   },
   "not_begun": [
     "streaming",
@@ -178,16 +184,38 @@
     "K-77 driver remediation",
     "Stage 1.6M",
     "acceptance/1.6L-with-telemetry",
+    "acceptance/1.6L-readiness-fix-with-telemetry (historical 585fddfd)",
     "fresh-host T3 after calibration",
     "fresh-host T5"
   ],
+  "physical_t5_order": {
+    "mandatory": [
+      "start instance",
+      "start CLI returns",
+      "DO NOT inspect/list/reconcile",
+      "instances infer",
+      "prove generated text",
+      "capture non-destructive evidence"
+    ],
+    "cross_process_stop_restart": "optional; not a Stage 1.6L gate under K-31"
+  },
   "merge": {
-    "performed": false
+    "performed": true,
+    "worktree": "/Users/usyd/Projects/ai-stack-acceptance-r3",
+    "branch": "acceptance/1.6L-capture-fix-with-telemetry",
+    "stream_a": "6ed042222bea7bdbc48244475597860e01bf0c4a",
+    "stream_b": "792b0ea336112cab33b0e67d7fd1d2f2c5f0595a",
+    "product_integration_commit": "5a2509299d57a3ddae27e30f47c4e4e2377dcdac",
+    "previous_acceptance_head": "585fddfd4d7c1f96753d7c1d1a43120a2b29a359",
+    "previous_acceptance_unchanged": true,
+    "conflicts": ["docs/DEBT.md"],
+    "conflict_resolution": "mechanical ID collision: Stream A K-99 kept; Stream B warehouse entry recorded as K-100"
   },
   "END_LINK": {
-    "acceptance_source_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
-    "stream_a_wheel_sha256": "c828b72bbcbfd50eba4c7cd28e1c2877b36fa71df572ab2c76da28433ed57c39",
+    "acceptance_source_commit": "PENDING_FINAL_ACCEPTANCE_HEAD",
+    "stream_a_source": "6ed042222bea7bdbc48244475597860e01bf0c4a",
+    "stream_b_source": "792b0ea336112cab33b0e67d7fd1d2f2c5f0595a",
     "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
-    "next": "STOP. Return the new Stream A freeze. Next bounded task: rebuild integration with frozen Stream B 792b0ea336112cab33b0e67d7fd1d2f2c5f0595a, then deploy that exact integration wheel to a completely fresh GPU host. Do not reuse 216.81.151.62. Do not begin Stage 1.6M."
+    "next": "STOP. Next bounded task: physical T3/T5 using ONLY the exact integration wheel from this acceptance HEAD. Begin with tools/acceptance/sandbox/initial_setup.sh. Do not reuse 216.81.151.62. Do not begin Stage 1.6M."
   }
 }
