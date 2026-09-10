@@ -68,6 +68,7 @@ from kultrun.platform.requirement import (
 from kultrun.platform.startup import Startup
 from kultrun.platform.state import PlatformStateStore
 from kultrun.platform.storage_acquire import StorageAwareAcquisition
+from kultrun.platform.storage_replan import ReplanStage, StorageReplanService
 from kultrun.resource.contracts import RequestId, ReservationId
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.catalogue import RuntimeCatalogue
@@ -125,6 +126,7 @@ class ControlPlane:
     deployment_instance: DeploymentInstanceService
     foundation_realize: FoundationRealizeService
     storage_acquire: StorageAwareAcquisition
+    storage_replan: StorageReplanService
     state_root: Path
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
@@ -870,6 +872,46 @@ def register(router: Router, plane: ControlPlane) -> Router:
         """Acquire/reuse then admit the CURRENT plan. Does not launch inference."""
         return plane.deployment_prepare.prepare(plane.hosts.current).payload()
 
+    def replan_deployment(request: ApiRequest) -> dict[str, object]:
+        """Bounded AUTO footprint replan. Does not launch or provision."""
+        from kultrun.storage.footprint import runtime_provisioning_requirement
+
+        host = plane.hosts.current
+        reason = (request.query.get("reason") or "insufficient_safe_storage").strip()
+        stage_raw = (request.query.get("stage") or "model").strip().lower()
+        stage = ReplanStage.RUNTIME if stage_raw == "runtime" else ReplanStage.MODEL
+        plan = plane.deployment_plan.stored(host)
+        identity = plan.model_id.value if plan is not None else "unselected"
+        footprint = (
+            plan.expected_storage_bytes
+            if plan is not None and isinstance(plan.expected_storage_bytes, int)
+            else 0
+        )
+        if footprint <= 0 and stage is ReplanStage.RUNTIME:
+            peak = runtime_provisioning_requirement().required_peak_free_bytes
+            footprint = peak if isinstance(peak, int) else 0
+        if footprint <= 0:
+            raise ValidationError(
+                "no original footprint is available to reduce",
+                parameter="reason",
+            )
+        if stage is ReplanStage.RUNTIME:
+            stored = plane.foundation.stored(host)
+            selected = stored.selected_candidate_id if stored is not None else None
+            if isinstance(selected, str):
+                identity = selected
+        payload = plane.storage_replan.handle(
+            host,
+            failure_code=reason,
+            original_identity=identity,
+            original_footprint=footprint,
+            stage=stage,
+        ).payload()
+        payload["mutations"] = True
+        payload["launch"] = False
+        payload["provision"] = False
+        return payload
+
     def models_requirements(_: ApiRequest) -> dict[str, object]:
         """Derived requirements and capacity. GET does not admit or acquire."""
         host = plane.hosts.current
@@ -1044,6 +1086,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/deployments/plan/acquire", acquire_deployment_plan)
     router.post("/deployments/plan/admit", admit_deployment_plan)
     router.post("/deployments/plan/prepare", prepare_deployment_plan)
+    router.post("/deployments/plan/replan", replan_deployment)
     router.get("/models/eligible", models_eligible)
     router.get("/models/requirements", models_requirements)
     router.get("/models/available", models_available)

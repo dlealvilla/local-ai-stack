@@ -10,6 +10,11 @@ from kultrun.host.contracts import HostCapabilities
 from kultrun.kernel.errors import PreconditionFailedError
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.model.contracts import MemoryPlacement
+from kultrun.platform.storage_replan import (
+    ReplanOutcome,
+    ReplanStage,
+    StorageReplanService,
+)
 from kultrun.resource.contracts import (
     AdmissionVerdict,
     RequestId,
@@ -35,6 +40,7 @@ from kultrun.storage.contradiction import contradict
 from kultrun.storage.failures import is_capacity_failure
 from kultrun.storage.footprint import runtime_provisioning_requirement
 from kultrun.storage.index import StorageEvidenceIndex
+from kultrun.storage.reduction import is_footprint_retryable
 from kultrun.storage.topology import bind_path, pools_from_host
 
 
@@ -51,6 +57,7 @@ class FoundationRealizeService:
         index: StorageEvidenceIndex | None = None,
         *,
         allow_empirical: bool = False,
+        replan: StorageReplanService | None = None,
     ) -> None:
         self._foundation = foundation
         self._characterization = characterization
@@ -59,8 +66,108 @@ class FoundationRealizeService:
         self._state_root = Path(state_root)
         self._index = index
         self._allow_empirical = allow_empirical
+        self._replan = replan
 
     def realize(
+        self,
+        host: HostCapabilities,
+        executors: Sequence[ExecutorCapabilityView],
+        descriptors: Sequence[RuntimeSupportDescriptor],
+        policy: RuntimePolicy | None = None,
+        *,
+        components: Mapping[str, str] | None = None,
+        retry: bool = False,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
+        sanity: Mapping[str, StorageSanityEvidence] | None = None,
+        _replanned: bool = False,
+    ) -> RuntimeInstallation:
+        try:
+            installation = self._realize_once(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components=components,
+                retry=retry,
+                storage_evidence=storage_evidence,
+                sanity=sanity,
+            )
+        except PreconditionFailedError as error:
+            self._raise_or_replan(host, error, replanned=_replanned)
+            return self.realize(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components=components,
+                retry=retry,
+                storage_evidence=None,
+                sanity=sanity,
+                _replanned=True,
+            )
+        code = (
+            installation.last_failure_code
+            if is_resolved(installation.last_failure_code)
+            else None
+        )
+        if (
+            not _replanned
+            and self._replan is not None
+            and installation.status is InstallationStatus.FAILED
+            and isinstance(code, str)
+            and is_footprint_retryable(code)
+            and self._try_replan(host, code)
+        ):
+            return self.realize(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components=components,
+                retry=retry,
+                storage_evidence=None,
+                sanity=sanity,
+                _replanned=True,
+            )
+        return installation
+
+    def _raise_or_replan(
+        self,
+        host: HostCapabilities,
+        error: PreconditionFailedError,
+        *,
+        replanned: bool,
+    ) -> None:
+        if replanned or self._replan is None:
+            raise error
+        code = str(error.context.get("reason") or "")
+        if not is_footprint_retryable(code):
+            raise error
+        if not self._try_replan(host, code):
+            raise error
+
+    def _try_replan(self, host: HostCapabilities, code: str) -> bool:
+        if self._replan is None:
+            return False
+        selected = _selected_identity(self._foundation, host)
+        peak = runtime_provisioning_requirement().required_peak_free_bytes
+        footprint = peak if isinstance(peak, int) else 0
+        report = self._replan.handle(
+            host,
+            failure_code=code,
+            original_identity=selected,
+            original_footprint=footprint,
+            stage=ReplanStage.RUNTIME,
+        )
+        if report.outcome is ReplanOutcome.SUCCEEDED:
+            return True
+        if report.outcome is ReplanOutcome.MANUAL_BLOCKED:
+            raise PreconditionFailedError(report.message, reason=report.outcome.value)
+        if report.outcome is ReplanOutcome.LOW_SPACE:
+            raise PreconditionFailedError(report.message, reason="storage_low_space")
+        raise PreconditionFailedError(report.message, reason=report.outcome.value)
+
+    def _realize_once(
         self,
         host: HostCapabilities,
         executors: Sequence[ExecutorCapabilityView],
@@ -181,3 +288,13 @@ class FoundationRealizeService:
         )
         if self._index is not None:
             self._index.put_many(rediscovered.evidence)
+
+
+def _selected_identity(
+    foundation: FoundationSelectionService, host: HostCapabilities
+) -> str:
+    stored = foundation.stored(host)
+    if stored is None:
+        return "unselected"
+    selected = stored.selected_candidate_id
+    return selected if isinstance(selected, str) else "unselected"

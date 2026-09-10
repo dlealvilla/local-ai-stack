@@ -152,6 +152,7 @@ from kultrun.platform.runtime_memory import (
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
 from kultrun.platform.storage_acquire import StorageAwareAcquisition
+from kultrun.platform.storage_replan import FoundationInputs, StorageReplanService
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
 from kultrun.resource import contracts as _resource_contracts  # noqa: F401
 from kultrun.resource.contracts import LedgerHealth
@@ -936,6 +937,71 @@ def build(
             host, view, envelope, funnel.assessments, chosen, foundation.stored(host)
         )
 
+    def _funnel_live(host: HostCapabilities) -> FunnelPass:
+        descriptors = runtimes.descriptors()
+        view = eligibility.evaluate(
+            host,
+            (
+                executions.capabilities(host),
+                container_executor.capabilities(host),
+            ),
+            descriptors,
+            catalog_facts(models),
+            RuntimePolicy(),
+            components=path_presence(
+                [
+                    component.value
+                    for descriptor in descriptors
+                    for component in descriptor.required_components
+                ]
+            ),
+        )
+        envelope = capacity.compute(
+            host, _stored_sanity_with(sanity, host), storage_index.for_host(host)
+        )
+        stored_plan = deployment_plan.stored(host)
+        return available_models.evaluate(
+            host,
+            view,
+            envelope,
+            planning_capacity(
+                resources,
+                envelope,
+                host,
+                plan_basis=revalidation_plan_basis(
+                    stored_plan, model_selection.stored(host)
+                ),
+                storage_mount=mount_for_path(state_root / "models", host),
+            ),
+            persist=False,
+        )
+
+    def _foundation_inputs(host: HostCapabilities) -> FoundationInputs:
+        return (
+            (
+                executions.capabilities(host),
+                container_executor.capabilities(host),
+            ),
+            runtimes.descriptors(),
+            RuntimePolicy(),
+        )
+
+    storage_replan = StorageReplanService(
+        characterization=characterization,
+        funnel=_funnel_live,
+        model_selection=model_selection,
+        plans=deployment_plan,
+        resources=resources,
+        capacity=capacity,
+        stored_sanity=lambda host: _stored_sanity_with(sanity, host),
+        foundation=foundation,
+        foundation_inputs=_foundation_inputs,
+        index=storage_index,
+        state_root=state_root,
+        allow_empirical=shape is None,
+    )
+    foundation_realize._replan = storage_replan
+
     deployment_prepare = DeploymentPreparationService(
         _plan_overview_live,
         models,
@@ -946,6 +1012,7 @@ def build(
         lambda host: _stored_sanity_with(sanity, host),
         resolved_clock,
         storage_acquire=storage_acquire,
+        replan=storage_replan,
     )
     deployment_instance = DeploymentInstanceService(
         _plan_overview_live,
@@ -985,6 +1052,7 @@ def build(
         deployment_instance=deployment_instance,
         foundation_realize=foundation_realize,
         storage_acquire=storage_acquire,
+        storage_replan=storage_replan,
         state_root=state_root,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,

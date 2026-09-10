@@ -161,6 +161,10 @@ class FoundationSelectionService:
         """Persisted selection, if any. Does not resolve or probe."""
         return self._load(host.host_id.value)
 
+    def installation_for(self, candidate_id: str) -> RuntimeInstallation | None:
+        """Lifecycle truth for one candidate. Does not provision."""
+        return self._installation_for(candidate_id)
+
     def _dest_mount(self, host: HostCapabilities) -> str | None:
         if self._runtime_root is None:
             return None

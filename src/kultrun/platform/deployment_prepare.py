@@ -1,8 +1,9 @@
 """Plan-driven acquisition and resource admission. Stops before InferenceInstance.
 
 Composition-owned. Acquisition still owns download/verify. ResourceManager
-still owns live admission. This service only consumes a CURRENT
-DeploymentPlan and does not reselect, replan, or launch.
+still owns live admission. This service consumes a CURRENT DeploymentPlan.
+On a footprint/storage rejection it may invoke the bounded storage-replan
+seam once, then consume the new CURRENT plan. It does not launch.
 """
 
 from __future__ import annotations
@@ -31,8 +32,18 @@ from kultrun.planning.contracts import DeploymentPlan, DeploymentPlanStatus
 from kultrun.platform.admission import AdmissionService, artifact_matches_plan
 from kultrun.platform.deployment_plan import DeploymentPlanOverview
 from kultrun.platform.storage_acquire import StorageAwareAcquisition
-from kultrun.resource.contracts import AdmissionDecision, ResourceRequest
+from kultrun.platform.storage_replan import (
+    ReplanOutcome,
+    ReplanStage,
+    StorageReplanService,
+)
+from kultrun.resource.contracts import (
+    AdmissionDecision,
+    AdmissionVerdict,
+    ResourceRequest,
+)
 from kultrun.storage.contracts import StorageSanityEvidence
+from kultrun.storage.reduction import is_footprint_retryable
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +138,7 @@ class DeploymentPreparationService:
         stored_sanity: Callable[[HostCapabilities], dict[str, StorageSanityEvidence]],
         clock: Clock,
         storage_acquire: StorageAwareAcquisition | None = None,
+        replan: StorageReplanService | None = None,
     ) -> None:
         self._overview = overview
         self._models = models
@@ -137,9 +149,20 @@ class DeploymentPreparationService:
         self._stored_sanity = stored_sanity
         self._clock = clock
         self._storage_acquire = storage_acquire
+        self._replan = replan
 
-    def acquire(self, host: HostCapabilities) -> PlanAcquisitionResult:
+    def acquire(
+        self, host: HostCapabilities, *, _replanned: bool = False
+    ) -> PlanAcquisitionResult:
         """Ensure the CURRENT plan's exact artifact exists. Does not admit."""
+        try:
+            return self._acquire_once(host)
+        except PreconditionFailedError as error:
+            if _replanned or not self._maybe_replan(host, error=error):
+                raise
+            return self.acquire(host, _replanned=True)
+
+    def _acquire_once(self, host: HostCapabilities) -> PlanAcquisitionResult:
         overview = self._overview(host)
         plan = require_current_plan(overview)
         entry = catalog_entry_for_plan(self._models, plan)
@@ -198,8 +221,25 @@ class DeploymentPreparationService:
         self,
         host: HostCapabilities,
         artifact_id: ArtifactId | None = None,
+        *,
+        _replanned: bool = False,
     ) -> PreparedDeployment:
         """Admit the CURRENT plan against a matching stored artifact."""
+        prepared = self._admit_once(host, artifact_id)
+        if _replanned or not self._rejected_storage(prepared.decision):
+            return prepared
+        code = (
+            str(prepared.decision.reason_code) if prepared.decision is not None else ""
+        )
+        if self._maybe_replan(host, code=code, plan=prepared.plan):
+            return self.admit(host, artifact_id, _replanned=True)
+        return prepared
+
+    def _admit_once(
+        self,
+        host: HostCapabilities,
+        artifact_id: ArtifactId | None,
+    ) -> PreparedDeployment:
         overview = self._overview(host)
         plan = require_current_plan(overview)
         artifact = self._artifact_for_admit(plan, artifact_id)
@@ -215,9 +255,16 @@ class DeploymentPreparationService:
             decision=decision,
         )
 
-    def prepare(self, host: HostCapabilities) -> PreparedDeployment:
+    def prepare(
+        self, host: HostCapabilities, *, _replanned: bool = False
+    ) -> PreparedDeployment:
         """Acquire/reuse then admit. Does not create an InferenceInstance."""
-        acquired = self.acquire(host)
+        try:
+            acquired = self._acquire_once(host)
+        except PreconditionFailedError as error:
+            if _replanned or not self._maybe_replan(host, error=error):
+                raise
+            return self.prepare(host, _replanned=True)
         overview = self._overview(host)
         plan = require_current_plan(overview)
         if not artifact_matches_plan(acquired.artifact, plan):
@@ -229,7 +276,7 @@ class DeploymentPreparationService:
         request, decision = self._admission.reserve_for_plan(
             plan, acquired.artifact, host, self._stored_sanity(host)
         )
-        return PreparedDeployment(
+        prepared = PreparedDeployment(
             plan=plan,
             plan_status=overview.status,
             artifact=acquired.artifact,
@@ -237,6 +284,56 @@ class DeploymentPreparationService:
             request=request,
             decision=decision,
         )
+        if _replanned or not self._rejected_storage(decision):
+            return prepared
+        code = str(decision.reason_code)
+        if self._maybe_replan(host, code=code, plan=plan):
+            return self.prepare(host, _replanned=True)
+        return prepared
+
+    def _rejected_storage(self, decision: AdmissionDecision | None) -> bool:
+        if decision is None or decision.verdict is AdmissionVerdict.ADMITTED:
+            return False
+        code = decision.reason_code
+        return isinstance(code, str) and is_footprint_retryable(code)
+
+    def _maybe_replan(
+        self,
+        host: HostCapabilities,
+        *,
+        error: PreconditionFailedError | None = None,
+        code: str | None = None,
+        plan: DeploymentPlan | None = None,
+    ) -> bool:
+        if self._replan is None:
+            return False
+        if error is not None:
+            code = str(error.context.get("reason") or "")
+        if not isinstance(code, str) or not is_footprint_retryable(code):
+            return False
+        if plan is None:
+            stored = self._overview(host).plan
+            plan = stored
+        identity = plan.model_id.value if plan is not None else "unselected"
+        footprint = _plan_footprint(plan)
+        if footprint <= 0:
+            return False
+        report = self._replan.handle(
+            host,
+            failure_code=code,
+            original_identity=identity,
+            original_footprint=footprint,
+            stage=ReplanStage.MODEL,
+        )
+        if report.outcome is ReplanOutcome.SUCCEEDED:
+            return True
+        if report.outcome is ReplanOutcome.MANUAL_BLOCKED:
+            raise PreconditionFailedError(report.message, reason=report.outcome.value)
+        if report.outcome is ReplanOutcome.LOW_SPACE:
+            raise PreconditionFailedError(report.message, reason="storage_low_space")
+        if report.outcome is ReplanOutcome.TERMINAL:
+            raise PreconditionFailedError(report.message, reason=report.outcome.value)
+        return False
 
     def _artifact_for_admit(
         self, plan: DeploymentPlan, artifact_id: ArtifactId | None
@@ -263,6 +360,13 @@ class DeploymentPreparationService:
                 model_id=plan.model_id.value,
             )
         return found
+
+
+def _plan_footprint(plan: DeploymentPlan | None) -> int:
+    if plan is None:
+        return 0
+    value = plan.expected_storage_bytes
+    return value if isinstance(value, int) and value > 0 else 0
 
 
 def require_current_plan(overview: DeploymentPlanOverview) -> DeploymentPlan:
