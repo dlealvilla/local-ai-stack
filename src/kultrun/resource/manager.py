@@ -31,6 +31,7 @@ from kultrun.resource.ledger import (
     device_health,
     reserved_accelerator,
     reserved_ram,
+    reserved_storage,
     reserved_unified,
 )
 from kultrun.resource.lock import AdmissionLock
@@ -101,7 +102,7 @@ class ResourceManager:
         self,
         request: ResourceRequest,
         envelope: CapacityEnvelope,
-        artifact: ModelArtifact,
+        artifact: ModelArtifact | None = None,
     ) -> AdmissionDecision:
         """Check SAFE minus ACTIVE, then persist. One protected operation."""
         with self._lock.hold():
@@ -147,6 +148,8 @@ class ResourceManager:
                 logical_name=found.logical_name,
                 quantization=found.quantization,
                 model_revision=found.model_revision,
+                storage_pool_mount=found.storage_pool_mount,
+                storage_quota_identity=found.storage_quota_identity,
             )
             self._store.put(released.reservation_id.value, released)
             return released
@@ -155,18 +158,27 @@ class ResourceManager:
         self,
         request: ResourceRequest,
         envelope: CapacityEnvelope,
-        artifact: ModelArtifact,
+        artifact: ModelArtifact | None,
     ) -> AdmissionDecision:
-        if artifact.artifact_id != request.artifact_id:
-            raise ValidationError("request artifact does not match inventory artifact")
-        if artifact.state is not ArtifactState.STORED:
-            return self._decide(
-                request,
-                envelope,
-                AdmissionVerdict.REJECTED,
-                AdmissionReason.ARTIFACT_NOT_STORED,
-                "artifact is not STORED",
-            )
+        storage_work = request.workload_type in {
+            WorkloadType.RUNTIME_PROVISIONING,
+            WorkloadType.MODEL_ACQUISITION,
+        }
+        if not storage_work:
+            if artifact is None or request.artifact_id is None:
+                raise ValidationError("inference admission requires a stored artifact")
+            if artifact.artifact_id != request.artifact_id:
+                raise ValidationError(
+                    "request artifact does not match inventory artifact"
+                )
+            if artifact.state is not ArtifactState.STORED:
+                return self._decide(
+                    request,
+                    envelope,
+                    AdmissionVerdict.REJECTED,
+                    AdmissionReason.ARTIFACT_NOT_STORED,
+                    "artifact is not STORED",
+                )
         existing = self._active_for_request(request.request_id)
         if existing is not None:
             return AdmissionDecision(
@@ -237,6 +249,8 @@ class ResourceManager:
             logical_name=request.logical_name,
             quantization=request.quantization,
             model_revision=request.model_revision,
+            storage_pool_mount=request.storage_pool_mount,
+            storage_quota_identity=request.storage_quota_identity,
         )
         self._store.put(workload.workload_id.value, workload)
         self._store.put(request.request_id.value, request)
@@ -329,7 +343,11 @@ class ResourceManager:
                     else (
                         AdmissionReason.INSUFFICIENT_SAFE_UNIFIED
                         if name == "unified"
-                        else AdmissionReason.INSUFFICIENT_SAFE_ACCELERATOR
+                        else (
+                            AdmissionReason.INSUFFICIENT_SAFE_STORAGE
+                            if name == "storage"
+                            else AdmissionReason.INSUFFICIENT_SAFE_ACCELERATOR
+                        )
                     )
                 )
                 return self._decide(
@@ -364,6 +382,14 @@ class ResourceManager:
 
 def _load_bearing(request: ResourceRequest) -> list[tuple[str, int]]:
     """Resolved amounts that must fit. CPU and ports are not load-bearing."""
+    if request.workload_type in {
+        WorkloadType.RUNTIME_PROVISIONING,
+        WorkloadType.MODEL_ACQUISITION,
+    }:
+        storage = as_int(request.incremental_storage_bytes)
+        if storage is None:
+            return []
+        return [("storage", storage)]
     needed: list[tuple[str, int]] = []
     ram = as_int(request.ram_bytes)
     if ram is None:
@@ -402,7 +428,23 @@ def _safe_and_reserved(
         if index is None:
             return None, 0
         return _device_safe(envelope, index), reserved_accelerator(current, index)
+    if name == "storage":
+        mount = (
+            request.storage_pool_mount
+            if is_resolved(request.storage_pool_mount)
+            else None
+        )
+        if not isinstance(mount, str):
+            return None, 0
+        return _pool_safe(envelope, mount), reserved_storage(current, mount)
     return None, 0
+
+
+def _pool_safe(envelope: CapacityEnvelope, mount: str) -> int | None:
+    for pool in envelope.pools:
+        if pool.mount_point == mount:
+            return as_int(pool.space.safe_bytes)
+    return None
 
 
 def _device_safe(envelope: CapacityEnvelope, index: int | None) -> int | None:
@@ -412,4 +454,3 @@ def _device_safe(envelope: CapacityEnvelope, index: int | None) -> int | None:
         if accelerator.index == index:
             return as_int(accelerator.memory.safe_bytes)
     return None
-

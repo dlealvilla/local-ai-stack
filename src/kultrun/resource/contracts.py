@@ -60,6 +60,8 @@ class WorkloadType(StrEnum):
     QUANTIZATION = "quantization"
     DISTILLATION = "distillation"
     AGENT_WORKER = "agent_worker"
+    RUNTIME_PROVISIONING = "runtime_provisioning"
+    MODEL_ACQUISITION = "model_acquisition"
 
 
 class ReservationState(StrEnum):
@@ -107,6 +109,7 @@ class AdmissionReason(StrEnum):
     UNRESOLVED_SAFE_CAPACITY = "unresolved_safe_capacity"
     UNRESOLVED_REQUIREMENT = "unresolved_requirement"
     PLACEMENT_UNDETERMINED = "placement_undetermined"
+    INSUFFICIENT_SAFE_STORAGE = "insufficient_safe_storage"
 
 
 POLICY_VERSION = "1.5A.0"
@@ -244,9 +247,15 @@ class ResourceReservation(Contract):
     model_revision: Maybe[str] = meaning(
         "artifact revision reserved against", default=NOT_PROVIDED
     )
+    storage_pool_mount: Maybe[str] = meaning(
+        "destination StoragePool mount for storage grants", default=NOT_PROVIDED
+    )
+    storage_quota_identity: Maybe[str] = meaning(
+        "quota domain this storage grant spends from", default=NOT_PROVIDED
+    )
 
 
-@contract(kind="resource.request", version=1)
+@contract(kind="resource.request", version=2)
 @dataclass(frozen=True, slots=True)
 class ResourceRequest(Contract):
     """One future workload's resource commitment. Not a ranking, not a launch.
@@ -257,8 +266,6 @@ class ResourceRequest(Contract):
 
     request_id: RequestId = meaning("idempotency identity of this admission")
     host_id: HostId = meaning("the host whose SAFE capacity is considered")
-    artifact_id: ArtifactId = meaning("the STORED artifact this would serve")
-    model_id: ModelId = meaning("canonical model identity")
     plan_fingerprint: str = meaning("assumptions that produced these amounts")
     placement: MemoryPlacement = meaning("device strategy the plan selected")
     ram_bytes: Maybe[int] = meaning("host memory requested; unknown is not zero")
@@ -267,6 +274,13 @@ class ResourceRequest(Contract):
     )
     unified_bytes: Maybe[int] = meaning(
         "unified memory when that is the placement; never fake VRAM"
+    )
+    artifact_id: ArtifactId | None = meaning(
+        "the STORED artifact this would serve; absent for storage-only work",
+        default=None,
+    )
+    model_id: ModelId | None = meaning(
+        "canonical model identity when this work serves one", default=None
     )
     logical_name: Maybe[str] = meaning("catalog name", default=NOT_PROVIDED)
     runtime: Maybe[str] = meaning(
@@ -280,8 +294,15 @@ class ResourceRequest(Contract):
         default=NOT_PROVIDED,
     )
     incremental_storage_bytes: Maybe[int] = meaning(
-        "future scratch/cache only; never the already-stored artifact size",
+        "bytes this work would consume on the named pool",
         default=NOT_PROVIDED,
+    )
+    storage_pool_mount: Maybe[str] = meaning(
+        "destination StoragePool; required when storage is load-bearing",
+        default=NOT_PROVIDED,
+    )
+    storage_quota_identity: Maybe[str] = meaning(
+        "quota domain of the destination pool", default=NOT_PROVIDED
     )
     port_count: Maybe[int] = meaning(
         "future endpoint/port seam; unused in v0", default=NOT_PROVIDED
@@ -350,6 +371,22 @@ class DeviceResourceSummary(Contract):
     )
 
 
+@contract(kind="resource.pool_summary", version=1)
+@dataclass(frozen=True, slots=True)
+class PoolResourceSummary(Contract):
+    """SAFE / RESERVED / AVAILABLE for one storage pool."""
+
+    mount_point: str = meaning("pool mount")
+    reserved_bytes: int = meaning("ACTIVE grants on this pool")
+    quota_identity: Maybe[str] = meaning("quota domain", default=NOT_PROVIDED)
+    safe_bytes: Maybe[int] = meaning(
+        "current SAFE storage on this pool", default=NOT_PROVIDED
+    )
+    available_bytes: Maybe[int] = meaning(
+        "SAFE minus reserved; never negative", default=NOT_PROVIDED
+    )
+
+
 @contract(kind="resource.summary", version=1)
 @dataclass(frozen=True, slots=True)
 class ResourceSummary(Contract):
@@ -371,9 +408,7 @@ class ResourceSummary(Contract):
     safe_unified_bytes: Maybe[int] = meaning(
         "current SAFE unified memory", default=NOT_PROVIDED
     )
-    reserved_unified_bytes: int = meaning(
-        "sum of ACTIVE unified grants", default=0
-    )
+    reserved_unified_bytes: int = meaning("sum of ACTIVE unified grants", default=0)
     available_unified_bytes: Maybe[int] = meaning(
         "SAFE unified minus reserved, or 0 when overcommitted", default=NOT_PROVIDED
     )
@@ -410,4 +445,7 @@ class ResourceSummary(Contract):
     )
     snapshot_version: str = meaning(
         "arithmetic version of this derived current-capacity view", default=""
+    )
+    pools: tuple[PoolResourceSummary, ...] = meaning(
+        "per-pool storage ledger; never a host-wide scalar", default=()
     )

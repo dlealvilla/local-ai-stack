@@ -45,6 +45,7 @@ from kultrun.resource.contracts import (
 from kultrun.resource.ledger import available_for_new_work, reserved_accelerator
 from kultrun.resource.lock import AdmissionLock
 from kultrun.resource.manager import ResourceManager
+from kultrun.storage.topology import mount_for_path
 from tests.architecture import scan
 
 INSTANT = dt.datetime(2026, 9, 7, 10, 0, tzinfo=dt.UTC)
@@ -180,7 +181,10 @@ def _store(platform: Platform, name: str) -> AcquisitionReceipt:
     from kultrun.model.acquisition import request_from_entry
 
     return platform.acquisition.acquire(
-        request_from_entry(entry), envelope, host.host_id
+        request_from_entry(entry),
+        envelope,
+        host.host_id,
+        destination_mount=mount_for_path(platform.plane.state_root / "models", host),
     )
 
 
@@ -205,8 +209,7 @@ class TestArithmetic:
         )
         assert decision.verdict is AdmissionVerdict.REJECTED
         assert (
-            decision.reason_code
-            == AdmissionReason.INSUFFICIENT_SAFE_ACCELERATOR.value
+            decision.reason_code == AdmissionReason.INSUFFICIENT_SAFE_ACCELERATOR.value
         )
 
 
@@ -351,8 +354,7 @@ class TestAdmissionLifecycle:
         )
         assert decision.verdict is AdmissionVerdict.REJECTED
         assert (
-            decision.reason_code
-            == AdmissionReason.SELECTED_ACCELERATOR_UNKNOWN.value
+            decision.reason_code == AdmissionReason.SELECTED_ACCELERATOR_UNKNOWN.value
         )
 
 
@@ -373,9 +375,7 @@ class TestOvercommitAndRestart:
         assert summary.accelerators[0].reserved_bytes == 20 * GIB
         assert summary.accelerators[0].available_bytes == 0
         other = _artifact()
-        denied = manager.admit(
-            _request(other, narrow, vram=1 * GIB), narrow, other
-        )
+        denied = manager.admit(_request(other, narrow, vram=1 * GIB), narrow, other)
         assert denied.verdict is AdmissionVerdict.REJECTED
         assert denied.reason_code == AdmissionReason.LEDGER_OVERCOMMITTED.value
         held = manager.get(decision.reservation.reservation_id)
@@ -413,9 +413,7 @@ class TestOvercommitAndRestart:
             )
             results.append(decision.verdict.value)
 
-        workers = [
-            threading.Thread(target=run, args=(8 * GIB,)) for _ in range(2)
-        ]
+        workers = [threading.Thread(target=run, args=(8 * GIB,)) for _ in range(2)]
         for worker in workers:
             worker.start()
         for worker in workers:

@@ -16,6 +16,7 @@ from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.resource.contracts import (
     POLICY_VERSION,
     DeviceResourceSummary,
+    PoolResourceSummary,
     ReservationId,
     ReservationState,
     ResourceReservation,
@@ -29,6 +30,7 @@ from kultrun.resource.ledger import (
     reserved_accelerator,
     reserved_incremental_storage,
     reserved_ram,
+    reserved_storage,
     reserved_unified,
 )
 
@@ -53,7 +55,27 @@ def current_capacity_snapshot(
     held = active(counted)
     ram_safe = as_int(envelope.memory.safe_bytes)
     ram_reserved = reserved_ram(counted)
-    storage_safe, storage_source = _storage_safe(envelope)
+    pool_rows = []
+    for pool in envelope.pools:
+        safe = as_int(pool.space.safe_bytes)
+        reserved = reserved_storage(counted, pool.mount_point)
+        pool_rows.append(
+            PoolResourceSummary(
+                mount_point=pool.mount_point,
+                quota_identity=NOT_PROVIDED,
+                safe_bytes=pool.space.safe_bytes,
+                reserved_bytes=reserved,
+                available_bytes=available_for_new_work(safe, reserved),
+            )
+        )
+    authorizing = [row for row in pool_rows if as_int(row.safe_bytes) is not None]
+    storage_safe: int | None
+    storage_source: Maybe[str]
+    if len(authorizing) == 1:
+        storage_safe = as_int(authorizing[0].safe_bytes)
+        storage_source = authorizing[0].mount_point
+    else:
+        storage_safe, storage_source = None, NOT_PROVIDED
     storage_reserved = reserved_incremental_storage(counted)
     by_host = _accelerator_identity(host)
     devices = []
@@ -96,6 +118,7 @@ def current_capacity_snapshot(
         available_storage_bytes=available_for_new_work(storage_safe, storage_reserved),
         storage_source=storage_source,
         snapshot_version=SNAPSHOT_VERSION,
+        pools=tuple(pool_rows),
     )
 
 
@@ -144,15 +167,6 @@ def _without_excluded(
             continue
         kept.append(item)
     return tuple(kept)
-
-
-def _storage_safe(envelope: CapacityEnvelope) -> tuple[int | None, Maybe[str]]:
-    for pool in envelope.pools:
-        safe = as_int(pool.space.safe_bytes)
-        if safe is None:
-            continue
-        return safe, pool.mount_point
-    return None, NOT_PROVIDED
 
 
 def _accelerator_identity(

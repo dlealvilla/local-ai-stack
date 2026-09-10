@@ -5438,7 +5438,47 @@
     },
     "python": "DeviceResourceSummary"
   },
-  "resource.request@1": {
+  "resource.pool_summary@1": {
+    "fields": {
+      "available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE minus reserved; never negative",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "pool mount",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "reserved_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "ACTIVE grants on this pool",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "safe_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current SAFE storage on this pool",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "PoolResourceSummary"
+  },
+  "resource.request@2": {
     "fields": {
       "accelerator_bytes": {
         "may_be_unresolved": true,
@@ -5456,10 +5496,10 @@
       },
       "artifact_id": {
         "may_be_unresolved": false,
-        "meaning": "the STORED artifact this would serve",
-        "nullable": false,
-        "optional": false,
-        "type": "ArtifactId"
+        "meaning": "the STORED artifact this would serve; absent for storage-only work",
+        "nullable": true,
+        "optional": true,
+        "type": "ArtifactId | None"
       },
       "capacity_policy_version": {
         "may_be_unresolved": true,
@@ -5505,7 +5545,7 @@
       },
       "incremental_storage_bytes": {
         "may_be_unresolved": true,
-        "meaning": "future scratch/cache only; never the already-stored artifact size",
+        "meaning": "bytes this work would consume on the named pool",
         "nullable": false,
         "optional": true,
         "type": "int | Unresolved"
@@ -5519,10 +5559,10 @@
       },
       "model_id": {
         "may_be_unresolved": false,
-        "meaning": "canonical model identity",
-        "nullable": false,
-        "optional": false,
-        "type": "ModelId"
+        "meaning": "canonical model identity when this work serves one",
+        "nullable": true,
+        "optional": true,
+        "type": "ModelId | None"
       },
       "model_revision": {
         "may_be_unresolved": true,
@@ -5583,6 +5623,20 @@
       "runtime": {
         "may_be_unresolved": true,
         "meaning": "proposed runtime, for provenance",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "storage_pool_mount": {
+        "may_be_unresolved": true,
+        "meaning": "destination StoragePool; required when storage is load-bearing",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "storage_quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain of the destination pool",
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
@@ -5802,6 +5856,20 @@
         "optional": false,
         "type": "ReservationState"
       },
+      "storage_pool_mount": {
+        "may_be_unresolved": true,
+        "meaning": "destination StoragePool mount for storage grants",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "storage_quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain this storage grant spends from",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "workload_id": {
         "may_be_unresolved": false,
         "meaning": "the workload it was granted to",
@@ -5904,6 +5972,13 @@
         "nullable": false,
         "optional": false,
         "type": "str"
+      },
+      "pools": {
+        "may_be_unresolved": false,
+        "meaning": "per-pool storage ledger; never a host-wide scalar",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[PoolResourceSummary, ...]"
       },
       "reserved_incremental_storage_bytes": {
         "may_be_unresolved": false,
@@ -7581,6 +7656,13 @@
   },
   "runtime.provisioning_plan@1": {
     "fields": {
+      "cache_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "managed install cache; zero when --no-cache-dir",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "candidate_id": {
         "may_be_unresolved": false,
         "meaning": "RuntimeCandidate this plan came from",
@@ -7644,6 +7726,20 @@
         "optional": false,
         "type": "str"
       },
+      "peak_transient_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "staging peak above persistent",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "persistent_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "estimated persistent runtime footprint",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "plan_fingerprint": {
         "may_be_unresolved": false,
         "meaning": "full SHA-256 of the identity material",
@@ -7679,6 +7775,13 @@
         "optional": false,
         "type": "str"
       },
+      "required_peak_free_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "conservative peak free space required before realize",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "required_prerequisites": {
         "may_be_unresolved": false,
         "meaning": "facts that must hold before install",
@@ -7713,6 +7816,13 @@
         "nullable": false,
         "optional": false,
         "type": "str"
+      },
+      "storage_mount": {
+        "may_be_unresolved": true,
+        "meaning": "destination pool for this install",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "unresolved_prerequisites": {
         "may_be_unresolved": false,
@@ -8160,6 +8270,636 @@
     },
     "python": "RuntimeVerificationProbe"
   },
+  "storage.capacity_evidence@1": {
+    "fields": {
+      "administrator_bound_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "manual bound; never overrides a smaller hard or empirical failure",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "authorizing_available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "the only figure ResourceManager may spend; unresolved is not zero",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "belief_bound_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "heuristic ceiling for display; never authorizing SAFE",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "how much weight this evidence carries",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "declared_available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "strongest native/declared available figure, when one exists",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "disagreement_ratio": {
+        "may_be_unresolved": true,
+        "meaning": "abs(native-probe)/max(native,probe) when both exist",
+        "nullable": false,
+        "optional": true,
+        "type": "float | Unresolved"
+      },
+      "hard_maximum_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "smallest known hard entitlement; a probe may not exceed it",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this evidence was gathered on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "pool mount this describes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "native_source": {
+        "may_be_unresolved": true,
+        "meaning": "declared/native source identity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this evidence was produced, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "operational_available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "available after arbitration, before Kultrun headroom; not SAFE",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "pool_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "pool identity; invalid when the mount changes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "probe_available": {
+        "may_be_unresolved": false,
+        "meaning": "whether a compatible probe existed",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "probe_available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "technology-specific probe available figure, when one ran",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "probe_executed": {
+        "may_be_unresolved": false,
+        "meaning": "whether that probe actually ran",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "probe_name": {
+        "may_be_unresolved": true,
+        "meaning": "technology probe that ran, if any",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "provenance": {
+        "may_be_unresolved": false,
+        "meaning": "who produced it, when, under which policy",
+        "nullable": false,
+        "optional": false,
+        "type": "Provenance"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain, when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "reported_available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "generic filesystem-reported free space; never authorizes alone",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "selected_reason": {
+        "may_be_unresolved": false,
+        "meaning": "why the operational value was chosen",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "authorization class of this evidence",
+        "nullable": false,
+        "optional": false,
+        "type": "StorageEvidenceStatus"
+      }
+    },
+    "python": "StorageCapacityEvidence"
+  },
+  "storage.cleanup_report@1": {
+    "fields": {
+      "bytes_removed": {
+        "may_be_unresolved": false,
+        "meaning": "bytes removed, best effort",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host that was inventoried",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "inspected": {
+        "may_be_unresolved": false,
+        "meaning": "managed roots considered",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "legacy_unlabelled": {
+        "may_be_unresolved": false,
+        "meaning": "kultrun-looking paths without positive ownership",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "protected": {
+        "may_be_unresolved": false,
+        "meaning": "active, rollback, or evidence roots",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "rediscovery_required": {
+        "may_be_unresolved": false,
+        "meaning": "always true after Step 0",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "removed": {
+        "may_be_unresolved": false,
+        "meaning": "roots actually deleted",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "unresolved": {
+        "may_be_unresolved": false,
+        "meaning": "roots that must not be deleted",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      }
+    },
+    "python": "CleanupReport"
+  },
+  "storage.empirical_evidence@1": {
+    "fields": {
+      "bytes_physically_written": {
+        "may_be_unresolved": false,
+        "meaning": "bytes actually written before cleanup",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "cleanup_success": {
+        "may_be_unresolved": false,
+        "meaning": "true when the owned probe file was confirmed gone",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "weight of this empirical bound",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "elapsed_seconds": {
+        "may_be_unresolved": false,
+        "meaning": "wall clock of the search",
+        "nullable": false,
+        "optional": true,
+        "type": "float"
+      },
+      "failure_code": {
+        "may_be_unresolved": true,
+        "meaning": "STORAGE_QUOTA_EXCEEDED / STORAGE_SPACE_EXHAUSTED when observed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "failure_errno": {
+        "may_be_unresolved": true,
+        "meaning": "underlying errno when a write failed",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host the probe ran on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "interrupted": {
+        "may_be_unresolved": false,
+        "meaning": "true when cancelled or timed out",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "max_probe_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "configured exploration ceiling",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "pool that was probed",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "observed_failure_upper_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "smallest size that failed for space or quota",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "probe_ceiling_reached": {
+        "may_be_unresolved": false,
+        "meaning": "true when the ceiling was hit without a capacity failure",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "provenance": {
+        "may_be_unresolved": false,
+        "meaning": "probe identity and time",
+        "nullable": false,
+        "optional": false,
+        "type": "Provenance"
+      },
+      "search_granularity_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "smallest step the search used",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "target_path": {
+        "may_be_unresolved": false,
+        "meaning": "directory the probe file lived on",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "verified_lower_bound_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "largest successful real write",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "EmpiricalProbeEvidence"
+  },
+  "storage.installation_generation@1": {
+    "fields": {
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the generation was opened, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "generation_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this generation",
+        "nullable": false,
+        "optional": false,
+        "type": "InstallationGenerationId"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this generation was created on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "lifecycle_state": {
+        "may_be_unresolved": false,
+        "meaning": "preparing, active, failed, or retained",
+        "nullable": false,
+        "optional": false,
+        "type": "LifecycleState"
+      },
+      "ownership_ids": {
+        "may_be_unresolved": false,
+        "meaning": "owned roots that belong to this generation",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "rollback_protected": {
+        "may_be_unresolved": false,
+        "meaning": "true while a prior generation must be kept",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      }
+    },
+    "python": "InstallationGeneration"
+  },
+  "storage.low_space_guidance@1": {
+    "fields": {
+      "authorizing_available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "what Kultrun can currently establish",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "cleaned_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "owned disposable bytes Step 0 removed",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this guidance is for",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "message": {
+        "may_be_unresolved": false,
+        "meaning": "what the administrator is asked to do",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "constrained storage domain",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain, when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "rediscovery_required": {
+        "may_be_unresolved": false,
+        "meaning": "true; the next attempt must rediscover",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "threshold_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "policy threshold that triggered guidance",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      }
+    },
+    "python": "LowSpaceGuidance"
+  },
+  "storage.managed_path@1": {
+    "fields": {
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this path belongs to",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "mount_point": {
+        "may_be_unresolved": true,
+        "meaning": "StoragePool mount that contains it",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "ownership_id": {
+        "may_be_unresolved": true,
+        "meaning": "ownership record, when asserted",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "path": {
+        "may_be_unresolved": false,
+        "meaning": "absolute path",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "persistent": {
+        "may_be_unresolved": false,
+        "meaning": "true when the path is expected to survive restart",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "purpose": {
+        "may_be_unresolved": false,
+        "meaning": "why this path exists",
+        "nullable": false,
+        "optional": false,
+        "type": "ManagedPathPurpose"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain it spends from",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "ManagedPathBinding"
+  },
+  "storage.ownership_record@1": {
+    "fields": {
+      "artifact_id": {
+        "may_be_unresolved": true,
+        "meaning": "ModelArtifact identity when this is an artifact root",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "cleanup_policy": {
+        "may_be_unresolved": false,
+        "meaning": "whether Step 0 may delete this root",
+        "nullable": false,
+        "optional": false,
+        "type": "CleanupPolicy"
+      },
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when ownership was asserted, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "created_by": {
+        "may_be_unresolved": false,
+        "meaning": "always kultrun; never inferred from a path",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "deployment_id": {
+        "may_be_unresolved": true,
+        "meaning": "DeploymentPlan identity when this is bound to a plan",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "evidence_retained": {
+        "may_be_unresolved": false,
+        "meaning": "true when the root is kept as investigation evidence",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this managed root belongs to",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "installation_generation_id": {
+        "may_be_unresolved": true,
+        "meaning": "generation this root belongs to",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "kultrun_version": {
+        "may_be_unresolved": false,
+        "meaning": "Kultrun version that created the resource",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "lifecycle_state": {
+        "may_be_unresolved": false,
+        "meaning": "current lifecycle classification",
+        "nullable": false,
+        "optional": false,
+        "type": "LifecycleState"
+      },
+      "managed_root": {
+        "may_be_unresolved": false,
+        "meaning": "absolute path of the owned root",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "ownership_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this resource",
+        "nullable": false,
+        "optional": false,
+        "type": "OwnershipId"
+      },
+      "protected": {
+        "may_be_unresolved": false,
+        "meaning": "true when automatic cleanup is forbidden",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain this root spends from",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "resource_type": {
+        "may_be_unresolved": false,
+        "meaning": "kind of managed root",
+        "nullable": false,
+        "optional": false,
+        "type": "ManagedResourceType"
+      },
+      "rollback_protected": {
+        "may_be_unresolved": false,
+        "meaning": "true when this generation is retained for rollback",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "runtime_installation_id": {
+        "may_be_unresolved": true,
+        "meaning": "RuntimeInstallation identity when this is a runtime root",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "storage_pool_id": {
+        "may_be_unresolved": true,
+        "meaning": "StoragePool identity of the quota domain",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "OwnershipRecord"
+  },
   "storage.pool@1": {
     "fields": {
       "filesystem_type": {
@@ -8260,6 +9000,142 @@
       }
     },
     "python": "ProbeAttempt"
+  },
+  "storage.probe_report@1": {
+    "fields": {
+      "available": {
+        "may_be_unresolved": false,
+        "meaning": "true when the probe's method can actually run",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "available_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "available writable bytes the probe measured",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "compatible": {
+        "may_be_unresolved": false,
+        "meaning": "true when supports() matched this environment",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "detail": {
+        "may_be_unresolved": false,
+        "meaning": "why it ran, skipped, or failed",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "executed": {
+        "may_be_unresolved": false,
+        "meaning": "true when probe() was invoked",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "hard_maximum_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "hard entitlement the probe observed, if any",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "probe_name": {
+        "may_be_unresolved": false,
+        "meaning": "registered probe identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "technology": {
+        "may_be_unresolved": false,
+        "meaning": "storage technology this probe addresses",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "ProbeReport"
+  },
+  "storage.requirement@1": {
+    "fields": {
+      "cache_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "install/download cache if Kultrun-owned",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "confidence": {
+        "may_be_unresolved": false,
+        "meaning": "how much weight this requirement carries",
+        "nullable": false,
+        "optional": false,
+        "type": "Confidence"
+      },
+      "mount_point": {
+        "may_be_unresolved": true,
+        "meaning": "destination pool mount",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "notes": {
+        "may_be_unresolved": false,
+        "meaning": "short factual notes",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "peak_transient_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "staging/workspace peak above persistent",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "persistent_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "bytes expected to remain after success",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "destination quota domain",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "required_peak_free_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "conservative peak free space required before mutation",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "reserve_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "emergency headroom this operation must leave",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "source": {
+        "may_be_unresolved": true,
+        "meaning": "how this requirement was produced",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "StorageRequirement"
   },
   "storage.sanity_evidence@1": {
     "fields": {

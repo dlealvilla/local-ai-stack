@@ -71,6 +71,21 @@ def reserved_incremental_storage(reservations: tuple[ResourceReservation, ...]) 
     return total
 
 
+def reserved_storage(reservations: tuple[ResourceReservation, ...], mount: str) -> int:
+    """One pool only. Unscoped grants count conservatively against every pool."""
+    total = 0
+    for item in active(reservations):
+        granted = (
+            item.storage_pool_mount if is_resolved(item.storage_pool_mount) else None
+        )
+        if isinstance(granted, str) and granted != mount:
+            continue
+        amount = as_int(item.admitted_storage_bytes)
+        if amount is not None:
+            total += amount
+    return total
+
+
 def reserved_accelerator(
     reservations: tuple[ResourceReservation, ...], index: int
 ) -> int:
@@ -112,9 +127,7 @@ def summarize(
     return current_capacity_snapshot(envelope, reservations)
 
 
-def insufficient_reason(
-    placement: MemoryPlacement, dimension: str
-) -> AdmissionReason:
+def insufficient_reason(placement: MemoryPlacement, dimension: str) -> AdmissionReason:
     if dimension == "ram":
         return AdmissionReason.INSUFFICIENT_SAFE_RAM
     if dimension == "unified":
