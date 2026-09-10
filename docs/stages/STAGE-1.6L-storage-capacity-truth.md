@@ -25,7 +25,7 @@ PREDECESSOR OUTPUTS          Stream A 1.6L capture-lifetime HEAD 6ed0422.
 THIS STAGE'S REQUIRED OUTPUT Dual ownership; StoragePool/quota binding;
                              native+probe+Sonar evidence; ResourceManager
                              storage admission before mutation; EDQUOT/
-                             ENOSPC contradiction; 30% real replan.
+                             ENOSPC contradiction; 10% real replan.
 CORE CONTRACTS AFFECTED      storage.* evidence/ownership; resource
                              storage commitments; optional fields on
                              RuntimeProvisioningPlan / ResourceRequest.
@@ -117,7 +117,8 @@ In scope:
 - Runtime and model storage requirement objects; RM per-pool
   `RUNTIME_PROVISIONING` / `MODEL_ACQUISITION`.
 - EDQUOT/ENOSPC contradiction + rediscovery.
-- Real 30% replan (new plan identities, real smaller candidates).
+- Real 10% replan (new plan identities, real smaller candidates;
+  100% → 90% → 81% → 72.9%, max three reductions).
 - Support matrix, footprint report, T0/T1/controlled T2.
 
 Out of scope (explicit):
@@ -142,7 +143,8 @@ Out of scope (explicit):
 | Sonar core | `src/kultrun/storage/sonar.py` |
 | Step 0 | `src/kultrun/storage/cleanup.py` |
 | Footprint | `src/kultrun/storage/footprint.py` |
-| Reduction | `src/kultrun/storage/reduction.py` (bytes policy only) |
+| Reduction | `src/kultrun/storage/reduction.py` (10% ceiling math) |
+| Replan | `src/kultrun/platform/storage_replan.py` (control-plane loop) |
 | Adapters | `src/kultrun/adapters/storage/` |
 | Envelope SAFE leak | `src/kultrun/capacity/envelope.py` |
 | RM | `src/kultrun/resource/manager.py`, `ledger.py`, `snapshot.py` |
@@ -172,7 +174,9 @@ Out of scope (explicit):
   selection.
 - RuntimeProvisioningPlan owns runtime storage requirement; ModelRequirement
   owns model storage; Available Models means actually deployable.
-- DeploymentPlan remains immutable; reductions mint new plan identities.
+- DeploymentPlan required-bytes are never mutated in place; each retry
+  persists a new `plan_basis` (and generation when the model changes).
+  `plan_id` remains host-scoped.
 - Runtime ⊥ Executor; telemetry never decides; unknown is not zero and not
   unlimited.
 
@@ -207,5 +211,25 @@ Physical T3/T5 is a later review, not this commit series.
 
 # Debt
 
-See `docs/DEBT.md`: K-27 refined; new deferred-probe entries; K-31 and
-K-99 remain OPEN and untouched.
+See `docs/DEBT.md`: K-110 CLOSED locally (control-plane 10% replan).
+K-31 and K-99 remain OPEN and untouched.
+
+---
+
+# Next physical test — prepare only (do not execute here)
+
+Historical RunPod trees predate dual ownership and are unlabeled.
+Product Step 0 must **not** auto-delete them.
+
+Before the next rented RunPod acceptance:
+
+1. Freeze this implementation HEAD.
+2. Rebuild an integration wheel from that exact HEAD.
+3. Manually inventory and clean Daniel's known disposable historical
+   test files (test infrastructure only; not product Step 0).
+4. Then one constrained-storage T3: capacity-first, Sonar fallback
+   where required, runtime/model feasibility, and 10% retry if a
+   footprint failure occurs.
+
+Do not start RunPod in this increment.
+

@@ -1884,18 +1884,29 @@ To make real: Managed reusable cache with ownership and pool binding.
 Retire when:  a later stage owns warehouse/cache policy.
 Status:       OPEN
 
-### K-110 — 30% replan is a helper, not a full planner loop
-Label:        PROVISIONAL
+### K-110 — bounded 10% storage replan loop
+Label:        CLOSED
 Owner stage:  1.6L
-Subsystem:    planning / platform
+Subsystem:    platform / planning / storage
 Authorizes:   NO
-What:         `storage.reduction` reseeds real candidates (100/70/49/34.3,
-              max 3). Control-plane AUTO replan after every storage event
-              is not a complete planner state machine.
-Why now:      Enough to forbid `requirement *= 0.7`.
-To make real: New plan identities after each reduction with rediscovery.
-Retire when:  planning owns storage-driven reselection end-to-end.
-Status:       OPEN
+What:         `storage.reduction` owns multiplicative 10% footprint
+              ceilings (100/90/81/72.9, integer floor, max 3).
+              `platform.storage_replan` sequences rediscovery,
+              Available Models recompute, AUTO reselection of a real
+              smaller candidate, a new DeploymentPlan basis, and
+              dry-run ResourceManager admission. MANUAL is blocked with
+              alternatives. Low-space and non-capacity failures do
+              not reduce.
+Why now:      Helper-only 30% policy could not recompute the control
+              plane. The loop is now wired through realize/prepare and
+              `POST /v1/deployments/plan/replan`.
+To make real: Physical T3 on constrained storage after a frozen
+              integration wheel. Not this task.
+Retire when:  local tests prove the loop; physical proof is later.
+Status:       CLOSED
+Evidence:     `tests/test_storage_reduction.py`,
+              `tests/test_storage_replan.py`; composition in
+              `src/kultrun/platform/storage_replan.py`.
 
 ## Runtime-first migration ledger (after 1.6K)
 

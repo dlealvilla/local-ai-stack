@@ -9,7 +9,21 @@ not delete `~/.cache/pip` or other global user caches.
 
 Reserve used in v1 estimates: 5 GiB (`LOW_SPACE_THRESHOLD_BYTES`). After Step 0
 and truthful characterization, authorizing storage below this threshold
-asks the administrator to clear space **before** 30% deployment reductions.
+asks the administrator to clear space **before** deployment reductions.
+
+Superseded policy (helper-only, not current): ~30% per retry
+(100% → 70% → 49% → 34.3%). Current policy is multiplicative 10%:
+
+```text
+attempt 0 = 100.0%
+retry 1   =  90.0%
+retry 2   =  81.0%
+retry 3   =  72.9%
+```
+
+`next = previous * 0.90`, integer-byte floor. The percentage is a
+candidate-footprint ceiling, never `requirement *= 0.90` and never
+inflated SAFE. Maximum three reductions after the original attempt.
 
 Confidence: LOW for formula/estimated rows; MEDIUM when catalog metadata is
 curated; HIGH only when an artifact’s stored size is measured.

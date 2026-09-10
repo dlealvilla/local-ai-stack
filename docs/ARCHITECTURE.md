@@ -846,7 +846,13 @@ persistence lives in
 `platform.model_selection`. Authoritative DeploymentPlan persistence
 lives in `platform.deployment_plan`. Plan-driven acquire/admit lives in
 `platform.deployment_prepare` and converts plan + artifact into a
-generic `ResourceRequest` before calling ResourceManager. Plan-driven
+generic `ResourceRequest` before calling ResourceManager. Bounded AUTO
+storage replan after a footprint/capacity failure lives in
+`platform.storage_replan`: it filters already-legitimate Available Models
+by a multiplicative 10% footprint ceiling (100% → 90% → 81% → 72.9%),
+persists a new selection and `DeploymentPlan` basis, and dry-run admits.
+It does not rank, probe, or authorize. MANUAL is never converted to AUTO.
+Plan-driven
 InferenceInstance create lives in `platform.deployment_instance` so
 `inference` does not import `planning`. None of these is a parallel
 planner or deployment controller.
@@ -1384,7 +1390,7 @@ else can be bypassed by a new caller.
 
 | | |
 |---|---|
-| **Owns** | `PlatformState`, installation identity, platform version, configuration wiring, the startup sequence, the **single** reconciliation path, health aggregation, and `Approval`. |
+| **Owns** | `PlatformState`, installation identity, platform version, configuration wiring, the startup sequence, the **single** reconciliation path, health aggregation, `Approval`, and bounded AUTO storage-replan orchestration (`StorageReplanService`). Replan sequences existing services; it does not rank, admit, or probe. |
 | **Consumes** | Every domain's `reconcile` and `health` |
 | **Ports** | `HealthSource` and `ReconcilePhase`. These live at tier 8, so only tiers **above** 8 implement them directly. A lower domain reports facts in its own vocabulary and the composition root adapts them — discovered implementing Stage 1.1, where `host` needed to report health from tier 2. Not a workaround: whether a missing provider makes the platform "degraded" depends on the whole platform's state, which one subsystem cannot know, so grading belongs to the aggregator. The same division the record store uses — the store returns facts, policy decides. |
 | **Must not** | Contain domain algorithms. Own state that a domain should own. Require a model to be present in order to start. |
