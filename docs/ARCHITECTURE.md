@@ -692,7 +692,12 @@ this module, not its owner.
 
 | | |
 |---|---|
-| **Owns** | `StoragePool` — mount identity, filesystem type, provider class, quota identity, fingerprint, generation. `StorageEvidence` and immutable `EmpiricalProbeEvidence`. Characterization in transaction, host and deep modes. The shared operation lock, staging, mutation admission, rollback and startup recovery. |
+| **Owns** | `StoragePool` — mount identity, filesystem type, provider class, quota identity, fingerprint, generation. Dual ownership (`OwnershipRecord` local marker + central registry) and `InstallationGeneration`. Step 0 inventory/cleanup. `StorageCapacityEvidence` (Storage Sonar) and immutable `EmpiricalProbeEvidence`. Replaceable `StorageCapacityProbe` registry. `StorageRequirement` and managed-path bindings. Characterization: Step 0 → rediscover → native → mandatory compatible probes → 10% arbitration → empirical fallback. The 1.2A sanity probe remains a separate operator-only reservation. |
+| **Consumes** | `kernel` · `evidence` · `policy` · `host` (mount facts only) |
+| **Produces** | `StoragePool v1` · `OwnershipRecord` · `StorageCapacityEvidence` · `EmpiricalProbeEvidence` · `CleanupReport` · `StorageRequirement` |
+| **Ports** | `ManagedUsageSource` — bytes per pool, no entity identity · `StorageSanityProbe` · `StorageCapacityProbe` · `EmpiricalWritePort` |
+| **Must not** | Import `model` or `capacity`, know a model identity, let raw filesystem capacity or a heuristic disbelief ceiling authorize a mutation, skip a compatible technology-specific probe, infer probe or cleanup success from a free-space delta, treat an interrupted probe as a success, or delete without dual positive ownership. |
+| **Created** | 0.2 contract · 1.2 reported-only view · 1.2A sanity · **Deepened** 1.6L Storage Sonar / ownership |
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` (mount facts only) |
 | **Produces** | `StoragePool v1` · `StorageEvidence` · `StorageAdmissionDecision` |
 | **Ports** | `ManagedUsageSource` — bytes per pool, no entity identity · `StorageBackend` |
@@ -850,7 +855,7 @@ planner or deployment controller.
 
 | | |
 |---|---|
-| **Owns** | `Workload` and the generic workload types, `ResourceRequest`, `AdmissionDecision`, `ResourceReservation`, `WorkloadProfile`, `ResourceSummary`. The Resource Manager. `ResourceSummary` is the derived current-available view (SAFE minus ACTIVE commitments). It is recomputed on read and is never persisted as host truth. |
+| **Owns** | `Workload` and the generic workload types (including `RUNTIME_PROVISIONING` and `MODEL_ACQUISITION`), `ResourceRequest`, `AdmissionDecision`, `ResourceReservation`, `WorkloadProfile`, `ResourceSummary`, `PoolResourceSummary`. The Resource Manager is the only physical commitment authority. Storage grants are per `StoragePool` mount / quota identity; they are never a host-wide first-pool scalar. `ResourceSummary` is the derived current-available view (SAFE minus ACTIVE commitments). It is recomputed on read and is never persisted as host truth. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `capacity` safe layer · `model` requirement |
 | **Produces** | `AdmissionDecision` · `ResourceReservation`, persisted and reconciled · `ResourceSummary` as a derived snapshot |
 | **Must not** | Import `planning`, `runtime` or `inference`. Know selection ranking or model feasibility. Admit against a reported or effective value. Conflate requested requirement, admitted reservation, observed consumption and peak observed consumption. Treat a manual override as authority to exceed SAFE bounds. Persist current availability as host fact. |
@@ -939,7 +944,7 @@ capacity contract.
 | | |
 |---|---|
 | **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, `FoundationSelection`, `RuntimeEligibleModelCandidate`, `EligibleModelView`, `ModelEligibilityService`, `RuntimeMemoryProfile` (measured native-runtime memory evidence; not selection, admission, or an InferenceInstance), and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible by itself. `FoundationSelection` records AUTO versus MANUAL choice; recommendation is not selection; provisionable is not executable. `EligibleModelView` is the authoritative runtime/model compatibility path for the currently selected verified foundation. It does not acquire, rank, or admit. `RuntimeMemoryProfile` is host- and runtime-specific; capacity changes recompute availability against a cached profile and do not by themselves require a new probe. |
-| **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) |
+| **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) · `storage` (runtime storage requirement and normalized write-failure codes; never capacity policy) |
 | **Ports** | `InferenceRuntime` · `RuntimeProvisioner` |
 | **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Treat `PROVISIONABLE` as `VERIFIED EXECUTABLE`. Silently substitute a different RuntimeCandidate than the one selected or supplied for provisioning. Rank or recommend during provisioning or verification. Overload `RuntimePolicy.mode` as product selection. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
 | **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Eligibility** 1.6F (`EligibleModelView`) · **Requirement/Capacity** 1.6G · **Serving** 1.6L native vLLM first vertical · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
@@ -1723,7 +1728,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6I | Authoritative DeploymentPlan | 1.6H | ✅ closed L1 |
 | 1.6J | Plan-driven Acquisition + Resource admission | 1.6I | ✅ closed L1 |
 | 1.6K | Plan-driven InferenceInstance create | 1.6J | ✅ closed L1 |
-| 1.6L | first real native vLLM serving + bounded inference; staged Available Models funnel; runtime-memory calibration before Available; runtime-aware requirement; current available capacity | 1.6K | OPEN; T0/T1/T2 local; Stream A frozen; T3/T5 pending Stream B freeze + integration artifact |
+| 1.6L | first real native vLLM serving + bounded inference; staged Available Models funnel; runtime-memory calibration before Available; runtime-aware requirement; current available capacity; **1.6L storage-capacity-truth (CLASS B):** ownership, Storage Sonar, per-pool RM, capacity-first runtime/model storage | 1.6K | OPEN; local implementation in progress; do not close until physical validation; T3/T5 pending |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; 1.6L is the serving vertical |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |

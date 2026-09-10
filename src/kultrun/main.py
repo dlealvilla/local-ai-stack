@@ -41,7 +41,8 @@ from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.runtime.serving import ReferenceServingRuntime
 from kultrun.adapters.runtime.vllm import VllmModelCompatibility, VllmRuntimeSupport
 from kultrun.adapters.runtime.vllm_memory import VllmMemoryInterpreter
-from kultrun.adapters.storage import posix_reservation, replayed
+from kultrun.adapters.storage import default_probe_registry, posix_reservation, replayed
+from kultrun.adapters.storage.empirical_write import RealWritePort
 from kultrun.adapters.verification.fixture import (
     FixtureProbeRunner,
     FixtureRuntimeVerifier,
@@ -131,6 +132,7 @@ from kultrun.platform.deployment_plan import (
 )
 from kultrun.platform.deployment_prepare import DeploymentPreparationService
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
+from kultrun.platform.foundation_realize import FoundationRealizeService
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.model_selection import (
@@ -149,6 +151,7 @@ from kultrun.platform.runtime_memory import (
 )
 from kultrun.platform.startup import Startup, StoreReconcilePhase
 from kultrun.platform.state import PlatformStateStore
+from kultrun.platform.storage_acquire import StorageAwareAcquisition
 from kultrun.policy import contracts as _policy_contracts  # noqa: F401
 from kultrun.resource import contracts as _resource_contracts  # noqa: F401
 from kultrun.resource.contracts import LedgerHealth
@@ -173,8 +176,13 @@ from kultrun.runtime.resolve import path_presence, resolve
 from kultrun.runtime.selection import FoundationSelectionService
 from kultrun.runtime.verify import VerificationService
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
+from kultrun.storage.characterize import StorageCharacterizationService
 from kultrun.storage.contracts import StorageSanityEvidence
+from kultrun.storage.index import StorageEvidenceIndex
+from kultrun.storage.ownership import OwnershipService
 from kultrun.storage.sanity import StorageSanityService
+from kultrun.storage.sonar import EmpiricalStorageProbe
+from kultrun.storage.topology import mount_for_path
 from kultrun.training import contracts as _training_contracts  # noqa: F401
 
 PLATFORM_VERSION = "0.1.0"
@@ -601,6 +609,8 @@ def build(
 
     state_root = Path(settings.state_root).expanduser().resolve()
     store = store_registry().create(store_adapter, state_root)
+    ownership = OwnershipService(store, resolved_clock, state_root)
+    storage_index = StorageEvidenceIndex(store)
 
     state = PlatformStateStore(store, resolved_clock, PLATFORM_VERSION)
     approvals = ApprovalLog(store, resolved_clock)
@@ -659,6 +669,22 @@ def build(
         store,
         clock=resolved_clock,
     )
+    empirical = (
+        None
+        if shape is not None
+        else EmpiricalStorageProbe(
+            RealWritePort(),
+            resolved_clock,
+            ownership,
+        )
+    )
+    characterization = StorageCharacterizationService(
+        resolved_clock,
+        default_probe_registry(),
+        ownership,
+        empirical,
+        use_live_native=shape is None,
+    )
     chosen_executor, container_image = resolve_live_executor()
     container_executor = ContainerExecutor(
         DockerCliEngine(),
@@ -711,6 +737,15 @@ def build(
     health.register(execution_phase)
 
     report = startup.run(state=state)
+    discovered = hosts.current
+    ownership.ensure_platform_roots(discovered.host_id)
+    cheap = characterization.characterize(
+        discovered,
+        run_cleanup=True,
+        run_empirical=False,
+        probe_workspace=state_root,
+    )
+    storage_index.put_many(cheap.evidence)
     resources = ResourceManager(store, resolved_clock, AdmissionLock(state_root))
     try:
         actor_id = state.current.administrator_id
@@ -769,6 +804,25 @@ def build(
         provisioning,
         verification,
         SelectionLock(state_root),
+        runtime_root=state_root / "runtimes",
+    )
+    foundation_realize = FoundationRealizeService(
+        foundation,
+        characterization,
+        resources,
+        capacity,
+        state_root,
+        storage_index,
+        allow_empirical=shape is None,
+    )
+    storage_acquire = StorageAwareAcquisition(
+        acquisition,
+        resources,
+        capacity,
+        characterization,
+        storage_index,
+        state_root,
+        allow_empirical=shape is None,
     )
     eligibility = ModelEligibilityService(
         resolved_clock,
@@ -788,8 +842,15 @@ def build(
     def refresh_capacity(
         host: HostCapabilities,
     ) -> tuple[CapacityEnvelope, DeploymentCapacity]:
-        live = capacity.compute(host, _stored_sanity_with(sanity, host))
-        return live, planning_capacity(resources, live, host)
+        live = capacity.compute(
+            host, _stored_sanity_with(sanity, host), storage_index.for_host(host)
+        )
+        return live, planning_capacity(
+            resources,
+            live,
+            host,
+            storage_mount=mount_for_path(state_root / "models", host),
+        )
 
     available_models = AvailableModelsService(
         store,
@@ -832,6 +893,7 @@ def build(
         resolved_clock,
         actor_id,
         reservation_in_use=instances.blocks_release,
+        stored_storage=storage_index.for_host,
     )
 
     def _plan_overview_live(host: HostCapabilities) -> DeploymentPlanOverview:
@@ -853,7 +915,9 @@ def build(
                 ]
             ),
         )
-        envelope = capacity.compute(host, _stored_sanity_with(sanity, host))
+        envelope = capacity.compute(
+            host, _stored_sanity_with(sanity, host), storage_index.for_host(host)
+        )
         stored_plan = deployment_plan.stored(host)
         bound = planning_capacity(
             resources,
@@ -862,6 +926,7 @@ def build(
             plan_basis=revalidation_plan_basis(
                 stored_plan, model_selection.stored(host)
             ),
+            storage_mount=mount_for_path(state_root / "models", host),
         )
         funnel = available_models.evaluate(host, view, envelope, bound, persist=False)
         chosen = model_selection.view(
@@ -880,6 +945,7 @@ def build(
         capacity,
         lambda host: _stored_sanity_with(sanity, host),
         resolved_clock,
+        storage_acquire=storage_acquire,
     )
     deployment_instance = DeploymentInstanceService(
         _plan_overview_live,
@@ -917,9 +983,13 @@ def build(
         deployment_plan=deployment_plan,
         deployment_prepare=deployment_prepare,
         deployment_instance=deployment_instance,
+        foundation_realize=foundation_realize,
+        storage_acquire=storage_acquire,
+        state_root=state_root,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
+        stored_storage=storage_index.for_host,
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
         evidence_mode=mode.value,
         fixture_shape=shape,
@@ -1075,7 +1145,11 @@ def show_host() -> int:
             f"version {resolution.resolved_version} from {resolution.source}"
         )
 
-    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    envelope = platform.capacity.compute(
+        host,
+        _stored_sanity(platform, host),
+        platform.plane.stored_storage(host),
+    )
     print(f"\ncapacity  policy {envelope.policy_version}")
     print(
         f"  memory       reported {_bytes(envelope.memory.reported_bytes)} | "
@@ -1220,7 +1294,11 @@ def check_storage_sanity(arguments: Sequence[str]) -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     host = platform.hosts.current
-    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    envelope = platform.capacity.compute(
+        host,
+        _stored_sanity(platform, host),
+        platform.plane.stored_storage(host),
+    )
     pool = next((p for p in envelope.pools if p.mount_point == mount_point), None)
     if pool is None:
         known = ", ".join(p.mount_point for p in envelope.pools) or "none"
@@ -1474,7 +1552,11 @@ def _funnel(
 ) -> FunnelPass:
     view = _eligible_view(platform)
     host = platform.hosts.current
-    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    envelope = platform.capacity.compute(
+        host,
+        _stored_sanity(platform, host),
+        platform.plane.stored_storage(host),
+    )
     stored_plan = platform.deployment_plan.stored(host)
     return platform.available_models.evaluate(
         host,
@@ -1489,6 +1571,7 @@ def _funnel(
                 platform.model_selection.stored(host),
                 pending_model=pending_model,
             ),
+            storage_mount=mount_for_path(platform.plane.state_root / "models", host),
         ),
         persist=persist,
     )
@@ -1551,7 +1634,12 @@ def show_foundation(arguments: Sequence[str]) -> int:
     _warn_if_state_root_defaulted(platform)
     host, executors, descriptors, components = _runtime_inputs(platform)
     overview = platform.foundation.view(
-        host, executors, descriptors, components=components
+        host,
+        executors,
+        descriptors,
+        components=components,
+        storage_evidence=platform.plane.stored_storage(host),
+        require_storage=True,
     )
     selection = overview.selection
     recommended = (
@@ -1613,7 +1701,12 @@ def select_foundation(arguments: Sequence[str]) -> int:
     host, executors, descriptors, components = _runtime_inputs(platform)
     if mode == "auto":
         overview = platform.foundation.select_auto(
-            host, executors, descriptors, components=components
+            host,
+            executors,
+            descriptors,
+            components=components,
+            storage_evidence=platform.plane.stored_storage(host),
+            require_storage=True,
         )
     else:
         overview = platform.foundation.select_manual(
@@ -1622,6 +1715,8 @@ def select_foundation(arguments: Sequence[str]) -> int:
             executors,
             descriptors,
             components=components,
+            storage_evidence=platform.plane.stored_storage(host),
+            require_storage=True,
         )
     selected = (
         overview.selection.selected_candidate_id
@@ -1642,7 +1737,7 @@ def realize_foundation(arguments: Sequence[str]) -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     host, executors, descriptors, components = _runtime_inputs(platform)
-    installation = platform.foundation.realize_selected(
+    installation = platform.plane.foundation_realize.realize(
         host,
         executors,
         descriptors,
@@ -2177,10 +2272,11 @@ def acquire_named(arguments: Sequence[str]) -> int:
         print(f"kultrun: no such candidate {names[0]!r}", file=sys.stderr)
         return 2
     host = platform.hosts.current
-    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
     try:
-        receipt = platform.acquisition.acquire(
-            request_from_entry(entry), envelope, host.host_id
+        receipt = platform.plane.storage_acquire.acquire(
+            request_from_entry(entry),
+            host,
+            _stored_sanity(platform, host),
         )
     except KultrunError as error:
         print(f"kultrun: {error.message}", file=sys.stderr)
@@ -2494,7 +2590,11 @@ def show_resource_summary() -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     host = platform.hosts.current
-    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    envelope = platform.capacity.compute(
+        host,
+        _stored_sanity(platform, host),
+        platform.plane.stored_storage(host),
+    )
     summary = platform.resources.summary(envelope)
     running = _running_count(platform)
     print(
@@ -2603,7 +2703,11 @@ def _running_count(platform: Platform) -> int:
 
 def _ledger_health_of(platform: Platform) -> LedgerHealth:
     host = platform.hosts.current
-    envelope = platform.capacity.compute(host, _stored_sanity(platform, host))
+    envelope = platform.capacity.compute(
+        host,
+        _stored_sanity(platform, host),
+        platform.plane.stored_storage(host),
+    )
     return platform.resources.summary(envelope).health
 
 

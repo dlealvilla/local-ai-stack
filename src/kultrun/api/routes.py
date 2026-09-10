@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 from kultrun.api.contracts import ApiRequest
 from kultrun.api.router import Router
@@ -56,6 +57,7 @@ from kultrun.platform.deployment_plan import (
 )
 from kultrun.platform.deployment_prepare import DeploymentPreparationService
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
+from kultrun.platform.foundation_realize import FoundationRealizeService
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.model_selection import ModelSelectionService
@@ -65,6 +67,7 @@ from kultrun.platform.requirement import (
 )
 from kultrun.platform.startup import Startup
 from kultrun.platform.state import PlatformStateStore
+from kultrun.platform.storage_acquire import StorageAwareAcquisition
 from kultrun.resource.contracts import RequestId, ReservationId
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.catalogue import RuntimeCatalogue
@@ -80,8 +83,9 @@ from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import path_presence, resolve
 from kultrun.runtime.selection import FoundationSelectionService
 from kultrun.runtime.verify import VerificationService
-from kultrun.storage.contracts import StorageSanityEvidence
+from kultrun.storage.contracts import StorageCapacityEvidence, StorageSanityEvidence
 from kultrun.storage.sanity import StorageSanityService, summarize
+from kultrun.storage.topology import mount_for_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +123,9 @@ class ControlPlane:
     deployment_plan: DeploymentPlanningService
     deployment_prepare: DeploymentPreparationService
     deployment_instance: DeploymentInstanceService
+    foundation_realize: FoundationRealizeService
+    storage_acquire: StorageAwareAcquisition
+    state_root: Path
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
     executor_identity: str
@@ -128,6 +135,7 @@ class ControlPlane:
     #: Injected rather than computed here so `api` does not acquire storage
     #: logic; the composition root owns the wiring.
     stored_sanity: Callable[[HostCapabilities], dict[str, StorageSanityEvidence]]
+    stored_storage: Callable[[HostCapabilities], dict[str, StorageCapacityEvidence]]
     pool_fingerprint: Callable[[str], str | None]
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: str
@@ -305,7 +313,9 @@ def register(router: Router, plane: ControlPlane) -> Router:
         if not mount_point:
             raise ValidationError("a mount point is required", parameter="mount_point")
         host = plane.hosts.current
-        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        envelope = plane.capacity.compute(
+            host, plane.stored_sanity(host), plane.stored_storage(host)
+        )
         pool = next((p for p in envelope.pools if p.mount_point == mount_point), None)
         if pool is None:
             raise NotFoundError(
@@ -337,7 +347,9 @@ def register(router: Router, plane: ControlPlane) -> Router:
         platform safe.
         """
         host = plane.hosts.current
-        return plane.capacity.compute(host, plane.stored_sanity(host))
+        return plane.capacity.compute(
+            host, plane.stored_sanity(host), plane.stored_storage(host)
+        )
 
     def capacity_policy(_: ApiRequest) -> HeadroomPolicy:
         """The headroom policy in force, so a decision stays explicable."""
@@ -499,7 +511,9 @@ def register(router: Router, plane: ControlPlane) -> Router:
         pending_model: str | None = None,
     ) -> FunnelPass:
         view = _eligible_view(host)
-        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        envelope = plane.capacity.compute(
+            host, plane.stored_sanity(host), plane.stored_storage(host)
+        )
         stored_plan = plane.deployment_plan.stored(host)
         return plane.available_models.evaluate(
             host,
@@ -514,6 +528,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
                     plane.model_selection.stored(host),
                     pending_model=pending_model,
                 ),
+                storage_mount=mount_for_path(plane.state_root / "models", host),
             ),
             persist=persist,
         )
@@ -659,6 +674,8 @@ def register(router: Router, plane: ControlPlane) -> Router:
             plane.runtimes.descriptors(),
             policy,
             components=_components(),
+            storage_evidence=plane.stored_storage(host),
+            require_storage=True,
         )
         payload = overview.payload()
         payload["host_id"] = host.host_id.value
@@ -677,10 +694,19 @@ def register(router: Router, plane: ControlPlane) -> Router:
             policy,
         )
         if mode == "auto":
-            overview = plane.foundation.select_auto(*args, components=_components())
+            overview = plane.foundation.select_auto(
+                *args,
+                components=_components(),
+                storage_evidence=plane.stored_storage(host),
+                require_storage=True,
+            )
         elif mode == "manual":
             overview = plane.foundation.select_manual(
-                candidate_id, *args, components=_components()
+                candidate_id,
+                *args,
+                components=_components(),
+                storage_evidence=plane.stored_storage(host),
+                require_storage=True,
             )
         else:
             raise ValidationError("mode must be auto or manual", parameter="mode")
@@ -693,7 +719,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
         """Provision the selected candidate. Does not verify or switch."""
         retry = (request.query.get("retry") or "").lower() in {"1", "true", "yes"}
         host = plane.hosts.current
-        return plane.foundation.realize_selected(
+        return plane.foundation_realize.realize(
             host,
             _executors(host),
             plane.runtimes.descriptors(),
@@ -960,9 +986,10 @@ def register(router: Router, plane: ControlPlane) -> Router:
         if entry is None:
             raise NotFoundError("no such candidate", candidate=candidate)
         host = plane.hosts.current
-        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
-        return plane.acquisition.acquire(
-            request_from_entry(entry), envelope, host.host_id
+        return plane.storage_acquire.acquire(
+            request_from_entry(entry),
+            host,
+            plane.stored_sanity(host),
         )
 
     def delete_artifact(request: ApiRequest) -> object:
@@ -1025,7 +1052,9 @@ def register(router: Router, plane: ControlPlane) -> Router:
     def resources_summary(_: ApiRequest) -> object:
         """SAFE / RESERVED / AVAILABLE. Reserved is not running."""
         host = plane.hosts.current
-        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        envelope = plane.capacity.compute(
+            host, plane.stored_sanity(host), plane.stored_storage(host)
+        )
         summary = plane.resources.snapshot(envelope, host=host)
         items = plane.instances.list()
         running = _running(items)
@@ -1136,7 +1165,9 @@ def register(router: Router, plane: ControlPlane) -> Router:
         if request.query.get("serving_mode"):
             raise ValidationError("serving_mode is not a product parameter")
         host = plane.hosts.current
-        envelope = plane.capacity.compute(host, plane.stored_sanity(host))
+        envelope = plane.capacity.compute(
+            host, plane.stored_sanity(host), plane.stored_storage(host)
+        )
         return plane.deployment_instance.start(
             InstanceId.parse(raw),
             host,

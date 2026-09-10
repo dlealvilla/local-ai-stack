@@ -466,9 +466,14 @@ to 64 GiB until Stage 2.2 can verify a reservation. Correct for Milestone 1,
 where one model is placed by hand, and wrong for a customer with a 10 TB
 volume and forty models.
 
-**Retires when** Stage 2.2 produces empirical bounds. The ceiling then
-becomes the *starting* point for verification rather than the answer, which
-is why it matches the previous implementation's per-probe ceiling.
+A pool whose reported size is not credible has **effective** capacity
+bounded at 64 GiB for display. Stage 1.6L stopped copying that ceiling
+into authorizing SAFE. ResourceManager spends `safe_bytes` only from
+Storage Sonar authorizing evidence (trusted native, probe, empirical, or
+a hard bound). The 64 GiB figure remains a belief bound.
+
+**Retires when** empirical/provider probes produce authorizing bounds so
+the belief ceiling is only a display starting point.
 
 ### K-25 — accelerator memory is never aggregated, and nothing tests otherwise
 
@@ -503,17 +508,19 @@ Stage 11.1 fuses observed evidence.
 
 **Stage** 1.2A · **Kind** provisional · **Risk** low
 
-A pool is flagged as worth verifying and an operator decides. Nothing
-schedules the probe, so a pool can stay unverified indefinitely and its
-capacity stays bounded by policy.
+The 1.2A `posix_fallocate` sanity probe still runs only when asked.
+Nothing schedules it. Stage 1.6L Storage Sonar is a separate path: cheap
+native + mandatory compatible probes at characterization; empirical fallback
+only before mutation on a live host, never on GET and never on fixture
+replay.
 
-Deliberate. Kultrun has no execution or job lifecycle yet, so making it
-automatic would mean running a long filesystem operation on a background
-thread — precisely how the previous implementation orphaned a 42,990 MiB
-probe file when shutdown did not await the daemon thread that owned it.
+Deliberate for the 1.2A probe: Kultrun must not run a long filesystem
+operation on a background thread — that is how the previous implementation
+orphaned a 42,990 MiB probe file.
 
-**Retires when** Stage 1.3's executor exists and can own a cancellable
-background job with cleanup that runs.
+**Retires when** an executor can own a cancellable background job with
+cleanup, or when 1.6L physical storage validation schedules Sonar under
+that executor.
 
 ### K-28 — one reservation primitive, POSIX only
 
@@ -884,11 +891,14 @@ Label:        DEFERRED
 Owner stage:  1.5A
 Subsystem:    resource
 Authorizes:   NO
-What:         v0 does not invent CPU counts or runtime scratch. Those
-              fields stay unresolved unless later evidence supplies them.
-Why now:      Current plans do not carry trusted CPU or scratch figures.
-To make real: Runtime-specific planning.
-Retire when:  a trusted CPU or scratch requirement exists.
+What:         CPU counts remain non-load-bearing. Incremental storage
+              **is** load-bearing for `RUNTIME_PROVISIONING` and
+              `MODEL_ACQUISITION` as of Stage 1.6L, per named pool.
+              Inference admission still treats storage as optional extra.
+Why now:      Runtime install and model fetch are multi-gigabyte mutations.
+To make real: CPU requirements with evidence; inference scratch if needed.
+Retire when:  a trusted CPU requirement exists; storage for inference is
+              already in the 1.6L ledger.
 Status:       OPEN
 
 ### K-50 — runtime-specific readiness is reference-only
@@ -1755,6 +1765,136 @@ To make real: executor-owned bounded logs with rotation, or a durable
               supervisor that owns capture across control-plane
               restarts.
 Retire when:  a later stage owns process logs or durable supervision.
+Status:       OPEN
+
+### K-100 — Windows physical storage probes
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage
+Authorizes:   NO
+What:         `WindowsCapacityProbe` is a fixture contract
+              (`GetDiskFreeSpaceEx`, NTFS quota). Not a live Win32 call.
+Why now:      Linux/POSIX is the reference path; Windows coverage is
+              architectural.
+To make real: Isolated Win32 adapter, no vendor logic in generic core.
+Retire when:  Windows is a supported deployment target with L2 evidence.
+Status:       OPEN
+
+### K-101 — macOS physical APFS/quota probes
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage
+Authorizes:   NO
+What:         `MacosCapacityProbe` is fixture-tested. Native source is
+              `statvfs`. `F_PREALLOCATE` remains **K-28**.
+Why now:      Developer Macs must not be treated as verified entitlements.
+To make real: APFS/quota adapter plus genuine reservation primitive.
+Retire when:  macOS is a supported deployment target.
+Status:       OPEN
+
+### K-102 — filesystem-specific quota parse (XFS/ZFS/Btrfs)
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage
+Authorizes:   NO
+What:         linux-quota runs `quota` when present but does not parse
+              project/dataset quotas into authorizing bytes.
+Why now:      Optional tools must not become mandatory; fail closed.
+To make real: Per-family parsers behind the same probe port.
+Retire when:  a stage owns filesystem-specific quota depth.
+Status:       OPEN
+
+### K-103 — NFS rquota numeric parse
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage
+Authorizes:   NO
+What:         NFS probe is a seam; helper presence is not a quota figure.
+Why now:      rquota tooling is optional and often GPL.
+To make real: Numeric rquota adapter, still optional.
+Retire when:  NFS deployments need authorizing probe bytes.
+Status:       OPEN
+
+### K-104 — SMB/CIFS quota adapter
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage
+Authorizes:   NO
+What:         SMB/CIFS is identified as non-credible; no bytes probe.
+Why now:      Not on the reference path.
+To make real: Optional SMB quota adapter.
+Retire when:  a customer deployment needs it.
+Status:       OPEN
+
+### K-105 — MooseFS mfsgetquota numeric parse
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage
+Authorizes:   NO
+What:         `mfsgetquota` may run; v1 does not parse a number.
+Why now:      GPL tooling is never bundled; output formats vary.
+To make real: Parse available/hard quota without embedding MooseFS.
+Retire when:  MooseFS is a supported storage backend with L2 evidence.
+Status:       OPEN
+
+### K-106 — CephFS / Ceph quota adapter
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage
+Authorizes:   NO
+What:         CephFS is identified; no authorizing probe.
+Why now:      Not required to repair the FUSE SAFE leak.
+To make real: Optional Ceph quota adapter.
+Retire when:  a stage owns Ceph deployments.
+Status:       OPEN
+
+### K-107 — Kubernetes CSI/PVC quota
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage
+Authorizes:   NO
+What:         Overlay is treated as credible container-local storage.
+              CSI volumes need provider/PVC facts.
+Why now:      Host mounts are the v1 topology.
+To make real: Kubernetes-aware evidence adapter, still not semantic owner.
+Retire when:  multi-node/K8s placement is in scope.
+Status:       OPEN
+
+### K-108 — cloud/provider quota adapters
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage
+Authorizes:   NO
+What:         Provider configured quota (RunPod, cloud disks) is an
+              architectural source, not implemented as an adapter.
+Why now:      Core must not contain provider logic.
+To make real: Replaceable provider evidence adapters + internal fallback.
+Retire when:  a named provider is a supported deployment target.
+Status:       OPEN
+
+### K-109 — shared model warehouse / cache relocation / migration
+Label:        DEFERRED
+Owner stage:  1.6L
+Subsystem:    storage / model
+Authorizes:   NO
+What:         No content-addressed warehouse, NVMe cache relocation,
+              or storage migration. Install cache is `--no-cache-dir`.
+Why now:      Ownership and truthful capacity come first.
+To make real: Managed reusable cache with ownership and pool binding.
+Retire when:  a later stage owns warehouse/cache policy.
+Status:       OPEN
+
+### K-110 — 30% replan is a helper, not a full planner loop
+Label:        PROVISIONAL
+Owner stage:  1.6L
+Subsystem:    planning / platform
+Authorizes:   NO
+What:         `storage.reduction` reseeds real candidates (100/70/49/34.3,
+              max 3). Control-plane AUTO replan after every storage event
+              is not a complete planner state machine.
+Why now:      Enough to forbid `requirement *= 0.7`.
+To make real: New plan identities after each reduction with rediscovery.
+Retire when:  planning owns storage-driven reselection end-to-end.
 Status:       OPEN
 
 ## Runtime-first migration ledger (after 1.6K)
