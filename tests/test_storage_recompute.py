@@ -114,7 +114,13 @@ def test_contradiction_invalidates_planning_storage() -> None:
 
 
 def test_replan_selects_real_candidates_not_scaled_numbers() -> None:
-    candidates = (("A", 40 * GIB), ("B", 27 * GIB), ("C", 18 * GIB), ("D", 12 * GIB))
+    candidates = (
+        ("A", 40 * GIB),
+        ("B", 35 * GIB),
+        ("C", 31 * GIB),
+        ("D", 26 * GIB),
+        ("E", 20 * GIB),
+    )
     chosen = select_smaller(
         candidates,
         peak_of=lambda item: item[1],
@@ -123,7 +129,8 @@ def test_replan_selects_real_candidates_not_scaled_numbers() -> None:
     )
     assert chosen is not None
     assert chosen[0] == "C"
-    assert chosen[1] == 18 * GIB
+    assert chosen[1] == 31 * GIB
+    assert chosen[1] != int(40 * GIB * 0.81)
 
 
 def test_deployment_capacity_uses_named_pool_not_first_fuse() -> None:

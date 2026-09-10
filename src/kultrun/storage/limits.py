@@ -45,8 +45,11 @@ DEFAULT_SEARCH_GRANULARITY_BYTES: Final = 64 * _MIB
 #: Original plus three smaller reselections. Never a fourth.
 MAX_STORAGE_REDUCTIONS: Final = 3
 
-#: Peak-budget caps for reduction 0..3. Reselection must pick a real candidate.
-REDUCTION_PEAK_CAPS: Final = (1.00, 0.70, 0.49, 0.343)
+#: Multiplicative footprint ceiling: next = previous * 0.90.
+#: Integer bytes use floor(original * 9^n / 10^n) so a candidate cannot
+#: sneak above the intended ceiling.
+REDUCTION_FACTOR_NUMERATOR: Final = 9
+REDUCTION_FACTOR_DENOMINATOR: Final = 10
 
-POLICY_VERSION: Final = "1.6L.0-storage-sonar"
+POLICY_VERSION: Final = "1.6L.1-storage-replan"
 CREATED_BY: Final = "kultrun"
