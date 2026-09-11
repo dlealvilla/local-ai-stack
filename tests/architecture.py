@@ -194,6 +194,7 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "storage.ownership_record",
         "storage.installation_generation",
         "storage.capacity_evidence",
+        "storage.administrator_bound",
         "storage.managed_path",
         "storage.empirical_evidence",
         "storage.low_space_guidance",

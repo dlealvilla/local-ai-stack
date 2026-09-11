@@ -727,7 +727,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6L4a Specialist / Sonar corroboration     ← L1; specialist stays unless contradicted below S
   ↓
-1.6L5 Manual capacity last-resort           ← not started
+1.6L5 Manual capacity last-resort           ← L1 local; 20%×5 G-REPL
   ↓
 post-inference breadth review, then 1.7 onward
 ```
@@ -1475,14 +1475,22 @@ close 1.6L. Does not add runtimes.
 
 ### Stage 1.6L5 — Manual capacity last-resort
 
-Not started. Administrator capacity as last-resort **evidence** only
-when native, specialist and Sonar cannot establish capacity. Future
-G-REPL (`100 → 80 → 64 → 51.2 → 40.96 → 32.768`, original plus five
-~20% footprint reductions) applies after any valid capacity source.
-Not implemented here. Never `required_bytes *= 0.8`. After five
-failures: remediation, not a larger manual number.
+Administrator capacity as last-resort **evidence** only when native,
+specialist and Sonar cannot establish authorizing capacity. Once any
+valid capacity exists, G-REPL is universal:
 
-**Output:** last-resort operator path · **Gate:** L1
+```text
+100.000% → 80.000% → 64.000% → 51.200% → 40.960% → 32.768%
+```
+
+Original attempt plus at most five ~20% footprint reductions. Never
+`required_bytes *= 0.8`, never `SAFE *= 0.8`, never shrinking the stored
+manual figure. ResourceManager still admits. MANUAL model/foundation
+pins are not converted to AUTO. If valid capacity exists and nothing
+legitimate fits: storage remediation, not a request for a more
+convenient manual number.
+
+**Output:** last-resort operator path + universal 20%×5 replan · **Gate:** L1
 
 ### Milestone 1 Hardware Breadth Review — after Stage 1.6, before broadening
 

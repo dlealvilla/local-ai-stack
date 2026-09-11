@@ -31,9 +31,9 @@ MUST NOT                     G-REPL; manual CLI; llama.cpp; MLX;
                              weaken SAFE; merge to kultrun; new Sonar
                              tiers; write production GiB in pytest.
 DEBT                         K-102/K-103/K-105/K-106 remain OPEN.
-                             K-111 remainder: manual + G-REPL +
-                             physical Sonar L2. 256 GiB ceiling is
-                             not a reason to distrust S > 256.
+                             K-111 remainder after 1.6L5: physical
+                             Sonar L2. 256 GiB ceiling is not a
+                             reason to distrust S > 256.
 ```
 
 ## Authority (pseudocode)

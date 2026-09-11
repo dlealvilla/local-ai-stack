@@ -1892,42 +1892,42 @@ Retire when:  a later stage owns warehouse/cache policy.
 Status:       OPEN
 
 ### K-110 — bounded 10% storage replan loop
-Label:        CLOSED (superseded for future work)
-Owner stage:  1.6L
+Label:        CLOSED (superseded)
+Owner stage:  1.6L / 1.6L5
 Subsystem:    platform / planning / storage
 Authorizes:   NO
-What:         `storage.reduction` owns multiplicative 10% footprint
+What:         Formerly `storage.reduction` multiplicative 10% footprint
               ceilings (100/90/81/72.9, integer floor, max 3).
-              `platform.storage_replan` sequences rediscovery,
-              Available Models recompute, AUTO reselection of a real
-              smaller candidate, a new DeploymentPlan basis, and
-              dry-run ResourceManager admission. MANUAL is blocked with
-              alternatives. Low-space and non-capacity failures do
-              not reduce.
+              1.6L5 replaced the executable policy with universal 20%×5
+              (100/80/64/51.2/40.96/32.768, original plus five reductions)
+              in `storage.reduction` and `platform.storage_replan`.
+              The loop still sequences rediscovery, Available Models
+              recompute, AUTO reselection of a real smaller candidate,
+              a new DeploymentPlan basis, and dry-run ResourceManager
+              admission. MANUAL is blocked with alternatives. Unresolved
+              capacity is last-resort manual evidence, not a reduction.
+              Low-space and non-capacity failures do not reduce.
 Why now:      Helper-only 30% policy could not recompute the control
-              plane. The loop is now wired through realize/prepare and
-              `POST /v1/deployments/plan/replan`.
+              plane. The 10% loop unblocked control-plane replan; the
+              approved G-REPL schedule is now the running policy.
 To make real: Physical T3 on constrained storage after a frozen
               integration wheel. Not this task.
-Retire when:  local tests prove the loop; physical proof is later.
-Status:       CLOSED as implemented. **Superseded** by the recorded
-              G-REPL policy (`100 → 80 → 64 → 51.2 → 40.96 → 32.768`,
-              original plus five ~20% footprint reductions after any
-              valid capacity source). Do not change this code in 1.6L4.
-              Implementation of G-REPL is 1.6L5 remainder / K-111.
+Retire when:  local tests prove the 20%×5 loop; physical proof is later.
+Status:       CLOSED. Executable 10%×3 behavior removed in 1.6L5.
 Evidence:     `tests/test_storage_reduction.py`,
               `tests/test_storage_replan.py`; composition in
               `src/kultrun/platform/storage_replan.py`.
 
 ### K-111 — Storage Capacity V2 remainder (manual, G-REPL)
-Label:        DEFERRED
+Label:        PARTIAL
 Owner stage:  1.6L5
 Subsystem:    storage / planning
 Authorizes:   NO
 What:         1.6L2 persist, 1.6L3 P0 specialist parsers, 1.6L4
-              Sonar V2, and 1.6L4a specialist corroboration exist
-              locally. Remaining: administrator capacity as last-resort
-              evidence; G-REPL 20%×5 replacing K-110 execution;
+              Sonar V2, 1.6L4a specialist corroboration, 1.6L5 last-resort
+              `AdministratorCapacityBound` (`sca_*`; CLI/API
+              `storage capacity set` / POST `/storage/administrator-bound`)
+              and executable G-REPL 20%×5 exist locally. Remaining:
               physical specialist validation; physical Sonar L2
               (duration on FUSE; tests must not write production GiB);
               optional later >256 GiB Sonar exploration. The V2 256 GiB
@@ -1935,12 +1935,14 @@ What:         1.6L2 persist, 1.6L3 P0 specialist parsers, 1.6L4
               256 GiB.
 Why now:      Specialist + Sonar unblock truthful FUSE numbers.
               Manual is only when capacity itself is unresolved.
-To make real: Stage 1.6L5 in
+To make real: Physical L2 in
               `docs/investigations/STORAGE-RUNTIME-BREADTH-SEQUENCE.md`.
               Do not implement `required_bytes *= 0.8`. Do not ask for
               a larger manual number after a failed fit.
-Retire when:  1.6L5 closes at its stated gate.
-Status:       OPEN
+Retire when:  physical Sonar/specialist gates close, or 1.6L5's local
+              remainder is split into a later debt item.
+Status:       OPEN remainder is physical validation, not the local
+              last-resort / G-REPL path.
 
 ## Runtime-first migration ledger (after 1.6K)
 

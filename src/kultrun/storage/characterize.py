@@ -28,6 +28,7 @@ from kultrun.storage.contracts import (
     StoragePool,
 )
 from kultrun.storage.evidence import arbitrate
+from kultrun.storage.index import StorageEvidenceIndex
 from kultrun.storage.limits import (
     DEFAULT_BELIEF_BOUND_BYTES,
     LOW_SPACE_THRESHOLD_BYTES,
@@ -61,6 +62,7 @@ class StorageCharacterizationService:
         registry: ProbeRegistry,
         ownership: OwnershipService | None = None,
         empirical: EmpiricalStorageProbe | None = None,
+        index: StorageEvidenceIndex | None = None,
         *,
         low_space_bytes: int = LOW_SPACE_THRESHOLD_BYTES,
         belief_bound_bytes: int = DEFAULT_BELIEF_BOUND_BYTES,
@@ -70,6 +72,7 @@ class StorageCharacterizationService:
         self._registry = registry
         self._ownership = ownership
         self._empirical = empirical
+        self._index = index
         self._low_space = low_space_bytes
         self._belief = belief_bound_bytes
         self._use_live_native = use_live_native
@@ -94,6 +97,14 @@ class StorageCharacterizationService:
         evidence: dict[str, StorageCapacityEvidence] = {}
         empirical_ran: list[str] = []
         empirical_evidence: dict[str, EmpiricalProbeEvidence] = {}
+        if administrator_bounds is None:
+            bounds: Mapping[str, int] = (
+                self._index.matching_administrator_bytes(host)
+                if run_empirical and self._index is not None
+                else {}
+            )
+        else:
+            bounds = administrator_bounds
         for pool in pools:
             mount = mounts.get(pool.mount_point)
             if mount is None:
@@ -103,7 +114,7 @@ class StorageCharacterizationService:
                 pool,
                 mount,
                 run_empirical=run_empirical,
-                administrator_bounds=administrator_bounds or {},
+                administrator_bounds=bounds,
                 probe_workspace=probe_workspace,
                 empirical_ran=empirical_ran,
                 empirical_evidence=empirical_evidence,
@@ -169,11 +180,30 @@ class StorageCharacterizationService:
             probe_name=probe_name,
             probe_compatible=compatible,
             probe_executed=executed,
-            administrator_bound=admin if isinstance(admin, int) else NOT_PROVIDED,
+            administrator_bound=NOT_PROVIDED,
             native_trusted=credible,
         )
-        if not run_empirical or self._empirical is None:
+        if not run_empirical:
             return first
+        if self._empirical is None:
+            return arbitrate(
+                host_id=host.host_id,
+                mount_point=pool.mount_point,
+                quota_identity=pool.quota_identity,
+                pool_fingerprint=pool.fingerprint,
+                clock=self._clock,
+                reported_available=mount.free_bytes,
+                native_available=native,
+                probe_available=probe_available,
+                hard_maximum=hard,
+                belief_bound=belief,
+                native_source=source,
+                probe_name=probe_name,
+                probe_compatible=compatible,
+                probe_executed=executed,
+                administrator_bound=admin if isinstance(admin, int) else NOT_PROVIDED,
+                native_trusted=credible,
+            )
         workspace = probe_workspace or Path(pool.mount_point)
         corroborate: int | None = None
         if is_resolved(probe_available) and probe_available > 0:

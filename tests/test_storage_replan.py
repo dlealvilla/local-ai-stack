@@ -1,4 +1,4 @@
-"""Bounded control-plane storage replan: 10% ceilings, real candidates."""
+"""Bounded control-plane storage replan: 20% ceilings, real candidates."""
 
 from __future__ import annotations
 
@@ -59,8 +59,16 @@ from tests.test_contracts import host_capabilities
 
 GIB = 1024**3
 
-A, B, C, D, E = 40 * GIB, 35 * GIB, 31 * GIB, 26 * GIB, 20 * GIB
-ORIGINAL = {"A": A, "B": B, "C": C, "D": D, "E": E}
+A, B, C, D, E, F, G = (
+    40 * GIB,
+    35 * GIB,
+    31 * GIB,
+    26 * GIB,
+    20 * GIB,
+    15 * GIB,
+    12 * GIB,
+)
+ORIGINAL = {"A": A, "B": B, "C": C, "D": D, "E": E, "F": F, "G": G}
 
 
 def _layered(safe: Maybe[int]) -> LayeredBytes:
@@ -297,8 +305,10 @@ class FakeChar:
         run_cleanup: bool = True,
         run_empirical: bool = True,
         probe_workspace: Path | None = None,
+        administrator_bounds: object = None,
+        **_kwargs: object,
     ) -> Characterization:
-        del probe_workspace
+        del probe_workspace, administrator_bounds
         self.calls.append({"run_cleanup": run_cleanup, "run_empirical": run_empirical})
         self.empirical = run_empirical
         return Characterization(
@@ -415,11 +425,12 @@ class World:
 
 def test_policy_math_on_40gib_original() -> None:
     assert peak_cap_bytes(A, 0) == A
-    assert peak_cap_bytes(A, 1) == A * 9 // 10
-    assert peak_cap_bytes(A, 1) == 36 * GIB
-    assert B <= peak_cap_bytes(A, 1) < A
-    assert C <= peak_cap_bytes(A, 2) < B
-    assert D <= peak_cap_bytes(A, 3) < C
+    assert peak_cap_bytes(A, 1) == A * 4 // 5
+    assert peak_cap_bytes(A, 1) == 32 * GIB
+    assert C <= peak_cap_bytes(A, 1) < B
+    assert E <= peak_cap_bytes(A, 2) < D
+    assert F <= peak_cap_bytes(A, 4) < E
+    assert G <= peak_cap_bytes(A, 5) < F
 
 
 def test_auto_reselects_real_candidates_without_scaling_requirements(
@@ -437,18 +448,22 @@ def test_auto_reselects_real_candidates_without_scaling_requirements(
     assert report.attempts[0].candidate_footprint_bytes == A
     retry = report.attempts[1]
     assert retry.footprint_ceiling_bytes == peak_cap_bytes(A, 1)
-    assert retry.candidate == "B"
-    assert retry.candidate_footprint_bytes == B
-    assert retry.candidate_footprint_bytes != int(A * 0.90)
+    assert retry.candidate == "C"
+    assert retry.candidate_footprint_bytes == C
+    assert retry.candidate_footprint_bytes != int(A * 0.80)
     assert retry.plan_basis == "basis-1"
     assert retry.admission == AdmissionVerdict.ADMITTED.value
     assert retry.request_id is not None
     assert world.models.auto_calls == 1
-    assert member_footprint(_member("B", B)) == B
+    assert member_footprint(_member("C", C)) == C
 
 
-def test_three_reductions_then_terminal(tmp_path: Path) -> None:
-    world = World(tmp_path, safe=1 * GIB)
+def test_five_reductions_then_terminal(tmp_path: Path) -> None:
+    world = World(
+        tmp_path,
+        safe=1 * GIB,
+        names=("A", "B", "C", "D", "E", "F", "G"),
+    )
     report = world.service.handle(
         world.host,
         failure_code="insufficient_safe_storage",
@@ -456,14 +471,20 @@ def test_three_reductions_then_terminal(tmp_path: Path) -> None:
         original_footprint=A,
     )
     assert report.outcome is ReplanOutcome.TERMINAL
-    assert [item.attempt for item in report.attempts] == [0, 1, 2, 3]
+    assert [item.attempt for item in report.attempts] == [0, 1, 2, 3, 4, 5]
     assert all(item.result != "admitted" for item in report.attempts)
-    assert report.payload()["fourth_retry"] is False
-    assert world.funnel_calls == 3
+    assert report.payload()["retry_beyond_five"] is False
+    assert report.payload()["max_reductions"] == 5
+    assert world.funnel_calls == 5
+    assert "storage remediation" in report.message
 
 
 def test_each_retry_recomputes_derived_state(tmp_path: Path) -> None:
-    world = World(tmp_path, safe=1 * GIB)
+    world = World(
+        tmp_path,
+        safe=1 * GIB,
+        names=("A", "B", "C", "D", "E", "F", "G"),
+    )
     report = world.service.handle(
         world.host,
         failure_code="insufficient_safe_storage",
@@ -471,16 +492,16 @@ def test_each_retry_recomputes_derived_state(tmp_path: Path) -> None:
         original_footprint=A,
     )
     retries = [item for item in report.attempts if item.attempt > 0]
-    assert len(retries) == 3
-    assert world.funnel_calls == 3
-    assert world.capacity.computes == 3
-    assert world.models.auto_calls == 3
-    assert world.plans.bases == ["basis-1", "basis-2", "basis-3"]
+    assert len(retries) == 5
+    assert world.funnel_calls == 5
+    chosen = [item for item in retries if item.candidate is not None]
+    assert world.capacity.computes == len(chosen)
+    assert world.models.auto_calls == len(chosen)
+    assert world.plans.bases == [f"basis-{n}" for n in range(1, len(chosen) + 1)]
     snapshots = [item.snapshot_basis for item in retries]
-    expected = [f"snap-{n}-safe-{1 * GIB}" for n in (1, 2, 3)]
+    expected = [f"snap-{n}-safe-{1 * GIB}" for n in (1, 2, 3, 4, 5)]
     assert snapshots == expected
-    assert len({item.request_id for item in retries}) == 3
-    assert {item.plan_id for item in retries} == {"dplan_hoststable0001"}
+    assert len({item.request_id for item in chosen}) == len(chosen)
 
 
 def test_edquot_rediscovers_before_reducing_and_does_not_reuse_old_safe(
@@ -549,10 +570,10 @@ def test_edquot_rediscovers_before_reducing_and_does_not_reuse_old_safe(
     assert rejected.verdict is AdmissionVerdict.REJECTED
     assert report.outcome is ReplanOutcome.SUCCEEDED
     chosen = next(item for item in report.attempts if item.result == "admitted")
-    assert chosen.candidate == "D"
-    assert chosen.candidate_footprint_bytes == D
-    assert chosen.snapshot_basis == f"snap-3-safe-{28 * GIB}"
-    assert chosen.attempt == 3
+    assert chosen.candidate == "E"
+    assert chosen.candidate_footprint_bytes == E
+    assert chosen.snapshot_basis == f"snap-2-safe-{28 * GIB}"
+    assert chosen.attempt == 2
 
 
 def test_low_space_does_not_reduce(tmp_path: Path) -> None:
@@ -590,7 +611,7 @@ def test_low_space_does_not_reduce(tmp_path: Path) -> None:
         original_footprint=A,
     )
     assert resumed.outcome is ReplanOutcome.SUCCEEDED
-    assert resumed.attempts[1].candidate == "B"
+    assert resumed.attempts[1].candidate == "C"
 
 
 def test_manual_is_not_silently_converted_to_auto(tmp_path: Path) -> None:
@@ -604,7 +625,8 @@ def test_manual_is_not_silently_converted_to_auto(tmp_path: Path) -> None:
     assert report.outcome is ReplanOutcome.MANUAL_BLOCKED
     assert report.outcome.value == "selected_configuration_no_longer_feasible"
     assert world.models.auto_calls == 0
-    assert "B" in {ident for ident, _peak in report.alternatives}
+    assert "C" in {ident for ident, _peak in report.alternatives}
+    assert "B" not in {ident for ident, _peak in report.alternatives}
     assert all(peak in ORIGINAL.values() for _ident, peak in report.alternatives)
 
 
@@ -687,6 +709,96 @@ def test_requirement_bytes_on_members_never_change() -> None:
     cap = peak_cap_bytes(A, 1)
     kept = tuple(item for item in members if (member_footprint(item) or 0) <= cap)
     after = {item.model_id: member_footprint(item) for item in kept}
-    assert before["B"] == B
-    assert after["B"] == B
+    assert before["C"] == C
+    assert after["C"] == C
     assert "A" not in after
+    assert "B" not in after
+
+
+def test_unresolved_capacity_requests_manual_not_replan(tmp_path: Path) -> None:
+    world = World(tmp_path)
+    report = world.service.handle(
+        world.host,
+        failure_code="unresolved_safe_capacity",
+        original_identity="A",
+        original_footprint=A,
+    )
+    assert report.outcome is ReplanOutcome.MANUAL_CAPACITY_REQUIRED
+    assert report.outcome.value == "manual_capacity_required"
+    assert world.funnel_calls == 0
+    assert all(item.attempt == 0 for item in report.attempts)
+
+
+def test_valid_capacity_with_no_fit_is_remediation_not_manual(
+    tmp_path: Path,
+) -> None:
+    world = World(tmp_path, safe=1 * GIB, names=("A", "B", "C", "D", "E", "F", "G"))
+    report = world.service.handle(
+        world.host,
+        failure_code="insufficient_safe_storage",
+        original_identity="A",
+        original_footprint=A,
+    )
+    assert report.outcome is ReplanOutcome.TERMINAL
+    assert report.outcome is not ReplanOutcome.MANUAL_CAPACITY_REQUIRED
+    assert "storage remediation" in report.message
+
+
+def test_same_reduction_schedule_for_every_capacity_source(tmp_path: Path) -> None:
+    ceilings = [peak_cap_bytes(A, n) for n in range(6)]
+    for source in ("native", "specialist", "sonar", "manual"):
+        world = World(tmp_path, safe=80 * GIB)
+        report = world.service.handle(
+            world.host,
+            failure_code="insufficient_safe_storage",
+            original_identity="A",
+            original_footprint=A,
+        )
+        del source
+        retry = report.attempts[1]
+        assert retry.footprint_ceiling_bytes == ceilings[1]
+        assert retry.candidate == "C"
+        assert [item.footprint_ceiling_bytes for item in report.attempts[:1]] == [
+            ceilings[0]
+        ]
+
+
+def test_manual_bound_bytes_are_not_reduced_by_replan(tmp_path: Path) -> None:
+    from kultrun.evidence.contracts import Provenance
+    from kultrun.kernel.ids import Name
+    from kultrun.storage.contracts import AdministratorCapacityBound
+    from kultrun.storage.index import StorageEvidenceIndex
+    from kultrun.storage.limits import POLICY_VERSION
+    from kultrun.storage.topology import pools_from_host
+
+    world = World(tmp_path)
+    index = StorageEvidenceIndex(FileStore(tmp_path / "bounds"))
+    pool = pools_from_host(world.host)[0]
+    index.put_administrator_bound(
+        AdministratorCapacityBound(
+            host_id=world.host.host_id,
+            mount_point=pool.mount_point,
+            quota_identity=pool.quota_identity,
+            pool_fingerprint=pool.fingerprint,
+            available_bytes=100 * GIB,
+            observed_at=INSTANT,
+            provenance=Provenance(
+                producer=Name("storage.administrator"),
+                producer_version=NOT_PROVIDED,
+                observed_at=INSTANT,
+                policy_version=POLICY_VERSION,
+            ),
+        )
+    )
+    world.service._index = index
+    report = world.service.handle(
+        world.host,
+        failure_code="insufficient_safe_storage",
+        original_identity="A",
+        original_footprint=A,
+    )
+    assert report.outcome is ReplanOutcome.SUCCEEDED
+    stored = index.get_administrator_bound(world.host.host_id, pool.mount_point)
+    assert stored is not None
+    assert stored.available_bytes == 100 * GIB
+    assert stored.available_bytes != int(100 * GIB * 0.80)

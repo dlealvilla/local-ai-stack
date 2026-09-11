@@ -692,12 +692,12 @@ this module, not its owner.
 
 | | |
 |---|---|
-| **Owns** | `StoragePool` — mount identity, filesystem type, provider class, quota identity, fingerprint, generation. Dual ownership (`OwnershipRecord` local marker + central registry) and `InstallationGeneration`. Step 0 inventory/cleanup. `StorageCapacityEvidence` (Storage Sonar) and immutable `EmpiricalProbeEvidence`. Replaceable `StorageCapacityProbe` registry. `StorageRequirement` and managed-path bindings. Characterization: Step 0 → rediscover → native → mandatory compatible probes → expensive-path Sonar. When a credible specialist produced domain bytes, Sonar corroborates or contradicts that candidate (after smaller hard bounds); it does not replace the specialist with a coarse V2 tier unless a capacity failure occurs strictly below the candidate. When no usable specialist bytes exist, Sonar runs the full V2 tree and that lower bound is empirical authority. Native 10% remains diagnostic. Cheap observation (`sco_*`) is distinct from authorizing characterization (`sce_*`); GET `/host` must not erase the latter and must not run Sonar. The 1.2A sanity probe remains a separate operator-only reservation. |
+| **Owns** | `StoragePool` — mount identity, filesystem type, provider class, quota identity, fingerprint, generation. Dual ownership (`OwnershipRecord` local marker + central registry) and `InstallationGeneration`. Step 0 inventory/cleanup. `StorageCapacityEvidence` (Storage Sonar) and immutable `EmpiricalProbeEvidence`. Last-resort `AdministratorCapacityBound` (`sca_*`): administrator-declared available writable bytes, applied only when native → specialist → Sonar left authorizing capacity unresolved, and never stronger than a smaller hard or empirical bound. Replaceable `StorageCapacityProbe` registry. `StorageRequirement` and managed-path bindings. Characterization: Step 0 → rediscover → native → mandatory compatible probes → expensive-path Sonar. When a credible specialist produced domain bytes, Sonar corroborates or contradicts that candidate (after smaller hard bounds); it does not replace the specialist with a coarse V2 tier unless a capacity failure occurs strictly below the candidate. When no usable specialist bytes exist, Sonar runs the full V2 tree and that lower bound is empirical authority. Native 10% remains diagnostic. Cheap observation (`sco_*`) is distinct from authorizing characterization (`sce_*`); GET `/host` must not erase the latter, must not run Sonar, and must not apply a last-resort manual bound. The 1.2A sanity probe remains a separate operator-only reservation. Footprint-ceiling math for AUTO replan (`storage.reduction`, 20%×5) lives here; the control-plane loop that consumes it lives in `platform.storage_replan`. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` (mount facts only) |
-| **Produces** | `StoragePool v1` · `OwnershipRecord` · `StorageCapacityEvidence` · `EmpiricalProbeEvidence` · `CleanupReport` · `StorageRequirement` |
+| **Produces** | `StoragePool v1` · `OwnershipRecord` · `StorageCapacityEvidence` · `EmpiricalProbeEvidence` · `AdministratorCapacityBound` · `CleanupReport` · `StorageRequirement` |
 | **Ports** | `ManagedUsageSource` — bytes per pool, no entity identity · `StorageSanityProbe` · `StorageCapacityProbe` · `EmpiricalWritePort` |
 | **Must not** | Import `model` or `capacity`, know a model identity, let raw filesystem capacity or a heuristic disbelief ceiling authorize a mutation, skip a compatible technology-specific probe, infer probe or cleanup success from a free-space delta, treat an interrupted probe as a success, or delete without dual positive ownership. |
-| **Created** | 0.2 contract · 1.2 reported-only view · 1.2A sanity · **Deepened** 1.6L Storage Sonar / ownership |
+| **Created** | 0.2 contract · 1.2 reported-only view · 1.2A sanity · **Deepened** 1.6L Storage Sonar / ownership · 1.6L5 last-resort manual bound / 20%×5 G-REPL math |
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` (mount facts only) |
 | **Produces** | `StoragePool v1` · `StorageEvidence` · `StorageAdmissionDecision` |
 | **Ports** | `ManagedUsageSource` — bytes per pool, no entity identity · `StorageBackend` |
@@ -849,9 +849,11 @@ lives in `platform.deployment_plan`. Plan-driven acquire/admit lives in
 generic `ResourceRequest` before calling ResourceManager. Bounded AUTO
 storage replan after a footprint/capacity failure lives in
 `platform.storage_replan`: it filters already-legitimate Available Models
-by a multiplicative 10% footprint ceiling (100% → 90% → 81% → 72.9%),
+by a multiplicative 20% footprint ceiling (100% → 80% → 64% → 51.2%
+→ 40.96% → 32.768%; original plus five reductions),
 persists a new selection and `DeploymentPlan` basis, and dry-run admits.
-It does not rank, probe, or authorize. MANUAL is never converted to AUTO.
+It does not rank, probe, or authorize. Unresolved automatic capacity is
+`manual_capacity_required`, not a reduction. MANUAL is never converted to AUTO.
 Plan-driven
 InferenceInstance create lives in `platform.deployment_instance` so
 `inference` does not import `planning`. None of these is a parallel

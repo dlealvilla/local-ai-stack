@@ -74,14 +74,14 @@ DEFAULT_FIRST_PROBE_BYTES: Final = 1 * _MIB
 #: Smallest refinement step once a failure bracket exists.
 DEFAULT_SEARCH_GRANULARITY_BYTES: Final = 64 * _MIB
 
-#: Original plus three smaller reselections. Never a fourth.
-MAX_STORAGE_REDUCTIONS: Final = 3
+#: Original plus five smaller reselections. Never a sixth.
+MAX_STORAGE_REDUCTIONS: Final = 5
 
-#: Multiplicative footprint ceiling: next = previous * 0.90.
-#: Integer bytes use floor(original * 9^n / 10^n) so a candidate cannot
+#: Multiplicative footprint ceiling: next = previous * 0.80.
+#: Integer bytes use floor(original * 4^n / 5^n) so a candidate cannot
 #: sneak above the intended ceiling.
-REDUCTION_FACTOR_NUMERATOR: Final = 9
-REDUCTION_FACTOR_DENOMINATOR: Final = 10
+REDUCTION_FACTOR_NUMERATOR: Final = 4
+REDUCTION_FACTOR_DENOMINATOR: Final = 5
 
-POLICY_VERSION: Final = "1.6L4.1-corroboration"
+POLICY_VERSION: Final = "1.6L5.0-manual-grepl"
 CREATED_BY: Final = "kultrun"

@@ -85,6 +85,7 @@ from kultrun.runtime.resolve import path_presence, resolve
 from kultrun.runtime.selection import FoundationSelectionService
 from kultrun.runtime.verify import VerificationService
 from kultrun.storage.contracts import StorageCapacityEvidence, StorageSanityEvidence
+from kultrun.storage.manual import AdministratorCapacityService
 from kultrun.storage.sanity import StorageSanityService, summarize
 from kultrun.storage.topology import mount_for_path
 
@@ -127,6 +128,7 @@ class ControlPlane:
     foundation_realize: FoundationRealizeService
     storage_acquire: StorageAwareAcquisition
     storage_replan: StorageReplanService
+    administrator_capacity: AdministratorCapacityService
     state_root: Path
     #: Adapter identity, e.g. native-process. A string so the API does not
     #: import an adapter module.
@@ -338,6 +340,31 @@ def register(router: Router, plane: ControlPlane) -> Router:
             host_fingerprint=host.fingerprint,
             pool_fingerprint=fingerprint,
         )
+
+    def show_administrator_capacity(request: ApiRequest) -> dict[str, object]:
+        """Inspect last-resort administrator bounds. GET does not characterize."""
+        mount_point = (request.query.get("mount_point") or "").strip() or None
+        return plane.administrator_capacity.inspect(plane.hosts.current, mount_point)
+
+    def set_administrator_capacity(request: ApiRequest) -> dict[str, object]:
+        """Persist last-resort capacity after automatic characterization failed."""
+        mount_point = (request.query.get("mount_point") or "").strip()
+        raw = (request.query.get("bytes") or "").strip()
+        if not mount_point:
+            raise ValidationError("a mount point is required", parameter="mount_point")
+        if not raw:
+            raise ValidationError("a byte count is required", parameter="bytes")
+        try:
+            nbytes = int(raw)
+        except ValueError as error:
+            raise ValidationError(
+                "bytes must be a positive integer", parameter="bytes"
+            ) from error
+        payload = plane.administrator_capacity.set(
+            plane.hosts.current, mount_point, nbytes
+        ).payload()
+        payload["mutations"] = True
+        return payload
 
     def capacity(_: ApiRequest) -> CapacityEnvelope:
         """What this host can safely give, with all three layers visible.
@@ -1062,6 +1089,8 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.get("/capacity", capacity)
     router.get("/storage/sanity", storage_sanity)
     router.post("/storage/sanity-check", run_storage_sanity)
+    router.get("/storage/administrator-bound", show_administrator_capacity)
+    router.post("/storage/administrator-bound", set_administrator_capacity)
     router.get("/capacity/policy", capacity_policy)
     router.get("/runtime", runtime)
     router.get("/runtimes/candidates", runtime_candidates)

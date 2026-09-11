@@ -462,6 +462,30 @@ class StorageCapacityEvidence(Contract):
     )
 
 
+@contract(kind="storage.administrator_bound", version=1)
+@dataclass(frozen=True, slots=True)
+class AdministratorCapacityBound(Contract):
+    """Last-resort administrator-declared available writable bytes for one pool.
+
+    Used only when native, specialist, and Sonar cannot establish authorizing
+    capacity. Weaker than a smaller hard entitlement or empirical failure.
+    Identity-keyed: host, mount, fingerprint, and quota must still match.
+    """
+
+    host_id: HostId = meaning("host this bound was recorded on")
+    mount_point: str = meaning("pool mount this bound describes")
+    quota_identity: Maybe[str] = meaning("quota domain, when known")
+    pool_fingerprint: str = meaning("pool identity; invalid when the mount changes")
+    available_bytes: int = meaning(
+        "administrator-declared available writable bytes; last-resort "
+        "evidence, never stronger than a smaller hard or empirical bound"
+    )
+    observed_at: dt.datetime = meaning(
+        "when the administrator supplied this value, UTC"
+    )
+    provenance: Provenance = meaning("who recorded it, when, under which policy")
+
+
 @contract(kind="storage.requirement", version=1)
 @dataclass(frozen=True, slots=True)
 class StorageRequirement(Contract):

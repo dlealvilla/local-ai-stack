@@ -77,16 +77,21 @@ def apply_manual_bound(
     empirical_upper: Maybe[int],
     manual: Maybe[int],
 ) -> Maybe[int]:
-    """Administrator bound never overrides a smaller hard or empirical failure."""
+    """Last-resort fill. Never shrinks established automatic capacity.
+
+    The stored figure is administrator-declared available writable bytes.
+    A smaller hard entitlement or empirical exclusive upper still caps it.
+    Manual evidence is not absolute authority over contradictory hard facts.
+    """
     if not is_resolved(manual):
+        return operational
+    if is_resolved(operational):
         return operational
     ceiling = manual
     if is_resolved(hard):
         ceiling = min(ceiling, hard)
     if is_resolved(empirical_upper):
         ceiling = min(ceiling, empirical_upper - 1) if empirical_upper > 0 else 0
-    if is_resolved(operational):
-        return min(operational, ceiling)
     return ceiling
 
 

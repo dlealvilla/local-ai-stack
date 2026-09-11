@@ -12,18 +12,26 @@ and truthful characterization, authorizing storage below this threshold
 asks the administrator to clear space **before** deployment reductions.
 
 Superseded policy (helper-only, not current): ~30% per retry
-(100% → 70% → 49% → 34.3%). Current policy is multiplicative 10%:
+(100% → 70% → 49% → 34.3%). K-110 implemented multiplicative 10%
+(100% → 90% → 81% → 72.9%, max three reductions). **1.6L5 replaced the
+executable loop** with universal 20%×5:
 
 ```text
-attempt 0 = 100.0%
-retry 1   =  90.0%
-retry 2   =  81.0%
-retry 3   =  72.9%
+attempt 0 = 100.000%
+retry 1   =  80.000%
+retry 2   =  64.000%
+retry 3   =  51.200%
+retry 4   =  40.960%
+retry 5   =  32.768%
 ```
 
-`next = previous * 0.90`, integer-byte floor. The percentage is a
-candidate-footprint ceiling, never `requirement *= 0.90` and never
-inflated SAFE. Maximum three reductions after the original attempt.
+`next = previous * 0.80`, integer-byte floor. The percentage is a
+candidate-footprint ceiling, never `requirement *= 0.80`, never
+`SAFE *= 0.80`, and never mutated capacity. Maximum five reductions after
+the original attempt. No seventh tier. The same schedule applies after
+native, specialist, Sonar, or last-resort manual capacity. A failed fit
+against valid capacity is storage remediation, not a request for a more
+convenient manual number.
 
 Confidence: LOW for formula/estimated rows; MEDIUM when catalog metadata is
 curated; HIGH only when an artifact’s stored size is measured.

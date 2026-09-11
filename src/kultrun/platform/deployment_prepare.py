@@ -43,7 +43,10 @@ from kultrun.resource.contracts import (
     ResourceRequest,
 )
 from kultrun.storage.contracts import StorageSanityEvidence
-from kultrun.storage.reduction import is_footprint_retryable
+from kultrun.storage.reduction import (
+    is_footprint_retryable,
+    is_manual_capacity_required,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -226,6 +229,7 @@ class DeploymentPreparationService:
     ) -> PreparedDeployment:
         """Admit the CURRENT plan against a matching stored artifact."""
         prepared = self._admit_once(host, artifact_id)
+        _raise_if_manual_capacity(prepared.decision)
         if _replanned or not self._rejected_storage(prepared.decision):
             return prepared
         code = (
@@ -284,6 +288,7 @@ class DeploymentPreparationService:
             request=request,
             decision=decision,
         )
+        _raise_if_manual_capacity(decision)
         if _replanned or not self._rejected_storage(decision):
             return prepared
         code = str(decision.reason_code)
@@ -309,6 +314,12 @@ class DeploymentPreparationService:
             return False
         if error is not None:
             code = str(error.context.get("reason") or "")
+        if isinstance(code, str) and is_manual_capacity_required(code):
+            raise PreconditionFailedError(
+                "automatic storage capacity is unresolved; "
+                "administrator capacity may be supplied as last resort",
+                reason="manual_capacity_required",
+            )
         if not isinstance(code, str) or not is_footprint_retryable(code):
             return False
         if plan is None:
@@ -332,6 +343,8 @@ class DeploymentPreparationService:
         if report.outcome is ReplanOutcome.LOW_SPACE:
             raise PreconditionFailedError(report.message, reason="storage_low_space")
         if report.outcome is ReplanOutcome.TERMINAL:
+            raise PreconditionFailedError(report.message, reason=report.outcome.value)
+        if report.outcome is ReplanOutcome.MANUAL_CAPACITY_REQUIRED:
             raise PreconditionFailedError(report.message, reason=report.outcome.value)
         return False
 
@@ -367,6 +380,18 @@ def _plan_footprint(plan: DeploymentPlan | None) -> int:
         return 0
     value = plan.expected_storage_bytes
     return value if isinstance(value, int) and value > 0 else 0
+
+
+def _raise_if_manual_capacity(decision: AdmissionDecision | None) -> None:
+    if decision is None:
+        return
+    code = decision.reason_code
+    if isinstance(code, str) and is_manual_capacity_required(code):
+        raise PreconditionFailedError(
+            "automatic storage capacity is unresolved; "
+            "administrator capacity may be supplied as last resort",
+            reason="manual_capacity_required",
+        )
 
 
 def require_current_plan(overview: DeploymentPlanOverview) -> DeploymentPlan:

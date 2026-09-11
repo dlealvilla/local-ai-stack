@@ -10,13 +10,16 @@ from kultrun.host.contracts import HostId
 from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import NOT_PROVIDED
 from kultrun.storage.contracts import (
+    AdministratorCapacityBound,
     EmpiricalProbeEvidence,
     StorageCapacityEvidence,
     StorageEvidenceStatus,
 )
 from kultrun.storage.index import StorageEvidenceIndex, evidence_key, observation_key
 from kultrun.storage.limits import POLICY_VERSION
+from kultrun.storage.topology import pools_from_host
 from tests.test_capacity import INSTANT, host
+from tests.test_contracts import host_capabilities
 
 GIB = 1024**3
 
@@ -76,6 +79,39 @@ def test_identity_change_invalidates_authorizing(tmp_path: Path) -> None:
     planning = index.for_host(subject)
     assert planning["/workspace"].status is StorageEvidenceStatus.UNRESOLVED
     assert planning["/workspace"].pool_fingerprint == "new"
+
+
+def test_invalidate_does_not_drop_administrator_bound(tmp_path: Path) -> None:
+    subject = host_capabilities()
+    pool = pools_from_host(subject)[0]
+    index = StorageEvidenceIndex(FileStore(tmp_path / "store"))
+    authorizing = _record(
+        subject.host_id,
+        available=25 * GIB,
+        fingerprint=pool.fingerprint,
+        mount=pool.mount_point,
+    )
+    index.record_expensive({authorizing.mount_point: authorizing})
+    index.put_administrator_bound(
+        AdministratorCapacityBound(
+            host_id=subject.host_id,
+            mount_point=pool.mount_point,
+            quota_identity=pool.quota_identity,
+            pool_fingerprint=pool.fingerprint,
+            available_bytes=100 * GIB,
+            observed_at=INSTANT,
+            provenance=Provenance(
+                producer=Name("storage.administrator"),
+                producer_version=NOT_PROVIDED,
+                observed_at=INSTANT,
+                policy_version=POLICY_VERSION,
+            ),
+        )
+    )
+    index.invalidate(subject.host_id)
+    stored = index.get_administrator_bound(subject.host_id, pool.mount_point)
+    assert stored is not None
+    assert stored.available_bytes == 100 * GIB
 
 
 def test_empirical_evidence_is_persisted(tmp_path: Path) -> None:

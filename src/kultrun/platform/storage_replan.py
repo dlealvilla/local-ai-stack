@@ -1,21 +1,24 @@
 """Bounded AUTO storage replan. Sequences existing services; does not rank.
 
 Planning still ranks Available Models. ResourceManager still admits.
-Storage still owns the 10% ceiling math. This module only retries a
+Storage still owns the 20% ceiling math. This module only retries a
 capacity/footprint failure by selecting a real smaller candidate after
 fresh recomputation.
 
 The percentage is a candidate-footprint ceiling:
 
-    attempt 0 = 100%
-    retry 1   = 90%
-    retry 2   = 81%
-    retry 3   = 72.9%
+    attempt 0 = 100.000%
+    retry 1   = 80.000%
+    retry 2   = 64.000%
+    retry 3   = 51.200%
+    retry 4   = 40.960%
+    retry 5   = 32.768%
 
-``next = previous * 0.90``, never ``original - 10`` percentage points, and
-never ``requirement *= 0.90`` or inflated SAFE.
+``next = previous * 0.80``, never ``original - 20`` percentage points, and
+never ``requirement *= 0.80``, ``SAFE *= 0.80``, or mutated capacity.
 
-MANUAL selection is never converted to AUTO.
+Unresolved automatic capacity is last-resort manual evidence, not a
+reduction. MANUAL selection is never converted to AUTO.
 """
 
 from __future__ import annotations
@@ -71,6 +74,7 @@ from kultrun.storage.index import StorageEvidenceIndex
 from kultrun.storage.limits import MAX_STORAGE_REDUCTIONS
 from kultrun.storage.reduction import (
     is_footprint_retryable,
+    is_manual_capacity_required,
     peak_cap_bytes,
     select_smaller,
 )
@@ -100,6 +104,7 @@ class ReplanOutcome(StrEnum):
     SUCCEEDED = "succeeded"
     LOW_SPACE = "low_space"
     MANUAL_BLOCKED = "selected_configuration_no_longer_feasible"
+    MANUAL_CAPACITY_REQUIRED = "manual_capacity_required"
     NOT_RETRYABLE = "not_retryable"
     TERMINAL = "terminal_failure"
 
@@ -133,7 +138,7 @@ class ReplanAttempt:
 
 @dataclass(frozen=True, slots=True)
 class StorageReplanReport:
-    """Explainable result of at most original + three reductions."""
+    """Explainable result of at most original + five reductions."""
 
     outcome: ReplanOutcome
     stage: ReplanStage
@@ -186,7 +191,7 @@ class StorageReplanReport:
             "runtime_reprovision": self.runtime_reprovision,
             "message": self.message,
             "max_reductions": MAX_STORAGE_REDUCTIONS,
-            "fourth_retry": False,
+            "retry_beyond_five": False,
         }
 
 
@@ -239,7 +244,7 @@ class StorageReplanService:
         original_footprint: int,
         stage: ReplanStage = ReplanStage.MODEL,
     ) -> StorageReplanReport:
-        """Retry at most three smaller real candidates. Never a fourth."""
+        """Retry at most five smaller real candidates. Never a sixth."""
         attempts = [
             ReplanAttempt(
                 attempt=0,
@@ -272,7 +277,22 @@ class StorageReplanService:
                 characterized.low_space if characterized is not None else (),
                 False,
                 "authorizing storage is below the low-space threshold; "
-                "clear space, then rediscover before any 90% reduction",
+                "clear space, then rediscover before any 20% reduction",
+            )
+        if is_manual_capacity_required(failure_code) and _capacity_unresolved(
+            characterized
+        ):
+            return _report(
+                ReplanOutcome.MANUAL_CAPACITY_REQUIRED,
+                stage,
+                original_identity,
+                original_footprint,
+                attempts,
+                (),
+                (),
+                False,
+                "automatic storage capacity is unresolved; "
+                "administrator capacity may be supplied as last resort",
             )
         if not is_footprint_retryable(failure_code):
             return _report(
@@ -470,7 +490,8 @@ class StorageReplanService:
             ),
             (),
             not retain_runtime,
-            "three reductions failed to admit a smaller deployment",
+            "five reductions failed to admit a smaller deployment; "
+            "storage remediation is required",
         )
 
     def _replan_runtime(
@@ -679,6 +700,15 @@ def _storage(
     if index is None:
         return {}
     return index.for_host(host)
+
+
+def _capacity_unresolved(characterized: Characterization | None) -> bool:
+    if characterized is None or not characterized.evidence:
+        return True
+    return not any(
+        is_resolved(item.authorizing_available_bytes)
+        for item in characterized.evidence.values()
+    )
 
 
 def _snapshot(funnel: FunnelPass) -> str | None:

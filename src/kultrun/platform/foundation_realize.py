@@ -40,7 +40,10 @@ from kultrun.storage.contradiction import contradict
 from kultrun.storage.failures import is_capacity_failure
 from kultrun.storage.footprint import runtime_provisioning_requirement
 from kultrun.storage.index import StorageEvidenceIndex
-from kultrun.storage.reduction import is_footprint_retryable
+from kultrun.storage.reduction import (
+    is_footprint_retryable,
+    is_manual_capacity_required,
+)
 from kultrun.storage.topology import bind_path, pools_from_host
 
 
@@ -141,6 +144,12 @@ class FoundationRealizeService:
         if replanned or self._replan is None:
             raise error
         code = str(error.context.get("reason") or "")
+        if is_manual_capacity_required(code):
+            raise PreconditionFailedError(
+                "automatic storage capacity is unresolved; "
+                "administrator capacity may be supplied as last resort",
+                reason="manual_capacity_required",
+            )
         if not is_footprint_retryable(code):
             raise error
         if not self._try_replan(host, code):
@@ -238,9 +247,16 @@ class FoundationRealizeService:
         )
         decision = self._resources.admit(request, envelope)
         if decision.verdict is not AdmissionVerdict.ADMITTED:
+            code = str(decision.reason_code)
+            if is_manual_capacity_required(code):
+                raise PreconditionFailedError(
+                    "automatic storage capacity is unresolved; "
+                    "administrator capacity may be supplied as last resort",
+                    reason="manual_capacity_required",
+                )
             raise PreconditionFailedError(
                 decision.reasons[0] if decision.reasons else "storage not admitted",
-                reason=str(decision.reason_code),
+                reason=code,
             )
         try:
             installation = self._foundation.realize_selected(

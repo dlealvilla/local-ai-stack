@@ -8270,6 +8270,60 @@
     },
     "python": "RuntimeVerificationProbe"
   },
+  "storage.administrator_bound@1": {
+    "fields": {
+      "available_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "administrator-declared available writable bytes; last-resort evidence, never stronger than a smaller hard or empirical bound",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this bound was recorded on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "pool mount this bound describes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "observed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the administrator supplied this value, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "pool_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "pool identity; invalid when the mount changes",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "provenance": {
+        "may_be_unresolved": false,
+        "meaning": "who recorded it, when, under which policy",
+        "nullable": false,
+        "optional": false,
+        "type": "Provenance"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain, when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "AdministratorCapacityBound"
+  },
   "storage.capacity_evidence@1": {
     "fields": {
       "administrator_bound_bytes": {

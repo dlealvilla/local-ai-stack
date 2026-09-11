@@ -12,7 +12,12 @@ from collections.abc import Mapping
 
 from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.persistence import Store
-from kultrun.storage.contracts import EmpiricalProbeEvidence, StorageCapacityEvidence
+from kultrun.storage.contracts import (
+    AdministratorCapacityBound,
+    EmpiricalProbeEvidence,
+    StorageCapacityEvidence,
+)
+from kultrun.storage.topology import pools_from_host
 
 
 def observation_key(host_id: HostId, mount_point: str) -> str:
@@ -28,6 +33,11 @@ def evidence_key(host_id: HostId, mount_point: str) -> str:
 def empirical_key(host_id: HostId, mount_point: str) -> str:
     digest = hashlib.sha256(f"{host_id.value}:{mount_point}".encode()).hexdigest()[:24]
     return f"see_{digest}"
+
+
+def administrator_key(host_id: HostId, mount_point: str) -> str:
+    digest = hashlib.sha256(f"{host_id.value}:{mount_point}".encode()).hexdigest()[:24]
+    return f"sca_{digest}"
 
 
 def same_storage_identity(
@@ -57,9 +67,7 @@ class StorageEvidenceIndex:
         """Expensive persist: observation + authorizing characterization."""
         self.record_expensive(items)
 
-    def record_observation(
-        self, items: Mapping[str, StorageCapacityEvidence]
-    ) -> None:
+    def record_observation(self, items: Mapping[str, StorageCapacityEvidence]) -> None:
         """Cheap persist. Never overwrites authorizing evidence of the same identity."""
         for item in items.values():
             self._store.put(observation_key(item.host_id, item.mount_point), item)
@@ -84,6 +92,38 @@ class StorageEvidenceIndex:
 
     def put_empirical(self, evidence: EmpiricalProbeEvidence) -> None:
         self._store.put(empirical_key(evidence.host_id, evidence.mount_point), evidence)
+
+    def put_administrator_bound(self, bound: AdministratorCapacityBound) -> None:
+        self._store.put(administrator_key(bound.host_id, bound.mount_point), bound)
+
+    def get_administrator_bound(
+        self, host_id: HostId, mount_point: str
+    ) -> AdministratorCapacityBound | None:
+        return self._store.get(
+            AdministratorCapacityBound, administrator_key(host_id, mount_point)
+        )
+
+    def delete_administrator_bound(self, host_id: HostId, mount_point: str) -> None:
+        self._store.delete(
+            AdministratorCapacityBound, administrator_key(host_id, mount_point)
+        )
+
+    def matching_administrator_bytes(self, host: HostCapabilities) -> dict[str, int]:
+        """Identity-matched last-resort bytes. Fingerprint/quota mismatch is omitted."""
+        pools = {pool.mount_point: pool for pool in pools_from_host(host)}
+        found: dict[str, int] = {}
+        for bound in self._store.records(AdministratorCapacityBound):
+            if bound.host_id != host.host_id:
+                continue
+            pool = pools.get(bound.mount_point)
+            if pool is None:
+                continue
+            if pool.fingerprint != bound.pool_fingerprint:
+                continue
+            if pool.quota_identity != bound.quota_identity:
+                continue
+            found[bound.mount_point] = bound.available_bytes
+        return found
 
     def for_host(self, host: HostCapabilities) -> dict[str, StorageCapacityEvidence]:
         """Planning view: authorizing when identity still matches, else observation."""

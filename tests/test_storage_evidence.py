@@ -165,6 +165,23 @@ def test_manual_fills_unresolved_below_hard() -> None:
     assert item.native_source == "administrator"
 
 
+def test_manual_does_not_shrink_established_automatic() -> None:
+    item = _evidence(
+        native_available=80 * GIB,
+        administrator_bound=50 * GIB,
+    )
+    assert item.status is StorageEvidenceStatus.AUTHORITATIVE
+    assert item.operational_available_bytes == 80 * GIB
+    assert item.native_source != "administrator"
+
+
+def test_unresolved_manual_is_capped_by_hard_bound() -> None:
+    item = _evidence(administrator_bound=100 * GIB, hard_maximum=50 * GIB)
+    assert item.status is StorageEvidenceStatus.BOUNDED
+    assert item.operational_available_bytes == 50 * GIB
+    assert item.native_source == "administrator"
+
+
 def test_exactly_anomaly_threshold_still_authorizes() -> None:
     from kultrun.storage.limits import NATIVE_ANOMALY_TRIGGER_BYTES
 

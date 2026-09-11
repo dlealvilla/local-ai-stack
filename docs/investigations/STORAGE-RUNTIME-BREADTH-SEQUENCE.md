@@ -90,7 +90,7 @@ design. Change them only at a listed gate.
 
 | ID | Decision |
 |---|---|
-| D1 | **AMEND (recorded, not implemented):** future G-REPL is `100 → 80 → 64 → 51.2 → 40.96 → 32.768` after **any** valid capacity source. K-110 remains CLOSED as implemented 10%×3 until that later stage. Manual capacity is last-resort evidence when native+specialist+Sonar cannot establish capacity, not a larger number after a failed fit. |
+| D1 | **IMPLEMENTED in 1.6L5:** G-REPL is `100 → 80 → 64 → 51.2 → 40.96 → 32.768` after **any** valid capacity source (original plus five ~20% footprint reductions). Manual capacity is last-resort evidence when native+specialist+Sonar cannot establish capacity, not a larger number after a failed fit. |
 | D2 | Specialist entitlement bytes always beat generic native. 10% is diagnostic only. |
 | D3 | Always run every compatible specialist. Native may authorize only if no specialist produced domain bytes, family is trusted-local, value is plausible, and no hard bound is smaller. |
 | D4 | 500 GiB is an **anomaly trigger** on otherwise-trusted families, not a cap and not the only specialist trigger. |
@@ -124,7 +124,7 @@ design. Change them only at a listed gate.
 | G-USEFUL | R2 | “Useful model” = catalog-estimated fit vs already-downloaded artifact | Catalog-estimated; acquisition still separately admitted |
 | G-ZFS | S2 | Distrust all ZFS native until adapter speaks? | ZFS native authorizes only if adapter returns NO_DATASET_QUOTA or bytes |
 | G-K8S | P1 | stdlib/in-cluster files vs `kubernetes` extra | No kube client in the default wheel |
-| G-REPL | Recorded at S3 | D1 AMEND: 20%×5 after any valid capacity; do not ask for a larger manual number after a failed fit | Implementation remains a later bounded task; do not change `storage/reduction.py` in S3 |
+| G-REPL | Recorded at S3, implemented 1.6L5 | D1: 20%×5 after any valid capacity; do not ask for a larger manual number after a failed fit | Implemented on `stage/1.6L5-manual-capacity-replan` |
 | G-GGUF | R1 | Which small legal GGUF for smoke? | Pin one Q4 TinyLlama-class artifact + checksum in the R1 brief |
 | G-MLX | R4 | First already-converted mlx-community artifact | Name in the R4 brief; no conversion subsystem |
 
@@ -300,7 +300,7 @@ do not rewrite 100 GiB to 80
 G-REPL 100/80/64/51.2/40.96/32.768 after any valid capacity
 never requirement *= 0.8
 do not re-Sonar inside the reduction loop
-K-110 10%×3 remains the implemented AUTO loop until this stage replaces it
+K-110 10%×3 executable behavior replaced by 20%×5 in 1.6L5
 ```
 
 **Does not:** llama.cpp; admin UI; shrinking SAFE.

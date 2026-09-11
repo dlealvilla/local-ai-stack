@@ -82,8 +82,9 @@ class StorageAwareAcquisition:
         named, safe = safe_storage(envelope, mount)
         if named is None or not is_resolved(safe) or not isinstance(safe, int):
             raise PreconditionFailedError(
-                "SAFE storage is unresolved on the destination pool",
-                reason="unresolved_storage_requirement",
+                "automatic storage capacity is unresolved; "
+                "administrator capacity may be supplied as last resort",
+                reason="manual_capacity_required",
                 mount_point=mount,
             )
         needed = needed_bytes(request)

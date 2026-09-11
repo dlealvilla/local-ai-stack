@@ -180,6 +180,7 @@ from kultrun.storage import contracts as _storage_contracts  # noqa: F401
 from kultrun.storage.characterize import StorageCharacterizationService
 from kultrun.storage.contracts import StorageSanityEvidence
 from kultrun.storage.index import StorageEvidenceIndex
+from kultrun.storage.manual import AdministratorCapacityService
 from kultrun.storage.ownership import OwnershipService
 from kultrun.storage.sanity import StorageSanityService
 from kultrun.storage.sonar import EmpiricalStorageProbe
@@ -685,6 +686,7 @@ def build(
         default_probe_registry(),
         ownership,
         empirical,
+        index=storage_index,
         use_live_native=shape is None,
     )
     chosen_executor, container_image = resolve_live_executor()
@@ -1001,6 +1003,13 @@ def build(
         state_root=state_root,
         allow_empirical=shape is None,
     )
+    administrator_capacity = AdministratorCapacityService(
+        characterization,
+        storage_index,
+        resolved_clock,
+        state_root,
+        allow_empirical=shape is None,
+    )
     foundation_realize._replan = storage_replan
 
     deployment_prepare = DeploymentPreparationService(
@@ -1054,6 +1063,7 @@ def build(
         foundation_realize=foundation_realize,
         storage_acquire=storage_acquire,
         storage_replan=storage_replan,
+        administrator_capacity=administrator_capacity,
         state_root=state_root,
         executor_identity=live_executor.identity.value,
         container_capability=container_executor.capabilities,
@@ -1418,10 +1428,105 @@ def check_storage_sanity(arguments: Sequence[str]) -> int:
 
 def _storage(arguments: Sequence[str]) -> int:
     """The `storage` command group."""
-    if not arguments or arguments[0] != "sanity-check":
-        print("usage: kultrun storage sanity-check <mount-point>", file=sys.stderr)
+    if not arguments or arguments[0] in ("-h", "--help"):
+        print(
+            "usage: kultrun storage {sanity-check,capacity} [...]",
+            file=sys.stderr,
+        )
+        return 0 if arguments else 2
+    command = arguments[0]
+    rest = list(arguments[1:])
+    if command == "sanity-check":
+        return check_storage_sanity(rest)
+    if command == "capacity":
+        return _storage_capacity(rest)
+    print(f"kultrun: unknown storage command {command!r}", file=sys.stderr)
+    print(
+        "usage: kultrun storage {sanity-check,capacity} [...]",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def _storage_capacity(arguments: Sequence[str]) -> int:
+    """Last-resort administrator capacity. Not a fit-failure workaround."""
+    if not arguments or arguments[0] in ("-h", "--help"):
+        print(
+            "usage: kultrun storage capacity {show,set} [...]",
+            file=sys.stderr,
+        )
+        return 0 if arguments else 2
+    command = arguments[0]
+    rest = list(arguments[1:])
+    if command == "show":
+        return show_administrator_capacity(rest)
+    if command == "set":
+        return set_administrator_capacity(rest)
+    print(f"kultrun: unknown storage capacity command {command!r}", file=sys.stderr)
+    print(
+        "usage: kultrun storage capacity {show,set} [...]",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def show_administrator_capacity(arguments: Sequence[str]) -> int:
+    """Show stored last-resort bounds. Does not probe."""
+    mount_point = arguments[0] if arguments else None
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    payload = platform.plane.administrator_capacity.inspect(
+        platform.hosts.current, mount_point
+    )
+    rows = payload.get("bounds")
+    if not isinstance(rows, list) or not rows:
+        print("no last-resort administrator capacity bound is stored")
+        return 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        print(
+            f"{row.get('mount_point')}  declared {_bytes(row.get('available_bytes'))}  "
+            f"authorizing {_bytes(row.get('authorizing_available_bytes'))}  "
+            f"source {row.get('native_source') or '-'}"
+        )
+    return 0
+
+
+def set_administrator_capacity(arguments: Sequence[str]) -> int:
+    """Supply last-resort capacity after automatic characterization failed."""
+    from kultrun.kernel.errors import KultrunError
+
+    if len(arguments) != 2:
+        print(
+            "usage: kultrun storage capacity set <mount-point> <bytes>",
+            file=sys.stderr,
+        )
         return 2
-    return check_storage_sanity(arguments[1:])
+    mount_point = arguments[0]
+    try:
+        nbytes = int(arguments[1])
+    except ValueError:
+        print("kultrun: bytes must be a positive integer", file=sys.stderr)
+        return 2
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    try:
+        result = platform.plane.administrator_capacity.set(
+            platform.hosts.current, mount_point, nbytes
+        )
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
+    declared = result.bound.available_bytes if result.bound is not None else nbytes
+    print(f"accepted last-resort bound {_bytes(declared)} on {mount_point}")
+    if result.evidence is not None:
+        print(
+            f"authorizing {_bytes(result.evidence.authorizing_available_bytes)}  "
+            f"status {result.evidence.status.value}  "
+            f"source {result.evidence.native_source}"
+        )
+    return 0
 
 
 def start_reference_workload(platform: Platform, *, hold: bool) -> ExecutorHandle:

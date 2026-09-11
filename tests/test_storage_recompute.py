@@ -125,12 +125,12 @@ def test_replan_selects_real_candidates_not_scaled_numbers() -> None:
         candidates,
         peak_of=lambda item: item[1],
         original_peak=40 * GIB,
-        reduction=2,
+        reduction=1,
     )
     assert chosen is not None
     assert chosen[0] == "C"
     assert chosen[1] == 31 * GIB
-    assert chosen[1] != int(40 * GIB * 0.81)
+    assert chosen[1] != int(40 * GIB * 0.80)
 
 
 def test_deployment_capacity_uses_named_pool_not_first_fuse() -> None:
