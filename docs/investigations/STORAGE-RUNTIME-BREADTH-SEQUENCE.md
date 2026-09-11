@@ -267,6 +267,25 @@ cheap GET never Sonars
 
 **Does not:** manual capacity; G-REPL; llama.cpp; MLX; T3; T5.
 
+### S3.1b — Pool-bound Sonar + reserve-first recovery
+
+**Roadmap home:** 1.6L4b. Does not reopen the V2 tree or S3.1 authority.
+
+Physical runtime-breadth acceptance (`36820d7`) failed because overlay
+Sonar used `probe_workspace=state_root` on `/workspace`, then EDQUOT did
+not finish reserve-first cleanup.
+
+```text
+Sonar(target_pool) physically probes target_pool
+mismatch → refuse, no write
+EDQUOT/ENOSPC → capture → release 1 GiB reserve → persist → remove probe
+32 PASS + 48 EDQUOT → lower = 32
+authoritative overlay does not inherit sibling FUSE Sonar
+no external recovery journal
+```
+
+**Implemented locally.** Physical FUSE L2 remains OPEN (K-111).
+
 ---
 
 **STOP:** 1 GiB reserve discovered unsafe; cannot test without writing

@@ -6,7 +6,9 @@ pass before a mutation.
 
 On that expensive path a credible specialist is the capacity value; Sonar
 corroborates or contradicts it. With no usable specialist bytes, Sonar
-runs the full V2 tree.
+runs the full V2 tree. Each pool is characterized independently: a probe
+writes inside the pool it claims, and an already-authoritative overlay
+does not inherit a sibling FUSE pool's need for Sonar.
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ from kultrun.storage.contracts import (
     StorageEvidenceStatus,
     StoragePool,
 )
-from kultrun.storage.evidence import arbitrate
+from kultrun.storage.evidence import arbitrate, needs_empirical_fallback
 from kultrun.storage.index import StorageEvidenceIndex
 from kultrun.storage.limits import (
     DEFAULT_BELIEF_BOUND_BYTES,
@@ -36,8 +38,9 @@ from kultrun.storage.limits import (
 from kultrun.storage.native import native_available_bytes
 from kultrun.storage.ownership import OwnershipService
 from kultrun.storage.ports import StorageEnvironment
+from kultrun.storage.probe_target import probe_parent_for, probe_roots_for
 from kultrun.storage.probes import ProbeRegistry
-from kultrun.storage.sonar import EmpiricalStorageProbe
+from kultrun.storage.sonar import RUN_RUNNING, EmpiricalStorageProbe
 from kultrun.storage.topology import family_of, is_credible_family, pools_from_host
 
 
@@ -87,12 +90,18 @@ class StorageCharacterizationService:
         administrator_bounds: Mapping[str, int] | None = None,
         probe_workspace: Path | None = None,
     ) -> Characterization:
+        pools = pools_from_host(host)
+        probe_roots = probe_roots_for(pools)
         cleanup = None
         if run_cleanup and self._ownership is not None:
+            allowed = (self._ownership.state_root, *probe_roots)
             cleanup = step0_cleanup(
-                self._ownership, host.host_id, active_roots=active_roots
+                self._ownership,
+                host.host_id,
+                active_roots=active_roots,
+                allowed_roots=allowed,
+                extra_roots=probe_roots,
             )
-        pools = pools_from_host(host)
         mounts = {item.mount_point: item for item in host.mounts}
         evidence: dict[str, StorageCapacityEvidence] = {}
         empirical_ran: list[str] = []
@@ -113,6 +122,7 @@ class StorageCharacterizationService:
                 host,
                 pool,
                 mount,
+                pools,
                 run_empirical=run_empirical,
                 administrator_bounds=bounds,
                 probe_workspace=probe_workspace,
@@ -140,6 +150,7 @@ class StorageCharacterizationService:
         host: HostCapabilities,
         pool: StoragePool,
         mount: MountFacts,
+        pools: Sequence[StoragePool],
         *,
         run_empirical: bool,
         administrator_bounds: Mapping[str, int],
@@ -158,7 +169,6 @@ class StorageCharacterizationService:
         family = family_of(mount.filesystem_type)
         credible = is_credible_family(family)
         belief = self._belief if not credible else NOT_PROVIDED
-        admin = administrator_bounds.get(pool.mount_point, NOT_PROVIDED)
         probe_name: Maybe[str] = NOT_PROVIDED
         for report in reports:
             if report.compatible:
@@ -183,9 +193,37 @@ class StorageCharacterizationService:
             administrator_bound=NOT_PROVIDED,
             native_trusted=credible,
         )
-        if not run_empirical:
-            return first
-        if self._empirical is None:
+        admin = administrator_bounds.get(pool.mount_point, NOT_PROVIDED)
+        bound = admin if isinstance(admin, int) else NOT_PROVIDED
+        if not run_empirical or self._empirical is None:
+            return (
+                first
+                if not run_empirical
+                else arbitrate(
+                    host_id=host.host_id,
+                    mount_point=pool.mount_point,
+                    quota_identity=pool.quota_identity,
+                    pool_fingerprint=pool.fingerprint,
+                    clock=self._clock,
+                    reported_available=mount.free_bytes,
+                    native_available=native,
+                    probe_available=probe_available,
+                    hard_maximum=hard,
+                    belief_bound=belief,
+                    native_source=source,
+                    probe_name=probe_name,
+                    probe_compatible=compatible,
+                    probe_executed=executed,
+                    administrator_bound=bound,
+                    native_trusted=credible,
+                )
+            )
+        if not needs_empirical_fallback(
+            family=family,
+            credible_family=credible,
+            reports=reports,
+            evidence=first,
+        ):
             return arbitrate(
                 host_id=host.host_id,
                 mount_point=pool.mount_point,
@@ -201,10 +239,10 @@ class StorageCharacterizationService:
                 probe_name=probe_name,
                 probe_compatible=compatible,
                 probe_executed=executed,
-                administrator_bound=admin if isinstance(admin, int) else NOT_PROVIDED,
+                administrator_bound=bound,
                 native_trusted=credible,
             )
-        workspace = probe_workspace or Path(pool.mount_point)
+        parent = probe_parent_for(pool, pools, probe_workspace)
         corroborate: int | None = None
         if is_resolved(probe_available) and probe_available > 0:
             corroborate = probe_available
@@ -213,10 +251,12 @@ class StorageCharacterizationService:
         empirical = self._empirical.probe(
             host.host_id,
             pool.mount_point,
-            workspace,
+            parent,
             quota_identity=pool.quota_identity,
             pool_fingerprint=pool.fingerprint,
             corroborate_bytes=corroborate,
+            intended_pool=pool,
+            pools=pools,
         )
         empirical_ran.append(pool.mount_point)
         empirical_evidence[pool.mount_point] = empirical
@@ -224,7 +264,9 @@ class StorageCharacterizationService:
             mount, environment, live=self._use_live_native
         )
         usable: EmpiricalProbeEvidence | None = empirical
-        if not _identity_matches(empirical, pool):
+        if not _identity_matches(empirical, pool) or not _empirical_may_authorize(
+            empirical
+        ):
             usable = None
         return arbitrate(
             host_id=host.host_id,
@@ -241,7 +283,7 @@ class StorageCharacterizationService:
             probe_name=probe_name,
             probe_compatible=compatible,
             probe_executed=executed,
-            administrator_bound=admin if isinstance(admin, int) else NOT_PROVIDED,
+            administrator_bound=bound,
             empirical=usable,
             native_trusted=credible,
         )
@@ -283,6 +325,12 @@ def _identity_matches(empirical: EmpiricalProbeEvidence, pool: StoragePool) -> b
         and is_resolved(pool.quota_identity)
         and quota != pool.quota_identity
     )
+
+
+def _empirical_may_authorize(empirical: EmpiricalProbeEvidence) -> bool:
+    """Incomplete in-flight evidence must not become capacity."""
+    state = empirical.run_state
+    return not (is_resolved(state) and state == RUN_RUNNING)
 
 
 def _low_space(

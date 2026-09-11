@@ -16,7 +16,8 @@ from __future__ import annotations
 import hashlib
 import shutil
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -26,11 +27,13 @@ from kultrun.kernel.clock import Clock
 from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.storage.contracts import (
+    LOCAL_OWNER_FILENAME,
     CleanupPolicy,
     EmpiricalProbeEvidence,
     LifecycleState,
     ManagedResourceType,
     OwnershipRecord,
+    StoragePool,
 )
 from kultrun.storage.failures import is_capacity_failure
 from kultrun.storage.limits import (
@@ -44,6 +47,7 @@ from kultrun.storage.limits import (
 from kultrun.storage.ownership import OwnershipService
 from kultrun.storage.payload import PAYLOAD_VERSION
 from kultrun.storage.ports import EmpiricalWriteBudget, EmpiricalWritePort
+from kultrun.storage.probe_target import PROBE_DIRECTORY, assert_same_domain
 from kultrun.storage.sonar_tree import (
     CHECKPOINTS_TO_64,
     SONAR_TIER_UNITS,
@@ -53,7 +57,6 @@ from kultrun.storage.sonar_tree import (
 )
 
 PRODUCER = Name("storage.empirical")
-PROBE_DIRECTORY = ".kultrun-sonar"
 PROBE_FILENAME = "kultrun-empirical.probe"
 RESERVE_FILENAME = "kultrun-sonar.reserve"
 RUN_RUNNING = "running"
@@ -67,6 +70,9 @@ CORROBORATION_LOWER_ONLY = "lower_only"
 CORROBORATION_INCONCLUSIVE = "inconclusive"
 CORROBORATION_LIMITED = "limited"
 CORROBORATION_CONTRADICTED = "contradicted"
+_OWNED_SONAR_NAMES = frozenset(
+    {PROBE_FILENAME, RESERVE_FILENAME, LOCAL_OWNER_FILENAME}
+)
 
 
 class EmpiricalStorageProbe:
@@ -107,6 +113,7 @@ class EmpiricalStorageProbe:
         self._timeout = timeout_seconds
         self._max_tier = max_tier_units if max_tier_units in SONAR_TIER_UNITS else 256
         self._on_progress = on_progress
+        self.recovery_trace: list[str] = []
 
     def probe(
         self,
@@ -120,6 +127,8 @@ class EmpiricalStorageProbe:
         quota_identity: Maybe[str] = NOT_PROVIDED,
         pool_fingerprint: Maybe[str] = NOT_PROVIDED,
         corroborate_bytes: int | None = None,
+        intended_pool: StoragePool | None = None,
+        pools: Sequence[StoragePool] | None = None,
     ) -> EmpiricalProbeEvidence:
         """Search writable capacity. Cleans probe and reserve on every exit.
 
@@ -128,7 +137,11 @@ class EmpiricalStorageProbe:
         failure strictly below the candidate contradicts it.
         """
         del known_low_bytes, native_available_bytes
+        self.recovery_trace = []
         workspace = Path(target_dir) / PROBE_DIRECTORY
+        if intended_pool is not None:
+            assert_same_domain(target_dir, intended_pool, pools or (intended_pool,))
+            assert_same_domain(workspace, intended_pool, pools or (intended_pool,))
         probe_file = workspace / PROBE_FILENAME
         reserve_file = workspace / RESERVE_FILENAME
         started_mono = time.monotonic()
@@ -151,7 +164,7 @@ class EmpiricalStorageProbe:
             )
             if recovered:
                 search.run_state = RUN_INTERRUPTED
-                self._emit(search, started_at, started_mono)
+                self._emit_safely(search, started_at, started_mono)
             workspace.mkdir(parents=True, exist_ok=True)
             owned = self._mark(workspace, host_id, quota_identity)
             if self._timed_out(started_mono, started_at) or stop():
@@ -166,7 +179,7 @@ class EmpiricalStorageProbe:
                 timeout_seconds=self._timeout,
             )
             search.run_state = RUN_RUNNING
-            self._emit(search, started_at, started_mono)
+            self._emit_safely(search, started_at, started_mono)
             if not self._establish_reserve(
                 reserve_file, budget, stop, started_mono, started_at, search
             ):
@@ -301,13 +314,13 @@ class EmpiricalStorageProbe:
         started_at: datetime,
         search: _SearchState,
     ) -> SonarAttempt:
-        if search.interrupted or not search.reserve_established:
-            return SonarAttempt.OTHER
         if target in search.completed:
             return SonarAttempt.SUCCESS
         failed_at = search.capacity_failed_at
         if failed_at is not None and target >= failed_at:
             return SonarAttempt.CAPACITY
+        if search.interrupted or not search.reserve_established:
+            return SonarAttempt.OTHER
         if stop() or self._timed_out(started_mono, started_at):
             search.interrupted = True
             return SonarAttempt.OTHER
@@ -337,7 +350,7 @@ class EmpiricalStorageProbe:
                     else NOT_PROVIDED
                 )
                 search.upper_units = step
-                self._emit(search, started_at, started_mono)
+                self._trace("capture")
                 self._after_capacity_failure(
                     probe_file,
                     reserve_file,
@@ -359,7 +372,7 @@ class EmpiricalStorageProbe:
                 return SonarAttempt.OTHER
             search.completed.add(step)
             search.committed_bytes = step * self._unit
-            self._emit(search, started_at, started_mono)
+            self._emit_safely(search, started_at, started_mono)
         return SonarAttempt.SUCCESS
 
     def _establish_reserve(
@@ -405,7 +418,7 @@ class EmpiricalStorageProbe:
             return False
         search.reserve_established = True
         search.reserve_released = False
-        self._emit(search, started_at, started_mono)
+        self._emit_safely(search, started_at, started_mono)
         return True
 
     def _after_capacity_failure(
@@ -418,13 +431,18 @@ class EmpiricalStorageProbe:
         started_at: datetime,
         search: _SearchState,
     ) -> None:
+        self._trace("release_reserve")
         self._writer.remove(reserve_file)
         search.reserve_released = True
         search.reserve_established = False
+        self._trace("persist")
+        self._emit_safely(search, started_at, started_mono)
+        self._trace("remove_probe")
         self._writer.remove(probe_file)
         if stop() or self._timed_out(started_mono, started_at):
             search.interrupted = True
             return
+        self._trace("reestablish_reserve")
         self._establish_reserve(
             reserve_file, budget, stop, started_mono, started_at, search
         )
@@ -438,10 +456,23 @@ class EmpiricalStorageProbe:
     ) -> bool:
         if not workspace.exists():
             return False
+        unknown = tuple(
+            item.name
+            for item in workspace.iterdir()
+            if item.name not in _OWNED_SONAR_NAMES
+        )
+        if unknown:
+            return False
         self._writer.remove(reserve_file)
         search.reserve_released = True
         self._writer.remove(probe_file)
-        shutil.rmtree(workspace, ignore_errors=True)
+        marker = workspace / LOCAL_OWNER_FILENAME
+        with suppress(OSError):
+            marker.unlink(missing_ok=True)
+        try:
+            workspace.rmdir()
+        except OSError:
+            shutil.rmtree(workspace, ignore_errors=True)
         return not workspace.exists()
 
     def _finish(
@@ -456,8 +487,18 @@ class EmpiricalStorageProbe:
         probe_gone = self._writer.remove(probe_file)
         reserve_gone = self._writer.remove(reserve_file)
         search.reserve_released = True
-        shutil.rmtree(search.workspace, ignore_errors=True)
-        gone = (not search.workspace.exists()) and probe_gone and reserve_gone
+        marker = search.workspace / LOCAL_OWNER_FILENAME
+        with suppress(OSError):
+            marker.unlink(missing_ok=True)
+        foreign = _foreign_names(search.workspace)
+        if not foreign and search.workspace.exists():
+            try:
+                search.workspace.rmdir()
+            except OSError:
+                shutil.rmtree(search.workspace, ignore_errors=True)
+        gone = probe_gone and reserve_gone and (
+            not search.workspace.exists() or bool(foreign)
+        )
         search.cleanup_success = gone
         if not gone:
             search.run_state = RUN_CLEANUP_FAILED
@@ -467,11 +508,14 @@ class EmpiricalStorageProbe:
             else:
                 search.run_state = RUN_COMPLETE
         if owned is not None and self._ownership is not None:
-            self._ownership.forget(owned.ownership_id)
+            with suppress(Exception):
+                self._ownership.forget(owned.ownership_id)
         evidence = self._evidence(search, started_at, time.monotonic() - started_mono)
-        if self._on_progress is not None:
-            self._on_progress(evidence)
+        self._emit_safely(search, started_at, started_mono, evidence=evidence)
         return evidence
+
+    def _trace(self, action: str) -> None:
+        self.recovery_trace.append(action)
 
     def _timed_out(self, started_mono: float, started_at: datetime) -> bool:
         if self._timeout <= 0:
@@ -496,15 +540,36 @@ class EmpiricalStorageProbe:
             lifecycle=LifecycleState.DISPOSABLE,
             cleanup_policy=CleanupPolicy.DISPOSABLE,
             quota_identity=quota_identity,
+            allowed_roots=(workspace,),
         )
 
+    def _emit_safely(
+        self,
+        search: _SearchState,
+        started_at: datetime,
+        started_mono: float,
+        *,
+        evidence: EmpiricalProbeEvidence | None = None,
+    ) -> None:
+        try:
+            self._emit(search, started_at, started_mono, evidence=evidence)
+        except Exception:
+            return
+
     def _emit(
-        self, search: _SearchState, started_at: datetime, started_mono: float
+        self,
+        search: _SearchState,
+        started_at: datetime,
+        started_mono: float,
+        *,
+        evidence: EmpiricalProbeEvidence | None = None,
     ) -> None:
         if self._on_progress is None:
             return
         self._on_progress(
-            self._evidence(search, started_at, time.monotonic() - started_mono)
+            evidence
+            if evidence is not None
+            else self._evidence(search, started_at, time.monotonic() - started_mono)
         )
 
     def _evidence(
@@ -639,3 +704,16 @@ def _cancel_fn(cancelled: object | None) -> Callable[[], bool]:
         return bool(getattr(cancelled, "cancelled", False))
 
     return _flag
+
+
+def _foreign_names(workspace: Path) -> tuple[str, ...]:
+    if not workspace.exists() or not workspace.is_dir():
+        return ()
+    try:
+        return tuple(
+            item.name
+            for item in workspace.iterdir()
+            if item.name not in _OWNED_SONAR_NAMES
+        )
+    except OSError:
+        return ()

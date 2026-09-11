@@ -356,11 +356,27 @@ def needs_empirical_fallback(
     reports: Sequence[object],
     evidence: StorageCapacityEvidence,
 ) -> bool:
-    """Whether the expensive path should run Sonar.
+    """Whether the expensive path should run Sonar for this pool.
 
-    Cheap GET uses ``run_empirical=False`` and never consults this. On the
-    expensive path Sonar always runs: it corroborates a specialist or
-    supplies the full V2 tree when no specialist produced bytes.
+    Cheap GET uses ``run_empirical=False`` and never consults this.
+
+    Specialist domain bytes still require corroboration. Untrusted or
+    unresolved pools still require a full tree. A credible overlay whose
+    native figure is already AUTHORITATIVE does not inherit a sibling
+    FUSE pool's need for Sonar.
+
+    Local-disk pools still Sonar on the expensive path (hidden quotas).
     """
-    del family, credible_family, reports, evidence
-    return True
+    del reports
+    probe = evidence.probe_available_bytes
+    if is_resolved(probe) and probe > 0:
+        return True
+    if not credible_family:
+        return True
+    if evidence.status is StorageEvidenceStatus.UNRESOLVED:
+        return True
+    family_name = (family or "").lower()
+    return not (
+        family_name in {"overlay", "overlayfs"}
+        and evidence.status is StorageEvidenceStatus.AUTHORITATIVE
+    )

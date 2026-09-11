@@ -332,7 +332,6 @@ class StorageReplanService:
             host,
             run_cleanup=True,
             run_empirical=self._allow_empirical,
-            probe_workspace=self._state_root,
         )
         if self._index is not None:
             self._index.record_expensive(

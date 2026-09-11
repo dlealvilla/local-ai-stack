@@ -727,6 +727,8 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6L4a Specialist / Sonar corroboration     ← L1; specialist stays unless contradicted below S
   ↓
+1.6L4b Sonar pool-bound probing + EDQUOT recovery  ← L1 local; physical L2 still open
+  ↓
 1.6L5 Manual capacity last-resort           ← L1 local; 20%×5 G-REPL
   ↓
 1.6R0 Runtime breadth exoskeleton           ← L1 local; vLLM still the only executable foundation
@@ -1474,6 +1476,38 @@ specialist >256 GiB
 
 **Output:** corroboration authority · **Gate:** L1 locally. Does not
 close 1.6L. Does not add runtimes.
+
+### Stage 1.6L4b — Sonar pool-bound probing + EDQUOT recovery
+
+Physical vLLM acceptance on a Linux/NVIDIA FUSE host showed Sonar for
+overlay `/` writing into `/workspace` because expensive characterization
+passed `probe_workspace=state_root`. EDQUOT then left the 1 GiB reserve
+and probe in place because evidence persist ran while the volume was
+still full.
+
+```text
+Sonar(target_pool)
+    → probe/reserve physically inside target_pool
+
+intended pool identity != resolved probe identity
+    → refuse (storage_target_mismatch); no write
+
+EDQUOT / ENOSPC
+    → capture facts in memory
+    → release 1 GiB emergency reserve FIRST
+    → persist minimal evidence
+    → remove disposable probe
+    → keep last official lower tier (32 PASS, 48 fail → 32)
+
+authoritative overlay native
+    → do not run a 64–256 tree merely because a sibling FUSE pool needs Sonar
+```
+
+Reserve-first is the recovery mechanism. No external recovery journal.
+K-111 physical closure stays OPEN until a clean physical retry.
+
+**Output:** pool-bound probe + reserve-first recovery · **Gate:** L1
+locally. Does not close 1.6L. Does not add runtimes.
 
 ### Stage 1.6L5 — Manual capacity last-resort
 

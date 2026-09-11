@@ -150,7 +150,6 @@ class AdministratorCapacityService:
             host,
             run_cleanup=True,
             run_empirical=self._allow_empirical,
-            probe_workspace=self._state_root,
             administrator_bounds=without,
         )
         automatic = first.evidence.get(mount_point)
@@ -181,7 +180,6 @@ class AdministratorCapacityService:
             host,
             run_cleanup=True,
             run_empirical=self._allow_empirical,
-            probe_workspace=self._state_root,
             administrator_bounds=self._index.matching_administrator_bytes(host),
         )
         self._index.record_expensive(second.evidence, second.empirical_evidence)

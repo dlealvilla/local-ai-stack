@@ -1,0 +1,51 @@
+{
+  "stage": "1.6L4b",
+  "name": "sonar-pool-binding-recovery",
+  "milestone": 1,
+  "output": "pool-bound Storage Sonar + reserve-first EDQUOT/ENOSPC recovery",
+  "status": "open",
+  "gate": "L1",
+  "evidence_level": "L1 FakeVolume; physical FUSE retry not started",
+  "t3_required": false,
+  "t5_required": false,
+  "ready_for_t3": false,
+  "ready_for_integration": false,
+  "START_LINK": {
+    "predecessor_accepted_commit": "36820d78e5c76da12e6cf904db8f8365ca4aed3f",
+    "predecessor_checkpoints": [
+      "checkpoints/STAGE-1.6L-real-vllm-inference.json"
+    ],
+    "starting_source_commit": "36820d78e5c76da12e6cf904db8f8365ca4aed3f",
+    "safety_ref": "refs/safety/pre-storage-sonar-pool-binding-recovery",
+    "feature_branch": "stage/storage-sonar-pool-binding-recovery",
+    "predecessor_closed": false,
+    "do_not_reopen": [
+      "1.6L4",
+      "1.6L4a",
+      "1.6L5",
+      "1.6R0"
+    ]
+  },
+  "invariants": {
+    "probe_on_claimed_pool": true,
+    "state_root_not_a_storage_pool": true,
+    "reserve_first_edquot": true,
+    "external_recovery_journal": false,
+    "overlay_does_not_inherit_fuse_sonar": true,
+    "last_official_tier_retained": true
+  },
+  "debt": {
+    "K-111": "OPEN physical specialist/Sonar L2",
+    "K-103": "OPEN",
+    "K-31": "OPEN untested on this path",
+    "K-112": "OPEN llama.cpp/MLX not executable"
+  },
+  "must_not": [
+    "llama.cpp implementation",
+    "MLX implementation",
+    "stage 1.6M",
+    "merge to kultrun",
+    "remote patch",
+    "physical retry in this step"
+  ]
+}

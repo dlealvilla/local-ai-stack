@@ -281,6 +281,27 @@ def test_fuse_identify_without_bytes_is_not_settlement() -> None:
     )
 
 
+def test_authoritative_overlay_does_not_need_sonar() -> None:
+    from kultrun.storage.evidence import needs_empirical_fallback
+
+    evidence = _evidence(
+        native_available=30 * GIB,
+        native_trusted=True,
+        quota_identity="overlay:overlay:/",
+        mount_point="/",
+    )
+    assert evidence.status is StorageEvidenceStatus.AUTHORITATIVE
+    assert (
+        needs_empirical_fallback(
+            family="overlay",
+            credible_family=True,
+            reports=(),
+            evidence=evidence,
+        )
+        is False
+    )
+
+
 def _empirical(
     *,
     lower: int,

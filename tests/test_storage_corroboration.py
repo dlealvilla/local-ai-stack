@@ -33,6 +33,19 @@ from tests.test_storage_sonar import FakeVolume, _probe
 HOST = HostId.generate()
 
 
+def _mounted(root: Path, filesystem: str = "ext4", **kwargs):
+    root.mkdir(parents=True, exist_ok=True)
+    kwargs.setdefault("free", 80)
+    kwargs.setdefault("total", 100)
+    return host(mounts=(mount(str(root), filesystem, **kwargs),)), str(root)
+
+
+def _characterize(service, root: Path, filesystem: str = "ext4"):
+    subject, point = _mounted(root, filesystem)
+    result = service.characterize(subject, run_cleanup=False, run_empirical=True)
+    return result, point
+
+
 class _OtherAt(FakeVolume):
     """Non-capacity failure at a probe size. Reserve still succeeds."""
 
@@ -137,17 +150,12 @@ def test_bracket_50_confirms_specialist(tmp_path: Path) -> None:
     assert 256 not in evidence.attempted_tier_units
     assert evidence.cleanup_success is True
     service = _service(volume, ProbeRegistry((_BytesQuota(50),)))
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    item = result.evidence["/workspace"]
+    result, point = _characterize(service, tmp_path / "char")
+    item = result.evidence[point]
     assert item.operational_available_bytes == 50
     assert item.probe_name == "linux-quota"
     assert "sonar corroborated" in item.selected_reason
-    emp = result.empirical_evidence["/workspace"]
+    emp = result.empirical_evidence[point]
     assert emp.corroboration == CORROBORATION_CONFIRMED
     assert emp.verified_lower_bound_bytes == 48
     assert emp.observed_failure_upper_bytes == 64
@@ -161,14 +169,9 @@ def test_upper_pass_does_not_inflate(tmp_path: Path) -> None:
     assert not is_resolved(evidence.observed_failure_upper_bytes)
     assert 96 not in evidence.attempted_tier_units
     service = _service(FakeVolume(10_000), ProbeRegistry((_BytesQuota(50),)))
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    assert result.evidence["/workspace"].operational_available_bytes == 50
-    assert "conservative" in result.evidence["/workspace"].selected_reason
+    result, point = _characterize(service, tmp_path / "char")
+    assert result.evidence[point].operational_available_bytes == 50
+    assert "conservative" in result.evidence[point].selected_reason
 
 
 def test_lower_capacity_failure_contradicts_and_falls_to_tree(tmp_path: Path) -> None:
@@ -190,17 +193,12 @@ def test_lower_capacity_failure_contradicts_and_falls_to_tree(tmp_path: Path) ->
         ),
         ProbeRegistry((_BytesQuota(50),)),
     )
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    item = result.evidence["/workspace"]
+    result, point = _characterize(service, tmp_path / "char")
+    item = result.evidence[point]
     assert item.operational_available_bytes == 32
     assert item.probe_name == "empirical-fallback"
-    assert result.empirical_evidence["/workspace"].specialist_candidate_bytes == 50
-    assert result.empirical_evidence["/workspace"].corroboration == (
+    assert result.empirical_evidence[point].specialist_candidate_bytes == 50
+    assert result.empirical_evidence[point].corroboration == (
         CORROBORATION_CONTRADICTED
     )
 
@@ -214,13 +212,8 @@ def test_lower_permission_is_inconclusive(tmp_path: Path) -> None:
         FakeVolume(10_000, permission=True, permission_on=PROBE_FILENAME),
         ProbeRegistry((_BytesQuota(50),)),
     )
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    item = result.evidence["/workspace"]
+    result, point = _characterize(service, tmp_path / "char")
+    item = result.evidence[point]
     assert item.operational_available_bytes == 50
     assert item.probe_name == "linux-quota"
     assert "inconclusive" in item.selected_reason
@@ -233,14 +226,9 @@ def test_upper_timeout_is_inconclusive(tmp_path: Path) -> None:
     assert evidence.verified_lower_bound_bytes == 48
     assert not is_resolved(evidence.observed_failure_upper_bytes)
     service = _service(_OtherAt(10_000, other_at=48), ProbeRegistry((_BytesQuota(50),)))
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    assert result.evidence["/workspace"].operational_available_bytes == 50
-    assert result.evidence["/workspace"].probe_name == "linux-quota"
+    result, point = _characterize(service, tmp_path / "char")
+    assert result.evidence[point].operational_available_bytes == 50
+    assert result.evidence[point].probe_name == "linux-quota"
 
 
 def test_specialist_220_bracket(tmp_path: Path) -> None:
@@ -258,13 +246,8 @@ def test_specialist_220_bracket(tmp_path: Path) -> None:
     assert both.corroboration == CORROBORATION_NOT_CONTRADICTED
     assert both.verified_lower_bound_bytes == 256
     service = _service(FakeVolume(10_000), ProbeRegistry((_BytesQuota(220),)))
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    assert result.evidence["/workspace"].operational_available_bytes == 220
+    result, point = _characterize(service, tmp_path / "char")
+    assert result.evidence[point].operational_available_bytes == 220
 
 
 def test_specialist_500_256_pass_retains_500(tmp_path: Path) -> None:
@@ -276,13 +259,8 @@ def test_specialist_500_256_pass_retains_500(tmp_path: Path) -> None:
     assert evidence.attempted_tier_units == (256,)
     assert 128 not in evidence.attempted_tier_units
     service = _service(FakeVolume(10_000), ProbeRegistry((_BytesQuota(500),)))
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    item = result.evidence["/workspace"]
+    result, point = _characterize(service, tmp_path / "char")
+    item = result.evidence[point]
     assert item.operational_available_bytes == 500
     assert item.probe_name == "linux-quota"
     assert ">=256" in item.selected_reason
@@ -306,13 +284,8 @@ def test_specialist_500_256_edquot_contradicts(tmp_path: Path) -> None:
         ),
         ProbeRegistry((_BytesQuota(500),)),
     )
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    item = result.evidence["/workspace"]
+    result, point = _characterize(service, tmp_path / "char")
+    item = result.evidence[point]
     assert item.operational_available_bytes == 192
     assert item.probe_name == "empirical-fallback"
 
@@ -323,14 +296,9 @@ def test_specialist_500_256_timeout_keeps_500(tmp_path: Path) -> None:
     service = _service(
         _OtherAt(10_000, other_at=255), ProbeRegistry((_BytesQuota(500),))
     )
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    assert result.evidence["/workspace"].operational_available_bytes == 500
-    assert result.evidence["/workspace"].probe_name == "linux-quota"
+    result, point = _characterize(service, tmp_path / "char")
+    assert result.evidence[point].operational_available_bytes == 500
+    assert result.evidence[point].probe_name == "linux-quota"
 
 
 def test_exactly_256_no_higher_probe(tmp_path: Path) -> None:
@@ -339,13 +307,8 @@ def test_exactly_256_no_higher_probe(tmp_path: Path) -> None:
     assert evidence.verified_lower_bound_bytes == 256
     assert evidence.attempted_tier_units == (256,)
     service = _service(FakeVolume(10_000), ProbeRegistry((_BytesQuota(256),)))
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    assert result.evidence["/workspace"].operational_available_bytes == 256
+    result, point = _characterize(service, tmp_path / "char")
+    assert result.evidence[point].operational_available_bytes == 256
 
 
 def test_hard_bound_caps_candidate_before_corroboration(tmp_path: Path) -> None:
@@ -357,15 +320,10 @@ def test_hard_bound_caps_candidate_before_corroboration(tmp_path: Path) -> None:
         ),
         ProbeRegistry((_BytesQuota(500, hard=200),)),
     )
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path,
-    )
-    item = result.evidence["/workspace"]
+    result, point = _characterize(service, tmp_path)
+    item = result.evidence[point]
     assert item.operational_available_bytes == 200
-    emp = result.empirical_evidence["/workspace"]
+    emp = result.empirical_evidence[point]
     assert emp.specialist_candidate_bytes == 200
     assert emp.corroboration == CORROBORATION_CONFIRMED
     assert emp.verified_lower_bound_bytes == 192
@@ -395,13 +353,10 @@ def test_no_specialist_full_tree_representative(tmp_path: Path) -> None:
         service = _service(
             FakeVolume(10_000, fail_at=fail_at), ProbeRegistry(())
         )
-        result = service.characterize(
-            host(mounts=(mount("/workspace", "fuse", free=80, total=100),)),
-            run_cleanup=False,
-            run_empirical=True,
-            probe_workspace=tmp_path / f"c{fail_at}",
+        result, point = _characterize(
+            service, tmp_path / f"c{fail_at}", filesystem="fuse"
         )
-        item = result.evidence["/workspace"]
+        item = result.evidence[point]
         if lower is None:
             assert not is_resolved(item.authorizing_available_bytes)
         else:
@@ -415,32 +370,22 @@ def test_missing_mfsgetquota_runs_full_sonar(tmp_path: Path) -> None:
     volume = FakeVolume(10_000, fail_at=48)
     service = _service(volume, ProbeRegistry((MooseFSQuotaProbe(),)))
     with patch("kultrun.adapters.storage.moosefs.shutil.which", return_value=None):
-        result = service.characterize(
-            host(mounts=(mount("/workspace", "fuse.mfs", free=80, total=100),)),
-            run_cleanup=False,
-            run_empirical=True,
-            probe_workspace=tmp_path,
-        )
-    emp = result.empirical_evidence["/workspace"]
+        result, point = _characterize(service, tmp_path, filesystem="fuse.mfs")
+    emp = result.empirical_evidence[point]
     assert not is_resolved(emp.corroboration)
     assert emp.verified_lower_bound_bytes == 48
-    assert result.evidence["/workspace"].probe_name == "empirical-fallback"
+    assert result.evidence[point].probe_name == "empirical-fallback"
 
 
 def test_malformed_specialist_runs_full_sonar(tmp_path: Path) -> None:
     service = _service(
         FakeVolume(10_000, fail_at=48), ProbeRegistry((_Malformed(),))
     )
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path,
-    )
-    emp = result.empirical_evidence["/workspace"]
+    result, point = _characterize(service, tmp_path)
+    emp = result.empirical_evidence[point]
     assert not is_resolved(emp.corroboration)
-    assert result.evidence["/workspace"].operational_available_bytes == 48
-    assert result.evidence["/workspace"].probe_name == "empirical-fallback"
+    assert result.evidence[point].operational_available_bytes == 48
+    assert result.evidence[point].probe_name == "empirical-fallback"
 
 
 def test_cheap_get_does_not_corroborate() -> None:
@@ -475,14 +420,9 @@ def test_below_16_is_limited_and_keeps_specialist(tmp_path: Path) -> None:
     assert evidence.corroboration == CORROBORATION_LIMITED
     assert evidence.attempted_tier_units == ()
     service = _service(FakeVolume(10_000), ProbeRegistry((_BytesQuota(10),)))
-    result = service.characterize(
-        host(mounts=(mount("/workspace", "ext4", free=80, total=100),)),
-        run_cleanup=False,
-        run_empirical=True,
-        probe_workspace=tmp_path / "char",
-    )
-    assert result.evidence["/workspace"].operational_available_bytes == 10
-    assert 16 not in result.empirical_evidence["/workspace"].attempted_tier_units
+    result, point = _characterize(service, tmp_path / "char")
+    assert result.evidence[point].operational_available_bytes == 10
+    assert 16 not in result.empirical_evidence[point].attempted_tier_units
 
 
 def test_mid_probe_progress_is_not_final_authority(tmp_path: Path) -> None:

@@ -48,7 +48,7 @@ populates authorizing SAFE.
 | ZFS | family allow-list | `statvfs` | zfs-dataset | yes / optional | `zfs` | if unresolved | medium | physical L2 **K-102** |
 | APFS | darwin + family | `statvfs` | macos-capacity (not entitlement) | identify | none | if native >500 GiB | low | **K-101** |
 | NTFS | windows + family | GetDiskFreeSpaceExW / host facts | windows-capacity (native-class) | yes on win32 | none | if native >500 GiB | medium | NTFS quota **K-100** |
-| container overlay | overlay/overlayfs allow-list | `statvfs` (credible for this container) | none | yes as native | none | yes on expensive path | medium | Nested mount longest-prefix binding |
+| container overlay | overlay/overlayfs allow-list | `statvfs` (credible for this container) | none | yes as native | none | skip when native already AUTHORITATIVE; otherwise yes | medium | Nested mount longest-prefix binding; never probe overlay onto another mount |
 | NFS | nfs/nfs4 | mount free; not an entitlement | nfs-quota | optional | `quota` / `nfsstat` | yes if no numeric probe | low | rquota numeric parse **K-103** |
 | SMB/CIFS | cifs/smb* family | mount free; not an entitlement | none | identify | none | yes | low | SMB quota adapter **K-104** |
 | FUSE | fuse/fuseblk/fuse.* | `statvfs` **not** an entitlement | fuse-identify | identify | none | **yes** on expensive path | low | 64 GiB is belief only; never SAFE |
@@ -73,9 +73,19 @@ populates authorizing SAFE.
 - Native on a trusted-local family may authorize only at or below 500 GiB
   when no specialist produced domain bytes **and** Sonar could not
   characterize (cheap GET never Sonars).
-- Empirical Sonar **always** runs on the expensive path when a live probe
-  is injected: corroboration brackets if specialist bytes exist, otherwise
-  the full V2 tree. Cheap GET / `kultrun host` never writes 16–256 GiB.
+- Empirical Sonar runs on the expensive path **per pool**: corroboration
+  brackets if specialist bytes exist, otherwise the full V2 tree. A
+  credible overlay whose native figure is already AUTHORITATIVE does not
+  run a 64–256 GiB tree merely because another pool is unresolved. Cheap
+  GET / `kultrun host` never writes 16–256 GiB.
+- `Sonar(target_pool)` must physically write inside `target_pool`.
+  `state_root` is not a probe workspace unless it already shares that
+  pool's mount, fingerprint and quota identity. Mismatch refuses before
+  reserve/probe creation (`storage_target_mismatch`).
+- EDQUOT/ENOSPC recovery is reserve-first: capture in memory, release the
+  1 GiB emergency reserve, persist minimal evidence, then remove the
+  disposable probe. Last completed official tier is retained. Logging
+  failure must not block those mutations.
 - Hitting the top tier without failure means `lower ≥ 256 GiB`,
   `upper = UNKNOWN`. It does **not** mean `available = 256 GiB`.
   A specialist above 256 GiB that is not contradicted below that claim

@@ -66,7 +66,6 @@ class StorageAwareAcquisition:
             host,
             run_cleanup=True,
             run_empirical=self._allow_empirical,
-            probe_workspace=self._state_root,
         )
         if characterized.low_space:
             raise PreconditionFailedError(
@@ -136,7 +135,6 @@ class StorageAwareAcquisition:
                 host,
                 run_cleanup=True,
                 run_empirical=False,
-                probe_workspace=self._state_root,
             )
             self._index.record_observation(rediscovered.evidence)
 

@@ -1923,29 +1923,36 @@ Evidence:     `tests/test_storage_reduction.py`,
 
 ### K-111 — Storage Capacity V2 remainder (manual, G-REPL)
 Label:        PARTIAL
-Owner stage:  1.6L5
+Owner stage:  1.6L5 / 1.6L4b
 Subsystem:    storage / planning
 Authorizes:   NO
 What:         1.6L2 persist, 1.6L3 P0 specialist parsers, 1.6L4
               Sonar V2, 1.6L4a specialist corroboration, 1.6L5 last-resort
               `AdministratorCapacityBound` (`sca_*`; CLI/API
               `storage capacity set` / POST `/storage/administrator-bound`)
-              and executable G-REPL 20%×5 exist locally. Remaining:
-              physical specialist validation; physical Sonar L2
-              (duration on FUSE; tests must not write production GiB);
-              optional later >256 GiB Sonar exploration. The V2 256 GiB
-              ceiling is not a reason to distrust a specialist above
-              256 GiB.
+              and executable G-REPL 20%×5 exist locally. 1.6L4b binds
+              each empirical probe to the StoragePool it claims and
+              hardens reserve-first EDQUOT/ENOSPC recovery locally.
+              Remaining: physical specialist validation; physical Sonar L2
+              on a FUSE/quota host after the 1.6L4b artifact (duration on
+              FUSE; tests must not write production GiB); optional later
+              >256 GiB Sonar exploration. The V2 256 GiB ceiling is not a
+              reason to distrust a specialist above 256 GiB.
+              Physical defect found on runtime-breadth acceptance
+              (`36820d7` wheel): overlay Sonar wrote under `/workspace`
+              (`probe_workspace=state_root`); EDQUOT ~47 GiB did not
+              finish as CAPACITY or clean owned probe/reserve.
 Why now:      Specialist + Sonar unblock truthful FUSE numbers.
               Manual is only when capacity itself is unresolved.
 To make real: Physical L2 in
               `docs/investigations/STORAGE-RUNTIME-BREADTH-SEQUENCE.md`.
               Do not implement `required_bytes *= 0.8`. Do not ask for
-              a larger manual number after a failed fit.
+              a larger manual number after a failed fit. Do not claim
+              physical Sonar closed from local tests.
 Retire when:  physical Sonar/specialist gates close, or 1.6L5's local
               remainder is split into a later debt item.
 Status:       OPEN remainder is physical validation, not the local
-              last-resort / G-REPL path.
+              last-resort / G-REPL / pool-binding path.
 
 ### K-112 — llama.cpp and MLX are declared, not executable
 Label:        DEFERRED

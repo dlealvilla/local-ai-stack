@@ -752,7 +752,6 @@ def build(
         discovered,
         run_cleanup=True,
         run_empirical=False,
-        probe_workspace=state_root,
     )
     storage_index.record_observation(cheap.evidence)
     resources = ResourceManager(store, resolved_clock, AdmissionLock(state_root))
