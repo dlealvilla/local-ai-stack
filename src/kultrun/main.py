@@ -746,7 +746,7 @@ def build(
         run_empirical=False,
         probe_workspace=state_root,
     )
-    storage_index.put_many(cheap.evidence)
+    storage_index.record_observation(cheap.evidence)
     resources = ResourceManager(store, resolved_clock, AdmissionLock(state_root))
     try:
         actor_id = state.current.administrator_id

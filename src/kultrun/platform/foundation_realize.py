@@ -194,7 +194,9 @@ class FoundationRealizeService:
                 )
             storage_evidence = characterized.evidence
             if self._index is not None:
-                self._index.put_many(dict(storage_evidence))
+                self._index.record_expensive(
+                    dict(storage_evidence), characterized.empirical_evidence
+                )
         overview = self._foundation.view(
             host,
             executors,
@@ -287,7 +289,7 @@ class FoundationRealizeService:
             probe_workspace=self._state_root,
         )
         if self._index is not None:
-            self._index.put_many(rediscovered.evidence)
+            self._index.record_observation(rediscovered.evidence)
 
 
 def _selected_identity(

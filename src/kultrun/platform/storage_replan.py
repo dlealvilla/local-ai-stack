@@ -315,7 +315,9 @@ class StorageReplanService:
             probe_workspace=self._state_root,
         )
         if self._index is not None:
-            self._index.put_many(characterized.evidence)
+            self._index.record_expensive(
+                characterized.evidence, characterized.empirical_evidence
+            )
         return characterized
 
     def _retain_runtime(self, host: HostCapabilities) -> bool:

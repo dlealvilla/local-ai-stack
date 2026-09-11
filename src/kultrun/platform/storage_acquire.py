@@ -74,7 +74,9 @@ class StorageAwareAcquisition:
                 reason="storage_low_space",
                 mount_point=characterized.low_space[0].mount_point,
             )
-        self._index.put_many(characterized.evidence)
+        self._index.record_expensive(
+            characterized.evidence, characterized.empirical_evidence
+        )
         envelope = self._capacity.compute(host, sanity, characterized.evidence)
         mount = destination_mount or _model_mount(host, self._state_root)
         named, safe = safe_storage(envelope, mount)
@@ -135,7 +137,7 @@ class StorageAwareAcquisition:
                 run_empirical=False,
                 probe_workspace=self._state_root,
             )
-            self._index.put_many(rediscovered.evidence)
+            self._index.record_observation(rediscovered.evidence)
 
 
 def _model_mount(host: HostCapabilities, state_root: Path) -> str | None:

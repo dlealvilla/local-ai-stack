@@ -719,6 +719,14 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6L First real vLLM inference vertical   ← OPEN until T5 L3; native-process single-GPU
   ↓
+1.6L2 Storage authorizing persist           ← cheap GET must not erase Sonar
+  ↓
+1.6L3 P0 specialist probes                   ← not started
+  ↓
+1.6L4 Storage Sonar V2                      ← not started
+  ↓
+1.6L5 Manual capacity last-resort           ← not started
+  ↓
 post-inference breadth review, then 1.7 onward
 ```
 
@@ -1394,6 +1402,40 @@ Prototype Console inference probe only.
 
 **Output:** healthy `InferenceEndpoint` serving a real request through
 Kultrun · **Gate:** L3
+
+### Stage 1.6L2 — Storage authorizing persist
+
+Cheap host observation and authorizing characterization are distinct
+persisted facts. GET `/host` / `kultrun host` refreshes the observation
+and never launches Sonar. A still-valid authorizing record (same host,
+mount, fingerprint, quota identity) is not replaced by cheap
+UNRESOLVED. EmpiricalProbeEvidence is persisted on the expensive path.
+Foundation storage fit uses SAFE (authorizing minus `max(10%, 5 GiB)`),
+the same figure ResourceManager spends.
+
+**Output:** split observation vs authorizing store · **Gate:** L1.
+Does not close 1.6L. Does not change Sonar sizes. Does not add runtimes.
+
+### Stage 1.6L3 — P0 specialist probes
+
+Not started. Linux quota parse, MooseFS parse, ZFS dataset, Ceph xattr,
+specialist-bytes authority. See
+`docs/investigations/STORAGE-RUNTIME-BREADTH-SEQUENCE.md`.
+
+### Stage 1.6L4 — Storage Sonar V2
+
+Not started. Replace the 25 GiB doubling search with the 64–256 GiB
+HOST-mode tree, incremental writes, owned 1 GiB reserve.
+
+**Output:** HOST-mode authorizing tiers · **Gate:** L1 locally; L2 on
+FUSE when rented.
+
+### Stage 1.6L5 — Manual capacity last-resort
+
+Not started. Administrator capacity as a state plus operator command;
+20% × 5 replan in manual mode only.
+
+**Output:** last-resort operator path · **Gate:** L1
 
 ### Milestone 1 Hardware Breadth Review — after Stage 1.6, before broadening
 

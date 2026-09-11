@@ -1,13 +1,14 @@
 """Capacity-first storage characterization. Runs before runtime/model selection.
 
-GET /host must never call this. The composition root invokes it before a
-mutation or when an operator asks for truthful storage.
+Cheap GET / ``kultrun host`` may call this with ``run_empirical=False``.
+That pass must never launch Sonar. The composition root invokes an expensive
+pass before a mutation.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from kultrun.host.contracts import HostCapabilities, MountFacts
@@ -16,6 +17,7 @@ from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.storage.cleanup import step0_cleanup
 from kultrun.storage.contracts import (
     CleanupReport,
+    EmpiricalProbeEvidence,
     LowSpaceGuidance,
     StorageCapacityEvidence,
     StorageEvidenceStatus,
@@ -43,6 +45,9 @@ class Characterization:
     cleanup: CleanupReport | None
     low_space: tuple[LowSpaceGuidance, ...]
     empirical_ran: tuple[str, ...]
+    empirical_evidence: dict[str, EmpiricalProbeEvidence] = field(
+        default_factory=dict
+    )
 
 
 class StorageCharacterizationService:
@@ -86,6 +91,7 @@ class StorageCharacterizationService:
         mounts = {item.mount_point: item for item in host.mounts}
         evidence: dict[str, StorageCapacityEvidence] = {}
         empirical_ran: list[str] = []
+        empirical_evidence: dict[str, EmpiricalProbeEvidence] = {}
         for pool in pools:
             mount = mounts.get(pool.mount_point)
             if mount is None:
@@ -98,6 +104,7 @@ class StorageCharacterizationService:
                 administrator_bounds=administrator_bounds or {},
                 probe_workspace=probe_workspace,
                 empirical_ran=empirical_ran,
+                empirical_evidence=empirical_evidence,
             )
             evidence[pool.mount_point] = item
         low = tuple(
@@ -111,6 +118,7 @@ class StorageCharacterizationService:
             cleanup=cleanup,
             low_space=low,
             empirical_ran=tuple(empirical_ran),
+            empirical_evidence=empirical_evidence,
         )
 
     def _one(
@@ -123,6 +131,7 @@ class StorageCharacterizationService:
         administrator_bounds: Mapping[str, int],
         probe_workspace: Path | None,
         empirical_ran: list[str],
+        empirical_evidence: dict[str, EmpiricalProbeEvidence],
     ) -> StorageCapacityEvidence:
         environment = environment_for(host, mount)
         native, source = native_available_bytes(
@@ -184,6 +193,7 @@ class StorageCharacterizationService:
             native_available_bytes=native if isinstance(native, int) else None,
         )
         empirical_ran.append(pool.mount_point)
+        empirical_evidence[pool.mount_point] = empirical
         return arbitrate(
             host_id=host.host_id,
             mount_point=pool.mount_point,

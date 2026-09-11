@@ -128,6 +128,7 @@ ACCELERATOR_RESERVE_FLOOR_BYTES: Final = 1 * _GIB
 #: A smaller fraction than memory because running out of disk degrades
 #: rather than kills, and a 5 GiB floor because the failure mode on a nearly
 #: full root filesystem is severe out of proportion to the bytes involved.
+#: Must stay identical to `storage.limits` STORAGE_RESERVE_* (tested).
 STORAGE_RESERVE_FRACTION: Final = 0.10
 STORAGE_RESERVE_FLOOR_BYTES: Final = 5 * _GIB
 

@@ -692,7 +692,7 @@ this module, not its owner.
 
 | | |
 |---|---|
-| **Owns** | `StoragePool` — mount identity, filesystem type, provider class, quota identity, fingerprint, generation. Dual ownership (`OwnershipRecord` local marker + central registry) and `InstallationGeneration`. Step 0 inventory/cleanup. `StorageCapacityEvidence` (Storage Sonar) and immutable `EmpiricalProbeEvidence`. Replaceable `StorageCapacityProbe` registry. `StorageRequirement` and managed-path bindings. Characterization: Step 0 → rediscover → native → mandatory compatible probes → 10% arbitration → empirical fallback. The 1.2A sanity probe remains a separate operator-only reservation. |
+| **Owns** | `StoragePool` — mount identity, filesystem type, provider class, quota identity, fingerprint, generation. Dual ownership (`OwnershipRecord` local marker + central registry) and `InstallationGeneration`. Step 0 inventory/cleanup. `StorageCapacityEvidence` (Storage Sonar) and immutable `EmpiricalProbeEvidence`. Replaceable `StorageCapacityProbe` registry. `StorageRequirement` and managed-path bindings. Characterization: Step 0 → rediscover → native → mandatory compatible probes → 10% arbitration → empirical fallback. Cheap observation (`sco_*`) is distinct from authorizing characterization (`sce_*`); GET `/host` must not erase the latter. The 1.2A sanity probe remains a separate operator-only reservation. |
 | **Consumes** | `kernel` · `evidence` · `policy` · `host` (mount facts only) |
 | **Produces** | `StoragePool v1` · `OwnershipRecord` · `StorageCapacityEvidence` · `EmpiricalProbeEvidence` · `CleanupReport` · `StorageRequirement` |
 | **Ports** | `ManagedUsageSource` — bytes per pool, no entity identity · `StorageSanityProbe` · `StorageCapacityProbe` · `EmpiricalWritePort` |

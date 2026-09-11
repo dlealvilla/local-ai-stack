@@ -27,6 +27,13 @@ DEFAULT_BELIEF_BOUND_BYTES: Final = 64 * _GIB
 #: stack below this authorizing SAFE figure. Ask the administrator first.
 LOW_SPACE_THRESHOLD_BYTES: Final = 5 * _GIB
 
+#: Kept back from authorizing capacity so a managed write cannot fill the
+#: filesystem. Capacity envelope and foundation fit must use the same pair.
+#: A fraction alone protects nothing on a small pool; a floor alone
+#: protects nothing on a large one.
+STORAGE_RESERVE_FRACTION: Final = 0.10
+STORAGE_RESERVE_FLOOR_BYTES: Final = 5 * _GIB
+
 #: Leave this much unexplored so a probe cannot be "fill until it breaks".
 DEFAULT_EMERGENCY_RESERVE_BYTES: Final = 1 * _GIB
 
@@ -51,5 +58,5 @@ MAX_STORAGE_REDUCTIONS: Final = 3
 REDUCTION_FACTOR_NUMERATOR: Final = 9
 REDUCTION_FACTOR_DENOMINATOR: Final = 10
 
-POLICY_VERSION: Final = "1.6L.1-storage-replan"
+POLICY_VERSION: Final = "1.6L2.0-authorizing-persist"
 CREATED_BY: Final = "kultrun"

@@ -1908,6 +1908,22 @@ Evidence:     `tests/test_storage_reduction.py`,
               `tests/test_storage_replan.py`; composition in
               `src/kultrun/platform/storage_replan.py`.
 
+### K-111 — Storage Capacity V2 remainder (Sonar tree, P0 probes, manual)
+Label:        DEFERRED
+Owner stage:  1.6L3–1.6L5
+Subsystem:    storage
+Authorizes:   NO
+What:         1.6L2 splits cheap observation from authorizing
+              characterization and fits runtimes against SAFE.
+              Remaining: P0 specialist parsers, Sonar V2 tree,
+              owned reserve, manual capacity last-resort.
+Why now:      Persist was the GET-clobber defect; algorithm and
+              probes are the next bounded stages.
+To make real: Stages 1.6L3–1.6L5 in
+              `docs/investigations/STORAGE-RUNTIME-BREADTH-SEQUENCE.md`.
+Retire when:  those stages close at their stated gates.
+Status:       OPEN
+
 ## Runtime-first migration ledger (after 1.6K)
 
 Not a second architecture. Existing components still to migrate, in
