@@ -516,6 +516,14 @@ class InstanceService:
                 # Another process holds the live executor handle. Inspect
                 # must not clobber an in-flight start as a restart.
                 return current
+            if current.observed_state is ObservedState.RUNNING:
+                return self._write(
+                    current,
+                    last_observed_at=self._clock.now(),
+                    failure_reason=(
+                        "process identity unverified; signalling is prohibited"
+                    ),
+                )
             return self._write(
                 current,
                 observed_state=ObservedState.UNKNOWN,

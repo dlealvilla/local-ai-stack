@@ -12,6 +12,7 @@ import signal
 import sys
 import time
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -32,7 +33,7 @@ from kultrun.execution.service import ExecutionService
 from kultrun.host.contracts import HostId
 from kultrun.kernel.errors import ValidationError
 from kultrun.kernel.ids import Name
-from kultrun.kernel.unresolved import is_resolved
+from kultrun.kernel.unresolved import NOT_MEASURED, is_resolved
 from kultrun.main import (
     EvidenceMode,
     Platform,
@@ -316,7 +317,7 @@ class TestNativeProcessLifecycle:
         finally:
             service.stop_all_running()
 
-    def test_a_restart_does_not_claim_or_signal_a_stranger_pid(
+    def test_a_restart_reacquires_matching_cookie_and_can_stop(
         self, tmp_path: Path
     ) -> None:
         store = build_store(tmp_path)
@@ -326,10 +327,63 @@ class TestNativeProcessLifecycle:
         try:
             running = _wait_output(owned, handle, f"{MARKER}:start")
             assert running.observed_state is ExecutionState.RUNNING
-            assert f"{MARKER}:start" in running.stdout
-            assert is_resolved(running.pid)
+            assert is_resolved(running.external_identity)
             pid = running.pid
 
+            other = ExecutionService(NativeProcessExecutor(), store)
+            observed = other.observe(running.execution_id)
+            assert observed.ownership is ExecutionOwnership.OWNED
+            stopped = other.stop(running.execution_id)
+            assert stopped.ownership is ExecutionOwnership.ABSENT
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline:
+                try:
+                    os.kill(pid, 0)
+                except OSError:
+                    break
+                time.sleep(0.05)
+            else:
+                raise AssertionError("reattached stop did not terminate the child")
+        finally:
+            live.stop(handle)
+
+    def test_a_mismatched_cookie_does_not_signal_a_stranger_pid(
+        self, tmp_path: Path
+    ) -> None:
+        store = build_store(tmp_path)
+        live = NativeProcessExecutor()
+        owned = ExecutionService(live, store)
+        handle = owned.start(HOST, _spec("--hold"))
+        try:
+            running = _wait_output(owned, handle, f"{MARKER}:start")
+            pid = running.pid
+            store.put(
+                running.execution_id.value,
+                replace(running, pid=os.getpid()),
+            )
+            other = ExecutionService(NativeProcessExecutor(), store)
+            observed = other.observe(running.execution_id)
+            assert observed.ownership is not ExecutionOwnership.OWNED
+            other.stop(running.execution_id)
+            os.kill(pid, 0)
+            os.kill(os.getpid(), 0)
+        finally:
+            live.stop(handle)
+
+    def test_a_missing_cookie_does_not_signal_a_live_pid(
+        self, tmp_path: Path
+    ) -> None:
+        store = build_store(tmp_path)
+        live = NativeProcessExecutor()
+        owned = ExecutionService(live, store)
+        handle = owned.start(HOST, _spec("--hold"))
+        try:
+            running = _wait_output(owned, handle, f"{MARKER}:start")
+            pid = running.pid
+            store.put(
+                running.execution_id.value,
+                replace(running, external_identity=NOT_MEASURED),
+            )
             other = ExecutionService(NativeProcessExecutor(), store)
             observed = other.observe(running.execution_id)
             assert observed.ownership is ExecutionOwnership.UNVERIFIED

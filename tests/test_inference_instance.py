@@ -559,7 +559,7 @@ class TestCapacityShrink:
 
 
 class TestReconciliation:
-    def test_stale_running_is_not_trusted(self, tmp_path: Path) -> None:
+    def test_stale_running_is_reacquired(self, tmp_path: Path) -> None:
         stack = _Stack(tmp_path)
         artifact = stack.stored()
         reservation = stack.reserve(artifact, vram=SMALL)
@@ -579,15 +579,21 @@ class TestReconciliation:
             )
             other.reconcile()
             seen = other.observe(instance.instance_id)
-            assert seen.observed_state is ObservedState.UNKNOWN
+            assert seen.observed_state is ObservedState.RUNNING
             held = stack.resources.get(reservation.reservation_id)
             assert held is not None
             assert held.state is ReservationState.ACTIVE
             assert other.blocks_release(reservation.reservation_id)
-            with pytest.raises(PreconditionFailedError, match="unverified"):
-                other.start(
-                    instance.instance_id, ledger_health=stack.health()
-                )
+            again = other.start(
+                instance.instance_id, ledger_health=stack.health()
+            )
+            assert again.observed_state is ObservedState.RUNNING
+            other.stop(instance.instance_id)
+            stopped = other.observe(instance.instance_id)
+            assert stopped.observed_state is ObservedState.STOPPED
+            held = stack.resources.get(reservation.reservation_id)
+            assert held is not None
+            assert held.state is ReservationState.ACTIVE
         finally:
             stack.instances.stop(instance.instance_id)
 

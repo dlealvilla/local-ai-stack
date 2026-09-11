@@ -569,36 +569,25 @@ and no check that a panel actually displays the value the API returned.
 then, looking at it is part of the acceptance ritual and cheaper than the
 infrastructure would be.
 
-### K-31 — process identity is not reattached across control-plane restarts
+### K-31 — process identity cookie residual
 Label:        PROVISIONAL
 Owner stage:  1.3
 Subsystem:    execution
 Authorizes:   NO
-What:         `NativeProcessExecutor` proves ownership by holding the
-              `Popen` object. After a control-plane restart a recorded PID
-              that still exists is `UNVERIFIED` and is never signalled.
-              There is no start-time check, no `/proc/<pid>/stat` cookie,
-              and no supervisor that reaps orphans. A concurrent
-              `instances inspect` from another process is not a restart:
-              it must not persist UNKNOWN over an in-flight STARTING
-              transition. Persisted RUNNING after a genuine restart
-              remains untrusted (UNVERIFIED / UNKNOWN). The launching CLI
-              may now exit after READY (file-backed capture); that does
-              not reattach Popen. A later CLI must not signal the child.
-              `instances infer` may use the persisted endpoint without
-              owning Popen. `instances stop` from a process that does not
-              own Popen still refuses to signal.
-Why now:      Stage 1.3 proves start/observe/stop in one process. Claiming
-              a PID we cannot prove is ours would be a false success.
-              Stage 1.6L T3 showed inspect during start writing UNKNOWN
-              while the launching process still owned the Popen. The
-              capture-lifetime fix makes a second CLI the normal T5
-              caller; it must still not pretend to own the process.
-To make real: A durable process cookie (start time, or an equivalent) and
-              a bounded reattach path that still refuses to signal
-              unverified processes.
-Retire when:  the scheduled lifecycle reconciliation stage that owns
-              restart of running inference instances, not before.
+What:         Native launch persists an adapter-owned cookie
+              (`ExecutorHandle.external_identity`: boot id, start token,
+              process group, grace, execution id) plus `KULTRUN_EXECUTION`
+              in the child environment. A later control-plane process that
+              can match that cookie reacquires `OWNED` and may signal the
+              process group. A live PID whose cookie is missing or
+              unreadable is `UNVERIFIED` and is never signalled. Capture
+              is file-backed; that is not this debt.
+Why now:      PID reuse is still lying. Cookie match is the minimum strong
+              identity; pidfd does not survive the launching CLI.
+To make real: Windows process identity; treat unverified leftovers with a
+              later reservation lease (K-44).
+Retire when:  native, container, and future executors all reacquire with an
+              adapter-owned identity on every supported OS.
 Status:       OPEN
 
 ### K-32 — execution health is UNKNOWN

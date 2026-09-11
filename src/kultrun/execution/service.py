@@ -1,8 +1,9 @@
 """In-memory live processes plus persisted handles.
 
-The adapter owns Popen objects. This service owns identity, persistence
-and the restart story: a handle whose process we can no longer prove is
-ours becomes UNVERIFIED and is never signalled.
+The adapter owns live Popen objects and reacquires matching cookies.
+This service owns identity, persistence and the restart story: a handle
+whose process we cannot prove is ours becomes UNVERIFIED and is never
+signalled.
 """
 
 from __future__ import annotations

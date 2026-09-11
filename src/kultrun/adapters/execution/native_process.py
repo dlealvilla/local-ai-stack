@@ -1,14 +1,12 @@
 """Start a process with exec, not a shell.
 
-PID reuse protection is limited to the lifetime of this adapter instance:
-we hold the Popen object. After a control-plane restart the service marks
-surviving PIDs UNVERIFIED rather than signalling them. See `docs/DEBT.md`
-K-31.
+Ownership is a persisted process cookie, not the in-memory Popen object.
+A later control-plane process may reacquire a matching PID. A PID that
+exists without a matching cookie is UNVERIFIED and is never signalled.
 
 Stdout and stderr are anonymous files, not pipes. Capture into the handle
 is a bounded prefix. The launching interpreter may exit while a serving
-child continues writing; pipe pumps must not keep that interpreter alive.
-Log-file growth across a long-lived child is K-99.
+child continues writing. Log-file growth across a long-lived child is K-99.
 """
 
 from __future__ import annotations
@@ -18,9 +16,18 @@ import signal
 import subprocess
 import tempfile
 import threading
+import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from kultrun.adapters.execution.process_identity import (
+    EXECUTION_ENV,
+    IdentityMatch,
+    capture_cookie,
+    parse_cookie,
+    pid_exists,
+    verify_live,
+)
 from kultrun.evidence.contracts import Confidence
 from kultrun.execution.contracts import (
     ExecutionHealth,
@@ -119,6 +126,8 @@ class NativeProcessExecutor:
         env = os.environ.copy()
         spec_env = environment_as_dict(spec.environment)
         env.update(spec_env)
+        execution_id = ExecutionId.generate()
+        env[EXECUTION_ENV] = execution_id.value
         if "PYTHONPATH" not in spec_env:
             root = _package_parent()
             current = env.get("PYTHONPATH", "")
@@ -147,7 +156,7 @@ class NativeProcessExecutor:
             _close_fd(stderr_w)
             now = self._clock.now()
             return ExecutorHandle(
-                execution_id=ExecutionId.generate(),
+                execution_id=execution_id,
                 host_id=host_id,
                 executor=self.identity,
                 desired_state=ExecutionState.RUNNING,
@@ -162,7 +171,6 @@ class NativeProcessExecutor:
             )
         _close_fd(stdout_w)
         _close_fd(stderr_w)
-        execution_id = ExecutionId.generate()
         live = _Live(
             spec=spec,
             process=process,
@@ -171,6 +179,11 @@ class NativeProcessExecutor:
         )
         with self._lock:
             self._live[execution_id.value] = live
+        cookie = capture_cookie(
+            process.pid,
+            execution_id.value,
+            grace_seconds=spec.grace_period_seconds,
+        )
         now = self._clock.now()
         return ExecutorHandle(
             execution_id=execution_id,
@@ -185,14 +198,17 @@ class NativeProcessExecutor:
             arguments=spec.arguments,
             pid=process.pid,
             started_at=now,
+            external_identity=(
+                cookie.serialise() if cookie is not None else NOT_MEASURED
+            ),
         )
 
     def observe(self, handle: ExecutorHandle) -> ExecutorHandle:
-        """Refresh from the live Popen, or refuse to claim a stranger PID."""
+        """Refresh from the live Popen, or reacquire a matching cookie."""
         with self._lock:
             live = self._live.get(handle.execution_id.value)
             if live is None:
-                return _unclaimed(handle)
+                return self._reacquire(handle)
             code = live.process.poll()
             stdout, out_truncated = _read_prefix(
                 live.stdout_fd, live.spec.output_limit_bytes
@@ -202,6 +218,16 @@ class NativeProcessExecutor:
             )
             truncated = out_truncated or err_truncated
             if code is None:
+                cookie = handle.external_identity
+                if not is_resolved(cookie):
+                    captured = capture_cookie(
+                        live.process.pid,
+                        handle.execution_id.value,
+                        grace_seconds=live.spec.grace_period_seconds,
+                    )
+                    cookie = (
+                        captured.serialise() if captured is not None else cookie
+                    )
                 return replace(
                     handle,
                     observed_state=ExecutionState.RUNNING,
@@ -210,6 +236,7 @@ class NativeProcessExecutor:
                     stdout=stdout,
                     stderr=stderr,
                     output_truncated=truncated,
+                    external_identity=cookie,
                 )
             self._live.pop(handle.execution_id.value, None)
             stdout_fd = live.stdout_fd
@@ -235,8 +262,14 @@ class NativeProcessExecutor:
         """SIGTERM the process group, then SIGKILL after the spec's grace."""
         with self._lock:
             live = self._live.get(handle.execution_id.value)
-        if live is None:
-            return _unclaimed(handle)
+        if live is not None:
+            return self._stop_live(handle, live)
+        observed = self._reacquire(handle)
+        if observed.ownership is not ExecutionOwnership.OWNED:
+            return observed
+        return self._stop_reattached(observed)
+
+    def _stop_live(self, handle: ExecutorHandle, live: _Live) -> ExecutorHandle:
         stopping = replace(
             handle,
             desired_state=ExecutionState.STOPPING,
@@ -256,6 +289,92 @@ class NativeProcessExecutor:
                     detail="process did not exit after SIGKILL",
                 )
         return self.observe(stopping)
+
+    def _stop_reattached(self, handle: ExecutorHandle) -> ExecutorHandle:
+        pid = handle.pid
+        if not is_resolved(pid):
+            return _unclaimed(handle)
+        cookie = parse_cookie(handle.external_identity)
+        pgid = cookie.pgid if cookie is not None else pid
+        grace = cookie.grace_seconds if cookie is not None else 2.0
+        stopping = replace(
+            handle,
+            desired_state=ExecutionState.STOPPING,
+            observed_state=ExecutionState.STOPPING,
+        )
+        _killpg(pgid, signal.SIGTERM)
+        deadline = time.monotonic() + max(0.05, grace)
+        while pid_exists(pid) and time.monotonic() < deadline:
+            _reap(pid)
+            time.sleep(0.05)
+        if pid_exists(pid):
+            _killpg(pgid, signal.SIGKILL)
+            _kill_pid(pid, signal.SIGKILL)
+            extra = time.monotonic() + 2
+            while pid_exists(pid) and time.monotonic() < extra:
+                _reap(pid)
+                time.sleep(0.05)
+            if pid_exists(pid):
+                return replace(
+                    stopping,
+                    ownership=ExecutionOwnership.ABSENT,
+                    observed_state=ExecutionState.FAILED,
+                    detail="process did not exit after SIGKILL",
+                )
+        _reap(pid)
+        return self.observe(stopping)
+
+    def _reacquire(self, handle: ExecutorHandle) -> ExecutorHandle:
+        if handle.observed_state in (ExecutionState.EXITED, ExecutionState.FAILED):
+            return replace(handle, ownership=ExecutionOwnership.ABSENT)
+        if not is_resolved(handle.pid) or not pid_exists(handle.pid):
+            return replace(
+                handle,
+                ownership=ExecutionOwnership.ABSENT,
+                observed_state=ExecutionState.EXITED,
+                pid=NOT_MEASURED,
+                detail=(
+                    handle.detail
+                    or "process is no longer owned by this control plane"
+                ),
+            )
+        cookie = parse_cookie(handle.external_identity)
+        if cookie is None:
+            return replace(
+                handle,
+                ownership=ExecutionOwnership.UNVERIFIED,
+                observed_state=ExecutionState.RUNNING,
+                health=ExecutionHealth.UNKNOWN,
+                detail=(
+                    "PID exists but this control plane did not start it in this process"
+                ),
+            )
+        verdict = verify_live(
+            handle.pid, cookie, handle.execution_id.value
+        )
+        if verdict == IdentityMatch.MATCH:
+            return replace(
+                handle,
+                ownership=ExecutionOwnership.OWNED,
+                observed_state=ExecutionState.RUNNING,
+                health=ExecutionHealth.UNKNOWN,
+                detail=None,
+            )
+        if verdict == IdentityMatch.MISMATCH:
+            return replace(
+                handle,
+                ownership=ExecutionOwnership.ABSENT,
+                observed_state=ExecutionState.EXITED,
+                pid=NOT_MEASURED,
+                detail="process identity does not match the persisted execution",
+            )
+        return replace(
+            handle,
+            ownership=ExecutionOwnership.UNVERIFIED,
+            observed_state=ExecutionState.RUNNING,
+            health=ExecutionHealth.UNKNOWN,
+            detail="process identity cannot be proven",
+        )
 
 
 def build(clock: Clock | None = None) -> NativeProcessExecutor:
@@ -332,21 +451,41 @@ def _close_fd(fd: int) -> None:
 
 
 def _signal_group(process: subprocess.Popen[bytes], sig: int) -> None:
+    _killpg(process.pid, sig)
+
+
+def _kill_pid(pid: int, sig: int) -> None:
     try:
-        os.killpg(process.pid, sig)
+        os.kill(pid, sig)
     except ProcessLookupError:
+        return
+    except PermissionError:
+        return
+
+
+def _killpg(pgid: int, sig: int) -> None:
+    try:
+        os.killpg(pgid, sig)
+    except ProcessLookupError:
+        return
+    except PermissionError:
+        return
+
+
+def _reap(pid: int) -> None:
+    try:
+        os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        return
+    except OSError:
         return
 
 
 def _unclaimed(handle: ExecutorHandle) -> ExecutorHandle:
-    """A record whose process this adapter no longer holds.
-
-    If a PID is recorded and still exists we do not own it enough to
-    signal. If it does not exist, it is absent.
-    """
+    """Fallback when reacquisition is impossible."""
     if handle.observed_state in (ExecutionState.EXITED, ExecutionState.FAILED):
         return replace(handle, ownership=ExecutionOwnership.ABSENT)
-    if is_resolved(handle.pid) and _pid_exists(handle.pid):
+    if is_resolved(handle.pid) and pid_exists(handle.pid):
         return replace(
             handle,
             ownership=ExecutionOwnership.UNVERIFIED,
@@ -361,13 +500,3 @@ def _unclaimed(handle: ExecutorHandle) -> ExecutorHandle:
         pid=NOT_MEASURED,
         detail=handle.detail or "process is no longer owned by this control plane",
     )
-
-
-def _pid_exists(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True

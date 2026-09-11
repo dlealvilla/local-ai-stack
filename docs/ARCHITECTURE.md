@@ -880,7 +880,7 @@ conservative state on a persistence error.
 
 | | |
 |---|---|
-| **Owns** | `ExecutorSpec`, `ExecutorHandle`, `ExecutorCapabilityProfile`, `DeviceRequest`, process execution, environment, filesystem mapping, signals, logs, process health, and PID reuse protection. Generic identity is `ExecutionId`; a PID is optional native evidence. |
+| **Owns** | `ExecutorSpec`, `ExecutorHandle`, `ExecutorCapabilityProfile`, `DeviceRequest`, process execution, environment, filesystem mapping, signals, logs, process health, and PID reuse protection via an adapter-owned identity cookie. Generic identity is `ExecutionId`; a PID is optional native evidence and is never enough to signal. |
 | **Consumes** | `kernel` · `evidence` · `host.contracts` only |
 | **Ports** | `Executor`, with native process execution as the first and reference implementation · `ContainerEngine`, for the optional container path |
 | **Must not** | Contain model semantics or runtime options. Assume a container runtime exists. Import `capacity` — how a workload is launched is a different question from what may safely be launched. Import `runtime` — the executor receives a generic spec. Become a source of host facts. |
@@ -1536,7 +1536,7 @@ adapters/persistence/     file · sqlite
 adapters/http/            stdlib_server · asgi
 adapters/host/            hwloc · nvml · native_linux · native_darwin ·
                           amd_smi · level_zero · nfd · captured_fixture
-adapters/execution/       native_process · recording · container
+adapters/execution/       native_process · process_identity · recording · container
 adapters/container/       docker · recording  (podman · containerd later)
 adapters/runtime/         reference_process · vllm (product executable) · llama_cpp · mlx (FUTURE declarations only)
 adapters/provisioning/    fixture · vllm_native

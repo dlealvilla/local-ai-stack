@@ -283,7 +283,7 @@ def test_inspect_during_starting_does_not_prevent_running(
         stack.instances.stop(instance.instance_id)
 
 
-def test_separate_process_inspect_after_running_stays_untrusted(
+def test_separate_process_inspect_after_running_reacquires_owned(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     stack = _vllm_stack(tmp_path, monkeypatch, delay=0.0)
@@ -295,7 +295,7 @@ def test_separate_process_inspect_after_running_stays_untrusted(
         assert started.observed_state is ObservedState.RUNNING
         other = _other_control_plane(stack)
         seen = other.observe(started.instance_id)
-        assert seen.observed_state is ObservedState.UNKNOWN
+        assert seen.observed_state is ObservedState.RUNNING
         owned = stack.instances.observe(started.instance_id)
         assert owned.observed_state is ObservedState.RUNNING
         assert other.blocks_release(reservation.reservation_id)
@@ -395,11 +395,11 @@ def test_long_run_observe_stop_restart(
             time.sleep(2.0)
         other = _other_control_plane(stack)
         seen = other.observe(started.instance_id)
-        assert seen.observed_state is ObservedState.UNKNOWN
+        assert seen.observed_state is ObservedState.RUNNING
         assert stack.instances.observe(started.instance_id).observed_state is (
             ObservedState.RUNNING
         )
-        stopped = stack.instances.stop(started.instance_id)
+        stopped = other.stop(started.instance_id)
         assert stopped.observed_state is ObservedState.STOPPED
         held = stack.resources.get(reservation.reservation_id)
         assert held is not None

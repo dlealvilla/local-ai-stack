@@ -605,14 +605,16 @@ raise SystemExit(0)
         assert still is not None
         assert still.observed_state is ObservedState.RUNNING
         seen = other.observe(instance.instance_id)
-        assert seen.observed_state is ObservedState.UNKNOWN
-        refused = other.stop(instance.instance_id)
-        assert refused.observed_state is ObservedState.UNKNOWN
-        assert "unverified" in str(refused.failure_reason)
-        assert _pid_alive(child)
-        report = other.reconcile()
-        assert "UNKNOWN" in report
-        assert _pid_alive(child)
+        assert seen.observed_state is ObservedState.RUNNING
+        stopped = other.stop(instance.instance_id)
+        assert stopped.observed_state is ObservedState.STOPPED
+        deadline = time.monotonic() + 2.0
+        while _pid_alive(child) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not _pid_alive(child)
+        held = stack.resources.get(reservation.reservation_id)
+        assert held is not None
+        assert held.state is ReservationState.ACTIVE
     finally:
         _kill_group(child)
 
