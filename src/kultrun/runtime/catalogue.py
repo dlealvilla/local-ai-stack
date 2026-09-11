@@ -62,6 +62,14 @@ class RuntimeCatalogue:
             and descriptor.support_tier not in _HARNESS_TIERS
         )
 
+    def declared_family_identities(self) -> tuple[str, ...]:
+        """Intended families including FUTURE declarations. Not feasibility."""
+        return tuple(
+            descriptor.runtime.value
+            for descriptor in self.descriptors()
+            if descriptor.runtime.value in {"vllm", "llama.cpp", "mlx"}
+        )
+
     def launch(
         self, runtime: Name, request: RuntimeLaunchRequest | None = None
     ) -> RuntimeLaunchSpec:

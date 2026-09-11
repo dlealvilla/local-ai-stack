@@ -37,6 +37,8 @@ from kultrun.adapters.model_source.safetensors import (
 from kultrun.adapters.persistence import file_store
 from kultrun.adapters.provisioning.fixture import FixtureRuntimeProvisioner
 from kultrun.adapters.provisioning.vllm_native import VllmNativeProvisioner
+from kultrun.adapters.runtime.llama_cpp import LlamaCppRuntimeSupport
+from kultrun.adapters.runtime.mlx import MlxRuntimeSupport
 from kultrun.adapters.runtime.reference import ReferenceProcessRuntime
 from kultrun.adapters.runtime.serving import ReferenceServingRuntime
 from kultrun.adapters.runtime.vllm import VllmModelCompatibility, VllmRuntimeSupport
@@ -164,6 +166,7 @@ from kultrun.runtime.contracts import (
     EligibleModelView,
     RuntimeInstallationId,
     RuntimePolicy,
+    RuntimePreferencePolicy,
     RuntimeProvisioningPlanId,
     RuntimeResolverMode,
     RuntimeSupportDescriptor,
@@ -706,6 +709,8 @@ def build(
             ReferenceProcessRuntime(hold=True),
             ReferenceServingRuntime(),
             VllmRuntimeSupport(),
+            LlamaCppRuntimeSupport(),
+            MlxRuntimeSupport(),
         )
     )
     source, weight_evidence, structural_evidence = resolve_model_source(
@@ -809,6 +814,9 @@ def build(
         verification,
         SelectionLock(state_root),
         runtime_root=state_root / "runtimes",
+        preference=RuntimePreferencePolicy(
+            comfortable_storage_bytes=settings.foundation_comfortable_storage_bytes
+        ),
     )
     foundation_realize = FoundationRealizeService(
         foundation,

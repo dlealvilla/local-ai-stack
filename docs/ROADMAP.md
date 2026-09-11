@@ -729,6 +729,8 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6L5 Manual capacity last-resort           ← L1 local; 20%×5 G-REPL
   ↓
+1.6R0 Runtime breadth exoskeleton           ← L1 local; vLLM still the only executable foundation
+  ↓
 post-inference breadth review, then 1.7 onward
 ```
 
@@ -1491,6 +1493,32 @@ legitimate fits: storage remediation, not a request for a more
 convenient manual number.
 
 **Output:** last-resort operator path + universal 20%×5 replan · **Gate:** L1
+
+### Stage 1.6R0 — Runtime breadth exoskeleton
+
+Declare the three intended serving families and the one-active-foundation
+product rule without pretending llama.cpp or MLX are executable.
+
+```text
+declared families: vLLM | llama.cpp | MLX
+vLLM = PRODUCT executable
+llama.cpp / MLX = FUTURE, not AUTO-selectable, not provisionable
+
+Apple Silicon
+    → MLX if hard-feasible else BLOCK
+non-Apple
+    → hard feasibility first
+    → neither BLOCK / one choose it
+    → both: SAFE < comfortable band → llama.cpp else vLLM
+```
+
+The comfortable band is configurable
+(`foundation_comfortable_storage_bytes`, default 64 GiB SAFE). It is
+preference after feasibility, not admission, and not the 32 GiB
+Sonar tier. A family change is a foundation rebootstrap (stop, release,
+recompute, fresh plan/request, ResourceManager), not a hot swap.
+
+**Output:** family declarations + preference + one-active invariant · **Gate:** L1
 
 ### Milestone 1 Hardware Breadth Review — after Stage 1.6, before broadening
 

@@ -23,6 +23,7 @@ from kultrun.kernel.persistence import Store
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
 from kultrun.runtime.contracts import (
     FoundationConfidence,
+    FoundationPreferenceDecision,
     FoundationSelection,
     FoundationSelectionId,
     FoundationSelectionMode,
@@ -31,6 +32,7 @@ from kultrun.runtime.contracts import (
     RuntimeCapabilityProfile,
     RuntimeInstallation,
     RuntimePolicy,
+    RuntimePreferencePolicy,
     RuntimeResolution,
     RuntimeSupportDescriptor,
     VerificationStatus,
@@ -38,6 +40,7 @@ from kultrun.runtime.contracts import (
 from kultrun.runtime.lock import SelectionLock
 from kultrun.runtime.pins import SELECTION_SCHEMA
 from kultrun.runtime.plan import find_candidate, is_provisionable
+from kultrun.runtime.preference import recommend_foundation
 from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import ExecutorCapabilityView, resolve
 from kultrun.runtime.verify import VerificationService
@@ -92,6 +95,7 @@ class FoundationOverview:
     verified_executable_ids: tuple[str, ...]
     selected_installation_id: str | None
     selected_profile_status: str | None
+    preference: FoundationPreferenceDecision | None = None
 
     def payload(self) -> dict[str, object]:
         """API-shaped view. GET callers must not treat this as a mutation."""
@@ -132,6 +136,23 @@ class FoundationOverview:
             "selected_profile_status": self.selected_profile_status,
             "downstream_stale": self.selection.downstream_stale,
             "stale_domains": list(self.selection.stale_domains),
+            "preference_outcome": (
+                self.preference.outcome.value if self.preference is not None else None
+            ),
+            "recommended_family": (
+                self.preference.recommended_family
+                if self.preference is not None
+                and isinstance(self.preference.recommended_family, str)
+                else None
+            ),
+            "storage_class": (
+                self.preference.storage_class.value
+                if self.preference is not None
+                else None
+            ),
+            "preference_reasons": (
+                list(self.preference.reasons) if self.preference is not None else []
+            ),
             "mutations": False,
             "provision": False,
             "verify": False,
@@ -149,6 +170,7 @@ class FoundationSelectionService:
         verification: VerificationService,
         lock: SelectionLock,
         runtime_root: Path | None = None,
+        preference: RuntimePreferencePolicy | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
@@ -156,6 +178,7 @@ class FoundationSelectionService:
         self._verification = verification
         self._lock = lock
         self._runtime_root = runtime_root
+        self._preference = preference or RuntimePreferencePolicy()
 
     def stored(self, host: HostCapabilities) -> FoundationSelection | None:
         """Persisted selection, if any. Does not resolve or probe."""
@@ -383,12 +406,22 @@ class FoundationSelectionService:
         resolution = resolve(
             host, executors, descriptors, resolved_policy, components=components
         )
-        recommended = self._recommend(
-            resolution,
-            storage_evidence,
-            require_storage,
-            dest_mount=self._dest_mount(host),
+        dest_mount = self._dest_mount(host)
+        feasible = [item for item in resolution.candidates if is_provisionable(item)]
+        if require_storage:
+            feasible = [
+                item
+                for item in feasible
+                if _storage_feasible(storage_evidence, dest_mount)
+            ]
+        preference = recommend_foundation(
+            host,
+            feasible,
+            storage_evidence=storage_evidence,
+            dest_mount=dest_mount,
+            policy=self._preference,
         )
+        recommended = self._recommend(feasible, preference)
         stored = self._load(host.host_id.value)
         selection = self._effective(host, stored, recommended)
         rows = self._classify(
@@ -397,7 +430,7 @@ class FoundationSelectionService:
             host,
             executors,
             storage_ok=not require_storage
-            or _storage_feasible(storage_evidence, self._dest_mount(host)),
+            or _storage_feasible(storage_evidence, dest_mount),
         )
         provisionable = tuple(
             item.candidate_id
@@ -435,32 +468,22 @@ class FoundationSelectionService:
             selected_profile_status=(
                 selected_row.profile_status if selected_row else None
             ),
+            preference=preference,
         )
 
     def _recommend(
         self,
-        resolution: RuntimeResolution,
-        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
-        require_storage: bool = False,
-        dest_mount: str | None = None,
+        provisionable: Sequence[RuntimeCandidate],
+        preference: FoundationPreferenceDecision,
     ) -> str | None:
-        provisionable = [
-            item for item in resolution.candidates if is_provisionable(item)
-        ]
-        if require_storage:
-            provisionable = [
-                item
-                for item in provisionable
-                if _storage_feasible(storage_evidence, dest_mount)
-            ]
         if not provisionable:
             return None
-        preferred = resolution.preferred_candidate_id
-        if isinstance(preferred, str) and any(
-            item.candidate_id.value == preferred for item in provisionable
+        chosen = preference.recommended_candidate_id
+        if isinstance(chosen, str) and any(
+            item.candidate_id.value == chosen for item in provisionable
         ):
-            return preferred
-        return provisionable[0].candidate_id.value
+            return chosen
+        return None
 
     def _effective(
         self,

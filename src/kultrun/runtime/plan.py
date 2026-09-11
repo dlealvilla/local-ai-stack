@@ -22,6 +22,7 @@ from kultrun.runtime.contracts import (
     RuntimeProvisioningPlan,
     RuntimeProvisioningPlanId,
     RuntimeResolution,
+    RuntimeSupportTier,
 )
 from kultrun.runtime.pins import (
     NATIVE_EXECUTOR,
@@ -43,7 +44,13 @@ _SOLVABLE_MISSING = {VLLM_PACKAGE}
 
 
 def is_provisionable(candidate: RuntimeCandidate) -> bool:
-    """True when 1.6C can install this path. Unsupported/unresolved never are."""
+    """True when 1.6C can install this path. Unsupported/unresolved never are.
+
+    FUTURE families are declared, not installable. A name in the catalogue
+    is not production feasibility.
+    """
+    if candidate.support_tier is RuntimeSupportTier.FUTURE:
+        return False
     if candidate.compatibility in {
         CompatibilityClass.UNSUPPORTED,
         CompatibilityClass.UNRESOLVED,

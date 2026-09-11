@@ -1,1 +1,1 @@
-"""Reference process runtime. Not an inference engine."""
+"""Runtime adapters. Product vLLM plus FUTURE llama.cpp and MLX declarations."""

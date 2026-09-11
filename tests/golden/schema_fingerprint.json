@@ -704,6 +704,13 @@
         "optional": true,
         "type": "int"
       },
+      "foundation_comfortable_storage_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "SAFE storage ranking band used only when both vLLM and llama.cpp are already feasible. Prefers vLLM at or above this figure, llama.cpp below it. Not feasibility, not admission, and not the 32 GiB Sonar tier",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
       "may_provision_components": {
         "may_be_unresolved": false,
         "meaning": "whether Kultrun may install a missing platform component; an administrator may forbid it, and preparation then reports the component unavailable rather than acting",
@@ -6877,6 +6884,88 @@
     },
     "python": "FoundationSelection"
   },
+  "runtime.foundation_transition@1": {
+    "fields": {
+      "from_candidate_id": {
+        "may_be_unresolved": true,
+        "meaning": "currently selected candidate",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "from_family": {
+        "may_be_unresolved": true,
+        "meaning": "currently selected family; unresolved when none",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this transition would apply to",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "must_recompute": {
+        "may_be_unresolved": false,
+        "meaning": "derived state that must not be reused after this transition",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "production_executable": {
+        "may_be_unresolved": false,
+        "meaning": "true only when the target is a verified executable foundation",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "reasons": {
+        "may_be_unresolved": false,
+        "meaning": "why this classification was chosen",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "required_actions": {
+        "may_be_unresolved": false,
+        "meaning": "orchestration steps that must complete before serving the target",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "reusable": {
+        "may_be_unresolved": false,
+        "meaning": "state that may be reused when still fresh",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "to_candidate_id": {
+        "may_be_unresolved": true,
+        "meaning": "requested candidate",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "to_family": {
+        "may_be_unresolved": true,
+        "meaning": "requested family; unresolved when none",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "transition_kind": {
+        "may_be_unresolved": false,
+        "meaning": "none, same-family model switch, or foundation rebootstrap",
+        "nullable": false,
+        "optional": false,
+        "type": "FoundationTransitionKind"
+      }
+    },
+    "python": "FoundationTransition"
+  },
   "runtime.installation@1": {
     "fields": {
       "attempt_count": {
@@ -7573,6 +7662,100 @@
       }
     },
     "python": "RuntimePolicy"
+  },
+  "runtime.preference_decision@1": {
+    "fields": {
+      "apple_silicon": {
+        "may_be_unresolved": false,
+        "meaning": "whether Apple Silicon policy applied",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "comfortable_storage_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "configured preference band used for this decision",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "feasible_families": {
+        "may_be_unresolved": false,
+        "meaning": "hard-feasible family identities in input order",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host these families were judged against",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "recommended when a feasible family was chosen; blocked otherwise",
+        "nullable": false,
+        "optional": false,
+        "type": "FoundationPreferenceOutcome"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "preference policy that produced this decision",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "reasons": {
+        "may_be_unresolved": false,
+        "meaning": "typed preference reasons",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "recommended_candidate_id": {
+        "may_be_unresolved": true,
+        "meaning": "chosen RuntimeCandidate; unresolved when blocked",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "recommended_family": {
+        "may_be_unresolved": true,
+        "meaning": "chosen family identity; unresolved when blocked",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "storage_class": {
+        "may_be_unresolved": false,
+        "meaning": "constrained, comfortable, or unresolved SAFE storage",
+        "nullable": false,
+        "optional": false,
+        "type": "HostStorageClass"
+      }
+    },
+    "python": "FoundationPreferenceDecision"
+  },
+  "runtime.preference_policy@1": {
+    "fields": {
+      "comfortable_storage_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "SAFE storage at or above this figure prefers vLLM when both vLLM and llama.cpp are feasible; below it prefers llama.cpp. Not a feasibility threshold and not the 32 GiB Sonar tier",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "policy_version": {
+        "may_be_unresolved": false,
+        "meaning": "preference policy identity recorded on decisions",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      }
+    },
+    "python": "RuntimePreferencePolicy"
   },
   "runtime.profile@1": {
     "fields": {

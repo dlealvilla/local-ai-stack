@@ -898,6 +898,152 @@ class FoundationSelection(Contract):
     )
 
 
+class RuntimeFamily(StrEnum):
+    """Intended serving-foundation families. Identity is not executability."""
+
+    VLLM = "vllm"
+    LLAMA_CPP = "llama.cpp"
+    MLX = "mlx"
+
+
+class HostStorageClass(StrEnum):
+    """Preference size class. Not feasibility and not ResourceManager admission."""
+
+    CONSTRAINED = "constrained"
+    COMFORTABLE = "comfortable"
+    UNRESOLVED = "unresolved"
+
+
+class FoundationPreferenceOutcome(StrEnum):
+    """Whether product preference could name a feasible candidate."""
+
+    RECOMMENDED = "recommended"
+    BLOCKED = "blocked"
+
+
+class FoundationTransitionKind(StrEnum):
+    """Same-family model switch is not a foundation rebootstrap."""
+
+    NONE = "none"
+    MODEL_SWITCH = "model_switch"
+    FOUNDATION_REBOOTSTRAP = "foundation_rebootstrap"
+
+
+class FoundationTransitionAction(StrEnum):
+    """Required orchestration steps. Not a hot runtime swap."""
+
+    STOP_LIVE_INFERENCE = "stop_live_inference"
+    RELEASE_RESERVATIONS = "release_reservations"
+    SELECT_FOUNDATION = "select_foundation"
+    REALIZE_OR_REUSE_INSTALLATION = "realize_or_reuse_installation"
+    VERIFY_RUNTIME = "verify_runtime"
+    RECOMPUTE_DOWNSTREAM = "recompute_downstream"
+    FRESH_DEPLOYMENT_PLAN = "fresh_deployment_plan"
+    FRESH_RESOURCE_REQUEST = "fresh_resource_request"
+    RESOURCE_MANAGER_ADMISSION = "resource_manager_admission"
+    LAUNCH_INFERENCE_INSTANCE = "launch_inference_instance"
+
+
+_GIB = 1024**3
+
+
+@contract(kind="runtime.preference_policy", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimePreferencePolicy(Contract):
+    """Product foundation preference. Ranking, not admission.
+
+    Used only after hard feasibility has already removed infeasible families.
+    """
+
+    comfortable_storage_bytes: int = meaning(
+        "SAFE storage at or above this figure prefers vLLM when both vLLM "
+        "and llama.cpp are feasible; below it prefers llama.cpp. Not a "
+        "feasibility threshold and not the 32 GiB Sonar tier",
+        default=64 * _GIB,
+    )
+    policy_version: str = meaning(
+        "preference policy identity recorded on decisions",
+        default="1.6R0.0-runtime-breadth",
+    )
+
+    def __post_init__(self) -> None:
+        if self.comfortable_storage_bytes < 1:
+            raise ValidationError(
+                "comfortable storage preference must be positive",
+                comfortable_storage_bytes=self.comfortable_storage_bytes,
+            )
+
+
+@contract(kind="runtime.preference_decision", version=1)
+@dataclass(frozen=True, slots=True)
+class FoundationPreferenceDecision(Contract):
+    """Derived product recommendation. Not persisted and not admission."""
+
+    host_id: HostId = meaning("host these families were judged against")
+    outcome: FoundationPreferenceOutcome = meaning(
+        "recommended when a feasible family was chosen; blocked otherwise"
+    )
+    apple_silicon: bool = meaning("whether Apple Silicon policy applied")
+    storage_class: HostStorageClass = meaning(
+        "constrained, comfortable, or unresolved SAFE storage"
+    )
+    recommended_family: Maybe[str] = meaning(
+        "chosen family identity; unresolved when blocked", default=NOT_PROVIDED
+    )
+    recommended_candidate_id: Maybe[str] = meaning(
+        "chosen RuntimeCandidate; unresolved when blocked", default=NOT_PROVIDED
+    )
+    feasible_families: tuple[str, ...] = meaning(
+        "hard-feasible family identities in input order", default=()
+    )
+    reasons: tuple[str, ...] = meaning("typed preference reasons", default=())
+    policy_version: str = meaning(
+        "preference policy that produced this decision",
+        default="1.6R0.0-runtime-breadth",
+    )
+    comfortable_storage_bytes: int = meaning(
+        "configured preference band used for this decision",
+        default=64 * _GIB,
+    )
+
+
+@contract(kind="runtime.foundation_transition", version=1)
+@dataclass(frozen=True, slots=True)
+class FoundationTransition(Contract):
+    """Derived switch contract. Not a live process mutation."""
+
+    host_id: HostId = meaning("host this transition would apply to")
+    transition_kind: FoundationTransitionKind = meaning(
+        "none, same-family model switch, or foundation rebootstrap"
+    )
+    from_family: Maybe[str] = meaning(
+        "currently selected family; unresolved when none", default=NOT_PROVIDED
+    )
+    to_family: Maybe[str] = meaning(
+        "requested family; unresolved when none", default=NOT_PROVIDED
+    )
+    from_candidate_id: Maybe[str] = meaning(
+        "currently selected candidate", default=NOT_PROVIDED
+    )
+    to_candidate_id: Maybe[str] = meaning("requested candidate", default=NOT_PROVIDED)
+    production_executable: bool = meaning(
+        "true only when the target is a verified executable foundation",
+        default=False,
+    )
+    required_actions: tuple[str, ...] = meaning(
+        "orchestration steps that must complete before serving the target",
+        default=(),
+    )
+    reusable: tuple[str, ...] = meaning(
+        "state that may be reused when still fresh", default=()
+    )
+    must_recompute: tuple[str, ...] = meaning(
+        "derived state that must not be reused after this transition",
+        default=(),
+    )
+    reasons: tuple[str, ...] = meaning("why this classification was chosen", default=())
+
+
 class EligibleModelViewId(EntityId):
     """Deterministic identity of one derived eligible-model view."""
 

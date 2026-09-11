@@ -154,6 +154,7 @@ class InstanceService:
             )
         now = self._clock.now()
         chosen = runtime or SERVING_RUNTIME
+        self._require_single_active_foundation(reservation.host_id, chosen)
         chosen_executor = executor or Name("native-process")
         instance = InferenceInstance(
             instance_id=InstanceId.generate(),
@@ -620,6 +621,43 @@ class InstanceService:
                 reservation_id=reservation.reservation_id.value,
             )
 
+    def live_product_families(self, host_id: object) -> frozenset[str]:
+        """PRODUCT serving families currently live on this host. Not harnesses."""
+        families: set[str] = set()
+        for item in self.list():
+            if item.host_id != host_id or item.observed_state not in _LIVE:
+                continue
+            family = self.product_family(item.runtime)
+            if family is not None:
+                families.add(family)
+        return frozenset(families)
+
+    def product_family(self, runtime: Name) -> str | None:
+        """Family identity when this adapter is a product serving foundation."""
+        try:
+            descriptor = self._runtimes.get(runtime).support()
+        except NotFoundError:
+            return None
+        if (
+            descriptor.support_tier is RuntimeSupportTier.PRODUCT
+            and descriptor.production_candidate
+        ):
+            return descriptor.runtime.value
+        return None
+
+    def _require_single_active_foundation(self, host_id: object, runtime: Name) -> None:
+        family = self.product_family(runtime)
+        if family is None:
+            return
+        live = self.live_product_families(host_id)
+        if live and family not in live:
+            raise ConflictError(
+                "another serving foundation is already active on this host",
+                reason="foundation_already_active",
+                active_families=tuple(sorted(live)),
+                requested=family,
+            )
+
     def _require_start(
         self, instance: InferenceInstance, ledger_health: LedgerHealth
     ) -> None:
@@ -639,6 +677,7 @@ class InstanceService:
             raise PreconditionFailedError(
                 "ledger is OVERCOMMITTED; new start is refused"
             )
+        self._require_single_active_foundation(instance.host_id, instance.runtime)
         if instance.execution_id is not None:
             handle = self._executions.observe(instance.execution_id)
             if (

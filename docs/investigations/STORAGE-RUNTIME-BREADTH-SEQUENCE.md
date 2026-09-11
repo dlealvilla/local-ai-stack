@@ -384,12 +384,19 @@ Reuse, do not clone: `RuntimeSupportDescriptor`, resolver, environment
 provider, provisioner, verifier, `FoundationSelectionService`,
 `DeploymentPlan`, ResourceManager, `NativeProcessExecutor`.
 
-### R0 — Mini-brief: second runtime (docs)
+### R0 — Runtime breadth exoskeleton (local)
 
-**Does:** name first GGUF (G-GGUF), license, CPU-only matrix, ranking
-constant name, state that verification ≠ provisionable (1.6E).
+**Status:** implemented locally as Stage 1.6R0
+(`stage/runtime-breadth-exoskeleton`). Does not implement llama.cpp or
+MLX. vLLM remains the only executable production foundation.
 
-**STOP:** G-R, G-GGUF, G-USEFUL, G-APPLE-CPU.
+**Does:** three family identities; FUTURE descriptors; product
+preference after hard feasibility; one-active PRODUCT foundation;
+foundation rebootstrap vs model-switch; configurable 64 GiB SAFE
+preference band.
+
+**STOP:** G-R, G-GGUF, G-USEFUL, G-APPLE-CPU remain before executable
+Track R. Do not treat FUTURE names as product support.
 
 ---
 

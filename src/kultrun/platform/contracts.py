@@ -218,3 +218,10 @@ class PlatformSettings(Contract):
         "Hugging Face listing/metadata and Accelerate structural extras",
         default="offline",
     )
+    foundation_comfortable_storage_bytes: int = meaning(
+        "SAFE storage ranking band used only when both vLLM and llama.cpp "
+        "are already feasible. Prefers vLLM at or above this figure, "
+        "llama.cpp below it. Not feasibility, not admission, and not "
+        "the 32 GiB Sonar tier",
+        default=64 * 1024**3,
+    )

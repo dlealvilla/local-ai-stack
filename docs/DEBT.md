@@ -1010,13 +1010,16 @@ Blocks 1.6B:  No
 What:         Stage 1.6B ranking is deterministic/static: compatibility,
               support tier, executor availability, policy order, then
               name. It does not consume latency, throughput, tokens/sec,
-              startup time, or memory efficiency.
+              startup time, or memory efficiency. 1.6R0 added a separate
+              product preference (`RuntimePreferencePolicy`) after hard
+              feasibility. That is family choice, not measured ranking.
 Why now:      Resolution only establishes technical plausibility.
 To make real: A future RuntimeRankingPolicy behind verified operational
-              evidence after inference exists.
+              evidence after inference exists. Do not collapse it into
+              ResourceManager or into 1.6R0's 64 GiB SAFE band.
 Retire when:  multiple verified runtime choices exist for the same workload
               and ranking consumes measured evidence.
-Status:       OPEN
+Status:       OPEN. Product preference exists; measured ranking does not.
 
 ### K-57 — Runtime version optimization
 Label:        DEFERRED
@@ -1944,6 +1947,25 @@ Retire when:  physical Sonar/specialist gates close, or 1.6L5's local
 Status:       OPEN remainder is physical validation, not the local
               last-resort / G-REPL path.
 
+### K-112 — llama.cpp and MLX are declared, not executable
+Label:        DEFERRED
+Owner stage:  1.6R0 / later Track R
+Subsystem:    runtime
+Authorizes:   NO
+What:         1.6R0 registers llama.cpp and MLX as FUTURE support
+              descriptors. AUTO excludes them. `is_provisionable` is
+              false. Launch, provision, verify, and inference refuse.
+              vLLM remains the only product-executable foundation.
+Why now:      The architecture must name the families without faking
+              support. Product preference and the one-active invariant
+              need those names.
+To make real: R1 llama.cpp CPU (provisioner, verifier, GGUF, launch);
+              then R4 MLX on Apple Silicon. Do not mark PRODUCT until
+              verification exists.
+Retire when:  each family has a verified executable path and physical
+              acceptance on its intended host class.
+Status:       OPEN
+
 ## Runtime-first migration ledger (after 1.6K)
 
 Not a second architecture. Existing components still to migrate, in
@@ -2001,14 +2023,13 @@ index, kept honest by `tests/test_shape_registry.py`.
 the brief made the shape non-blocking. Trigger unchanged.
 Fixture:         none. Capture is the cheapest useful step and needs no Apple provider
 Architecture:    ARCHITECTURE-READY
-Implementation:  ADAPTER-NOT-IMPLEMENTED
+Implementation:  ADAPTER-NOT-IMPLEMENTED (MLX is a FUTURE declaration in 1.6R0, not executable)
 Evidence:        none; may be captured opportunistically, **not Stage 1.1 blocking**
 Seam:            `HostDiscoveryProvider`, plus a runtime/executor adapter when inference is wanted
 Unproven:        whether a general provider reports enough on Darwin; unified-memory
                  normalization against a real machine; any Apple runtime path
 Downstream redesign expected: NO
-Revisit:         after the first live inference vertical, or when Apple runtime
-                 support becomes a roadmap priority
+Revisit:         after physical vLLM acceptance through 1.6R0, then MLX implementation
 
 ### DC-02 — CPU-only hosts
 

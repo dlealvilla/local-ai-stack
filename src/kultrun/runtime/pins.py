@@ -14,6 +14,9 @@ PROFILE_SCHEMA = "runtime.capability_profile@1"
 BASIS_SCHEMA = "runtime.verification_basis@1"
 SELECTION_SCHEMA = "runtime.foundation_selection@1"
 ELIGIBILITY_SCHEMA = "runtime.eligible_model_view@1"
+PREFERENCE_POLICY_VERSION = "1.6R0.0-runtime-breadth"
+#: Ranking preference only. Not feasibility, not admission, not 32 GiB Sonar.
+COMFORTABLE_STORAGE_BYTES = 64 * 1024**3
 TARGET_SEMANTICS = "runtimes/{runtime}/{version}"
 PROBE_TIMEOUT_SECONDS = 180.0
 PROBE_OUTPUT_LIMIT_BYTES = 32 * 1024

@@ -951,11 +951,11 @@ capacity contract.
 
 | | |
 |---|---|
-| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, `FoundationSelection`, `RuntimeEligibleModelCandidate`, `EligibleModelView`, `ModelEligibilityService`, `RuntimeMemoryProfile` (measured native-runtime memory evidence; not selection, admission, or an InferenceInstance), and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible by itself. `FoundationSelection` records AUTO versus MANUAL choice; recommendation is not selection; provisionable is not executable. `EligibleModelView` is the authoritative runtime/model compatibility path for the currently selected verified foundation. It does not acquire, rank, or admit. `RuntimeMemoryProfile` is host- and runtime-specific; capacity changes recompute availability against a cached profile and do not by themselves require a new probe. |
+| **Owns** | `RuntimeProfile`, `RuntimeSupportDescriptor` (declared/static), `RuntimeLaunchSpec`, `RuntimeReadiness`, `RuntimePolicy`, `RuntimeCandidate`, `RuntimeResolution`, `RuntimeProvisioningPlan`, `RuntimeInstallation`, `RuntimeCapabilityProfile`, `RuntimeVerificationBasis`, `FoundationSelection`, `RuntimePreferencePolicy`, `FoundationPreferenceDecision`, `FoundationTransition`, `RuntimeEligibleModelCandidate`, `EligibleModelView`, `ModelEligibilityService`, `RuntimeMemoryProfile` (measured native-runtime memory evidence; not selection, admission, or an InferenceInstance), and the translation of platform concepts — context length, concurrency, memory utilization, parallelism, adapters — into runtime-specific configuration. Runtime answers whether a workload is READY. It does not exec or signal. RuntimeResolver classifies declared support against current host facts. RuntimeProvisioner installs an exact plan into a Kultrun-owned isolated environment. Installed is not verified. RuntimeVerifier interprets host/runtime/backend probes executed through the Executor. Verified is not model-compatible by itself. `FoundationSelection` records AUTO versus MANUAL choice; recommendation is not selection; provisionable is not executable. Product preference among hard-feasible families is `RuntimePreferencePolicy` and does not live in ResourceManager. `EligibleModelView` is the authoritative runtime/model compatibility path for the currently selected verified foundation. It does not acquire, rank, or admit. `RuntimeMemoryProfile` is host- and runtime-specific; capacity changes recompute availability against a cached profile and do not by themselves require a new probe. |
 | **Consumes** | `kernel` · `evidence` · `host.contracts` (resolution matching) · `storage` (runtime storage requirement and normalized write-failure codes; never capacity policy) |
 | **Ports** | `InferenceRuntime` · `RuntimeProvisioner` |
 | **Must not** | Import `execution`. Import `capacity`. Import `model` or `resource`. Own capacity policy. Let a runtime-specific option reach a core signature. Treat a candidate as installed or verified. Treat `INSTALLED` as `VERIFIED`. Treat `PROVISIONABLE` as `VERIFIED EXECUTABLE`. Silently substitute a different RuntimeCandidate than the one selected or supplied for provisioning. Rank or recommend during provisioning or verification. Overload `RuntimePolicy.mode` as product selection. Put raw pip/Docker commands on generic contracts. Mutate system Python, drivers, or CUDA. |
-| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Eligibility** 1.6F (`EligibleModelView`) · **Requirement/Capacity** 1.6G · **Serving** 1.6L native vLLM first vertical · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
+| **Created** | 1.3 · **Reconciled** 1.5C (`RuntimeSupportDescriptor`, runtime-owned readiness) · **Resolution** 1.6B (`RuntimeCandidate`) · **Provisioning** 1.6C (`RuntimeProvisioningPlan`, `RuntimeInstallation`) · **Verification** 1.6D (`RuntimeCapabilityProfile`) · **Selection** 1.6E (`FoundationSelection`) · **Eligibility** 1.6F (`EligibleModelView`) · **Requirement/Capacity** 1.6G · **Serving** 1.6L native vLLM first vertical · **Breadth** 1.6R0 family declarations + product preference · **Deepened** 4.3 concurrency binding, 13.4 adapter serving |
 
 Stage 1.6F consumes catalog facts copied by composition
 (`ModelEligibilityFacts`). Runtime still must not import `model`. It
@@ -1075,7 +1075,14 @@ RuntimeResolver
         ↓
 RuntimeCandidate[]
         ↓
-hard feasibility (is_provisionable)
+hard feasibility (is_provisionable; FUTURE is never provisionable)
+        ↓
+product preference (RuntimePreferencePolicy)
+        Apple Silicon → MLX if feasible else BLOCK
+        else one feasible family → that family
+        else both vLLM and llama.cpp → SAFE storage class
+           constrained/unresolved → llama.cpp
+           comfortable (≥ configurable 64 GiB SAFE) → vLLM
         ↓
 RECOMMENDED TO PROVISION
 OTHER PROVISIONABLE
@@ -1231,7 +1238,9 @@ persisted class.
 | Normalized host capability profile | `HostCapabilities` |
 | Foundation possibility | `RuntimeCandidate` |
 | Foundation possibility set | `RuntimeResolution.candidates` |
-| Pre-provision recommendation | `FoundationSelection.recommended_candidate_id` (resolver `preferred_candidate_id` is the rank hint) |
+| Pre-provision recommendation | `FoundationSelection.recommended_candidate_id` (product preference after hard feasibility; resolver `preferred_candidate_id` is a structural rank hint only) |
+| Product foundation preference | `RuntimePreferencePolicy` / `FoundationPreferenceDecision` (ranking, not admission) |
+| Foundation family switch | `FoundationTransition` (rebootstrap vs same-family model switch) |
 | Environment recipe snapshot | `RuntimeProvisioningPlan` |
 | Environment realization | `RuntimeInstallation` |
 | Environment realization mechanism | `RuntimeProvisioner` adapter |
@@ -1256,7 +1265,28 @@ RuntimeResolver answers structural plausibility. RuntimeProvisioner
 installs the **explicitly selected** candidate, never an implicit
 fallback. RuntimeVerifier produces evidence, not ranking.
 FoundationSelection is the first bounded administrator foundation
-override. A foundation change is not a field swap on the previous plan.
+override. One host has one current `FoundationSelection`. At most one
+PRODUCT serving foundation may be live on that host; stored models and
+inactive installations may remain. A family change
+(`vLLM` → `llama.cpp`) is a heavyweight foundation rebootstrap, not a
+hot process swap: stop live inference, release reservations, select,
+realize or reuse the managed environment, verify, recompute eligibility
+through ResourceRequest, ResourceManager admission, then launch. Same
+family model A → model B stays on the existing lighter model-switch
+lifecycle.
+
+Intended families are `vLLM`, `llama.cpp`, and `MLX`. A family name is
+not executability. `RuntimeSupportTier.FUTURE` plus
+`production_candidate=false` means AUTO must not select it and
+`is_provisionable` is false. vLLM remains the only product-executable
+foundation until a later stage implements llama.cpp or MLX. Apple
+Silicon product intent is MLX; with MLX unimplemented, Apple has no
+deployable production foundation. The configurable ~64 GiB SAFE
+storage band is preference when both vLLM and llama.cpp are already
+feasible. It is not feasibility, not admission, and not the 32 GiB
+Sonar tier. ResourceManager does not contain runtime-family policy.
+
+A foundation change is not a field swap on the previous plan.
 It marks downstream derived state stale. Stage 1.6F recomputes
 `EligibleModelView`. Stage 1.6G recomputes `ModelRequirement` and
 capacity-fit. Stage 1.6H recomputes the feasible set, recommendation,
@@ -1508,7 +1538,7 @@ adapters/host/            hwloc · nvml · native_linux · native_darwin ·
                           amd_smi · level_zero · nfd · captured_fixture
 adapters/execution/       native_process · recording · container
 adapters/container/       docker · recording  (podman · containerd later)
-adapters/runtime/         reference_process · vllm (declared support) · (llama_cpp · mlx later)
+adapters/runtime/         reference_process · vllm (product executable) · llama_cpp · mlx (FUTURE declarations only)
 adapters/provisioning/    fixture · vllm_native
 adapters/model_source/    huggingface · local_file
 adapters/estimators/      kultrun · llmfit  (vLLM serving composition is estimator-seam arithmetic, not a third provider)
@@ -1737,6 +1767,7 @@ lower tier, or by a declared provisional stand-in. The result:
 | 1.6J | Plan-driven Acquisition + Resource admission | 1.6I | ✅ closed L1 |
 | 1.6K | Plan-driven InferenceInstance create | 1.6J | ✅ closed L1 |
 | 1.6L | first real native vLLM serving + bounded inference; staged Available Models funnel; runtime-memory calibration before Available; runtime-aware requirement; current available capacity; **1.6L storage-capacity-truth (CLASS B):** ownership, Storage Sonar, per-pool RM, capacity-first runtime/model storage | 1.6K | OPEN; local implementation in progress; do not close until physical validation; T3/T5 pending |
+| 1.6R0 | runtime-breadth exoskeleton: three intended families; one active foundation; product preference; FUTURE llama.cpp/MLX declarations; vLLM remains the executable path | 1.6L5 local | L1 local; does not implement llama.cpp or MLX; does not close 1.6L |
 | 1.6 | first real-model `InferenceInstance` | 1.5C then 1.6A… | ✅ ordered; 1.6L is the serving vertical |
 | 1.7 | `gateway`, `analytics` | `identity`, `inference`, `entitlement` | ✅ |
 | 1.8 | milestone gate | `platform`, `api` | ✅ |
