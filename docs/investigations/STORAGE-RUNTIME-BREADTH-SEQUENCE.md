@@ -124,6 +124,7 @@ design. Change them only at a listed gate.
 | G-USEFUL | R2 | “Useful model” = catalog-estimated fit vs already-downloaded artifact | Catalog-estimated; acquisition still separately admitted |
 | G-ZFS | S2 | Distrust all ZFS native until adapter speaks? | ZFS native authorizes only if adapter returns NO_DATASET_QUOTA or bytes |
 | G-K8S | P1 | stdlib/in-cluster files vs `kubernetes` extra | No kube client in the default wheel |
+| G-REPL | Before S4 | User restated post-Sonar deploy-failure as 20% × 5, then manual, then 20% × 5, vs D1 Policy A (10% × 3 auto; 20% × 5 manual only) | Confirm AMEND D1 at S4; do not change K-110 in S2/S3 |
 | G-GGUF | R1 | Which small legal GGUF for smoke? | Pin one Q4 TinyLlama-class artifact + checksum in the R1 brief |
 | G-MLX | R4 | First already-converted mlx-community artifact | Name in the R4 brief; no conversion subsystem |
 
@@ -207,6 +208,9 @@ APIs (those are Track P later). No new Python deps in the wheel.
 
 **Acceptance:** L1 against committed stdout/xattr fixtures. Do not close
 K-105 without a host that has `mfsgetquota`.
+
+**Implemented:** parsers + specialist-wins + 500 GiB anomaly on the
+storage V2 working branch. Physical K-IDs stay OPEN.
 
 **STOP:** GPL bundling pressure; silent `apt-get`; fake SUCCESS with
 empty parse.

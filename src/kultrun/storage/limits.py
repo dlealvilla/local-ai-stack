@@ -15,6 +15,24 @@ _MIB: Final = 1024**2
 #: Symmetric disagreement: abs(a-b)/max(a,b). Compare available-to-available.
 DISAGREEMENT_RATIO: Final = 0.10
 
+#: On an otherwise-trusted family, a native figure this large is not an
+#: entitlement unless a specialist produced domain bytes. Not a product cap.
+#: Compatible specialists still run below this (hidden quotas, FUSE, NFS).
+NATIVE_ANOMALY_TRIGGER_BYTES: Final = 500 * _GIB
+
+#: Probe names that echo OS-native statistics. Their bytes never beat
+#: native and do not suppress the anomaly trigger.
+NATIVE_CLASS_PROBE_NAMES: Final = frozenset(
+    {
+        "fuse-identify",
+        "macos-capacity",
+        "nfs-quota",
+        "none",
+        "posix-statvfs",
+        "windows-capacity",
+    }
+)
+
 #: Default maximum bytes the fallback empirical probe may physically write.
 #: Hitting this without failure means lower bound >= this figure, upper unknown.
 DEFAULT_MAX_EMPIRICAL_PROBE_BYTES: Final = 25 * _GIB
@@ -58,5 +76,5 @@ MAX_STORAGE_REDUCTIONS: Final = 3
 REDUCTION_FACTOR_NUMERATOR: Final = 9
 REDUCTION_FACTOR_DENOMINATOR: Final = 10
 
-POLICY_VERSION: Final = "1.6L2.0-authorizing-persist"
+POLICY_VERSION: Final = "1.6L3.0-specialist-probes"
 CREATED_BY: Final = "kultrun"

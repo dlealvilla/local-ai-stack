@@ -93,3 +93,41 @@ def test_windows_and_macos_contracts() -> None:
     assert not FuseIdentifyProbe().supports(
         _env(os_name="windows", filesystem_type="ntfs", device=NOT_PROVIDED)
     )
+
+
+def test_strongest_available_ignores_native_class_bytes() -> None:
+    class _Windowsish:
+        name = "windows-capacity"
+        technology = "windows"
+
+        def supports(self, environment: StorageEnvironment) -> bool:
+            return True
+
+        def probe(self, environment: StorageEnvironment) -> CapacityProbeResult:
+            del environment
+            return CapacityProbeResult(
+                available_bytes=2 * 1024**4,
+                executed=True,
+                available=True,
+                detail="native-class",
+            )
+
+    class _Quota:
+        name = "linux-quota"
+        technology = "linux-quota"
+
+        def supports(self, environment: StorageEnvironment) -> bool:
+            return True
+
+        def probe(self, environment: StorageEnvironment) -> CapacityProbeResult:
+            del environment
+            return CapacityProbeResult(
+                available_bytes=50 * 1024**3,
+                executed=True,
+                available=True,
+                detail="quota",
+            )
+
+    reports = ProbeRegistry((_Windowsish(), _Quota())).run(_env())
+    available, _hard = ProbeRegistry(()).strongest_available(reports)
+    assert available == 50 * 1024**3

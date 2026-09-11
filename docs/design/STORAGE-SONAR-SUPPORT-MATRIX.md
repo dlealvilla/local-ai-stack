@@ -31,10 +31,10 @@ populates authorizing SAFE.
 
 | Environment | Detection | Declared/native source | Technology-specific probe | Now? | Optional dependency? | Fallback Sonar | Confidence | Limitations / debt |
 |---|---|---|---|---|---|---|---|---|
-| Linux x86_64 | `host` OS/arch + mount family | `os.statvfs` (`posix-statvfs` native source); host `MountFacts.free_bytes` | linux-quota, fuse-identify, nfs-quota, moosefs-quota | yes | `quota`, `mfsgetquota`, NFS helpers optional | yes, live host only | medium | Numeric quota parse is best-effort |
+| Linux x86_64 | `host` OS/arch + mount family | `os.statvfs` (`posix-statvfs` native source); host `MountFacts.free_bytes` | linux-quota, fuse-identify, nfs-quota, moosefs-quota, zfs-dataset, cephfs-quota | yes | `quota`, `mfsgetquota`, `zfs` optional | yes, live host only | medium | Fixture parsers; physical K-105/K-102 remain OPEN |
 | Linux ARM64 | same as x86_64 | same | same adapters; no arch-specific fork | yes | same | yes | medium | Physical ARM64 acceptance deferred |
-| Windows / Windows Server | `os_name` windows/win32 | host mount facts; Win32 capacity deferred | `windows-capacity` | fixture | none | yes (when live Windows exists) | low | `GetDiskFreeSpaceEx` / NTFS quota: **K-100** |
-| macOS / Apple Silicon | `os_name` darwin | `os.statvfs` native source | `macos-capacity` | fixture | none | yes | low | APFS/quota + `F_PREALLOCATE`: **K-28**, **K-101** |
+| Windows / Windows Server | `os_name` windows/win32 | `GetDiskFreeSpaceExW` live on win32; else host mount facts | `windows-capacity` (native-class) | yes on win32 | none | yes (when live Windows exists) | medium | NTFS quota still **K-100** |
+| macOS / Apple Silicon | `os_name` darwin | `os.statvfs` native source | `macos-capacity` | identify | none | yes if native is anomalous or untrusted | low | APFS/quota + `F_PREALLOCATE`: **K-28**, **K-101** |
 
 ---
 
@@ -42,18 +42,18 @@ populates authorizing SAFE.
 
 | Environment | Detection | Declared/native source | Technology-specific probe | Now? | Optional dependency? | Fallback Sonar | Confidence | Limitations / debt |
 |---|---|---|---|---|---|---|---|---|
-| ext4 | mount `filesystem_type` | `statvfs` (credible local) | linux-quota | yes / optional | `quota` binary | no if native trusted | medium–high | Quota tool output not fully parsed |
-| XFS | family allow-list | `statvfs` | linux-quota | yes / optional | `quota` | no if native trusted | medium | project quota parse deferred **K-102** |
-| Btrfs | family allow-list | `statvfs` | linux-quota | yes / optional | `quota` | no if native trusted | medium | same |
-| ZFS | family allow-list | `statvfs` | none specialized | identify via family | none | if unresolved | medium | dataset quota adapter **K-102** |
-| APFS | darwin + family | `statvfs` | macos-capacity (fixture) | fixture | none | if needed | low | **K-101** |
-| NTFS | windows + family | host facts | windows-capacity (fixture) | fixture | none | if needed | low | **K-100** |
-| container overlay | overlay/overlayfs allow-list | `statvfs` (credible for this container) | none | yes as native | none | no if native trusted | medium | Nested mount longest-prefix binding |
+| ext4 | mount `filesystem_type` | `statvfs` (credible local ≤500 GiB) | linux-quota | yes / optional | `quota` binary | no if native trusted and ≤500 GiB | medium–high | Hidden project quota still **K-102** |
+| XFS | family allow-list | `statvfs` | linux-quota | yes / optional | `quota` | no if native trusted and ≤500 GiB | medium | project quota parse deferred **K-102** |
+| Btrfs | family allow-list | `statvfs` | linux-quota | yes / optional | `quota` | no if native trusted and ≤500 GiB | medium | qgroups **K-102** |
+| ZFS | family allow-list | `statvfs` | zfs-dataset | yes / optional | `zfs` | if unresolved | medium | physical L2 **K-102** |
+| APFS | darwin + family | `statvfs` | macos-capacity (not entitlement) | identify | none | if native >500 GiB | low | **K-101** |
+| NTFS | windows + family | GetDiskFreeSpaceExW / host facts | windows-capacity (native-class) | yes on win32 | none | if native >500 GiB | medium | NTFS quota **K-100** |
+| container overlay | overlay/overlayfs allow-list | `statvfs` (credible for this container) | none | yes as native | none | no if native trusted and ≤500 GiB | medium | Nested mount longest-prefix binding |
 | NFS | nfs/nfs4 | mount free; not an entitlement | nfs-quota | optional | `quota` / `nfsstat` | yes if no numeric probe | low | rquota numeric parse **K-103** |
 | SMB/CIFS | cifs/smb* family | mount free; not an entitlement | none | identify | none | yes | low | SMB quota adapter **K-104** |
 | FUSE | fuse/fuseblk/fuse.* | `statvfs` **not** an entitlement | fuse-identify | identify | none | **yes** unless a capacity probe settled bytes | low | 64 GiB is belief only; never SAFE |
-| MooseFS | fuse + mfs device/family | FUSE lie possible | moosefs-quota | optional | `mfsgetquota` (not bundled; GPL) | yes if tool absent or unparsed | low | Numeric parse **K-105** |
-| CephFS | ceph family | mount free; not an entitlement | none | identify | none | yes | low | Provider/ceph quota **K-106** |
+| MooseFS | fuse + mfs device/family | FUSE lie possible | moosefs-quota | optional | `mfsgetquota` (not bundled; GPL) | yes if tool absent | low | Fixture parse; physical **K-105** |
+| CephFS | ceph family | mount free; not an entitlement | cephfs-quota | yes / xattr | none | yes if no xattr | low | physical **K-106** |
 | Kubernetes / container storage | overlay + CSI mounts as host facts | overlay credible; network volumes not | none specialized | partial | none | yes for non-credible | low | CSI/PVC quota **K-107** |
 | Cloud / provider volumes | host mounts + future provider adapters | administrator bound; provider quota deferred | none | partial | none | yes | low | RunPod/cloud quota **K-108** |
 | Unknown / proprietary | unrecognised family | reported free displayed, not authorizing | explicit `none` probe report | yes | none | **yes** | low | Fail closed |
@@ -62,12 +62,14 @@ populates authorizing SAFE.
 
 ## Probe registry behaviour
 
-- `supports(environment)` then **always** `probe()` when compatible.
+- `supports(environment)` then **always** `probe()` when compatible (cheap specialists; not gated on 500 GiB).
 - No compatible probe → `ProbeReport(probe_name="none", compatible=False)`.
-- `posix-statvfs` is a **native source**, not a corroborating technology probe (it would corroborate FUSE’s own lie).
-- Empirical fallback does **not** run on local credible families merely because `quota` is absent.
+- `posix-statvfs` and `GetDiskFreeSpaceExW` are **native sources**, not specialist entitlements.
+- Specialist remaining bytes always beat generic native. 10% is diagnostic.
+- Native on a trusted-local family may authorize only at or below 500 GiB when no specialist produced domain bytes.
+- Empirical fallback does **not** run on local credible families merely because `quota` is absent, unless native is above 500 GiB.
 - Empirical fallback **does** run for FUSE/NFS/unknown when no probe produced available bytes, and only on a live host (fixture replay never writes 25 GiB).
-- Default empirical exploration ceiling is **25 GiB** (policy). Hitting it without failure means `lower ≥ 25 GiB`, `upper = UNKNOWN`. It does **not** mean `available = 25 GiB`.
+- Default empirical exploration ceiling is still **25 GiB** until 1.6L4. Hitting it without failure means `lower ≥ 25 GiB`, `upper = UNKNOWN`. It does **not** mean `available = 25 GiB`.
 
 ---
 

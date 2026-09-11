@@ -1769,14 +1769,15 @@ Status:       OPEN
 
 ### K-100 — Windows physical storage probes
 Label:        DEFERRED
-Owner stage:  1.6L
+Owner stage:  1.6L3
 Subsystem:    storage
 Authorizes:   NO
-What:         `WindowsCapacityProbe` is a fixture contract
-              (`GetDiskFreeSpaceEx`, NTFS quota). Not a live Win32 call.
+What:         `GetDiskFreeSpaceExW` is implemented as a native-class
+              source (live only on win32). NTFS quota is not parsed.
+              L2 on a Windows host is not done.
 Why now:      Linux/POSIX is the reference path; Windows coverage is
               architectural.
-To make real: Isolated Win32 adapter, no vendor logic in generic core.
+To make real: NTFS quota adapter plus L2 on a Windows deployment target.
 Retire when:  Windows is a supported deployment target with L2 evidence.
 Status:       OPEN
 
@@ -1794,14 +1795,16 @@ Status:       OPEN
 
 ### K-102 — filesystem-specific quota parse (XFS/ZFS/Btrfs)
 Label:        DEFERRED
-Owner stage:  1.6L
+Owner stage:  1.6L3
 Subsystem:    storage
 Authorizes:   NO
-What:         linux-quota runs `quota` when present but does not parse
-              project/dataset quotas into authorizing bytes.
+What:         linux-quota now parses classic `quota -w` user/group
+              remaining (1 KiB blocks). XFS project quota and Btrfs
+              qgroups are not parsed. ZFS dataset quota is a separate
+              P0 adapter (fixture L1); physical ZFS L2 is not done.
 Why now:      Optional tools must not become mandatory; fail closed.
-To make real: Per-family parsers behind the same probe port.
-Retire when:  a stage owns filesystem-specific quota depth.
+To make real: XFS project and Btrfs qgroup parsers when those hosts exist.
+Retire when:  a stage owns remaining filesystem-specific quota depth.
 Status:       OPEN
 
 ### K-103 — NFS rquota numeric parse
@@ -1828,24 +1831,28 @@ Status:       OPEN
 
 ### K-105 — MooseFS mfsgetquota numeric parse
 Label:        DEFERRED
-Owner stage:  1.6L
+Owner stage:  1.6L3
 Subsystem:    storage
 Authorizes:   NO
-What:         `mfsgetquota` may run; v1 does not parse a number.
-Why now:      GPL tooling is never bundled; output formats vary.
-To make real: Parse available/hard quota without embedding MooseFS.
+What:         `mfsgetquota -n` is parsed (realsize, then size, then
+              length). Missing binary is a typed miss. Physical L2 on
+              a host that has `mfsgetquota` is not done.
+Why now:      GPL tooling is never bundled; live table layout may still
+              differ from fixtures.
+To make real: L2 on a MooseFS host with the optional client tools.
 Retire when:  MooseFS is a supported storage backend with L2 evidence.
 Status:       OPEN
 
 ### K-106 — CephFS / Ceph quota adapter
 Label:        DEFERRED
-Owner stage:  1.6L
+Owner stage:  1.6L3
 Subsystem:    storage
 Authorizes:   NO
-What:         CephFS is identified; no authorizing probe.
-Why now:      Not required to repair the FUSE SAFE leak.
-To make real: Optional Ceph quota adapter.
-Retire when:  a stage owns Ceph deployments.
+What:         `ceph.quota.max_bytes` xattr walk is implemented. Physical
+              CephFS L2 is not done. Cluster-free is not an entitlement.
+Why now:      P0 fixture path; not a live Ceph deployment.
+To make real: L2 on a CephFS volume with directory quota.
+Retire when:  a stage owns Ceph deployments with L2 evidence.
 Status:       OPEN
 
 ### K-107 — Kubernetes CSI/PVC quota
@@ -1908,18 +1915,17 @@ Evidence:     `tests/test_storage_reduction.py`,
               `tests/test_storage_replan.py`; composition in
               `src/kultrun/platform/storage_replan.py`.
 
-### K-111 — Storage Capacity V2 remainder (Sonar tree, P0 probes, manual)
+### K-111 — Storage Capacity V2 remainder (Sonar tree, manual)
 Label:        DEFERRED
-Owner stage:  1.6L3–1.6L5
+Owner stage:  1.6L4–1.6L5
 Subsystem:    storage
 Authorizes:   NO
-What:         1.6L2 splits cheap observation from authorizing
-              characterization and fits runtimes against SAFE.
-              Remaining: P0 specialist parsers, Sonar V2 tree,
-              owned reserve, manual capacity last-resort.
-Why now:      Persist was the GET-clobber defect; algorithm and
-              probes are the next bounded stages.
-To make real: Stages 1.6L3–1.6L5 in
+What:         1.6L2 persist and 1.6L3 P0 specialist parsers exist.
+              Remaining: Sonar V2 tree, owned reserve, manual capacity
+              last-resort and post-Sonar replan.
+Why now:      Specialist authority unblocks truthful FUSE numbers
+              once a quota tool exists; Sonar is the no-tool path.
+To make real: Stages 1.6L4–1.6L5 in
               `docs/investigations/STORAGE-RUNTIME-BREADTH-SEQUENCE.md`.
 Retire when:  those stages close at their stated gates.
 Status:       OPEN

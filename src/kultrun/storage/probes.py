@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.storage.contracts import ProbeReport
+from kultrun.storage.limits import NATIVE_CLASS_PROBE_NAMES
 from kultrun.storage.ports import StorageCapacityProbe, StorageEnvironment
 
 
@@ -70,10 +71,16 @@ class ProbeRegistry:
     def strongest_available(
         self, reports: Sequence[ProbeReport]
     ) -> tuple[Maybe[int], Maybe[int]]:
-        """Last executed probe available, and the smallest hard maximum."""
+        """Last entitlement-probe available, and the smallest hard maximum.
+
+        OS-native echoes (statvfs, GetDiskFreeSpaceEx, FUSE identify) are
+        not specialist domain bytes and must not settle a pool.
+        """
         hard: Maybe[int] = NOT_PROVIDED
         available: Maybe[int] = NOT_PROVIDED
         for report in reports:
+            if report.probe_name in NATIVE_CLASS_PROBE_NAMES:
+                continue
             if (
                 report.executed
                 and is_resolved(report.hard_maximum_bytes)

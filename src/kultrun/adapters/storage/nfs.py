@@ -1,20 +1,17 @@
-"""NFS quota seam. rquota tooling is optional and not bundled."""
+"""NFS quota seam. Numeric rquota is Track P (K-103), not this stage."""
 
 from __future__ import annotations
 
 import shutil
 
 from kultrun.kernel.unresolved import is_resolved
-from kultrun.storage.ports import (
-    CapacityProbeResult,
-    StorageEnvironment,
-)
+from kultrun.storage.ports import CapacityProbeResult, StorageEnvironment
 
 _NFS = {"nfs", "nfs4"}
 
 
 class NFSQuotaProbe:
-    """Compatible on NFS. Executes only when a quota helper exists."""
+    """Compatible on NFS. Does not invent bytes from helper presence."""
 
     name = "nfs-quota"
     technology = "nfs"
@@ -38,6 +35,9 @@ class NFSQuotaProbe:
             )
         return CapacityProbeResult(
             available=True,
-            executed=True,
-            detail=f"helper {helper} present; numeric NFS rquota deferred",
+            executed=False,
+            detail=(
+                f"helper {helper} present; numeric NFS rquota is not parsed "
+                "in this stage (K-103)"
+            ),
         )

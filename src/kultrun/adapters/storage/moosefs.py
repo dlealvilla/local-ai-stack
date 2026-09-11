@@ -5,11 +5,9 @@ from __future__ import annotations
 import shutil
 import subprocess
 
-from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
-from kultrun.storage.ports import (
-    CapacityProbeResult,
-    StorageEnvironment,
-)
+from kultrun.adapters.storage.quota_parse import parse_mfsgetquota
+from kultrun.kernel.unresolved import is_resolved
+from kultrun.storage.ports import CapacityProbeResult, StorageEnvironment
 
 
 class MooseFSQuotaProbe:
@@ -44,7 +42,7 @@ class MooseFSQuotaProbe:
             )
         try:
             completed = subprocess.run(
-                [binary, environment.mount_point],
+                [binary, "-n", environment.mount_point],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -56,17 +54,21 @@ class MooseFSQuotaProbe:
                 executed=False,
                 detail=str(error),
             )
-        available, hard, parsed = _parse_mfs(completed.stdout)
+        text = f"{completed.stdout}\n{completed.stderr}"
+        available, hard, parsed = parse_mfsgetquota(text)
+        if is_resolved(available):
+            return CapacityProbeResult(
+                available_bytes=available,
+                hard_maximum_bytes=hard,
+                available=True,
+                executed=True,
+                detail=parsed,
+            )
         return CapacityProbeResult(
-            available_bytes=available,
-            hard_maximum_bytes=hard,
             available=True,
             executed=True,
-            detail=parsed or completed.stdout[:200],
+            detail=(
+                f"{parsed}; exit {completed.returncode}. "
+                "No size/length quota bytes in mfsgetquota output"
+            ),
         )
-
-
-def _parse_mfs(output: str) -> tuple[Maybe[int], Maybe[int], str]:
-    """Best-effort parse of `mfsgetquota`. Unknown stays unresolved."""
-    del output
-    return NOT_PROVIDED, NOT_PROVIDED, "mfsgetquota output not numerically parsed in v1"

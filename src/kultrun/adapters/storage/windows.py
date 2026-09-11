@@ -1,15 +1,16 @@
-"""Windows storage probe contract. Physical GetDiskFreeSpaceEx is deferred."""
+"""Windows native capacity via GetDiskFreeSpaceExW. NTFS quota is K-100 remainder."""
 
 from __future__ import annotations
 
-from kultrun.storage.ports import (
-    CapacityProbeResult,
-    StorageEnvironment,
-)
+import sys
+
+from kultrun.kernel.unresolved import is_resolved
+from kultrun.storage.native import windows_available_bytes
+from kultrun.storage.ports import CapacityProbeResult, StorageEnvironment
 
 
 class WindowsCapacityProbe:
-    """Compatible on Windows. v1 is fixture-tested, not a live Win32 call."""
+    """Live on win32. Bytes are native-class, not a quota entitlement."""
 
     name = "windows-capacity"
     technology = "windows"
@@ -18,12 +19,22 @@ class WindowsCapacityProbe:
         return environment.os_name in {"windows", "win32"}
 
     def probe(self, environment: StorageEnvironment) -> CapacityProbeResult:
-        del environment
+        if sys.platform not in {"win32"}:
+            return CapacityProbeResult(
+                available=False,
+                executed=False,
+                detail="not a Windows process; GetDiskFreeSpaceExW skipped",
+            )
+        available = windows_available_bytes(environment.mount_point)
+        if is_resolved(available):
+            return CapacityProbeResult(
+                available_bytes=available,
+                available=True,
+                executed=True,
+                detail="GetDiskFreeSpaceExW caller-free bytes (native-class)",
+            )
         return CapacityProbeResult(
-            available=False,
-            executed=False,
-            detail=(
-                "Windows GetDiskFreeSpaceEx / NTFS quota adapter is fixture-"
-                "tested; physical implementation is deferred"
-            ),
+            available=True,
+            executed=True,
+            detail="GetDiskFreeSpaceExW did not return numeric bytes",
         )

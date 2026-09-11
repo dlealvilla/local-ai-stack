@@ -721,7 +721,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6L2 Storage authorizing persist           ← cheap GET must not erase Sonar
   ↓
-1.6L3 P0 specialist probes                   ← not started
+1.6L3 P0 specialist probes                   ← L1 fixtures; specialist bytes win
   ↓
 1.6L4 Storage Sonar V2                      ← not started
   ↓
@@ -1418,9 +1418,16 @@ Does not close 1.6L. Does not change Sonar sizes. Does not add runtimes.
 
 ### Stage 1.6L3 — P0 specialist probes
 
-Not started. Linux quota parse, MooseFS parse, ZFS dataset, Ceph xattr,
-specialist-bytes authority. See
-`docs/investigations/STORAGE-RUNTIME-BREADTH-SEQUENCE.md`.
+Compatible specialists always run. Native may authorize only on a
+trusted-local family at or below 500 GiB when no specialist produced
+domain bytes. Specialist remaining bytes always beat generic native;
+the 10% figure is diagnostic. Parsers: Linux `quota -w`, MooseFS
+`mfsgetquota -n`, ZFS dataset `zfs get`, CephFS xattr,
+Windows `GetDiskFreeSpaceExW` as native-class. Missing tools are typed
+misses, never fake SUCCESS. Does not close physical K-105/K-102/K-106.
+
+**Output:** specialist-bytes authority · **Gate:** L1 fixtures.
+Does not change Sonar sizes. Does not add runtimes.
 
 ### Stage 1.6L4 — Storage Sonar V2
 

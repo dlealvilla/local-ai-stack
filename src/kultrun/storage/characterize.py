@@ -45,13 +45,11 @@ class Characterization:
     cleanup: CleanupReport | None
     low_space: tuple[LowSpaceGuidance, ...]
     empirical_ran: tuple[str, ...]
-    empirical_evidence: dict[str, EmpiricalProbeEvidence] = field(
-        default_factory=dict
-    )
+    empirical_evidence: dict[str, EmpiricalProbeEvidence] = field(default_factory=dict)
 
 
 class StorageCharacterizationService:
-    """Step 0 → rediscover pools → native → mandatory probes → arbitrate → fallback."""
+    """Native → compatible specialists → arbitrate → Sonar if still unresolved."""
 
     def __init__(
         self,

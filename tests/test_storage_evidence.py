@@ -58,13 +58,13 @@ def test_native_and_probe_equal_is_corroborated() -> None:
     assert item.operational_available_bytes == 10 * GIB
 
 
-def test_five_percent_apart_uses_native() -> None:
+def test_five_percent_apart_uses_specialist() -> None:
     native = 1000
     probe = 950
     item = _evidence(native_available=native, probe_available=probe)
     assert disagreement_ratio(native, probe) == 0.05
     assert item.status is StorageEvidenceStatus.CORROBORATED
-    assert item.operational_available_bytes == native
+    assert item.operational_available_bytes == probe
 
 
 def test_exactly_ten_percent_is_corroborated() -> None:
@@ -73,7 +73,7 @@ def test_exactly_ten_percent_is_corroborated() -> None:
     assert disagreement_ratio(native, probe) == 0.10
     item = _evidence(native_available=native, probe_available=probe)
     assert item.status is StorageEvidenceStatus.CORROBORATED
-    assert item.operational_available_bytes == native
+    assert item.operational_available_bytes == probe
 
 
 def test_more_than_ten_percent_uses_probe() -> None:
@@ -104,14 +104,31 @@ def test_probe_higher_than_hard_quota_is_capped() -> None:
     }
 
 
-def test_absurd_statvfs_without_probe_stays_native() -> None:
+def test_trusted_local_below_anomaly_authorizes() -> None:
+    item = _evidence(native_available=180 * GIB)
+    assert item.status is StorageEvidenceStatus.AUTHORITATIVE
+    assert item.operational_available_bytes == 180 * GIB
+
+
+def test_absurd_statvfs_without_probe_does_not_authorize() -> None:
     item = _evidence(
         reported_available=186 * 1024**4,
         native_available=186 * 1024**4,
         native_source="posix-statvfs",
     )
-    assert item.status is StorageEvidenceStatus.AUTHORITATIVE
-    assert item.operational_available_bytes == 186 * 1024**4
+    assert item.status is StorageEvidenceStatus.UNRESOLVED
+    assert not is_resolved(item.authorizing_available_bytes)
+    assert item.declared_available_bytes == 186 * 1024**4
+
+
+def test_specialist_beats_huge_native() -> None:
+    item = _evidence(
+        native_available=180 * 1024**4,
+        probe_available=50 * GIB,
+        native_source="posix-statvfs",
+    )
+    assert item.status is StorageEvidenceStatus.CONTRADICTED
+    assert item.operational_available_bytes == 50 * GIB
 
 
 def test_untrusted_native_does_not_authorize() -> None:
@@ -146,3 +163,102 @@ def test_manual_fills_unresolved_below_hard() -> None:
     assert item.status is StorageEvidenceStatus.BOUNDED
     assert item.operational_available_bytes == 8 * GIB
     assert item.native_source == "administrator"
+
+
+def test_exactly_anomaly_threshold_still_authorizes() -> None:
+    from kultrun.storage.limits import NATIVE_ANOMALY_TRIGGER_BYTES
+
+    item = _evidence(native_available=NATIVE_ANOMALY_TRIGGER_BYTES)
+    assert item.status is StorageEvidenceStatus.AUTHORITATIVE
+
+
+def test_just_above_anomaly_without_probe_is_unresolved() -> None:
+    from kultrun.storage.limits import NATIVE_ANOMALY_TRIGGER_BYTES
+
+    item = _evidence(native_available=NATIVE_ANOMALY_TRIGGER_BYTES + 1)
+    assert item.status is StorageEvidenceStatus.UNRESOLVED
+    assert not is_resolved(item.authorizing_available_bytes)
+
+
+def test_sonar_skipped_when_specialist_settled() -> None:
+    from kultrun.storage.contracts import ProbeReport
+    from kultrun.storage.evidence import needs_empirical_fallback
+
+    reports = (
+        ProbeReport(
+            probe_name="moosefs-quota",
+            technology="moosefs",
+            compatible=True,
+            available=True,
+            executed=True,
+            available_bytes=50 * GIB,
+        ),
+    )
+    evidence = _evidence(
+        native_available=180 * 1024**4,
+        probe_available=50 * GIB,
+        native_trusted=False,
+    )
+    assert (
+        needs_empirical_fallback(
+            family="fuse",
+            credible_family=False,
+            reports=reports,
+            evidence=evidence,
+        )
+        is False
+    )
+
+
+def test_sonar_runs_for_unresolved_anomaly() -> None:
+    from kultrun.storage.contracts import ProbeReport
+    from kultrun.storage.evidence import needs_empirical_fallback
+
+    reports = (
+        ProbeReport(
+            probe_name="linux-quota",
+            technology="linux-quota",
+            compatible=True,
+            available=False,
+            executed=False,
+        ),
+    )
+    evidence = _evidence(native_available=12 * 1024**4)
+    assert (
+        needs_empirical_fallback(
+            family="ext4",
+            credible_family=True,
+            reports=reports,
+            evidence=evidence,
+        )
+        is True
+    )
+
+
+def test_fuse_identify_without_bytes_is_not_settlement() -> None:
+    from kultrun.storage.contracts import ProbeReport
+    from kultrun.storage.evidence import needs_empirical_fallback
+
+    reports = (
+        ProbeReport(
+            probe_name="fuse-identify",
+            technology="fuse",
+            compatible=True,
+            available=True,
+            executed=True,
+            detail="identified fuse",
+        ),
+    )
+    evidence = _evidence(
+        native_available=80 * GIB,
+        native_trusted=False,
+    )
+    assert (
+        needs_empirical_fallback(
+            family="fuse",
+            credible_family=False,
+            reports=reports,
+            evidence=evidence,
+        )
+        is True
+    )

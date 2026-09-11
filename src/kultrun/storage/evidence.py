@@ -7,7 +7,8 @@ never compared against 6 GB currently free. The 10% rule is:
 
 A heuristic disbelief ceiling may be recorded as a belief bound. It never
 becomes authorizing SAFE — Capacity withholds SAFE from operational evidence,
-and unverified FUSE/network pools keep SAFE unresolved.
+and unverified FUSE/network pools keep SAFE unresolved. Specialist remaining
+bytes always beat generic native; the 10% ratio is diagnostic only.
 """
 
 from __future__ import annotations
@@ -24,7 +25,12 @@ from kultrun.storage.contracts import (
     StorageCapacityEvidence,
     StorageEvidenceStatus,
 )
-from kultrun.storage.limits import DISAGREEMENT_RATIO, POLICY_VERSION
+from kultrun.storage.limits import (
+    DISAGREEMENT_RATIO,
+    NATIVE_ANOMALY_TRIGGER_BYTES,
+    NATIVE_CLASS_PROBE_NAMES,
+    POLICY_VERSION,
+)
 
 PRODUCER = Name("storage.sonar")
 
@@ -37,6 +43,22 @@ def disagreement_ratio(native: int, probe: int) -> float:
     if largest == 0:
         return 0.0
     return abs(native - probe) / largest
+
+
+def native_may_authorize(
+    native_trusted: bool, native: Maybe[int], probe: Maybe[int]
+) -> bool:
+    """Whether generic native/declared bytes may become authorizing capacity.
+
+    Specialists that already produced domain bytes settle the pool even when
+    native is huge. A trusted-local figure above the anomaly trigger without
+    those bytes is not an entitlement.
+    """
+    if not native_trusted:
+        return False
+    if is_resolved(probe):
+        return True
+    return not (is_resolved(native) and native > NATIVE_ANOMALY_TRIGGER_BYTES)
 
 
 def cap_by_hard(value: int, hard: Maybe[int]) -> int:
@@ -104,23 +126,20 @@ def arbitrate(
         probe_compatible = True
         probe_executed = True
 
+    trusted = native_may_authorize(native_trusted, native, probe)
+
     if is_resolved(native) and is_resolved(probe):
         ratio = disagreement_ratio(native, probe)
+        selected = cap_by_hard(probe, hard_maximum)
         if ratio <= DISAGREEMENT_RATIO:
-            selected = cap_by_hard(native if native_trusted else probe, hard_maximum)
             status = StorageEvidenceStatus.CORROBORATED
-            reason = (
-                "native available used; probe corroborates within 10%"
-                if native_trusted
-                else "probe available used; native is not an entitlement"
-            )
+            reason = "specialist available used; native corroborates within 10%"
             confidence = Confidence.HIGH
         else:
-            selected = cap_by_hard(probe, hard_maximum)
             status = StorageEvidenceStatus.CONTRADICTED
             reason = (
-                "native available disagreed with probe by more than 10%; "
-                "probe used, hard entitlement still caps"
+                "specialist available used; native disagreed by more than 10%; "
+                "hard entitlement still caps"
             )
             confidence = Confidence.MEDIUM
             if is_resolved(hard_maximum) and probe > hard_maximum:
@@ -136,17 +155,24 @@ def arbitrate(
         confidence = Confidence.MEDIUM
     elif is_resolved(native):
         selected = cap_by_hard(native, hard_maximum)
-        if native_trusted:
+        if trusted:
             status = StorageEvidenceStatus.AUTHORITATIVE
             reason = "native/declared available; no independent probe figure"
             confidence = Confidence.MEDIUM
         else:
             selected = NOT_PROVIDED
             status = StorageEvidenceStatus.UNRESOLVED
-            reason = (
-                "native/declared figure is not an entitlement for this "
-                "storage family; authorizing SAFE stays unresolved"
-            )
+            if native_trusted:
+                reason = (
+                    "native/declared figure is above the anomaly trigger "
+                    f"({NATIVE_ANOMALY_TRIGGER_BYTES} bytes) without specialist "
+                    "domain bytes; authorizing SAFE stays unresolved"
+                )
+            else:
+                reason = (
+                    "native/declared figure is not an entitlement for this "
+                    "storage family; authorizing SAFE stays unresolved"
+                )
             confidence = Confidence.LOW
     elif empirical is not None and is_resolved(empirical.verified_lower_bound_bytes):
         selected = cap_by_hard(empirical.verified_lower_bound_bytes, hard_maximum)
@@ -220,21 +246,24 @@ def needs_empirical_fallback(
     reports: Sequence[object],
     evidence: StorageCapacityEvidence,
 ) -> bool:
-    """Whether the proprietary fallback should run before selection.
+    """Whether Sonar should run before this characterization can authorize.
 
-    Local filesystems whose native size is credible do not require a 25 GiB
-    write merely because a quota tool is absent. Families that require
-    evidence (FUSE, NFS, ...) do, unless a compatible probe already produced
-    an available-bytes figure. Identification without a capacity number is
-    not settlement.
+    Specialist domain bytes settle the pool for this stage; Sonar
+    corroboration of a settled specialist is a later stage. Identification
+    without a capacity number is not settlement. Unresolved native — including
+    a trusted-local figure above the anomaly trigger — does require Sonar.
     """
-    if evidence.status is StorageEvidenceStatus.CONTRADICTED:
-        return True
+    del family
     settled = any(
         getattr(item, "executed", False)
         and is_resolved(getattr(item, "available_bytes", NOT_PROVIDED))
+        and getattr(item, "probe_name", "") not in NATIVE_CLASS_PROBE_NAMES
         for item in reports
     )
+    if settled:
+        return False
     if evidence.status is StorageEvidenceStatus.UNRESOLVED:
-        return not credible_family
-    return bool(family and not credible_family and not settled)
+        return True
+    if evidence.status is StorageEvidenceStatus.CONTRADICTED:
+        return True
+    return not credible_family
