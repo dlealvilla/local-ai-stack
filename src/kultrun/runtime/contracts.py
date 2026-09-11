@@ -629,6 +629,10 @@ class RuntimeInstallation(Contract):
     last_failure_message: Maybe[str] = meaning(
         "short failure detail; not a traceback dump", default=NOT_PROVIDED
     )
+    installed_bytes: Maybe[int] = meaning(
+        "measured persistent bytes of the installed tree; unknown is not zero",
+        default=NOT_PROVIDED,
+    )
 
 
 class RuntimeCapabilityProfileId(EntityId):

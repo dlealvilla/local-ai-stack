@@ -2,21 +2,27 @@
 
 A cheap ``kultrun host`` may refresh the latest observation. It must not
 erase a still-valid authorizing characterization merely because empirical
-probing was not run.
+probing was not run. An expected write on the same pool and quota identity
+must not delete empirical characterization either: remaining is refreshed
+from platform-managed usage.
 """
 
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
+from dataclasses import replace
 
 from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.persistence import Store
+from kultrun.kernel.unresolved import Maybe, is_resolved
 from kultrun.storage.contracts import (
     AdministratorCapacityBound,
     EmpiricalProbeEvidence,
     StorageCapacityEvidence,
 )
+from kultrun.storage.ports import ManagedUsageSource
+from kultrun.storage.remaining import remaining_after_usage, usage_or_unresolved
 from kultrun.storage.topology import pools_from_host
 
 
@@ -56,8 +62,17 @@ def same_storage_identity(
 class StorageEvidenceIndex:
     """Latest observation, latest authorizing characterization, empirical runs."""
 
-    def __init__(self, store: Store) -> None:
+    def __init__(
+        self,
+        store: Store,
+        usage: ManagedUsageSource | None = None,
+    ) -> None:
         self._store = store
+        self._usage = usage
+
+    def bind_usage(self, usage: ManagedUsageSource | None) -> None:
+        """Composition root injects managed bytes. Storage never imports model."""
+        self._usage = usage
 
     def put(self, evidence: StorageCapacityEvidence) -> None:
         """Write the authorizing slot. Used after contradiction or expensive runs."""
@@ -82,13 +97,31 @@ class StorageEvidenceIndex:
         items: Mapping[str, StorageCapacityEvidence],
         empirical: Mapping[str, EmpiricalProbeEvidence] | None = None,
     ) -> None:
-        """Mutation-path persist. May replace authorizing, including UNRESOLVED."""
+        """Persist a new characterization. Does not clobber a still-valid one.
+
+        Unresolved FUSE observations and skip-Sonar repeats keep the stored
+        authorizing record and its managed-usage snapshot. A new empirical
+        run, or a first authorizing figure, replaces the slot.
+        """
+        probes = empirical or {}
         for item in items.values():
             self._store.put(observation_key(item.host_id, item.mount_point), item)
-            self.put(item)
-        if empirical:
-            for probe in empirical.values():
-                self.put_empirical(probe)
+            held = self._store.get(
+                StorageCapacityEvidence, evidence_key(item.host_id, item.mount_point)
+            )
+            if self._keep_characterization(held, item, item.mount_point in probes):
+                continue
+            self.put(self._snapshot_accounted(item))
+        for probe in probes.values():
+            self.put_empirical(probe)
+
+    def authorizing_for(
+        self, host_id: HostId, mount_point: str
+    ) -> StorageCapacityEvidence | None:
+        """Raw stored authorizing record. Remaining is applied in ``for_host``."""
+        return self._store.get(
+            StorageCapacityEvidence, evidence_key(host_id, mount_point)
+        )
 
     def put_empirical(self, evidence: EmpiricalProbeEvidence) -> None:
         self._store.put(empirical_key(evidence.host_id, evidence.mount_point), evidence)
@@ -126,18 +159,27 @@ class StorageEvidenceIndex:
         return found
 
     def for_host(self, host: HostCapabilities) -> dict[str, StorageCapacityEvidence]:
-        """Planning view: authorizing when identity still matches, else observation."""
+        """Planning view: authorizing when identity still matches, else observation.
+
+        Remaining is derived from characterization minus managed growth. The
+        stored ``sce_`` record keeps the characterization snapshot.
+        """
         observations, authorizing = self._split(host.host_id)
         if not observations:
-            return authorizing
-        merged: dict[str, StorageCapacityEvidence] = {}
-        for mount, observation in observations.items():
-            held = authorizing.get(mount)
-            if held is not None and same_storage_identity(held, observation):
-                merged[mount] = held
-            else:
-                merged[mount] = observation
-        return merged
+            merged = authorizing
+        else:
+            merged = {}
+            for mount, observation in observations.items():
+                held = authorizing.get(mount)
+                if held is not None and same_storage_identity(held, observation):
+                    merged[mount] = held
+                else:
+                    merged[mount] = observation
+        usage = self._usage_map(host.host_id)
+        return {
+            mount: remaining_after_usage(item, usage_or_unresolved(usage, mount))
+            for mount, item in merged.items()
+        }
 
     def empirical_for_host(
         self, host: HostCapabilities
@@ -153,9 +195,9 @@ class StorageEvidenceIndex:
         host_id: HostId | None = None,
         mount_point: str | None = None,
     ) -> None:
-        """Drop authorizing + empirical so the next mutation must rediscover.
+        """Drop authorizing + empirical when identity or a harder bound is gone.
 
-        Observations remain. A later cheap GET still cannot invent capacity.
+        Expected writes must not call this. Observations remain.
         """
         seen: set[tuple[str, str]] = set()
         for item in self._store.records(StorageCapacityEvidence):
@@ -168,6 +210,38 @@ class StorageEvidenceIndex:
                 continue
             seen.add(pair)
             self._invalidate_authorizing(item.host_id, item.mount_point)
+
+    def _keep_characterization(
+        self,
+        held: StorageCapacityEvidence | None,
+        incoming: StorageCapacityEvidence,
+        new_empirical: bool,
+    ) -> bool:
+        if held is None or new_empirical:
+            return False
+        if not same_storage_identity(held, incoming):
+            return False
+        if not is_resolved(held.authorizing_available_bytes):
+            return False
+        if not is_resolved(incoming.authorizing_available_bytes):
+            return True
+        return incoming.authorizing_available_bytes == held.authorizing_available_bytes
+
+    def _snapshot_accounted(
+        self, evidence: StorageCapacityEvidence
+    ) -> StorageCapacityEvidence:
+        if is_resolved(evidence.accounted_managed_bytes) or self._usage is None:
+            return evidence
+        usage = self._usage_map(evidence.host_id)
+        managed = usage_or_unresolved(usage, evidence.mount_point)
+        if not is_resolved(managed):
+            return evidence
+        return replace(evidence, accounted_managed_bytes=managed)
+
+    def _usage_map(self, host_id: HostId) -> dict[str, Maybe[int]]:
+        if self._usage is None:
+            return {}
+        return dict(self._usage.bytes_by_mount(host_id))
 
     def _invalidate_authorizing(self, host_id: HostId, mount_point: str) -> None:
         self._store.delete(StorageCapacityEvidence, evidence_key(host_id, mount_point))

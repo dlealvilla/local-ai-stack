@@ -13,11 +13,12 @@ mutation out from behind a capacity read.
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from kultrun.host.contracts import HostId
 from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
 from kultrun.storage.contracts import ProbeOutcome, StorageFailureCode
@@ -155,6 +156,20 @@ class EmpiricalWriteResult:
     failure_code: StorageFailureCode | None = None
     failure_errno: int | None = None
     detail: str | None = None
+
+
+@runtime_checkable
+class ManagedUsageSource(Protocol):
+    """Platform-managed bytes per mount. No model or runtime identity.
+
+    Storage subtracts what this reports from a still-valid characterization
+    so expected Kultrun writes do not erase Sonar or specialist bounds.
+    Unknown must never be summed as zero.
+    """
+
+    def bytes_by_mount(self, host_id: HostId) -> Mapping[str, Maybe[int]]:
+        """Known managed bytes keyed by mount point."""
+        ...
 
 
 @runtime_checkable

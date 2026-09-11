@@ -460,6 +460,12 @@ class StorageCapacityEvidence(Contract):
         "manual bound; never overrides a smaller hard or empirical failure",
         default=NOT_PROVIDED,
     )
+    accounted_managed_bytes: Maybe[int] = meaning(
+        "platform-managed bytes on this pool when authorizing remaining "
+        "was last characterized; used to refresh remaining without "
+        "discarding the characterization",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="storage.administrator_bound", version=1)

@@ -9,7 +9,7 @@ seam once, then consume the new CURRENT plan. It does not launch.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from kultrun.capacity.envelope import CapacityService
 from kultrun.host.contracts import HostCapabilities
@@ -169,7 +169,9 @@ class DeploymentPreparationService:
         overview = self._overview(host)
         plan = require_current_plan(overview)
         entry = catalog_entry_for_plan(self._models, plan)
-        existing = find_plan_artifact(self._inventory, plan)
+        existing = find_plan_artifact(
+            self._inventory, _plan_for_artifact_match(plan, entry)
+        )
         if existing is not None:
             receipt = _reused_receipt(existing, self._clock)
             return PlanAcquisitionResult(
@@ -365,7 +367,11 @@ class DeploymentPreparationService:
                     model_id=plan.model_id.value,
                 )
             return artifact
-        found = find_plan_artifact(self._inventory, plan, require_revision=False)
+        found = find_plan_artifact(
+            self._inventory,
+            _plan_for_artifact_match(plan, catalog_entry_for_plan(self._models, plan)),
+            require_revision=False,
+        )
         if found is None:
             raise PreconditionFailedError(
                 "no stored artifact matches the current deployment plan",
@@ -479,7 +485,13 @@ def find_plan_artifact(
     *,
     require_revision: bool = True,
 ) -> ModelArtifact | None:
-    """Exact stored match for plan identity. Wrong revision is not a match."""
+    """Exact stored match for plan identity. Wrong revision is not a match.
+
+    Acquire keeps ``require_revision=True`` so an unresolved plan revision is
+    not a wildcard over every stored revision of the model. Admit may pass
+    ``require_revision=False``. A catalog revision should be filled in with
+    ``_plan_for_artifact_match`` before calling this.
+    """
     if require_revision and not is_resolved(plan.source_revision):
         return None
     for artifact in inventory.artifacts():
@@ -488,6 +500,18 @@ def find_plan_artifact(
         if artifact_matches_plan(artifact, plan):
             return artifact
     return None
+
+
+def _plan_for_artifact_match(
+    plan: DeploymentPlan, entry: ModelCatalogEntry
+) -> DeploymentPlan:
+    """Fill an unresolved plan revision from the catalog for identity matching."""
+    if is_resolved(plan.source_revision):
+        return plan
+    revision = entry.metadata.source_revision
+    if not is_resolved(revision):
+        return plan
+    return replace(plan, source_revision=revision)
 
 
 def _reused_receipt(artifact: ModelArtifact, clock: Clock) -> AcquisitionReceipt:

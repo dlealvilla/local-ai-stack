@@ -76,7 +76,8 @@ class StorageAwareAcquisition:
         self._index.record_expensive(
             characterized.evidence, characterized.empirical_evidence
         )
-        envelope = self._capacity.compute(host, sanity, characterized.evidence)
+        planning = self._index.for_host(host) or characterized.evidence
+        envelope = self._capacity.compute(host, sanity, planning)
         mount = destination_mount or _model_mount(host, self._state_root)
         named, safe = safe_storage(envelope, mount)
         if named is None or not is_resolved(safe) or not isinstance(safe, int):
@@ -130,7 +131,6 @@ class StorageAwareAcquisition:
         finally:
             if admit.reservation is not None:
                 self._resources.release(admit.reservation.reservation_id)
-            self._index.invalidate(host.host_id)
             rediscovered = self._characterization.characterize(
                 host,
                 run_cleanup=True,

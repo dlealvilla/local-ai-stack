@@ -9,12 +9,20 @@ import pytest
 
 from kultrun.adapters.host import fixtures
 from kultrun.api.contracts import Method
+from kultrun.kernel.ids import Name
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.main import main
 from kultrun.model.acquisition import request_from_entry
-from kultrun.model.contracts import ArtifactId, MemoryPlacement
+from kultrun.model.contracts import (
+    ArtifactId,
+    ArtifactState,
+    MemoryPlacement,
+    ModelArtifact,
+    ModelId,
+)
 from kultrun.planning.contracts import DeploymentPlan
 from kultrun.platform.admission import request_from_plan
+from kultrun.platform.deployment_prepare import find_plan_artifact
 from kultrun.resource.contracts import RequestId, ResourceRequest, WorkloadType
 from kultrun.storage.topology import mount_for_path
 from tests.architecture import BANNED_IMPLEMENTATION_FIELDS, _imports_named, scan
@@ -22,6 +30,57 @@ from tests.test_runtime_deployment_plan import _call, _product, _realize
 
 SOURCE = Path(__file__).resolve().parent.parent / "src"
 GIB = 1024**3
+
+
+class _Inventory:
+    def __init__(self, items: tuple[ModelArtifact, ...]) -> None:
+        self._items = items
+
+    def artifacts(self, *, include_deleted: bool = False) -> tuple[ModelArtifact, ...]:
+        del include_deleted
+        return self._items
+
+
+def test_unresolved_plan_revision_reuses_stored_artifact() -> None:
+    model_id = ModelId.generate()
+    stored = ModelArtifact(
+        artifact_id=ArtifactId.generate(),
+        model_id=model_id,
+        revision="abc123",
+        source_ref="org/probe",
+        quantization="awq",
+        state=ArtifactState.STORED,
+    )
+    plan = DeploymentPlan(
+        model_id=model_id,
+        logical_name=Name("probe"),
+        source_ref="org/probe",
+        quantization="awq",
+        runtime="vllm",
+        executor_kind="native-process",
+        placement=MemoryPlacement.DISCRETE_GPU,
+        expected_ram_bytes=GIB,
+        expected_vram_bytes=8 * GIB,
+        expected_unified_bytes=NOT_PROVIDED,
+        expected_storage_bytes=GIB,
+        expected_utilization=0.4,
+        estimator_provider="test",
+        policy_version="test",
+        rationale=("fixture",),
+        source_revision=NOT_PROVIDED,
+    )
+    found = find_plan_artifact(_Inventory((stored,)), plan, require_revision=False)
+    assert found is not None
+    assert found.artifact_id == stored.artifact_id
+    assert find_plan_artifact(_Inventory((stored,)), plan) is None
+    wrong = replace(plan, source_revision="other-revision")
+    assert find_plan_artifact(_Inventory((stored,)), wrong) is None
+    matching = replace(plan, source_revision="abc123")
+    assert find_plan_artifact(_Inventory((stored,)), matching) is not None
+    remote = replace(stored, state=ArtifactState.REMOTE)
+    assert (
+        find_plan_artifact(_Inventory((remote,)), plan, require_revision=False) is None
+    )
 
 
 def _current_plan(platform):

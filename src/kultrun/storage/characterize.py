@@ -30,7 +30,7 @@ from kultrun.storage.contracts import (
     StoragePool,
 )
 from kultrun.storage.evidence import arbitrate, needs_empirical_fallback
-from kultrun.storage.index import StorageEvidenceIndex
+from kultrun.storage.index import StorageEvidenceIndex, same_storage_identity
 from kultrun.storage.limits import (
     DEFAULT_BELIEF_BOUND_BYTES,
     LOW_SPACE_THRESHOLD_BYTES,
@@ -195,6 +195,12 @@ class StorageCharacterizationService:
         )
         admin = administrator_bounds.get(pool.mount_point, NOT_PROVIDED)
         bound = admin if isinstance(admin, int) else NOT_PROVIDED
+        if run_empirical:
+            stored = self._reuse_empirical(
+                host, pool, first, native_trusted=credible
+            )
+            if stored is not None:
+                return stored
         if not run_empirical or self._empirical is None:
             return (
                 first
@@ -286,6 +292,48 @@ class StorageCharacterizationService:
             administrator_bound=bound,
             empirical=usable,
             native_trusted=credible,
+        )
+
+    def _reuse_empirical(
+        self,
+        host: HostCapabilities,
+        pool: StoragePool,
+        cheap: StorageCapacityEvidence,
+        *,
+        native_trusted: bool,
+    ) -> StorageCapacityEvidence | None:
+        """Reuse identity-matched Sonar without rewriting tens of GiB."""
+        if self._index is None:
+            return None
+        stored = self._index.empirical_for_host(host).get(pool.mount_point)
+        held = self._index.authorizing_for(host.host_id, pool.mount_point)
+        if stored is None or not _identity_matches(stored, pool):
+            return None
+        if not _empirical_may_authorize(stored):
+            return None
+        if held is not None:
+            if not same_storage_identity(held, cheap):
+                return None
+            if is_resolved(held.authorizing_available_bytes):
+                return held
+        return arbitrate(
+            host_id=host.host_id,
+            mount_point=pool.mount_point,
+            quota_identity=pool.quota_identity,
+            pool_fingerprint=pool.fingerprint,
+            clock=self._clock,
+            reported_available=cheap.reported_available_bytes,
+            native_available=cheap.declared_available_bytes,
+            probe_available=cheap.probe_available_bytes,
+            hard_maximum=cheap.hard_maximum_bytes,
+            belief_bound=cheap.belief_bound_bytes,
+            native_source=cheap.native_source,
+            probe_name=cheap.probe_name,
+            probe_compatible=cheap.probe_available,
+            probe_executed=cheap.probe_executed,
+            administrator_bound=cheap.administrator_bound_bytes,
+            empirical=stored,
+            native_trusted=native_trusted,
         )
 
 

@@ -137,6 +137,7 @@ from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
 from kultrun.platform.foundation_realize import FoundationRealizeService
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
+from kultrun.platform.managed_usage import PlatformManagedUsage
 from kultrun.platform.model_selection import (
     ModelSelectionLock,
     ModelSelectionOverview,
@@ -782,6 +783,9 @@ def build(
         ProvisioningLock(state_root),
     )
     provisioning.reconcile()
+    storage_index.bind_usage(
+        PlatformManagedUsage(store, inventory, state_root)
+    )
     runtime_checker = resolve_runtime_verifier(
         runtime_verifier, fixture_host=shape is not None
     )

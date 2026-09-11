@@ -7031,6 +7031,13 @@
         "optional": false,
         "type": "str"
       },
+      "installed_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "measured persistent bytes of the installed tree; unknown is not zero",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "installer": {
         "may_be_unresolved": false,
         "meaning": "installer name, e.g. pip",
@@ -8509,6 +8516,13 @@
   },
   "storage.capacity_evidence@1": {
     "fields": {
+      "accounted_managed_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "platform-managed bytes on this pool when authorizing remaining was last characterized; used to refresh remaining without discarding the characterization",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "administrator_bound_bytes": {
         "may_be_unresolved": true,
         "meaning": "manual bound; never overrides a smaller hard or empirical failure",

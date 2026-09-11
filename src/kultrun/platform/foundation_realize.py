@@ -205,6 +205,9 @@ class FoundationRealizeService:
                 self._index.record_expensive(
                     dict(storage_evidence), characterized.empirical_evidence
                 )
+                planning = self._index.for_host(host)
+                if planning:
+                    storage_evidence = planning
         overview = self._foundation.view(
             host,
             executors,
@@ -295,8 +298,6 @@ class FoundationRealizeService:
                     for item in storage_evidence.values():
                         self._index.put(contradict(item, failure))
                 return
-        if self._index is not None:
-            self._index.invalidate(host.host_id)
         rediscovered = self._characterization.characterize(
             host,
             run_cleanup=True,

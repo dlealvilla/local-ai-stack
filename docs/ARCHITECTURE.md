@@ -704,12 +704,12 @@ this module, not its owner.
 | **Must not** | Import `model`, know a model identity, let raw filesystem capacity authorize a mutation, infer probe or cleanup success from a free-space delta, or treat an interrupted probe as a success. |
 | **Created** | 0.2 contract · 1.2 reported-only view · **Deepened** 2.1–2.4 |
 
-The `ManagedUsageSource` port is the correction for the previous
-attempt's integration crash. Storage needs to know how many bytes the
-platform's own artifacts occupy; it does not need to know that they are
-models. A record with a null management section becomes the adapter's
-problem to represent honestly as unresolved, and storage fails closed
-instead of raising.
+Expected Kultrun writes on an unchanged pool/quota identity refresh
+remaining via ``ManagedUsageSource``; they do not delete ``see_`` /
+``sce_``. Identity change, EDQUOT/ENOSPC contradiction, or a harder
+bound still invalidate. A record with a null management section becomes
+the adapter's problem to represent honestly as unresolved, and storage
+fails closed instead of raising.
 
 ### `capacity`
 

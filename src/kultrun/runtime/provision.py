@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
@@ -22,7 +23,7 @@ from kultrun.kernel.errors import (
     ValidationError,
 )
 from kultrun.kernel.persistence import Store
-from kultrun.kernel.unresolved import NOT_PROVIDED
+from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.runtime.contracts import (
     CompatibilityClass,
     InstallationStatus,
@@ -166,6 +167,11 @@ class ProvisioningService:
                     existing.status is InstallationStatus.INSTALLED
                     and existing.plan_id == plan.plan_id
                 ):
+                    if not is_resolved(existing.installed_bytes):
+                        measured = _directory_bytes(self._final_dir(plan))
+                        if is_resolved(measured):
+                            existing = replace(existing, installed_bytes=measured)
+                            self._store.put(existing.installation_id.value, existing)
                     return existing
                 if existing.status is InstallationStatus.INSTALLING:
                     raise ConflictError(
@@ -251,6 +257,7 @@ class ProvisioningService:
                 resolved_runtime_version=(
                     outcome.resolved_runtime_version or NOT_PROVIDED
                 ),
+                installed_bytes=_directory_bytes(final),
                 completed_at=self._clock.now(),
                 last_failure_code=NOT_PROVIDED,
                 last_failure_message=NOT_PROVIDED,
@@ -433,6 +440,20 @@ class ProvisioningService:
                 path=str(path),
             ) from error
         shutil.rmtree(path, ignore_errors=True)
+
+
+def _directory_bytes(path: Path) -> int:
+    """Sum regular file sizes. Missing trees are zero, not unknown."""
+    total = 0
+    if not path.exists():
+        return 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            try:
+                total += (Path(root) / name).stat().st_size
+            except OSError:
+                continue
+    return total
 
 
 def _relocated_after_promote(
