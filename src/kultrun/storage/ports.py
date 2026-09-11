@@ -169,11 +169,12 @@ class EmpiricalWritePort(Protocol):
         *,
         cancelled: Callable[[], bool] | None = None,
     ) -> EmpiricalWriteResult:
-        """Write `size` real bytes to `path`, flushing periodically.
+        """Grow `path` to `size` real bytes, flushing periodically.
 
-        Must not allocate a single in-memory buffer of `size`. Must stop
-        on cancellation, deadline, EDQUOT, ENOSPC, and permission errors
-        without raising those as surprises.
+        If the file already exists, only the additional bytes are written.
+        Must not truncate, sparse-extend, or allocate a single in-memory
+        buffer of `size`. Must stop on cancellation, deadline, EDQUOT,
+        ENOSPC, and permission errors without raising those as surprises.
         """
         ...
 

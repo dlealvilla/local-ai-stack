@@ -214,17 +214,49 @@ class _Quota:
 
 
 class _RecordingSonar:
-    def __init__(self) -> None:
+    def __init__(self, evidence: EmpiricalProbeEvidence) -> None:
         self.calls = 0
+        self._evidence = evidence
 
     def probe(self, *args, **kwargs):
         del args, kwargs
         self.calls += 1
-        raise AssertionError("Sonar must not run when a specialist settled")
+        return self._evidence
+
+
+def _emp(
+    *,
+    lower: int | object = NOT_PROVIDED,
+    fingerprint: object = NOT_PROVIDED,
+    interrupted: bool = False,
+    ceiling: bool = False,
+) -> EmpiricalProbeEvidence:
+    resolved = isinstance(lower, int)
+    return EmpiricalProbeEvidence(
+        host_id=HostId.generate(),
+        mount_point="/workspace",
+        target_path="/workspace",
+        max_probe_bytes=lower if resolved else 1,
+        bytes_physically_written=0,
+        search_granularity_bytes=1,
+        probe_ceiling_reached=ceiling,
+        confidence=Confidence.MEDIUM,
+        provenance=Provenance(
+            producer=Name("test"),
+            producer_version=NOT_PROVIDED,
+            observed_at=INSTANT,
+            policy_version=POLICY_VERSION,
+        ),
+        cleanup_success=True,
+        verified_lower_bound_bytes=lower,
+        interrupted=interrupted,
+        pool_fingerprint=fingerprint,
+        run_state="complete",
+    )
 
 
 def test_characterize_specialist_wins_over_huge_native() -> None:
-    sonar = _RecordingSonar()
+    sonar = _RecordingSonar(_emp(lower=48 * GIB))
     service = StorageCharacterizationService(
         FixedClock(INSTANT),
         ProbeRegistry((_Quota(),)),
@@ -245,8 +277,61 @@ def test_characterize_specialist_wins_over_huge_native() -> None:
     item = result.evidence["/workspace"]
     assert item.operational_available_bytes == 50 * GIB
     assert item.status is StorageEvidenceStatus.CONTRADICTED
+    assert sonar.calls == 1
+    assert "/workspace" in result.empirical_ran
+    assert "sonar confirmed" in item.selected_reason
+
+
+def test_characterize_sonar_replaces_disagreed_specialist() -> None:
+    sonar = _RecordingSonar(_emp(lower=32 * GIB))
+    service = StorageCharacterizationService(
+        FixedClock(INSTANT),
+        ProbeRegistry((_Quota(),)),
+        empirical=sonar,
+        use_live_native=False,
+    )
+    subject = host(
+        mounts=(mount("/workspace", "ext4", free=180 * TIB, total=180 * TIB),)
+    )
+    result = service.characterize(subject, run_cleanup=False, run_empirical=True)
+    item = result.evidence["/workspace"]
+    assert item.operational_available_bytes == 32 * GIB
+    assert item.probe_name == "empirical-fallback"
+    assert sonar.calls == 1
+
+
+def test_characterize_keeps_specialist_when_sonar_cannot() -> None:
+    sonar = _RecordingSonar(_emp(interrupted=True))
+    service = StorageCharacterizationService(
+        FixedClock(INSTANT),
+        ProbeRegistry((_Quota(),)),
+        empirical=sonar,
+        use_live_native=False,
+    )
+    subject = host(
+        mounts=(mount("/workspace", "ext4", free=180 * TIB, total=180 * TIB),)
+    )
+    result = service.characterize(subject, run_cleanup=False, run_empirical=True)
+    item = result.evidence["/workspace"]
+    assert item.operational_available_bytes == 50 * GIB
+    assert sonar.calls == 1
+
+
+def test_cheap_characterize_does_not_sonar() -> None:
+    sonar = _RecordingSonar(_emp(lower=32 * GIB))
+    service = StorageCharacterizationService(
+        FixedClock(INSTANT),
+        ProbeRegistry((_Quota(),)),
+        empirical=sonar,
+        use_live_native=False,
+    )
+    subject = host(
+        mounts=(mount("/workspace", "ext4", free=180 * GIB, total=180 * GIB),)
+    )
+    result = service.characterize(subject, run_cleanup=False, run_empirical=False)
     assert sonar.calls == 0
     assert result.empirical_ran == ()
+    assert result.evidence["/workspace"].operational_available_bytes == 50 * GIB
 
 
 def test_characterize_fuse_without_bytes_would_sonar() -> None:
@@ -268,24 +353,7 @@ def test_characterize_fuse_without_bytes_would_sonar() -> None:
     class _Sonar:
         def probe(self, *args, **kwargs):
             del args, kwargs
-            return EmpiricalProbeEvidence(
-                host_id=HostId.generate(),
-                mount_point="/workspace",
-                target_path="/workspace",
-                max_probe_bytes=1,
-                bytes_physically_written=0,
-                search_granularity_bytes=1,
-                probe_ceiling_reached=False,
-                confidence=Confidence.MEDIUM,
-                provenance=Provenance(
-                    producer=Name("test"),
-                    producer_version=NOT_PROVIDED,
-                    observed_at=INSTANT,
-                    policy_version=POLICY_VERSION,
-                ),
-                cleanup_success=True,
-                verified_lower_bound_bytes=32 * GIB,
-            )
+            return _emp(lower=32 * GIB)
 
     service = StorageCharacterizationService(
         FixedClock(INSTANT),
@@ -299,3 +367,38 @@ def test_characterize_fuse_without_bytes_would_sonar() -> None:
     result = service.characterize(subject, run_cleanup=False, run_empirical=True)
     assert "/workspace" in result.empirical_ran
     assert result.evidence["/workspace"].operational_available_bytes == 32 * GIB
+
+
+def test_expensive_trusted_ext4_still_sonars() -> None:
+    sonar = _RecordingSonar(_emp(lower=128 * GIB))
+    service = StorageCharacterizationService(
+        FixedClock(INSTANT),
+        ProbeRegistry(()),
+        empirical=sonar,
+        use_live_native=False,
+    )
+    subject = host(
+        mounts=(mount("/workspace", "ext4", free=180 * GIB, total=180 * GIB),)
+    )
+    result = service.characterize(subject, run_cleanup=False, run_empirical=True)
+    assert sonar.calls == 1
+    assert result.evidence["/workspace"].operational_available_bytes == 128 * GIB
+    assert result.evidence["/workspace"].probe_name == "empirical-fallback"
+
+
+def test_identity_change_does_not_promote_old_sonar() -> None:
+    sonar = _RecordingSonar(_emp(lower=32 * GIB, fingerprint="old-pool"))
+    service = StorageCharacterizationService(
+        FixedClock(INSTANT),
+        ProbeRegistry(()),
+        empirical=sonar,
+        use_live_native=False,
+    )
+    subject = host(
+        mounts=(mount("/workspace", "fuse", free=80 * GIB, total=100 * GIB),)
+    )
+    result = service.characterize(subject, run_cleanup=False, run_empirical=True)
+    item = result.evidence["/workspace"]
+    assert sonar.calls == 1
+    assert not is_resolved(item.authorizing_available_bytes)
+    assert item.status is StorageEvidenceStatus.UNRESOLVED

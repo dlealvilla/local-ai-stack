@@ -2,7 +2,8 @@
 
 **Milestone 1 — Walking skeleton (storage correction, not 1.6L close).**
 
-Status: **implementation on `stage/1.6L2-storage-authorizing-persist`.**
+Status: **frozen on `stage/1.6L2-storage-authorizing-persist` at
+`da9b75e703ac15edf745c29fcdefb98178637ceb`.**
 Does not close Stage 1.6L. Does not start 1.6M. Does not add runtimes.
 
 Predecessor: 1.6L2 authorizing persist

@@ -46,6 +46,7 @@ LEGACY_DIRECTORY_NAMES = frozenset(
         "telemetry",
         "logs",
         ".kultrun-probe",
+        ".kultrun-sonar",
     }
 )
 

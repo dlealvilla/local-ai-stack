@@ -8492,6 +8492,27 @@
   },
   "storage.empirical_evidence@1": {
     "fields": {
+      "additional_bytes_last": {
+        "may_be_unresolved": false,
+        "meaning": "additional bytes written by the last grow",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "algorithm_version": {
+        "may_be_unresolved": true,
+        "meaning": "Sonar tree identity, e.g. sonar-v2-tree",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "attempted_tier_units": {
+        "may_be_unresolved": false,
+        "meaning": "logical tree targets requested, in order",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[int, ...]"
+      },
       "bytes_physically_written": {
         "may_be_unresolved": false,
         "meaning": "bytes actually written before cleanup",
@@ -8505,6 +8526,20 @@
         "nullable": false,
         "optional": false,
         "type": "bool"
+      },
+      "committed_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "largest completed checkpoint in bytes",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "completed_tier_units": {
+        "may_be_unresolved": false,
+        "meaning": "official fsynced checkpoints in abstract units",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[int, ...]"
       },
       "confidence": {
         "may_be_unresolved": false,
@@ -8569,6 +8604,20 @@
         "optional": true,
         "type": "int | Unresolved"
       },
+      "payload_version": {
+        "may_be_unresolved": true,
+        "meaning": "deterministic payload generator identity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "pool_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "pool identity at probe start; must still match at finalize",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "probe_ceiling_reached": {
         "may_be_unresolved": false,
         "meaning": "true when the ceiling was hit without a capacity failure",
@@ -8576,12 +8625,47 @@
         "optional": false,
         "type": "bool"
       },
+      "probe_id": {
+        "may_be_unresolved": true,
+        "meaning": "identity of this empirical run",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "provenance": {
         "may_be_unresolved": false,
         "meaning": "probe identity and time",
         "nullable": false,
         "optional": false,
         "type": "Provenance"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain this probe consumed",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "reserve_established": {
+        "may_be_unresolved": false,
+        "meaning": "true when the owned emergency reserve was fully written",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "reserve_released": {
+        "may_be_unresolved": false,
+        "meaning": "true when the reserve file was removed or never held",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "run_state": {
+        "may_be_unresolved": true,
+        "meaning": "running, complete, interrupted_recovered, cleanup_failed, very_low",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "search_granularity_bytes": {
         "may_be_unresolved": false,

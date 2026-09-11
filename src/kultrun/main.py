@@ -677,6 +677,7 @@ def build(
             RealWritePort(),
             resolved_clock,
             ownership,
+            on_progress=storage_index.put_empirical,
         )
     )
     characterization = StorageCharacterizationService(

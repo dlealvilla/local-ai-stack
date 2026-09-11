@@ -723,7 +723,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6L3 P0 specialist probes                   ← L1 fixtures; specialist bytes win
   ↓
-1.6L4 Storage Sonar V2                      ← not started
+1.6L4 Storage Sonar V2                      ← L1 local; physical L2 later
   ↓
 1.6L5 Manual capacity last-resort           ← not started
   ↓
@@ -1431,16 +1431,25 @@ Does not change Sonar sizes. Does not add runtimes.
 
 ### Stage 1.6L4 — Storage Sonar V2
 
-Not started. Replace the 25 GiB doubling search with the 64–256 GiB
-HOST-mode tree, incremental writes, owned 1 GiB reserve.
+Replace the 25 GiB doubling search with the 64–256 GiB HOST-mode tree,
+incremental incompressible writes, and an owned 1 GiB reserve. On the
+expensive characterization path Sonar always runs: if it confirms a
+specialist within 10%, the specialist figure is operational; if they
+disagree, the Sonar lower bound is operational; if no specialist could
+run, Sonar supplies capacity; if Sonar cannot characterize, a specialist
+figure is kept. Cheap GET / `kultrun host` never Sonars.
 
 **Output:** HOST-mode authorizing tiers · **Gate:** L1 locally; L2 on
 FUSE when rented.
 
 ### Stage 1.6L5 — Manual capacity last-resort
 
-Not started. Administrator capacity as a state plus operator command;
-20% × 5 replan in manual mode only.
+Not started. Administrator capacity as last-resort **evidence** only
+when native, specialist and Sonar cannot establish capacity. Future
+G-REPL (`100 → 80 → 64 → 51.2 → 40.96 → 32.768`, original plus five
+~20% footprint reductions) applies after any valid capacity source.
+Not implemented here. Never `required_bytes *= 0.8`. After five
+failures: remediation, not a larger manual number.
 
 **Output:** last-resort operator path · **Gate:** L1
 

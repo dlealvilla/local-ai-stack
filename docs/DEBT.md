@@ -1892,7 +1892,7 @@ Retire when:  a later stage owns warehouse/cache policy.
 Status:       OPEN
 
 ### K-110 — bounded 10% storage replan loop
-Label:        CLOSED
+Label:        CLOSED (superseded for future work)
 Owner stage:  1.6L
 Subsystem:    platform / planning / storage
 Authorizes:   NO
@@ -1910,24 +1910,33 @@ Why now:      Helper-only 30% policy could not recompute the control
 To make real: Physical T3 on constrained storage after a frozen
               integration wheel. Not this task.
 Retire when:  local tests prove the loop; physical proof is later.
-Status:       CLOSED
+Status:       CLOSED as implemented. **Superseded** by the recorded
+              G-REPL policy (`100 → 80 → 64 → 51.2 → 40.96 → 32.768`,
+              original plus five ~20% footprint reductions after any
+              valid capacity source). Do not change this code in 1.6L4.
+              Implementation of G-REPL is 1.6L5 remainder / K-111.
 Evidence:     `tests/test_storage_reduction.py`,
               `tests/test_storage_replan.py`; composition in
               `src/kultrun/platform/storage_replan.py`.
 
-### K-111 — Storage Capacity V2 remainder (Sonar tree, manual)
+### K-111 — Storage Capacity V2 remainder (manual, G-REPL)
 Label:        DEFERRED
-Owner stage:  1.6L4–1.6L5
-Subsystem:    storage
+Owner stage:  1.6L5
+Subsystem:    storage / planning
 Authorizes:   NO
-What:         1.6L2 persist and 1.6L3 P0 specialist parsers exist.
-              Remaining: Sonar V2 tree, owned reserve, manual capacity
-              last-resort and post-Sonar replan.
-Why now:      Specialist authority unblocks truthful FUSE numbers
-              once a quota tool exists; Sonar is the no-tool path.
-To make real: Stages 1.6L4–1.6L5 in
+What:         1.6L2 persist, 1.6L3 P0 specialist parsers, and 1.6L4
+              Sonar V2 exist locally. Remaining: administrator capacity
+              as last-resort evidence; G-REPL 20%×5 replacing K-110
+              execution; physical Sonar L2 (K-111 includes duration
+              on FUSE; tests must not write production GiB); >256 GiB
+              characterization.
+Why now:      Specialist + Sonar unblock truthful FUSE numbers.
+              Manual is only when capacity itself is unresolved.
+To make real: Stage 1.6L5 in
               `docs/investigations/STORAGE-RUNTIME-BREADTH-SEQUENCE.md`.
-Retire when:  those stages close at their stated gates.
+              Do not implement `required_bytes *= 0.8`. Do not ask for
+              a larger manual number after a failed fit.
+Retire when:  1.6L5 closes at its stated gate.
 Status:       OPEN
 
 ## Runtime-first migration ledger (after 1.6K)

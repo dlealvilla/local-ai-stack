@@ -33,9 +33,15 @@ NATIVE_CLASS_PROBE_NAMES: Final = frozenset(
     }
 )
 
+#: One Sonar V2 unit in production. Tests inject a tiny unit_bytes.
+SONAR_UNIT_BYTES: Final = _GIB
+
+#: HOST-mode tree identity. Not a schema_version.
+SONAR_ALGORITHM_VERSION: Final = "sonar-v2-tree"
+
 #: Default maximum bytes the fallback empirical probe may physically write.
 #: Hitting this without failure means lower bound >= this figure, upper unknown.
-DEFAULT_MAX_EMPIRICAL_PROBE_BYTES: Final = 25 * _GIB
+DEFAULT_MAX_EMPIRICAL_PROBE_BYTES: Final = 256 * _GIB
 
 #: Display/belief ceiling for families whose reported size is not an entitlement.
 #: Never authorizing SAFE.
@@ -59,7 +65,8 @@ DEFAULT_EMERGENCY_RESERVE_BYTES: Final = 1 * _GIB
 DEFAULT_PROBE_CHUNK_BYTES: Final = 8 * _MIB
 
 #: Wall clock for one empirical search. Tests inject a smaller budget.
-DEFAULT_PROBE_TIMEOUT_SECONDS: Final = 600.0
+#: 256 GiB on slow FUSE may still exceed this; last checkpoint is kept.
+DEFAULT_PROBE_TIMEOUT_SECONDS: Final = 3600.0
 
 #: First real-write rung of the fallback search.
 DEFAULT_FIRST_PROBE_BYTES: Final = 1 * _MIB
@@ -76,5 +83,5 @@ MAX_STORAGE_REDUCTIONS: Final = 3
 REDUCTION_FACTOR_NUMERATOR: Final = 9
 REDUCTION_FACTOR_DENOMINATOR: Final = 10
 
-POLICY_VERSION: Final = "1.6L3.0-specialist-probes"
+POLICY_VERSION: Final = "1.6L4.0-sonar-v2"
 CREATED_BY: Final = "kultrun"

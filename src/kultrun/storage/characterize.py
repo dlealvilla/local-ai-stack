@@ -23,7 +23,7 @@ from kultrun.storage.contracts import (
     StorageEvidenceStatus,
     StoragePool,
 )
-from kultrun.storage.evidence import arbitrate, needs_empirical_fallback
+from kultrun.storage.evidence import arbitrate
 from kultrun.storage.limits import (
     DEFAULT_BELIEF_BOUND_BYTES,
     LOW_SPACE_THRESHOLD_BYTES,
@@ -49,7 +49,7 @@ class Characterization:
 
 
 class StorageCharacterizationService:
-    """Native → compatible specialists → arbitrate → Sonar if still unresolved."""
+    """Native → compatible specialists → always Sonar on the expensive path."""
 
     def __init__(
         self,
@@ -109,6 +109,7 @@ class StorageCharacterizationService:
             _low_space(host, item, self._low_space, cleanup)
             for item in evidence.values()
             if _is_low(item, self._low_space)
+            or _empirical_very_low(empirical_evidence.get(item.mount_point))
         )
         return Characterization(
             pools=pools,
@@ -169,29 +170,22 @@ class StorageCharacterizationService:
         )
         if not run_empirical or self._empirical is None:
             return first
-        if not needs_empirical_fallback(
-            family=family,
-            credible_family=credible,
-            reports=reports,
-            evidence=first,
-        ):
-            return first
-        available = (
-            first.operational_available_bytes
-            if is_resolved(first.operational_available_bytes)
-            else None
-        )
-        if isinstance(available, int) and available < self._low_space:
-            return first
         workspace = probe_workspace or Path(pool.mount_point)
         empirical = self._empirical.probe(
             host.host_id,
             pool.mount_point,
             workspace,
-            native_available_bytes=native if isinstance(native, int) else None,
+            quota_identity=pool.quota_identity,
+            pool_fingerprint=pool.fingerprint,
         )
         empirical_ran.append(pool.mount_point)
         empirical_evidence[pool.mount_point] = empirical
+        native, source = native_available_bytes(
+            mount, environment, live=self._use_live_native
+        )
+        usable: EmpiricalProbeEvidence | None = empirical
+        if not _identity_matches(empirical, pool):
+            usable = None
         return arbitrate(
             host_id=host.host_id,
             mount_point=pool.mount_point,
@@ -208,7 +202,7 @@ class StorageCharacterizationService:
             probe_compatible=compatible,
             probe_executed=executed,
             administrator_bound=admin if isinstance(admin, int) else NOT_PROVIDED,
-            empirical=empirical,
+            empirical=usable,
             native_trusted=credible,
         )
 
@@ -230,6 +224,25 @@ def _is_low(evidence: StorageCapacityEvidence, threshold: int) -> bool:
         return False
     value = evidence.operational_available_bytes
     return is_resolved(value) and value < threshold
+
+
+def _empirical_very_low(empirical: EmpiricalProbeEvidence | None) -> bool:
+    if empirical is None:
+        return False
+    state = empirical.run_state
+    return is_resolved(state) and state == "very_low"
+
+
+def _identity_matches(empirical: EmpiricalProbeEvidence, pool: StoragePool) -> bool:
+    fingerprint = empirical.pool_fingerprint
+    if is_resolved(fingerprint) and fingerprint != pool.fingerprint:
+        return False
+    quota = empirical.quota_identity
+    return not (
+        is_resolved(quota)
+        and is_resolved(pool.quota_identity)
+        and quota != pool.quota_identity
+    )
 
 
 def _low_space(

@@ -30,9 +30,7 @@ def _record(
 ) -> StorageCapacityEvidence:
     unresolved = available is NOT_PROVIDED
     status = (
-        StorageEvidenceStatus.UNRESOLVED
-        if unresolved
-        else StorageEvidenceStatus.PROBED
+        StorageEvidenceStatus.UNRESOLVED if unresolved else StorageEvidenceStatus.PROBED
     )
     return StorageCapacityEvidence(
         host_id=host_id,
@@ -113,10 +111,41 @@ def test_empirical_evidence_is_persisted(tmp_path: Path) -> None:
     assert kept.verified_lower_bound_bytes == 25 * GIB
 
 
+def test_empirical_progress_does_not_promote_authorizing(tmp_path: Path) -> None:
+    subject = host()
+    index = StorageEvidenceIndex(FileStore(tmp_path / "store"))
+    authorizing = _record(subject.host_id, available=10 * GIB)
+    index.record_expensive({authorizing.mount_point: authorizing})
+    running = EmpiricalProbeEvidence(
+        host_id=subject.host_id,
+        mount_point="/workspace",
+        target_path="/workspace/.kultrun-sonar",
+        max_probe_bytes=256,
+        bytes_physically_written=32,
+        search_granularity_bytes=1,
+        probe_ceiling_reached=False,
+        confidence=Confidence.LOW,
+        provenance=Provenance(
+            producer=Name("storage.empirical"),
+            producer_version=NOT_PROVIDED,
+            observed_at=INSTANT,
+            policy_version=POLICY_VERSION,
+        ),
+        cleanup_success=False,
+        verified_lower_bound_bytes=32,
+        run_state="running",
+        completed_tier_units=(16, 24, 32),
+    )
+    index.put_empirical(running)
+    planning = index.for_host(subject)
+    assert planning["/workspace"].authorizing_available_bytes == 10 * GIB
+    stored = index.empirical_for_host(subject)["/workspace"]
+    assert stored.run_state == "running"
+    assert stored.completed_tier_units == (16, 24, 32)
+
+
 def test_observation_and_authorizing_use_distinct_keys() -> None:
     host_id = HostId.generate()
-    assert observation_key(host_id, "/workspace") != evidence_key(
-        host_id, "/workspace"
-    )
+    assert observation_key(host_id, "/workspace") != evidence_key(host_id, "/workspace")
     assert observation_key(host_id, "/workspace").startswith("sco_")
     assert evidence_key(host_id, "/workspace").startswith("sce_")

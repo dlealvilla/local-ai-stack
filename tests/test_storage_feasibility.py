@@ -33,8 +33,11 @@ def test_thirty_two_gib_authorizing_can_admit_current_vllm_peak() -> None:
     assert requirement_fits(requirement, evidence) is True
 
 
-def test_withhold_uses_floor_then_percent() -> None:
-    assert withhold_storage(25 * GIB) == 20 * GIB
+def test_twenty_four_gib_authorizing_safe_is_nineteen() -> None:
+    assert withhold_storage(24 * GIB) == 19 * GIB
+
+
+def test_sixty_four_gib_authorizing_safe_is_fifty_seven_point_six() -> None:
     assert withhold_storage(64 * GIB) == 64 * GIB - int(64 * GIB * 0.10)
 
 

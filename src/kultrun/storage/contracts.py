@@ -586,6 +586,42 @@ class EmpiricalProbeEvidence(Contract):
     )
     elapsed_seconds: float = meaning("wall clock of the search", default=0.0)
     interrupted: bool = meaning("true when cancelled or timed out", default=False)
+    algorithm_version: Maybe[str] = meaning(
+        "Sonar tree identity, e.g. sonar-v2-tree", default=NOT_PROVIDED
+    )
+    payload_version: Maybe[str] = meaning(
+        "deterministic payload generator identity", default=NOT_PROVIDED
+    )
+    completed_tier_units: tuple[int, ...] = meaning(
+        "official fsynced checkpoints in abstract units", default=()
+    )
+    committed_bytes: int = meaning("largest completed checkpoint in bytes", default=0)
+    run_state: Maybe[str] = meaning(
+        "running, complete, interrupted_recovered, cleanup_failed, very_low",
+        default=NOT_PROVIDED,
+    )
+    reserve_established: bool = meaning(
+        "true when the owned emergency reserve was fully written", default=False
+    )
+    reserve_released: bool = meaning(
+        "true when the reserve file was removed or never held", default=False
+    )
+    quota_identity: Maybe[str] = meaning(
+        "quota domain this probe consumed", default=NOT_PROVIDED
+    )
+    pool_fingerprint: Maybe[str] = meaning(
+        "pool identity at probe start; must still match at finalize",
+        default=NOT_PROVIDED,
+    )
+    probe_id: Maybe[str] = meaning(
+        "identity of this empirical run", default=NOT_PROVIDED
+    )
+    attempted_tier_units: tuple[int, ...] = meaning(
+        "logical tree targets requested, in order", default=()
+    )
+    additional_bytes_last: int = meaning(
+        "additional bytes written by the last grow", default=0
+    )
 
 
 @contract(kind="storage.low_space_guidance", version=1)

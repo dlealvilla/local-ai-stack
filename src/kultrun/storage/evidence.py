@@ -8,7 +8,8 @@ never compared against 6 GB currently free. The 10% rule is:
 A heuristic disbelief ceiling may be recorded as a belief bound. It never
 becomes authorizing SAFE — Capacity withholds SAFE from operational evidence,
 and unverified FUSE/network pools keep SAFE unresolved. Specialist remaining
-bytes always beat generic native; the 10% ratio is diagnostic only.
+bytes are operational when Sonar confirms them within 10%; a disagreed
+Sonar lower bound replaces them. The native 10% ratio remains diagnostic.
 """
 
 from __future__ import annotations
@@ -28,7 +29,6 @@ from kultrun.storage.contracts import (
 from kultrun.storage.limits import (
     DISAGREEMENT_RATIO,
     NATIVE_ANOMALY_TRIGGER_BYTES,
-    NATIVE_CLASS_PROBE_NAMES,
     POLICY_VERSION,
 )
 
@@ -115,22 +115,28 @@ def arbitrate(
     confidence = Confidence.UNKNOWN
 
     native = native_available if is_resolved(native_available) else reported_available
-    probe = probe_available
-    if (
-        empirical is not None
-        and is_resolved(empirical.verified_lower_bound_bytes)
-        and not is_resolved(probe)
-    ):
-        probe = empirical.verified_lower_bound_bytes
-        probe_name = "empirical-fallback"
-        probe_compatible = True
-        probe_executed = True
+    specialist = probe_available
+    source = "none"
+    if empirical is not None:
+        probe, source = specialist_or_sonar(specialist, empirical)
+        if source == "sonar":
+            probe_name = "empirical-fallback"
+            probe_compatible = True
+            probe_executed = True
+        elif source in {"confirmed", "specialist"}:
+            probe_executed = True
+    else:
+        probe = specialist
+
+    effective_hard = hard_maximum
+    if source == "sonar" and is_resolved(specialist):
+        effective_hard = NOT_PROVIDED
 
     trusted = native_may_authorize(native_trusted, native, probe)
 
     if is_resolved(native) and is_resolved(probe):
         ratio = disagreement_ratio(native, probe)
-        selected = cap_by_hard(probe, hard_maximum)
+        selected = cap_by_hard(probe, effective_hard)
         if ratio <= DISAGREEMENT_RATIO:
             status = StorageEvidenceStatus.CORROBORATED
             reason = "specialist available used; native corroborates within 10%"
@@ -142,19 +148,48 @@ def arbitrate(
                 "hard entitlement still caps"
             )
             confidence = Confidence.MEDIUM
-            if is_resolved(hard_maximum) and probe > hard_maximum:
+            if is_resolved(effective_hard) and probe > effective_hard:
                 reason = (
                     "probe exceeded a smaller hard entitlement; "
                     "operational available is the hard bound"
                 )
                 status = StorageEvidenceStatus.BOUNDED
+        if source == "confirmed":
+            reason = "specialist available used; sonar confirmed within 10%"
+        elif source == "sonar":
+            reason = (
+                "sonar lower bound used; specialist disagreed by more than 10%"
+                if is_resolved(specialist)
+                else "empirical fallback lower bound"
+            )
+            if empirical is not None and empirical.probe_ceiling_reached:
+                status = StorageEvidenceStatus.BOUNDED
+                reason = (
+                    "empirical search reached its ceiling without failure; "
+                    "upper bound unknown"
+                    if not is_resolved(specialist)
+                    else (
+                        "sonar lower bound used; specialist disagreed by more "
+                        "than 10%; ceiling reached without failure"
+                    )
+                )
     elif is_resolved(probe):
-        selected = cap_by_hard(probe, hard_maximum)
+        selected = cap_by_hard(probe, effective_hard)
         status = StorageEvidenceStatus.PROBED
         reason = "technology probe supplied available bytes"
         confidence = Confidence.MEDIUM
+        if source == "confirmed":
+            reason = "specialist available used; sonar confirmed within 10%"
+        elif source == "sonar":
+            status = StorageEvidenceStatus.BOUNDED
+            reason = "empirical fallback lower bound"
+            if empirical is not None and empirical.probe_ceiling_reached:
+                reason = (
+                    "empirical search reached its ceiling without failure; "
+                    "upper bound unknown"
+                )
     elif is_resolved(native):
-        selected = cap_by_hard(native, hard_maximum)
+        selected = cap_by_hard(native, effective_hard)
         if trusted:
             status = StorageEvidenceStatus.AUTHORITATIVE
             reason = "native/declared available; no independent probe figure"
@@ -175,7 +210,7 @@ def arbitrate(
                 )
             confidence = Confidence.LOW
     elif empirical is not None and is_resolved(empirical.verified_lower_bound_bytes):
-        selected = cap_by_hard(empirical.verified_lower_bound_bytes, hard_maximum)
+        selected = cap_by_hard(empirical.verified_lower_bound_bytes, effective_hard)
         status = StorageEvidenceStatus.BOUNDED
         reason = "empirical fallback lower bound"
         confidence = Confidence.MEDIUM
@@ -200,7 +235,11 @@ def arbitrate(
             confidence = Confidence.LOW
             native_source = "administrator"
 
-    if empirical is not None and is_resolved(empirical.observed_failure_upper_bytes):
+    if (
+        source == "sonar"
+        and empirical is not None
+        and is_resolved(empirical.observed_failure_upper_bytes)
+    ):
         upper = empirical.observed_failure_upper_bytes
         if is_resolved(selected) and selected >= upper:
             selected = max(0, upper - 1)
@@ -239,6 +278,29 @@ def arbitrate(
     )
 
 
+def specialist_or_sonar(
+    specialist: Maybe[int],
+    empirical: EmpiricalProbeEvidence,
+) -> tuple[Maybe[int], str]:
+    """Choose specialist vs Sonar. Confirmation uses the 10% available ratio.
+
+    If Sonar confirms the specialist, the specialist figure is operational.
+    If they disagree, Sonar (the proven lower bound) is operational. If only
+    one source resolved, that figure is used. Sonar that could not
+    characterize does not discard specialist bytes.
+    """
+    sonar = empirical.verified_lower_bound_bytes
+    if is_resolved(specialist) and is_resolved(sonar):
+        if disagreement_ratio(specialist, sonar) <= DISAGREEMENT_RATIO:
+            return specialist, "confirmed"
+        return sonar, "sonar"
+    if is_resolved(sonar):
+        return sonar, "sonar"
+    if is_resolved(specialist):
+        return specialist, "specialist"
+    return NOT_PROVIDED, "none"
+
+
 def needs_empirical_fallback(
     *,
     family: str | None,
@@ -246,24 +308,11 @@ def needs_empirical_fallback(
     reports: Sequence[object],
     evidence: StorageCapacityEvidence,
 ) -> bool:
-    """Whether Sonar should run before this characterization can authorize.
+    """Whether the expensive path should run Sonar.
 
-    Specialist domain bytes settle the pool for this stage; Sonar
-    corroboration of a settled specialist is a later stage. Identification
-    without a capacity number is not settlement. Unresolved native — including
-    a trusted-local figure above the anomaly trigger — does require Sonar.
+    Cheap GET uses ``run_empirical=False`` and never consults this. On the
+    expensive path Sonar always runs: it confirms a specialist, replaces a
+    disagreed specialist, or supplies capacity when no specialist could.
     """
-    del family
-    settled = any(
-        getattr(item, "executed", False)
-        and is_resolved(getattr(item, "available_bytes", NOT_PROVIDED))
-        and getattr(item, "probe_name", "") not in NATIVE_CLASS_PROBE_NAMES
-        for item in reports
-    )
-    if settled:
-        return False
-    if evidence.status is StorageEvidenceStatus.UNRESOLVED:
-        return True
-    if evidence.status is StorageEvidenceStatus.CONTRADICTED:
-        return True
-    return not credible_family
+    del family, credible_family, reports, evidence
+    return True

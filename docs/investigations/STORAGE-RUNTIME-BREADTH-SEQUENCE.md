@@ -90,14 +90,14 @@ design. Change them only at a listed gate.
 
 | ID | Decision |
 |---|---|
-| D1 | Policy A: K-110 remains 10% × 3 for auto-measured capacity. 20% × 5 only in manual-capacity mode. |
+| D1 | **AMEND (recorded, not implemented):** future G-REPL is `100 → 80 → 64 → 51.2 → 40.96 → 32.768` after **any** valid capacity source. K-110 remains CLOSED as implemented 10%×3 until that later stage. Manual capacity is last-resort evidence when native+specialist+Sonar cannot establish capacity, not a larger number after a failed fit. |
 | D2 | Specialist entitlement bytes always beat generic native. 10% is diagnostic only. |
 | D3 | Always run every compatible specialist. Native may authorize only if no specialist produced domain bytes, family is trusted-local, value is plausible, and no hard bound is smaller. |
 | D4 | 500 GiB is an **anomaly trigger** on otherwise-trusted families, not a cap and not the only specialist trigger. |
 | D5 | SAFE stays `max(10%, 5 GiB)`. Do not weaken to fit vLLM. No `VLLM_MIN_STORAGE`. |
 | D6 | Foundation storage fit uses the same SAFE RM will spend (fix operational-vs-SAFE split). |
 | D7 | MooseFS: parse optional `mfsgetquota` only. No GPL bundle. No master protocol. Missing binary → Sonar. |
-| D8 | Sonar V2 tree 64→256 GiB HOST-mode. Sequential incompressible writes. One growing file. Do not probe 512+. |
+| D8 | Sonar V2 tree 64→256 GiB HOST-mode. Sequential incompressible writes. One growing file. Do not probe 512+. On the expensive path Sonar **always** runs: confirm specialist within 10%, else Sonar, else specialist if Sonar could not characterize. Cheap GET never Sonars. |
 | D9 | 1 GiB owned reserve is recovery, **not** added into authorizing bytes. Released before SAFE is published. |
 | D10 | TIMEOUT/interrupt after a successful tier **keeps** that lower bound; it is not UNRESOLVED. |
 | D11 | Persist after each Sonar tier (Roadmap 2.2). Cheap GET never Sonars and never deletes valid authorizing evidence. |
@@ -124,7 +124,7 @@ design. Change them only at a listed gate.
 | G-USEFUL | R2 | “Useful model” = catalog-estimated fit vs already-downloaded artifact | Catalog-estimated; acquisition still separately admitted |
 | G-ZFS | S2 | Distrust all ZFS native until adapter speaks? | ZFS native authorizes only if adapter returns NO_DATASET_QUOTA or bytes |
 | G-K8S | P1 | stdlib/in-cluster files vs `kubernetes` extra | No kube client in the default wheel |
-| G-REPL | Before S4 | User restated post-Sonar deploy-failure as 20% × 5, then manual, then 20% × 5, vs D1 Policy A (10% × 3 auto; 20% × 5 manual only) | Confirm AMEND D1 at S4; do not change K-110 in S2/S3 |
+| G-REPL | Recorded at S3 | D1 AMEND: 20%×5 after any valid capacity; do not ask for a larger manual number after a failed fit | Implementation remains a later bounded task; do not change `storage/reduction.py` in S3 |
 | G-GGUF | R1 | Which small legal GGUF for smoke? | Pin one Q4 TinyLlama-class artifact + checksum in the R1 brief |
 | G-MLX | R4 | First already-converted mlx-community artifact | Name in the R4 brief; no conversion subsystem |
 
@@ -231,10 +231,11 @@ owned 1 GiB reserve on same quota identity
 if reserve fails → VERY_LOW; do not start 64
 tree: 64 / 128 / 256 / 192 / 96 / 32 / 48 / 16 / 24
 one growing file; incompressible deterministic payload; fsync
-persist after each successful tier
+persist after each successful tier (empirical only; not authorizing)
 TIMEOUT keeps last proven lower bound
 cleanup probe + reserve; cleanup failure is visible
 migrate EmpiricalStorageProbe in place; delete 25 GiB doubling authority
+expensive path always runs Sonar (confirm / replace / fill-in)
 ```
 
 **Does not:** TRANSACTION-mode “stop at requirement” (2.3 TRANSACTION
@@ -243,6 +244,9 @@ stays later — HOST mode is enough to plan foundations). Do not add
 
 **Acceptance:** L1 scaled tests for every tree branch. One small real
 write test. **Not** L2 until S-L2.
+
+**Implemented:** Sonar V2 on `stage/1.6L4-storage-sonar-v2`. Physical
+duration and FUSE L2 remain OPEN.
 
 **STOP:** 1 GiB reserve discovered unsafe; cannot test without writing
 tens of GiB on a developer disk.
@@ -260,22 +264,22 @@ If you want a second runtime regardless of T5:
 
 ---
 
-### S4 — Manual capacity last resort + manual-mode replan
+### S4 — Manual capacity last resort + G-REPL implementation
 
 **Roadmap home:** 1.6L5. Not a current M2 stage; needed so Sonar-blocked
 hosts are not a dead end.
 
-**Implements D1, D12:**
+**Implements D1 AMEND, D12:**
 
 ```text
 UNRESOLVED + manual_capacity_required
 CLI/API: set administrator bytes for pool/quota identity
 hard bounds and EDQUOT still win
 do not rewrite 100 GiB to 80
-manual-mode replan 100/80/64/51.2/40.96/32.768 (original + 5)
+G-REPL 100/80/64/51.2/40.96/32.768 after any valid capacity
 never requirement *= 0.8
 do not re-Sonar inside the reduction loop
-K-110 unchanged for AUTO-measured capacity
+K-110 10%×3 remains the implemented AUTO loop until this stage replaces it
 ```
 
 **Does not:** llama.cpp; admin UI; shrinking SAFE.

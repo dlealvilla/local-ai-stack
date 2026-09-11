@@ -180,7 +180,7 @@ def test_just_above_anomaly_without_probe_is_unresolved() -> None:
     assert not is_resolved(item.authorizing_available_bytes)
 
 
-def test_sonar_skipped_when_specialist_settled() -> None:
+def test_sonar_always_requested_when_specialist_settled() -> None:
     from kultrun.storage.contracts import ProbeReport
     from kultrun.storage.evidence import needs_empirical_fallback
 
@@ -206,7 +206,7 @@ def test_sonar_skipped_when_specialist_settled() -> None:
             reports=reports,
             evidence=evidence,
         )
-        is False
+        is True
     )
 
 
@@ -262,3 +262,118 @@ def test_fuse_identify_without_bytes_is_not_settlement() -> None:
         )
         is True
     )
+
+
+def _empirical(
+    *,
+    lower: int,
+    upper: object = NOT_PROVIDED,
+    ceiling: bool = False,
+) -> object:
+    from kultrun.evidence.contracts import Confidence, Provenance
+    from kultrun.kernel.ids import Name
+    from kultrun.storage.contracts import EmpiricalProbeEvidence
+    from kultrun.storage.limits import POLICY_VERSION
+
+    return EmpiricalProbeEvidence(
+        host_id=HOST,
+        mount_point="/workspace",
+        target_path="/workspace",
+        max_probe_bytes=lower,
+        bytes_physically_written=0,
+        search_granularity_bytes=1,
+        probe_ceiling_reached=ceiling,
+        confidence=Confidence.MEDIUM,
+        provenance=Provenance(
+            producer=Name("test"),
+            producer_version=NOT_PROVIDED,
+            observed_at=INSTANT,
+            policy_version=POLICY_VERSION,
+        ),
+        cleanup_success=True,
+        verified_lower_bound_bytes=lower,
+        observed_failure_upper_bytes=upper,
+    )
+
+
+def test_sonar_confirms_specialist_within_ten_percent() -> None:
+    empirical = _empirical(lower=48 * GIB)
+    item = arbitrate(
+        host_id=HOST,
+        mount_point="/workspace",
+        quota_identity="fuse:x:/workspace",
+        pool_fingerprint="fp",
+        clock=CLOCK,
+        native_available=180 * 1024**4,
+        probe_available=50 * GIB,
+        empirical=empirical,
+        native_trusted=False,
+        probe_name="moosefs-quota",
+        probe_compatible=True,
+        probe_executed=True,
+    )
+    assert item.operational_available_bytes == 50 * GIB
+    assert "sonar confirmed" in item.selected_reason
+    assert item.probe_name == "moosefs-quota"
+
+
+def test_sonar_replaces_specialist_when_they_disagree() -> None:
+    empirical = _empirical(lower=32 * GIB)
+    item = arbitrate(
+        host_id=HOST,
+        mount_point="/workspace",
+        quota_identity="fuse:x:/workspace",
+        pool_fingerprint="fp",
+        clock=CLOCK,
+        native_available=180 * 1024**4,
+        probe_available=50 * GIB,
+        empirical=empirical,
+        native_trusted=False,
+        probe_name="moosefs-quota",
+        probe_compatible=True,
+        probe_executed=True,
+    )
+    assert item.operational_available_bytes == 32 * GIB
+    assert item.probe_name == "empirical-fallback"
+
+
+def test_sonar_miss_keeps_specialist() -> None:
+    from kultrun.evidence.contracts import Confidence, Provenance
+    from kultrun.kernel.ids import Name
+    from kultrun.storage.contracts import EmpiricalProbeEvidence
+    from kultrun.storage.limits import POLICY_VERSION
+
+    empirical = EmpiricalProbeEvidence(
+        host_id=HOST,
+        mount_point="/workspace",
+        target_path="/workspace",
+        max_probe_bytes=1,
+        bytes_physically_written=0,
+        search_granularity_bytes=1,
+        probe_ceiling_reached=False,
+        confidence=Confidence.LOW,
+        provenance=Provenance(
+            producer=Name("test"),
+            producer_version=NOT_PROVIDED,
+            observed_at=INSTANT,
+            policy_version=POLICY_VERSION,
+        ),
+        cleanup_success=True,
+        interrupted=True,
+    )
+    item = arbitrate(
+        host_id=HOST,
+        mount_point="/workspace",
+        quota_identity="fuse:x:/workspace",
+        pool_fingerprint="fp",
+        clock=CLOCK,
+        native_available=180 * 1024**4,
+        probe_available=50 * GIB,
+        empirical=empirical,
+        native_trusted=False,
+        probe_name="moosefs-quota",
+        probe_compatible=True,
+        probe_executed=True,
+    )
+    assert item.operational_available_bytes == 50 * GIB
+    assert item.probe_name == "moosefs-quota"
