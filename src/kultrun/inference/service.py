@@ -460,6 +460,7 @@ class InstanceService:
             handle = self._safe_stop(instance.execution_id)
         else:
             handle = None
+        self._release_runtime_state(instance)
         now = self._clock.now()
         return self._write(
             instance,
@@ -851,6 +852,18 @@ class InstanceService:
             return self._executions.stop(execution_id)
         except NotFoundError:
             return None
+
+    def _release_runtime_state(self, instance: InferenceInstance) -> None:
+        if instance.endpoint is None:
+            return
+        try:
+            adapter = self._runtimes.get(instance.runtime)
+        except NotFoundError:
+            return
+        release = getattr(adapter, "release_launch_state", None)
+        if not callable(release):
+            return
+        release(port=instance.endpoint.port)
 
     def _owned_live(self, execution_id: ExecutionId | None) -> bool:
         if execution_id is None:

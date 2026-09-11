@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import shutil
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -45,6 +47,7 @@ _OUTPUT_LIMIT_BYTES = 64 * 1024
 _GRACE_PERIOD_SECONDS = 20.0
 _HEALTH_TIMEOUT_SECONDS = 0.4
 _READINESS_MISMATCH = "runtime_model_mismatch"
+_DEFAULT_IPC_ROOT = Path("/tmp/kultrun-ipc")
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +214,9 @@ class VllmRuntimeSupport:
             )
         if is_resolved(request.runtime_version):
             environment.append(f"KULTRUN_RUNTIME_VERSION={request.runtime_version}")
+        ipc = _ensure_ipc(port)
+        environment.append(f"VLLM_RPC_BASE_PATH={ipc}")
+        environment.append(f"TMPDIR={ipc}")
         return RuntimeLaunchSpec(
             runtime=self.identity,
             profile=self.identity,
@@ -222,6 +228,10 @@ class VllmRuntimeSupport:
             device_indexes=devices,
             network_bindings=(f"tcp:{bind}:{port}",),
         )
+
+    def release_launch_state(self, *, port: int) -> None:
+        """Remove the short IPC directory for this instance. Not model storage."""
+        _release_ipc(port)
 
     def inspect_readiness(
         self,
@@ -586,3 +596,29 @@ class VllmModelCompatibility:
             dict.fromkeys((*decision.reasons, f"quantization {token} is GGUF-style"))
         )
         return CompatibilityDecision(RuntimeEligibilityStatus.BLOCKED, codes, notes)
+
+
+def _ipc_root() -> Path:
+    return Path(os.environ.get("KULTRUN_IPC_ROOT", str(_DEFAULT_IPC_ROOT)))
+
+
+def _ipc_dir(port: int) -> Path:
+    return _ipc_root() / str(int(port))
+
+
+def _ensure_ipc(port: int) -> Path:
+    path = _ipc_dir(port)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _release_ipc(port: int) -> None:
+    path = _ipc_dir(port)
+    try:
+        resolved = path.resolve()
+        root = _ipc_root().resolve()
+    except OSError:
+        return
+    if resolved == root or root not in resolved.parents:
+        return
+    shutil.rmtree(resolved, ignore_errors=True)

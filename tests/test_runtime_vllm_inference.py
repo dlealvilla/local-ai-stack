@@ -80,7 +80,11 @@ def _request(
     )
 
 
-def test_launch_spec_honours_plan_installation_and_artifact(tmp_path: Path) -> None:
+def test_launch_spec_honours_plan_installation_and_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ipc_root = tmp_path / "kultrun-ipc"
+    monkeypatch.setenv("KULTRUN_IPC_ROOT", str(ipc_root))
     request = _request(tmp_path, context=4096, accelerator=1)
     spec = VllmRuntimeSupport().launch_spec(request)
     assert spec.executable == str(_interpreter(tmp_path))
@@ -113,6 +117,34 @@ def test_launch_spec_honours_plan_installation_and_artifact(tmp_path: Path) -> N
     assert spec.runtime.value == "vllm"
     assert "--gpu-memory-utilization" not in spec.arguments
     assert "KULTRUN_GPU_MEMORY_SOURCE=runtime_default" in spec.environment
+    rpc = next(
+        item.split("=", 1)[1]
+        for item in spec.environment
+        if item.startswith("VLLM_RPC_BASE_PATH=")
+    )
+    tmpdir = next(
+        item.split("=", 1)[1] for item in spec.environment if item.startswith("TMPDIR=")
+    )
+    assert Path(rpc) == ipc_root / "18765"
+    assert tmpdir == rpc
+    assert (ipc_root / "18765").is_dir()
+    VllmRuntimeSupport().release_launch_state(port=18765)
+    assert not (ipc_root / "18765").exists()
+
+
+def test_release_launch_state_does_not_touch_model_storage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ipc_root = tmp_path / "kultrun-ipc"
+    monkeypatch.setenv("KULTRUN_IPC_ROOT", str(ipc_root))
+    foreign = tmp_path / "models" / "18765"
+    foreign.mkdir(parents=True)
+    marker = foreign / "weights.bin"
+    marker.write_text("keep", encoding="utf-8")
+    VllmRuntimeSupport().launch_spec(_request(tmp_path, port=18765))
+    VllmRuntimeSupport().release_launch_state(port=18765)
+    assert not (ipc_root / "18765").exists()
+    assert marker.read_text(encoding="utf-8") == "keep"
 
 
 def test_launch_spec_context_and_concurrency_defaults(tmp_path: Path) -> None:
