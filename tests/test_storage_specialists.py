@@ -216,11 +216,13 @@ class _Quota:
 class _RecordingSonar:
     def __init__(self, evidence: EmpiricalProbeEvidence) -> None:
         self.calls = 0
+        self.kwargs: list[dict] = []
         self._evidence = evidence
 
     def probe(self, *args, **kwargs):
-        del args, kwargs
+        del args
         self.calls += 1
+        self.kwargs.append(kwargs)
         return self._evidence
 
 
@@ -230,6 +232,9 @@ def _emp(
     fingerprint: object = NOT_PROVIDED,
     interrupted: bool = False,
     ceiling: bool = False,
+    corroboration: object = NOT_PROVIDED,
+    specialist_candidate: object = NOT_PROVIDED,
+    upper: object = NOT_PROVIDED,
 ) -> EmpiricalProbeEvidence:
     resolved = isinstance(lower, int)
     return EmpiricalProbeEvidence(
@@ -249,14 +254,24 @@ def _emp(
         ),
         cleanup_success=True,
         verified_lower_bound_bytes=lower,
+        observed_failure_upper_bytes=upper,
         interrupted=interrupted,
         pool_fingerprint=fingerprint,
         run_state="complete",
+        corroboration=corroboration,
+        specialist_candidate_bytes=specialist_candidate,
     )
 
 
 def test_characterize_specialist_wins_over_huge_native() -> None:
-    sonar = _RecordingSonar(_emp(lower=48 * GIB))
+    sonar = _RecordingSonar(
+        _emp(
+            lower=48 * GIB,
+            upper=64 * GIB,
+            corroboration="confirmed_bracketed",
+            specialist_candidate=50 * GIB,
+        )
+    )
     service = StorageCharacterizationService(
         FixedClock(INSTANT),
         ProbeRegistry((_Quota(),)),
@@ -278,12 +293,39 @@ def test_characterize_specialist_wins_over_huge_native() -> None:
     assert item.operational_available_bytes == 50 * GIB
     assert item.status is StorageEvidenceStatus.CONTRADICTED
     assert sonar.calls == 1
+    assert sonar.kwargs[0]["corroborate_bytes"] == 50 * GIB
     assert "/workspace" in result.empirical_ran
-    assert "sonar confirmed" in item.selected_reason
+    assert "sonar corroborated" in item.selected_reason
+    assert item.probe_name == "linux-quota"
 
 
-def test_characterize_sonar_replaces_disagreed_specialist() -> None:
+def test_characterize_keeps_specialist_when_sonar_tier_is_coarser() -> None:
     sonar = _RecordingSonar(_emp(lower=32 * GIB))
+    service = StorageCharacterizationService(
+        FixedClock(INSTANT),
+        ProbeRegistry((_Quota(),)),
+        empirical=sonar,
+        use_live_native=False,
+    )
+    subject = host(
+        mounts=(mount("/workspace", "ext4", free=180 * TIB, total=180 * TIB),)
+    )
+    result = service.characterize(subject, run_cleanup=False, run_empirical=True)
+    item = result.evidence["/workspace"]
+    assert item.operational_available_bytes == 50 * GIB
+    assert item.probe_name == "linux-quota"
+    assert sonar.calls == 1
+
+
+def test_characterize_sonar_replaces_contradicted_specialist() -> None:
+    sonar = _RecordingSonar(
+        _emp(
+            lower=32 * GIB,
+            upper=48 * GIB,
+            corroboration="contradicted",
+            specialist_candidate=50 * GIB,
+        )
+    )
     service = StorageCharacterizationService(
         FixedClock(INSTANT),
         ProbeRegistry((_Quota(),)),
@@ -298,6 +340,9 @@ def test_characterize_sonar_replaces_disagreed_specialist() -> None:
     assert item.operational_available_bytes == 32 * GIB
     assert item.probe_name == "empirical-fallback"
     assert sonar.calls == 1
+    emp = result.empirical_evidence["/workspace"]
+    assert emp.specialist_candidate_bytes == 50 * GIB
+    assert emp.corroboration == "contradicted"
 
 
 def test_characterize_keeps_specialist_when_sonar_cannot() -> None:

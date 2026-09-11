@@ -622,6 +622,15 @@ class EmpiricalProbeEvidence(Contract):
     additional_bytes_last: int = meaning(
         "additional bytes written by the last grow", default=0
     )
+    corroboration: Maybe[str] = meaning(
+        "confirmed_bracketed, not_contradicted, lower_only, "
+        "inconclusive, limited, contradicted; unset for full-tree runs",
+        default=NOT_PROVIDED,
+    )
+    specialist_candidate_bytes: Maybe[int] = meaning(
+        "specialist figure after smaller hard bounds, when corroborating",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="storage.low_space_guidance", version=1)

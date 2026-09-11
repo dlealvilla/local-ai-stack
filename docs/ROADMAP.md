@@ -725,6 +725,8 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6L4 Storage Sonar V2                      ← L1 local; physical L2 later
   ↓
+1.6L4a Specialist / Sonar corroboration     ← L1; specialist stays unless contradicted below S
+  ↓
 1.6L5 Manual capacity last-resort           ← not started
   ↓
 post-inference breadth review, then 1.7 onward
@@ -1433,14 +1435,43 @@ Does not change Sonar sizes. Does not add runtimes.
 
 Replace the 25 GiB doubling search with the 64–256 GiB HOST-mode tree,
 incremental incompressible writes, and an owned 1 GiB reserve. On the
-expensive characterization path Sonar always runs: if it confirms a
-specialist within 10%, the specialist figure is operational; if they
-disagree, the Sonar lower bound is operational; if no specialist could
-run, Sonar supplies capacity; if Sonar cannot characterize, a specialist
-figure is kept. Cheap GET / `kultrun host` never Sonars.
+expensive characterization path Sonar always runs. Cheap GET /
+`kultrun host` never Sonars.
 
 **Output:** HOST-mode authorizing tiers · **Gate:** L1 locally; L2 on
 FUSE when rented.
+
+Authority policy is corrected in 1.6L4a: Sonar does not replace a
+credible specialist with a coarse V2 tier on mere disagreement.
+
+### Stage 1.6L4a — Specialist / Sonar corroboration
+
+When a credible specialist produced domain bytes, that figure (after
+any smaller hard bound) is the capacity value. Sonar brackets it:
+
+```text
+credible specialist exists
+    → Sonar corroborates/contradicts specialist
+
+no credible specialist
+    → full Sonar V2 characterizes capacity
+```
+
+Contradiction requires a capacity failure (EDQUOT/ENOSPC) at a
+target strictly **below** the specialist candidate. Failure at the
+candidate is not contradiction. Upper-tier SUCCESS does not inflate
+capacity. Specialist above 256 GiB with a successful 256 GiB probe
+and no smaller hard bound keeps the specialist value:
+
+```text
+specialist >256 GiB
++ Sonar proves 256 GiB
++ no smaller hard contradiction
+→ retain specialist capacity
+```
+
+**Output:** corroboration authority · **Gate:** L1 locally. Does not
+close 1.6L. Does not add runtimes.
 
 ### Stage 1.6L5 — Manual capacity last-resort
 

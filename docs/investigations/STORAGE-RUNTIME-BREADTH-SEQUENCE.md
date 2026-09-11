@@ -97,7 +97,7 @@ design. Change them only at a listed gate.
 | D5 | SAFE stays `max(10%, 5 GiB)`. Do not weaken to fit vLLM. No `VLLM_MIN_STORAGE`. |
 | D6 | Foundation storage fit uses the same SAFE RM will spend (fix operational-vs-SAFE split). |
 | D7 | MooseFS: parse optional `mfsgetquota` only. No GPL bundle. No master protocol. Missing binary → Sonar. |
-| D8 | Sonar V2 tree 64→256 GiB HOST-mode. Sequential incompressible writes. One growing file. Do not probe 512+. On the expensive path Sonar **always** runs: confirm specialist within 10%, else Sonar, else specialist if Sonar could not characterize. Cheap GET never Sonars. |
+| D8 | Sonar V2 tree 64→256 GiB HOST-mode. Sequential incompressible writes. One growing file. Do not probe 512+. Expensive path always runs Sonar: corroborate a specialist (contradict only on capacity failure **below** the candidate) or full-tree when no specialist bytes exist. Cheap GET never Sonars. Specialist >256 GiB is not downgraded to 256 merely because V2 cannot test higher. |
 | D9 | 1 GiB owned reserve is recovery, **not** added into authorizing bytes. Released before SAFE is published. |
 | D10 | TIMEOUT/interrupt after a successful tier **keeps** that lower bound; it is not UNRESOLVED. |
 | D11 | Persist after each Sonar tier (Roadmap 2.2). Cheap GET never Sonars and never deletes valid authorizing evidence. |
@@ -235,7 +235,7 @@ persist after each successful tier (empirical only; not authorizing)
 TIMEOUT keeps last proven lower bound
 cleanup probe + reserve; cleanup failure is visible
 migrate EmpiricalStorageProbe in place; delete 25 GiB doubling authority
-expensive path always runs Sonar (confirm / replace / fill-in)
+expensive path always runs Sonar (corroborate specialist or full-tree fill-in)
 ```
 
 **Does not:** TRANSACTION-mode “stop at requirement” (2.3 TRANSACTION
@@ -247,6 +247,27 @@ write test. **Not** L2 until S-L2.
 
 **Implemented:** Sonar V2 on `stage/1.6L4-storage-sonar-v2`. Physical
 duration and FUSE L2 remain OPEN.
+
+### S3.1 — Specialist / Sonar corroboration authority
+
+**Roadmap home:** 1.6L4a. Does not reopen the V2 engine.
+
+```text
+credible specialist exists
+    candidate = min(specialist, smaller_hard_bound)
+    Sonar brackets L <= candidate < U
+    capacity failure strictly below candidate → contradicted → full V2 tree
+    otherwise specialist remains authority
+    upper SUCCESS does not inflate capacity
+    S > 256 + 256 PASS + no smaller hard → retain specialist
+no credible specialist
+    full Sonar V2
+cheap GET never Sonars
+```
+
+**Does not:** manual capacity; G-REPL; llama.cpp; MLX; T3; T5.
+
+---
 
 **STOP:** 1 GiB reserve discovered unsafe; cannot test without writing
 tens of GiB on a developer disk.

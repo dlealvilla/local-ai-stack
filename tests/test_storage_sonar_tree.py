@@ -68,6 +68,18 @@ def test_tree_16() -> None:
     assert result.upper_units == 24
 
 
+def test_specialist_bracket() -> None:
+    from kultrun.storage.sonar_tree import specialist_bracket
+
+    assert specialist_bracket(50) == (48, 64)
+    assert specialist_bracket(220) == (192, 256)
+    assert specialist_bracket(256) == (256, None)
+    assert specialist_bracket(500) == (256, None)
+    assert specialist_bracket(16) == (16, 24)
+    assert specialist_bracket(15) == (None, 16)
+    assert specialist_bracket(192) == (192, 256)
+
+
 def test_tree_unresolved() -> None:
     result = _run({64, 32, 16})
     assert not is_resolved(result.lower_units)

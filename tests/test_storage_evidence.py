@@ -269,6 +269,8 @@ def _empirical(
     lower: int,
     upper: object = NOT_PROVIDED,
     ceiling: bool = False,
+    corroboration: object = NOT_PROVIDED,
+    specialist_candidate: object = NOT_PROVIDED,
 ) -> object:
     from kultrun.evidence.contracts import Confidence, Provenance
     from kultrun.kernel.ids import Name
@@ -293,11 +295,18 @@ def _empirical(
         cleanup_success=True,
         verified_lower_bound_bytes=lower,
         observed_failure_upper_bytes=upper,
+        corroboration=corroboration,
+        specialist_candidate_bytes=specialist_candidate,
     )
 
 
-def test_sonar_confirms_specialist_within_ten_percent() -> None:
-    empirical = _empirical(lower=48 * GIB)
+def test_sonar_corroborates_specialist_without_replacing_it() -> None:
+    empirical = _empirical(
+        lower=48 * GIB,
+        upper=64 * GIB,
+        corroboration="confirmed_bracketed",
+        specialist_candidate=50 * GIB,
+    )
     item = arbitrate(
         host_id=HOST,
         mount_point="/workspace",
@@ -313,12 +322,37 @@ def test_sonar_confirms_specialist_within_ten_percent() -> None:
         probe_executed=True,
     )
     assert item.operational_available_bytes == 50 * GIB
-    assert "sonar confirmed" in item.selected_reason
+    assert "sonar corroborated" in item.selected_reason
     assert item.probe_name == "moosefs-quota"
 
 
-def test_sonar_replaces_specialist_when_they_disagree() -> None:
+def test_sonar_does_not_replace_specialist_on_tier_disagreement() -> None:
     empirical = _empirical(lower=32 * GIB)
+    item = arbitrate(
+        host_id=HOST,
+        mount_point="/workspace",
+        quota_identity="fuse:x:/workspace",
+        pool_fingerprint="fp",
+        clock=CLOCK,
+        native_available=180 * 1024**4,
+        probe_available=50 * GIB,
+        empirical=empirical,
+        native_trusted=False,
+        probe_name="moosefs-quota",
+        probe_compatible=True,
+        probe_executed=True,
+    )
+    assert item.operational_available_bytes == 50 * GIB
+    assert item.probe_name == "moosefs-quota"
+
+
+def test_sonar_replaces_specialist_when_contradicted() -> None:
+    empirical = _empirical(
+        lower=32 * GIB,
+        upper=48 * GIB,
+        corroboration="contradicted",
+        specialist_candidate=50 * GIB,
+    )
     item = arbitrate(
         host_id=HOST,
         mount_point="/workspace",
@@ -335,6 +369,7 @@ def test_sonar_replaces_specialist_when_they_disagree() -> None:
     )
     assert item.operational_available_bytes == 32 * GIB
     assert item.probe_name == "empirical-fallback"
+    assert "contradicted" in item.selected_reason
 
 
 def test_sonar_miss_keeps_specialist() -> None:

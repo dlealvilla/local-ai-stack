@@ -33,6 +33,24 @@ class SonarTreeResult:
     attempted: tuple[int, ...]
 
 
+def specialist_bracket(s_units: int) -> tuple[int | None, int | None]:
+    """Official V2 bracket around a specialist candidate, in units.
+
+    ``L`` is the greatest tier ``<= S``. ``U`` is the smallest tier ``> S``.
+    ``S < 16`` has no lower corroboration tier. ``S >= 256`` has no upper
+    V2 tier.
+    """
+    lower: int | None = None
+    upper: int | None = None
+    for tier in SONAR_TIER_UNITS:
+        if tier <= s_units:
+            lower = tier
+        elif upper is None:
+            upper = tier
+            break
+    return lower, upper
+
+
 def classify_sonar_tree(
     test: Callable[[int], SonarAttempt],
 ) -> SonarTreeResult:

@@ -3,6 +3,10 @@
 Cheap GET / ``kultrun host`` may call this with ``run_empirical=False``.
 That pass must never launch Sonar. The composition root invokes an expensive
 pass before a mutation.
+
+On that expensive path a credible specialist is the capacity value; Sonar
+corroborates or contradicts it. With no usable specialist bytes, Sonar
+runs the full V2 tree.
 """
 
 from __future__ import annotations
@@ -49,7 +53,7 @@ class Characterization:
 
 
 class StorageCharacterizationService:
-    """Native → compatible specialists → always Sonar on the expensive path."""
+    """Native → compatible specialists → Sonar corroboration or full tree."""
 
     def __init__(
         self,
@@ -171,12 +175,18 @@ class StorageCharacterizationService:
         if not run_empirical or self._empirical is None:
             return first
         workspace = probe_workspace or Path(pool.mount_point)
+        corroborate: int | None = None
+        if is_resolved(probe_available) and probe_available > 0:
+            corroborate = probe_available
+            if is_resolved(hard):
+                corroborate = min(corroborate, hard)
         empirical = self._empirical.probe(
             host.host_id,
             pool.mount_point,
             workspace,
             quota_identity=pool.quota_identity,
             pool_fingerprint=pool.fingerprint,
+            corroborate_bytes=corroborate,
         )
         empirical_ran.append(pool.mount_point)
         empirical_evidence[pool.mount_point] = empirical

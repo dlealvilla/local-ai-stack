@@ -7,9 +7,12 @@ never compared against 6 GB currently free. The 10% rule is:
 
 A heuristic disbelief ceiling may be recorded as a belief bound. It never
 becomes authorizing SAFE — Capacity withholds SAFE from operational evidence,
-and unverified FUSE/network pools keep SAFE unresolved. Specialist remaining
-bytes are operational when Sonar confirms them within 10%; a disagreed
-Sonar lower bound replaces them. The native 10% ratio remains diagnostic.
+and unverified FUSE/network pools keep SAFE unresolved.
+
+A credible specialist is the capacity value. Sonar corroborates or
+contradicts it; it does not replace the specialist with a coarse tier unless
+a capacity failure occurs strictly below the specialist candidate. The
+native 10% ratio remains diagnostic against the chosen figure.
 """
 
 from __future__ import annotations
@@ -129,10 +132,12 @@ def arbitrate(
         probe = specialist
 
     effective_hard = hard_maximum
-    if source == "sonar" and is_resolved(specialist):
-        effective_hard = NOT_PROVIDED
-
     trusted = native_may_authorize(native_trusted, native, probe)
+    corroboration = (
+        empirical.corroboration
+        if empirical is not None and is_resolved(empirical.corroboration)
+        else NOT_PROVIDED
+    )
 
     if is_resolved(native) and is_resolved(probe):
         ratio = disagreement_ratio(native, probe)
@@ -155,10 +160,13 @@ def arbitrate(
                 )
                 status = StorageEvidenceStatus.BOUNDED
         if source == "confirmed":
-            reason = "specialist available used; sonar confirmed within 10%"
+            reason = _confirmed_reason(corroboration)
+        elif source == "specialist":
+            reason = "specialist available used; sonar corroboration inconclusive"
         elif source == "sonar":
             reason = (
-                "sonar lower bound used; specialist disagreed by more than 10%"
+                "sonar lower bound used; specialist contradicted by capacity "
+                "failure below the claim"
                 if is_resolved(specialist)
                 else "empirical fallback lower bound"
             )
@@ -169,8 +177,9 @@ def arbitrate(
                     "upper bound unknown"
                     if not is_resolved(specialist)
                     else (
-                        "sonar lower bound used; specialist disagreed by more "
-                        "than 10%; ceiling reached without failure"
+                        "sonar lower bound used; specialist contradicted by "
+                        "capacity failure below the claim; ceiling reached "
+                        "without failure"
                     )
                 )
     elif is_resolved(probe):
@@ -179,7 +188,9 @@ def arbitrate(
         reason = "technology probe supplied available bytes"
         confidence = Confidence.MEDIUM
         if source == "confirmed":
-            reason = "specialist available used; sonar confirmed within 10%"
+            reason = _confirmed_reason(corroboration)
+        elif source == "specialist":
+            reason = "specialist available used; sonar corroboration inconclusive"
         elif source == "sonar":
             status = StorageEvidenceStatus.BOUNDED
             reason = "empirical fallback lower bound"
@@ -278,26 +289,58 @@ def arbitrate(
     )
 
 
+_CONFIRMED_STATES = {
+    "confirmed_bracketed",
+    "not_contradicted",
+    "lower_only",
+}
+_KEEP_SPECIALIST_STATES = _CONFIRMED_STATES | {"inconclusive", "limited"}
+
+
+def _confirmed_reason(corroboration: Maybe[str]) -> str:
+    if corroboration == "lower_only":
+        return (
+            "specialist available used; sonar proved >=256 GiB; "
+            "upper corroboration unavailable in V2"
+        )
+    if corroboration == "not_contradicted":
+        return (
+            "specialist available used; sonar not contradicted "
+            "(specialist may be conservative)"
+        )
+    return "specialist available used; sonar corroborated"
+
+
 def specialist_or_sonar(
     specialist: Maybe[int],
     empirical: EmpiricalProbeEvidence,
 ) -> tuple[Maybe[int], str]:
-    """Choose specialist vs Sonar. Confirmation uses the 10% available ratio.
+    """Choose specialist vs Sonar after corroboration.
 
-    If Sonar confirms the specialist, the specialist figure is operational.
-    If they disagree, Sonar (the proven lower bound) is operational. If only
-    one source resolved, that figure is used. Sonar that could not
-    characterize does not discard specialist bytes.
+    A credible specialist remains authority unless Sonar observed a
+    capacity failure strictly below that candidate. Full-tree Sonar is
+    authority when no usable specialist exists, or after contradiction.
     """
     sonar = empirical.verified_lower_bound_bytes
-    if is_resolved(specialist) and is_resolved(sonar):
-        if disagreement_ratio(specialist, sonar) <= DISAGREEMENT_RATIO:
+    state = empirical.corroboration
+    if is_resolved(specialist) and is_resolved(state):
+        if state == "contradicted":
+            if is_resolved(sonar):
+                return sonar, "sonar"
+            return NOT_PROVIDED, "none"
+        if state in _CONFIRMED_STATES:
             return specialist, "confirmed"
-        return sonar, "sonar"
+        if state in _KEEP_SPECIALIST_STATES:
+            return specialist, "specialist"
+    if is_resolved(specialist):
+        upper = empirical.observed_failure_upper_bytes
+        if is_resolved(upper) and upper < specialist:
+            if is_resolved(sonar):
+                return sonar, "sonar"
+            return NOT_PROVIDED, "none"
+        return specialist, "specialist"
     if is_resolved(sonar):
         return sonar, "sonar"
-    if is_resolved(specialist):
-        return specialist, "specialist"
     return NOT_PROVIDED, "none"
 
 
@@ -311,8 +354,8 @@ def needs_empirical_fallback(
     """Whether the expensive path should run Sonar.
 
     Cheap GET uses ``run_empirical=False`` and never consults this. On the
-    expensive path Sonar always runs: it confirms a specialist, replaces a
-    disagreed specialist, or supplies capacity when no specialist could.
+    expensive path Sonar always runs: it corroborates a specialist or
+    supplies the full V2 tree when no specialist produced bytes.
     """
     del family, credible_family, reports, evidence
     return True

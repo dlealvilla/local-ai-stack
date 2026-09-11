@@ -49,6 +49,7 @@ from kultrun.storage.sonar_tree import (
     SONAR_TIER_UNITS,
     SonarAttempt,
     classify_sonar_tree,
+    specialist_bracket,
 )
 
 PRODUCER = Name("storage.empirical")
@@ -60,6 +61,12 @@ RUN_COMPLETE = "complete"
 RUN_INTERRUPTED = "interrupted_recovered"
 RUN_CLEANUP_FAILED = "cleanup_failed"
 RUN_VERY_LOW = "very_low"
+CORROBORATION_CONFIRMED = "confirmed_bracketed"
+CORROBORATION_NOT_CONTRADICTED = "not_contradicted"
+CORROBORATION_LOWER_ONLY = "lower_only"
+CORROBORATION_INCONCLUSIVE = "inconclusive"
+CORROBORATION_LIMITED = "limited"
+CORROBORATION_CONTRADICTED = "contradicted"
 
 
 class EmpiricalStorageProbe:
@@ -112,8 +119,14 @@ class EmpiricalStorageProbe:
         native_available_bytes: int | None = None,
         quota_identity: Maybe[str] = NOT_PROVIDED,
         pool_fingerprint: Maybe[str] = NOT_PROVIDED,
+        corroborate_bytes: int | None = None,
     ) -> EmpiricalProbeEvidence:
-        """Search writable capacity. Cleans probe and reserve on every exit."""
+        """Search writable capacity. Cleans probe and reserve on every exit.
+
+        When ``corroborate_bytes`` is set, Sonar brackets that specialist
+        candidate instead of walking the full tree, unless a capacity
+        failure strictly below the candidate contradicts it.
+        """
         del known_low_bytes, native_available_bytes
         workspace = Path(target_dir) / PROBE_DIRECTORY
         probe_file = workspace / PROBE_FILENAME
@@ -161,7 +174,10 @@ class EmpiricalStorageProbe:
                     search, owned, started_at, started_mono, probe_file, reserve_file
                 )
 
+            recorded: list[int] = []
+
             def attempt(target: int) -> SonarAttempt:
+                recorded.append(target)
                 return self._attempt(
                     target,
                     probe_file,
@@ -173,27 +189,106 @@ class EmpiricalStorageProbe:
                     search,
                 )
 
-            tree = classify_sonar_tree(attempt)
-            lower = tree.lower_units
-            if search.completed:
-                physical = max(search.completed)
-                if not is_resolved(lower) or physical > lower:
-                    lower = physical
-            search.lower_units = lower if is_resolved(lower) else None
-            if not search.interrupted:
-                search.upper_units = (
-                    tree.upper_units if is_resolved(tree.upper_units) else None
-                )
-            search.attempted = tree.attempted
-            if search.lower_units == self._max_tier and search.upper_units is None:
-                search.ceiling_reached = True
-            if search.lower_units is None and not search.interrupted:
+            settled = False
+            if corroborate_bytes is not None and corroborate_bytes > 0:
+                search.specialist_candidate = corroborate_bytes
+                settled = self._corroborate(corroborate_bytes, attempt, search)
+            if not settled:
+                tree = classify_sonar_tree(attempt)
+                lower = tree.lower_units
+                if search.completed:
+                    physical = max(search.completed)
+                    if not is_resolved(lower) or physical > lower:
+                        lower = physical
+                search.lower_units = lower if is_resolved(lower) else None
+                if not search.interrupted:
+                    search.upper_units = (
+                        tree.upper_units if is_resolved(tree.upper_units) else None
+                    )
+                if search.lower_units == self._max_tier and search.upper_units is None:
+                    search.ceiling_reached = True
+            search.attempted = tuple(recorded)
+            keep_specialist = search.corroboration in {
+                CORROBORATION_LIMITED,
+                CORROBORATION_INCONCLUSIVE,
+                CORROBORATION_CONFIRMED,
+                CORROBORATION_NOT_CONTRADICTED,
+                CORROBORATION_LOWER_ONLY,
+            }
+            if (
+                search.lower_units is None
+                and not search.interrupted
+                and not keep_specialist
+            ):
                 search.run_state = RUN_VERY_LOW
         finally:
             pass
         return self._finish(
             search, owned, started_at, started_mono, probe_file, reserve_file
         )
+
+    def _corroborate(
+        self,
+        candidate_bytes: int,
+        attempt: Callable[[int], SonarAttempt],
+        search: _SearchState,
+    ) -> bool:
+        """Bracket a specialist candidate. True when it remains authority."""
+        s_units = candidate_bytes // self._unit
+        lower_tier, upper_tier = specialist_bracket(s_units)
+        if lower_tier is None:
+            search.corroboration = CORROBORATION_LIMITED
+            return True
+        below = lower_tier * self._unit < candidate_bytes
+        if upper_tier is None:
+            result = attempt(self._max_tier)
+            if result is SonarAttempt.SUCCESS:
+                search.lower_units = self._max_tier
+                search.upper_units = None
+                search.ceiling_reached = True
+                search.corroboration = (
+                    CORROBORATION_LOWER_ONLY
+                    if candidate_bytes > self._max_tier * self._unit
+                    else CORROBORATION_CONFIRMED
+                )
+                return True
+            if result is SonarAttempt.CAPACITY:
+                if self._max_tier * self._unit < candidate_bytes:
+                    search.corroboration = CORROBORATION_CONTRADICTED
+                    return False
+                search.corroboration = CORROBORATION_INCONCLUSIVE
+                return True
+            search.corroboration = CORROBORATION_INCONCLUSIVE
+            return True
+
+        lower_result = attempt(lower_tier)
+        if lower_result is SonarAttempt.CAPACITY:
+            if below:
+                search.corroboration = CORROBORATION_CONTRADICTED
+                return False
+            search.corroboration = CORROBORATION_INCONCLUSIVE
+            return True
+        if lower_result is SonarAttempt.OTHER:
+            search.corroboration = CORROBORATION_INCONCLUSIVE
+            if search.completed:
+                search.lower_units = max(search.completed)
+            return True
+
+        search.lower_units = lower_tier
+        upper_result = attempt(upper_tier)
+        if upper_result is SonarAttempt.CAPACITY:
+            search.upper_units = upper_tier
+            search.corroboration = CORROBORATION_CONFIRMED
+            return True
+        if upper_result is SonarAttempt.SUCCESS:
+            search.lower_units = upper_tier
+            search.upper_units = None
+            if upper_tier == self._max_tier:
+                search.ceiling_reached = True
+            search.corroboration = CORROBORATION_NOT_CONTRADICTED
+            return True
+        search.corroboration = CORROBORATION_INCONCLUSIVE
+        return True
 
     def _attempt(
         self,
@@ -464,6 +559,14 @@ class EmpiricalStorageProbe:
             probe_id=search.probe_id,
             attempted_tier_units=search.attempted,
             additional_bytes_last=search.additional_last,
+            corroboration=(
+                search.corroboration if search.corroboration else NOT_PROVIDED
+            ),
+            specialist_candidate_bytes=(
+                search.specialist_candidate
+                if search.specialist_candidate is not None
+                else NOT_PROVIDED
+            ),
         )
 
 
@@ -504,6 +607,8 @@ class _SearchState:
         self.lower_units: int | None = None
         self.upper_units: int | None = None
         self.attempted: tuple[int, ...] = ()
+        self.corroboration: str | None = None
+        self.specialist_candidate: int | None = None
 
 
 def _growth_steps(current: int, target: int) -> tuple[int, ...]:

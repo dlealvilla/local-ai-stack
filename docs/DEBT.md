@@ -1924,12 +1924,15 @@ Label:        DEFERRED
 Owner stage:  1.6L5
 Subsystem:    storage / planning
 Authorizes:   NO
-What:         1.6L2 persist, 1.6L3 P0 specialist parsers, and 1.6L4
-              Sonar V2 exist locally. Remaining: administrator capacity
-              as last-resort evidence; G-REPL 20%×5 replacing K-110
-              execution; physical Sonar L2 (K-111 includes duration
-              on FUSE; tests must not write production GiB); >256 GiB
-              characterization.
+What:         1.6L2 persist, 1.6L3 P0 specialist parsers, 1.6L4
+              Sonar V2, and 1.6L4a specialist corroboration exist
+              locally. Remaining: administrator capacity as last-resort
+              evidence; G-REPL 20%×5 replacing K-110 execution;
+              physical specialist validation; physical Sonar L2
+              (duration on FUSE; tests must not write production GiB);
+              optional later >256 GiB Sonar exploration. The V2 256 GiB
+              ceiling is not a reason to distrust a specialist above
+              256 GiB.
 Why now:      Specialist + Sonar unblock truthful FUSE numbers.
               Manual is only when capacity itself is unresolved.
 To make real: Stage 1.6L5 in

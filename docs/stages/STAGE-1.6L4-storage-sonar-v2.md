@@ -17,8 +17,8 @@ CURRENT STAGE                HOST-mode Sonar V2: official tiers
                              grow-to-size incompressible writes;
                              expensive path always runs Sonar.
 PREDECESSOR OUTPUTS           1.6L3 specialist-bytes authority da9b75e.
-THIS STAGE'S REQUIRED OUTPUT Conservative proven lower-bound tiers;
-                             specialist confirmed or replaced by Sonar.
+THIS STAGE'S REQUIRED OUTPUT Conservative proven lower-bound tiers.
+                             Authority policy is 1.6L4a.
 CORE CONTRACTS AFFECTED      optional EmpiricalProbeEvidence fields;
                              policy_version 1.6L4.0-sonar-v2.
 ADAPTERS AFFECTED            empirical_write grow-to-size.
@@ -58,16 +58,7 @@ Physical I/O may checkpoint 16, 24, 32, 48 while growing to 64.
 
 ## Confirmation policy
 
-```text
-if specialist bytes and Sonar lower bound both resolved:
-    if disagreement_ratio <= 0.10:
-        operational = specialist   # confirmed
-    else:
-        operational = Sonar
-elif Sonar resolved:
-    operational = Sonar
-elif specialist resolved:
-    operational = specialist     # Sonar could not characterize
-```
+Superseded by Stage 1.6L4a. The 10% specialist-vs-Sonar replacement
+rule is withdrawn. The V2 tree itself is unchanged.
 
 Cheap GET never enters this path (`run_empirical=False`).

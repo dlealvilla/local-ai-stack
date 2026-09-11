@@ -16,7 +16,7 @@ Legend:
 | fixture | Contract and tests exist; physical implementation deferred |
 | identify | Detection only; no available-bytes figure |
 | optional | Uses a system binary if present; never a mandatory Kultrun dependency |
-| fallback | Empirical Storage Sonar runs on every expensive characterization to confirm or replace specialist bytes |
+| fallback | Empirical Storage Sonar runs on expensive characterization: corroborates a specialist or supplies the full V2 tree when no specialist produced bytes |
 
 The 10% arbitration rule compares **available-to-available** on one domain:
 
@@ -42,7 +42,7 @@ populates authorizing SAFE.
 
 | Environment | Detection | Declared/native source | Technology-specific probe | Now? | Optional dependency? | Fallback Sonar | Confidence | Limitations / debt |
 |---|---|---|---|---|---|---|---|---|
-| ext4 | mount `filesystem_type` | `statvfs` (credible local ≤500 GiB) | linux-quota | yes / optional | `quota` binary | yes on expensive path (confirms or replaces) | medium–high | Hidden project quota still **K-102** |
+| ext4 | mount `filesystem_type` | `statvfs` (credible local ≤500 GiB) | linux-quota | yes / optional | `quota` binary | yes on expensive path (corroborates specialist; full tree if no bytes) | medium–high | Hidden project quota still **K-102** |
 | XFS | family allow-list | `statvfs` | linux-quota | yes / optional | `quota` | yes on expensive path | medium | project quota parse deferred **K-102** |
 | Btrfs | family allow-list | `statvfs` | linux-quota | yes / optional | `quota` | yes on expensive path | medium | qgroups **K-102** |
 | ZFS | family allow-list | `statvfs` | zfs-dataset | yes / optional | `zfs` | if unresolved | medium | physical L2 **K-102** |
@@ -52,7 +52,7 @@ populates authorizing SAFE.
 | NFS | nfs/nfs4 | mount free; not an entitlement | nfs-quota | optional | `quota` / `nfsstat` | yes if no numeric probe | low | rquota numeric parse **K-103** |
 | SMB/CIFS | cifs/smb* family | mount free; not an entitlement | none | identify | none | yes | low | SMB quota adapter **K-104** |
 | FUSE | fuse/fuseblk/fuse.* | `statvfs` **not** an entitlement | fuse-identify | identify | none | **yes** on expensive path | low | 64 GiB is belief only; never SAFE |
-| MooseFS | fuse + mfs device/family | FUSE lie possible | moosefs-quota | optional | `mfsgetquota` (not bundled; GPL) | yes (confirms specialist or fills in) | low | Fixture parse; physical **K-105** |
+| MooseFS | fuse + mfs device/family | FUSE lie possible | moosefs-quota | optional | `mfsgetquota` (not bundled; GPL) | yes (corroborates specialist or full tree if no bytes) | low | Fixture parse; physical **K-105** |
 | CephFS | ceph family | mount free; not an entitlement | cephfs-quota | yes / xattr | none | yes if no xattr | low | physical **K-106** |
 | Kubernetes / container storage | overlay + CSI mounts as host facts | overlay credible; network volumes not | none specialized | partial | none | yes for non-credible | low | CSI/PVC quota **K-107** |
 | Cloud / provider volumes | host mounts + future provider adapters | administrator bound; provider quota deferred | none | partial | none | yes | low | RunPod/cloud quota **K-108** |
@@ -66,15 +66,20 @@ populates authorizing SAFE.
 - No compatible probe → `ProbeReport(probe_name="none", compatible=False)`.
 - `posix-statvfs` and `GetDiskFreeSpaceExW` are **native sources**, not specialist entitlements.
 - Specialist remaining bytes always beat generic native until Sonar
-  confirms or disagrees. 10% is diagnostic between native and the chosen
-  figure, and is the confirmation ratio between specialist and Sonar.
+  contradicts them with a capacity failure **below** the specialist
+  candidate. 10% is diagnostic between native and the chosen figure.
+  Sonar does not replace a specialist with a coarse V2 tier on mere
+  disagreement.
 - Native on a trusted-local family may authorize only at or below 500 GiB
   when no specialist produced domain bytes **and** Sonar could not
   characterize (cheap GET never Sonars).
 - Empirical Sonar **always** runs on the expensive path when a live probe
-  is injected. Cheap GET / `kultrun host` never writes 16–256 GiB.
+  is injected: corroboration brackets if specialist bytes exist, otherwise
+  the full V2 tree. Cheap GET / `kultrun host` never writes 16–256 GiB.
 - Hitting the top tier without failure means `lower ≥ 256 GiB`,
   `upper = UNKNOWN`. It does **not** mean `available = 256 GiB`.
+  A specialist above 256 GiB that is not contradicted below that claim
+  remains authority; Sonar V2 cannot test above 256 GiB.
 - Production unit is 1 GiB; tests inject a tiny `unit_bytes`. The owned
   reserve is 1 GiB in production and is not SAFE.
 

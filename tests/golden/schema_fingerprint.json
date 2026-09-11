@@ -8548,6 +8548,13 @@
         "optional": false,
         "type": "Confidence"
       },
+      "corroboration": {
+        "may_be_unresolved": true,
+        "meaning": "confirmed_bracketed, not_contradicted, lower_only, inconclusive, limited, contradicted; unset for full-tree runs",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "elapsed_seconds": {
         "may_be_unresolved": false,
         "meaning": "wall clock of the search",
@@ -8673,6 +8680,13 @@
         "nullable": false,
         "optional": false,
         "type": "int"
+      },
+      "specialist_candidate_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "specialist figure after smaller hard bounds, when corroborating",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
       },
       "target_path": {
         "may_be_unresolved": false,
