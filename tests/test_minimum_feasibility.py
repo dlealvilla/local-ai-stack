@@ -405,6 +405,18 @@ def test_should_recharacterize_only_when_occupancy_dropped() -> None:
         )
         is False
     )
+    unresolved = _capacity(host_id, "/workspace", 16 * GIB)
+    assert (
+        should_recharacterize(
+            empirical,
+            unresolved,
+            managed_now=0,
+            reclaimable_bytes=0,
+            current_safe_blocks=True,
+            actual_reclaimed_bytes=19 * GIB,
+        )
+        is True
+    )
 
 
 def test_minimum_fail_and_pass_with_reclamation_condition() -> None:
@@ -623,7 +635,13 @@ def _stub_characterization(evidence: dict):
 
 
 def _realize_for_reclaim(
-    tmp_path: Path, host_caps, ownership, occupancy, characterization
+    tmp_path: Path,
+    host_caps,
+    ownership,
+    occupancy,
+    characterization,
+    *,
+    allow_empirical: bool = False,
 ):
     from kultrun.adapters.provisioning.fixture import FixtureRuntimeProvisioner
     from kultrun.adapters.verification.fixture import (
@@ -668,7 +686,7 @@ def _realize_for_reclaim(
             CapacityService(clock=CLOCK),
             state,
             StorageEvidenceIndex(records),
-            allow_empirical=False,
+            allow_empirical=allow_empirical,
             journal=journal,
             ownership=ownership,
             runs=runs,
@@ -945,6 +963,69 @@ def test_cleanup_happens_despite_sufficient_capacity(tmp_path: Path) -> None:
     ]
     assert len(completed) == 1
     assert completed[0].outcome is OperationalOutcome.PASS
+
+
+def test_actual_reclaim_recharacterizes_when_safe_still_blocks(
+    tmp_path: Path,
+) -> None:
+    from kultrun.storage.characterize import Characterization
+    from kultrun.storage.topology import pools_from_host
+
+    current = tmp_path / "current" / "state"
+    prior = tmp_path / "prior" / "state" / "models"
+    current.mkdir(parents=True)
+    prior.mkdir(parents=True)
+    (prior / "blob").write_bytes(b"x" * 4096)
+    host_caps = _linux_nvidia(mount(point="/", filesystem="ext4", free=80 * GIB))
+    dest = destination_pool(current, pools_from_host(host_caps))
+    assert dest is not None
+    ownership = OwnershipService(FileStore(tmp_path / "own"), CLOCK, current)
+    ownership.assert_owned(
+        prior,
+        host_caps.host_id,
+        ManagedResourceType.MODEL_ARTIFACT,
+        allowed_roots=(tmp_path,),
+    )
+    before = {
+        dest.mount_point: _capacity(host_caps.host_id, dest.mount_point, 16 * GIB)
+    }
+    after = {
+        dest.mount_point: _capacity(host_caps.host_id, dest.mount_point, 40 * GIB)
+    }
+
+    class Stub:
+        def characterize(self, host, **kwargs):
+            evidence = after if kwargs.get("run_empirical") else before
+            return Characterization(
+                pools=pools_from_host(host),
+                evidence=evidence,
+                cleanup=None,
+                low_space=(),
+                empirical_ran=(),
+                empirical_evidence={},
+            )
+
+    from unittest.mock import patch
+
+    service, journal, _runs, _state = _realize_for_reclaim(
+        tmp_path,
+        host_caps,
+        ownership,
+        lambda _host: (tuple(ownership.records()), (), ()),
+        Stub(),
+        allow_empirical=True,
+    )
+    with patch("kultrun.storage.inventory.tree_bytes", return_value=19 * GIB):
+        updated = service._apply_minimum_and_reclaim(
+            host_caps,
+            _descriptors(),
+            before,
+            None,
+        )
+    assert updated[dest.mount_point].authorizing_available_bytes == 40 * GIB
+    facts = journal.facts(host_caps.host_id)
+    assert any(item.event_type.value == "storage.recharacterized" for item in facts)
+    assert any(item.event_type.value == "storage.reclaim_completed" for item in facts)
 
 
 def test_unique_occupancy_keeps_stronger_class_and_nested_bytes_once() -> None:

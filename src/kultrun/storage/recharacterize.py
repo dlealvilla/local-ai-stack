@@ -18,6 +18,7 @@ def should_recharacterize(
     managed_now: int | None,
     reclaimable_bytes: int,
     current_safe_blocks: bool,
+    actual_reclaimed_bytes: int = 0,
 ) -> bool:
     """True when reused empirical authority would hide newly available quota.
 
@@ -25,10 +26,16 @@ def should_recharacterize(
     Historical free-space observations never appear here. Reclaimable
     bytes still on disk are counted in potential capacity; Sonar waits
     until after product reclaim.
+
+    Actual product reclaim is an occupancy drop even when the stored
+    ``accounted_managed_bytes`` snapshot is missing (sibling leftovers are
+    not current-install managed usage).
     """
-    if empirical is None or held is None:
-        return False
     if not current_safe_blocks:
+        return False
+    if actual_reclaimed_bytes > 0:
+        return True
+    if empirical is None or held is None:
         return False
     accounted = (
         held.accounted_managed_bytes
@@ -41,8 +48,4 @@ def should_recharacterize(
         and managed_now < accounted
     )
     del reclaimable_bytes
-    # Reclaimable bytes still on disk are counted in Minimum Feasibility
-    # potential, then deleted by the product reclaim path. Sonar must not
-    # re-run against the old occupancy. An occupancy-conditional EDQUOT
-    # upper is invalidated after actual reclaim, not before.
     return occupancy_dropped

@@ -517,6 +517,18 @@ class FoundationRealizeService:
                 descriptors,
                 capacity_needed=capacity_needed,
             )
+        elif dest is not None and self._allow_empirical and self._index is not None:
+            empirical = self._index.empirical_for_host(host).get(dest.mount_point)
+            if self._empirical_predates_reclaim(host, empirical):
+                storage_evidence = self._refresh_after_occupancy(
+                    host,
+                    dest,
+                    items,
+                    storage_evidence,
+                    sanity,
+                    actual_reclaimed=0,
+                )
+        if dest is not None:
             evidence = storage_evidence.get(dest.mount_point)
             envelope = self._capacity.compute(
                 host, sanity or {}, storage_evidence=storage_evidence
@@ -625,6 +637,26 @@ class FoundationRealizeService:
             live_roots=live_roots,
             reusable_roots=reusable_roots,
         )
+        storage_evidence = self._refresh_after_occupancy(
+            host,
+            dest,
+            items,
+            storage_evidence,
+            sanity,
+            actual_reclaimed=result.actual_bytes,
+        )
+        return storage_evidence, items, records
+
+    def _refresh_after_occupancy(
+        self,
+        host: HostCapabilities,
+        dest: StoragePool,
+        items: tuple[ManagedOccupancyItem, ...],
+        storage_evidence: Mapping[str, StorageCapacityEvidence],
+        sanity: Mapping[str, StorageSanityEvidence] | None,
+        *,
+        actual_reclaimed: int,
+    ) -> Mapping[str, StorageCapacityEvidence]:
         evidence = storage_evidence.get(dest.mount_point)
         empirical = None
         if self._index is not None:
@@ -653,12 +685,19 @@ class FoundationRealizeService:
             )
         run_empirical = bool(
             self._allow_empirical
-            and should_recharacterize(
-                empirical,
-                evidence,
-                managed_now=managed_now if isinstance(managed_now, int) else None,
-                reclaimable_bytes=grouped.reclaimable_bytes if grouped else 0,
-                current_safe_blocks=blocks,
+            and (
+                should_recharacterize(
+                    empirical,
+                    evidence,
+                    managed_now=managed_now if isinstance(managed_now, int) else None,
+                    reclaimable_bytes=grouped.reclaimable_bytes if grouped else 0,
+                    current_safe_blocks=blocks,
+                    actual_reclaimed_bytes=actual_reclaimed,
+                )
+                or (
+                    blocks
+                    and self._empirical_predates_reclaim(host, empirical)
+                )
             )
         )
         if run_empirical and self._index is not None:
@@ -687,7 +726,29 @@ class FoundationRealizeService:
             planning = self._index.for_host(host)
             if planning:
                 storage_evidence = planning
-        return storage_evidence, items, records
+        return storage_evidence
+
+    def _empirical_predates_reclaim(
+        self, host: HostCapabilities, empirical: object
+    ) -> bool:
+        """True when a later reclaim made an occupancy-conditional upper stale."""
+        if self._journal is None or empirical is None:
+            return False
+        upper = getattr(empirical, "observed_failure_upper_bytes", None)
+        if not is_resolved(upper):
+            return False
+        provenance = getattr(empirical, "provenance", None)
+        observed = getattr(provenance, "observed_at", None)
+        if observed is None:
+            return False
+        for fact in self._journal.facts(host.host_id):
+            if fact.event_type.value != "storage.reclaim_completed":
+                continue
+            if fact.outcome is not OperationalOutcome.PASS:
+                continue
+            if fact.occurred_at >= observed:
+                return True
+        return False
 
     def _emit_occupancy(
         self,
