@@ -101,7 +101,12 @@ _CLASS_PRIORITY = {
 def unique_occupancy(
     items: Sequence[ManagedOccupancyItem],
 ) -> tuple[ManagedOccupancyItem, ...]:
-    """One class per path. Nested trees do not add the same bytes twice."""
+    """One class per path. Nested trees do not add the same bytes twice.
+
+    A weaker ancestor must not hide a stronger descendant. An UNKNOWN
+    sibling ``state`` root would otherwise swallow cleanup-eligible
+    ``models`` / ``runtimes`` and block product reclaim.
+    """
     by_path: dict[str, ManagedOccupancyItem] = {}
     for item in items:
         existing = by_path.get(item.managed_root)
@@ -111,17 +116,33 @@ def unique_occupancy(
             > _CLASS_PRIORITY[existing.occupancy_class]
         ):
             by_path[item.managed_root] = item
-    ranked = sorted(
-        by_path.values(),
-        key=lambda item: (item.managed_root.count("/"), item.managed_root),
+    candidates = tuple(by_path.values())
+    hidden_parents = {
+        item.managed_root
+        for item in candidates
+        if any(
+            _under(Path(other.managed_root), Path(item.managed_root))
+            and _CLASS_PRIORITY[other.occupancy_class]
+            > _CLASS_PRIORITY[item.occupancy_class]
+            for other in candidates
+        )
+    }
+    remaining = tuple(
+        item for item in candidates if item.managed_root not in hidden_parents
     )
     kept: list[ManagedOccupancyItem] = []
-    for item in ranked:
+    for item in remaining:
         path = Path(item.managed_root)
-        if any(_under(path, Path(other.managed_root)) for other in kept):
+        prio = _CLASS_PRIORITY[item.occupancy_class]
+        if any(
+            _under(path, Path(other.managed_root))
+            and _CLASS_PRIORITY[other.occupancy_class] >= prio
+            for other in remaining
+            if other.managed_root != item.managed_root
+        ):
             continue
         kept.append(item)
-    return tuple(kept)
+    return tuple(sorted(kept, key=lambda row: row.managed_root))
 
 
 def totals_by_pool(

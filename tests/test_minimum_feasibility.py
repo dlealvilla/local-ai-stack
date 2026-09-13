@@ -40,7 +40,11 @@ from kultrun.storage.contracts import (
     ManagedResourceType,
     OwnershipId,
 )
-from kultrun.storage.inventory import classify_occupancy, unique_occupancy
+from kultrun.storage.inventory import (
+    classify_occupancy,
+    totals_by_pool,
+    unique_occupancy,
+)
 from kultrun.storage.limits import POLICY_VERSION
 from kultrun.storage.ownership import OwnershipService
 from kultrun.storage.recharacterize import should_recharacterize
@@ -985,3 +989,73 @@ def test_unique_occupancy_keeps_stronger_class_and_nested_bytes_once() -> None:
     )
     assert len(same) == 1
     assert same[0].occupancy_class is ManagedOccupancyClass.REUSABLE
+
+
+def test_unknown_parent_does_not_hide_reclaimable_sibling_artifacts() -> None:
+    """Physical leftover layout: UNKNOWN state root wrapping owned models."""
+    parent = _item(
+        occupancy=ManagedOccupancyClass.UNKNOWN,
+        occupied=19 * GIB,
+        mount_point="/workspace",
+        quota=NOT_PROVIDED,
+        fingerprint=NOT_PROVIDED,
+        resource=ManagedResourceType.STATE_ROOT,
+        root="/workspace/prior/state",
+    )
+    models = _item(
+        occupancy=ManagedOccupancyClass.RECLAIMABLE,
+        occupied=6 * GIB,
+        mount_point="/workspace",
+        quota=NOT_PROVIDED,
+        fingerprint=NOT_PROVIDED,
+        resource=ManagedResourceType.MODEL_ARTIFACT,
+        root="/workspace/prior/state/models",
+    )
+    runtimes = _item(
+        occupancy=ManagedOccupancyClass.RECLAIMABLE,
+        occupied=8 * GIB,
+        mount_point="/workspace",
+        quota=NOT_PROVIDED,
+        fingerprint=NOT_PROVIDED,
+        resource=ManagedResourceType.RUNTIME_FINAL,
+        root="/workspace/prior/state/runtimes",
+    )
+    logs = _item(
+        occupancy=ManagedOccupancyClass.UNKNOWN,
+        occupied=1,
+        mount_point="/workspace",
+        quota=NOT_PROVIDED,
+        fingerprint=NOT_PROVIDED,
+        resource=ManagedResourceType.LOGS,
+        root="/workspace/prior/state/logs",
+    )
+    unique = unique_occupancy((parent, models, runtimes, logs))
+    reclaimable = [
+        item
+        for item in unique
+        if item.occupancy_class is ManagedOccupancyClass.RECLAIMABLE
+    ]
+    unknown = [
+        item
+        for item in unique
+        if item.occupancy_class is ManagedOccupancyClass.UNKNOWN
+    ]
+    assert {item.managed_root for item in reclaimable} == {
+        "/workspace/prior/state/models",
+        "/workspace/prior/state/runtimes",
+    }
+    assert "/workspace/prior/state" not in {item.managed_root for item in unique}
+    assert {item.managed_root for item in unknown} == {
+        "/workspace/prior/state/logs"
+    }
+    totals = totals_by_pool((parent, models, runtimes, logs))["/workspace"]
+    assert totals.reclaimable_bytes == 14 * GIB
+    assert totals.unknown_bytes == 1
+    plan = plan_reclaim(
+        (parent, models, runtimes, logs),
+        mount_point="/workspace",
+        capacity_required=False,
+    )
+    assert plan.cleanup_required_by_lifecycle is True
+    assert plan.cleanup_required_for_capacity is False
+    assert plan.expected_bytes == 14 * GIB
