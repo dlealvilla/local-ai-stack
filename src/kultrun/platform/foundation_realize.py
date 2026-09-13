@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from kultrun.capacity.envelope import CapacityService
@@ -10,12 +10,19 @@ from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.errors import PreconditionFailedError
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.model.contracts import MemoryPlacement
+from kultrun.platform.contracts import MinimumFeasibilityVerdict
+from kultrun.platform.minimum import (
+    assess_minimum,
+    destination_pool,
+    nearby_state_roots,
+)
 from kultrun.platform.observation import (
     OperationalJournal,
     OperationalOutcome,
     OperationalStage,
     attr,
 )
+from kultrun.platform.runs import DeploymentRunStore
 from kultrun.platform.storage_replan import (
     ReplanOutcome,
     ReplanStage,
@@ -38,6 +45,9 @@ from kultrun.runtime.resolve import ExecutorCapabilityView
 from kultrun.runtime.selection import FoundationOverview, FoundationSelectionService
 from kultrun.storage.characterize import StorageCharacterizationService
 from kultrun.storage.contracts import (
+    ManagedOccupancyClass,
+    ManagedOccupancyItem,
+    OwnershipRecord,
     StorageCapacityEvidence,
     StorageFailureCode,
     StorageSanityEvidence,
@@ -46,6 +56,10 @@ from kultrun.storage.contradiction import contradict
 from kultrun.storage.failures import is_capacity_failure
 from kultrun.storage.footprint import runtime_provisioning_requirement
 from kultrun.storage.index import StorageEvidenceIndex
+from kultrun.storage.inventory import classify_occupancy, totals_by_pool
+from kultrun.storage.ownership import OwnershipService
+from kultrun.storage.recharacterize import should_recharacterize
+from kultrun.storage.reclaim import execute_reclaim, plan_reclaim
 from kultrun.storage.reduction import (
     is_footprint_retryable,
     is_manual_capacity_required,
@@ -68,6 +82,15 @@ class FoundationRealizeService:
         allow_empirical: bool = False,
         replan: StorageReplanService | None = None,
         journal: OperationalJournal | None = None,
+        ownership: OwnershipService | None = None,
+        runs: DeploymentRunStore | None = None,
+        occupancy_records: (
+            Callable[
+                [HostCapabilities],
+                tuple[tuple[OwnershipRecord, ...], tuple[Path, ...], tuple[Path, ...]],
+            ]
+            | None
+        ) = None,
     ) -> None:
         self._foundation = foundation
         self._characterization = characterization
@@ -78,8 +101,53 @@ class FoundationRealizeService:
         self._allow_empirical = allow_empirical
         self._replan = replan
         self._journal = journal
+        self._ownership = ownership
+        self._runs = runs
+        self._occupancy_records = occupancy_records
+
+    def occupancy_items(
+        self, host: HostCapabilities
+    ) -> tuple[ManagedOccupancyItem, ...]:
+        """Classify dual-owned roots. Does not probe or delete."""
+        records, live_roots, reusable_roots = self._occupancy(host)
+        return classify_occupancy(
+            records,
+            pools_from_host(host),
+            current_state_root=self._state_root,
+            live_roots=live_roots,
+            reusable_roots=reusable_roots,
+        )
 
     def realize(
+        self,
+        host: HostCapabilities,
+        executors: Sequence[ExecutorCapabilityView],
+        descriptors: Sequence[RuntimeSupportDescriptor],
+        policy: RuntimePolicy | None = None,
+        *,
+        components: Mapping[str, str] | None = None,
+        retry: bool = False,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
+        sanity: Mapping[str, StorageSanityEvidence] | None = None,
+        _replanned: bool = False,
+    ) -> RuntimeInstallation:
+        try:
+            return self._realize_inner(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components=components,
+                retry=retry,
+                storage_evidence=storage_evidence,
+                sanity=sanity,
+                _replanned=_replanned,
+            )
+        except PreconditionFailedError as error:
+            self._fail_product(host, error)
+            raise
+
+    def _realize_inner(
         self,
         host: HostCapabilities,
         executors: Sequence[ExecutorCapabilityView],
@@ -105,7 +173,7 @@ class FoundationRealizeService:
             )
         except PreconditionFailedError as error:
             self._raise_or_replan(host, error, replanned=_replanned)
-            return self.realize(
+            return self._realize_inner(
                 host,
                 executors,
                 descriptors,
@@ -129,7 +197,7 @@ class FoundationRealizeService:
             and is_footprint_retryable(code)
             and self._try_replan(host, code)
         ):
-            return self.realize(
+            return self._realize_inner(
                 host,
                 executors,
                 descriptors,
@@ -216,6 +284,9 @@ class FoundationRealizeService:
                 planning = self._index.for_host(host)
                 if planning:
                     storage_evidence = planning
+        storage_evidence = self._apply_minimum_and_reclaim(
+            host, descriptors, storage_evidence, sanity
+        )
         overview = self._foundation.view(
             host,
             executors,
@@ -389,6 +460,296 @@ class FoundationRealizeService:
         if self._index is not None:
             self._index.record_observation(rediscovered.evidence)
 
+    def _apply_minimum_and_reclaim(
+        self,
+        host: HostCapabilities,
+        descriptors: Sequence[RuntimeSupportDescriptor],
+        storage_evidence: Mapping[str, StorageCapacityEvidence],
+        sanity: Mapping[str, StorageSanityEvidence] | None,
+    ) -> Mapping[str, StorageCapacityEvidence]:
+        pools = pools_from_host(host)
+        dest = destination_pool(self._state_root, pools)
+        records, live_roots, reusable_roots = self._occupancy(host)
+        items = classify_occupancy(
+            records,
+            pools,
+            current_state_root=self._state_root,
+            live_roots=live_roots,
+            reusable_roots=reusable_roots,
+        )
+        mount = dest.mount_point if dest is not None else None
+        evidence = storage_evidence.get(mount) if isinstance(mount, str) else None
+        empirical = None
+        if self._index is not None and dest is not None:
+            empirical = self._index.empirical_for_host(host).get(dest.mount_point)
+        envelope = self._capacity.compute(
+            host, sanity or {}, storage_evidence=storage_evidence
+        )
+        reclaimable = 0
+        if dest is not None:
+            grouped = totals_by_pool(items).get(dest.mount_point)
+            if grouped is not None:
+                reclaimable = grouped.reclaimable_bytes
+        current_safe: object = NOT_PROVIDED
+        if dest is not None:
+            for pool in envelope.pools:
+                if pool.mount_point == dest.mount_point:
+                    current_safe = pool.space.safe_bytes
+                    break
+        peak = runtime_provisioning_requirement().required_peak_free_bytes
+        required = peak if isinstance(peak, int) else 0
+        blocks = not is_resolved(current_safe) or (
+            isinstance(current_safe, int) and current_safe < required
+        )
+        managed_now = None
+        if dest is not None:
+            grouped = totals_by_pool(items).get(dest.mount_point)
+            if grouped is not None:
+                managed_now = (
+                    grouped.active_bytes
+                    + grouped.reusable_bytes
+                    + grouped.reclaimable_bytes
+                    + grouped.protected_bytes
+                )
+        if (
+            dest is not None
+            and self._index is not None
+            and should_recharacterize(
+                empirical,
+                evidence,
+                managed_now=managed_now if isinstance(managed_now, int) else None,
+                reclaimable_bytes=reclaimable,
+                current_safe_blocks=blocks,
+            )
+        ):
+            self._emit(
+                host.host_id,
+                OperationalStage.STORAGE,
+                "storage.recharacterized",
+                "occupancy dropped; occupancy-conditional upper is not a quota",
+                OperationalOutcome.INFO,
+                reason="managed_occupancy_dropped",
+            )
+            self._index.invalidate(host.host_id, dest.mount_point)
+            characterized = self._characterization.characterize(
+                host,
+                run_cleanup=True,
+                run_empirical=self._allow_empirical,
+            )
+            storage_evidence = characterized.evidence
+            self._index.record_expensive(
+                dict(storage_evidence), characterized.empirical_evidence
+            )
+            planning = self._index.for_host(host)
+            if planning:
+                storage_evidence = planning
+            evidence = storage_evidence.get(dest.mount_point)
+            envelope = self._capacity.compute(
+                host, sanity or {}, storage_evidence=storage_evidence
+            )
+        assessment = assess_minimum(
+            host,
+            destination=dest,
+            evidence=evidence,
+            items=items,
+            descriptors=descriptors,
+            ram_safe_bytes=envelope.memory.safe_bytes,
+        )
+        self._emit_minimum(host.host_id, assessment)
+        if assessment.verdict is MinimumFeasibilityVerdict.FAIL:
+            code = (
+                assessment.reason_code
+                if is_resolved(assessment.reason_code)
+                else "minimum_storage"
+            )
+            raise PreconditionFailedError(
+                assessment.condition or "minimum feasibility failed",
+                reason=str(code),
+            )
+        if assessment.requires_reclamation:
+            if dest is None or self._ownership is None:
+                raise PreconditionFailedError(
+                    "reclamation is required but cannot be executed safely",
+                    reason="reclamation_not_safe",
+                )
+            plan = plan_reclaim(items, mount_point=dest.mount_point)
+            if plan.expected_bytes <= 0:
+                raise PreconditionFailedError(
+                    "reclamation is required but no safe reclaim plan exists",
+                    reason="reclamation_not_safe",
+                )
+            self._emit(
+                host.host_id,
+                OperationalStage.STORAGE,
+                "storage.reclaim_planned",
+                f"reclaim {plan.expected_bytes} bytes",
+                OperationalOutcome.INFO,
+                bytes=plan.expected_bytes,
+            )
+            allowed = (
+                *nearby_state_roots(self._state_root),
+                self._state_root,
+                *(
+                    Path(item.managed_root)
+                    for item in items
+                    if item.occupancy_class is ManagedOccupancyClass.RECLAIMABLE
+                ),
+            )
+            result = execute_reclaim(
+                plan, records, self._ownership, allowed_roots=allowed
+            )
+            self._emit(
+                host.host_id,
+                OperationalStage.STORAGE,
+                "storage.reclaim_completed",
+                f"reclaimed {result.actual_bytes} bytes",
+                OperationalOutcome.PASS
+                if result.actual_bytes > 0
+                else OperationalOutcome.FAIL,
+                bytes=result.actual_bytes,
+                byte_band=_byte_band(result.actual_bytes),
+            )
+            if result.actual_bytes <= 0 and plan.expected_bytes > 0:
+                raise PreconditionFailedError(
+                    "planned reclaim released no bytes",
+                    reason="reclamation_not_safe",
+                )
+            if self._index is not None:
+                self._index.invalidate(host.host_id, dest.mount_point)
+            self._emit(
+                host.host_id,
+                OperationalStage.STORAGE,
+                "storage.recharacterized",
+                "recompute capacity after product-owned reclaim",
+                OperationalOutcome.INFO,
+                reason="reclaim_completed",
+            )
+            characterized = self._characterization.characterize(
+                host,
+                run_cleanup=True,
+                run_empirical=self._allow_empirical,
+            )
+            storage_evidence = characterized.evidence
+            if self._index is not None:
+                self._index.record_expensive(
+                    dict(storage_evidence), characterized.empirical_evidence
+                )
+                planning = self._index.for_host(host)
+                if planning:
+                    storage_evidence = planning
+            records, live_roots, reusable_roots = self._occupancy(host)
+            items = classify_occupancy(
+                records,
+                pools,
+                current_state_root=self._state_root,
+                live_roots=live_roots,
+                reusable_roots=reusable_roots,
+            )
+            evidence = storage_evidence.get(dest.mount_point)
+            envelope = self._capacity.compute(
+                host, sanity or {}, storage_evidence=storage_evidence
+            )
+            assessment = assess_minimum(
+                host,
+                destination=dest,
+                evidence=evidence,
+                items=items,
+                descriptors=descriptors,
+                ram_safe_bytes=envelope.memory.safe_bytes,
+            )
+            self._emit_minimum(host.host_id, assessment)
+            if (
+                assessment.verdict is MinimumFeasibilityVerdict.FAIL
+                or assessment.requires_reclamation
+            ):
+                raise PreconditionFailedError(
+                    assessment.condition or "capacity still infeasible after reclaim",
+                    reason=(
+                        str(assessment.reason_code)
+                        if is_resolved(assessment.reason_code)
+                        else "reclamation_not_safe"
+                    ),
+                )
+        return storage_evidence
+
+    def _occupancy(
+        self, host: HostCapabilities
+    ) -> tuple[tuple[OwnershipRecord, ...], tuple[Path, ...], tuple[Path, ...]]:
+        if self._occupancy_records is None:
+            return (), (), ()
+        return self._occupancy_records(host)
+
+    def _emit_minimum(self, host_id: HostId, assessment: object) -> None:
+        from kultrun.platform.contracts import MinimumFeasibilityAssessment
+
+        if not isinstance(assessment, MinimumFeasibilityAssessment):
+            return
+        outcome = (
+            OperationalOutcome.PASS
+            if assessment.verdict is MinimumFeasibilityVerdict.PASS
+            else OperationalOutcome.FAIL
+        )
+        self._emit(
+            host_id,
+            OperationalStage.FEASIBILITY,
+            "minimum.feasibility_completed",
+            f"MINIMUM FEASIBILITY {assessment.verdict.value.upper()}",
+            outcome,
+            reason=assessment.reason_code
+            if is_resolved(assessment.reason_code)
+            else None,
+            verdict=assessment.verdict.value,
+            profile=assessment.profile_version,
+            requires_reclamation=assessment.requires_reclamation,
+            runtime=(
+                assessment.foundations[0].family if assessment.foundations else None
+            ),
+            byte_band=_byte_band(assessment.potential_safe_bytes),
+            current_authorizing_bytes=(
+                assessment.current_authorizing_bytes
+                if is_resolved(assessment.current_authorizing_bytes)
+                else None
+            ),
+            reclaimable_bytes=assessment.reclaimable_bytes,
+            reusable_bytes=assessment.reusable_bytes,
+            required_peak_bytes=assessment.required_peak_bytes,
+            net_new_bytes=assessment.net_new_bytes,
+            potential_safe_bytes=(
+                assessment.potential_safe_bytes
+                if is_resolved(assessment.potential_safe_bytes)
+                else None
+            ),
+        )
+        for item in assessment.foundations:
+            self._emit(
+                host_id,
+                OperationalStage.FEASIBILITY,
+                "foundation.possibility",
+                f"{item.family} {item.host_possibility.value}",
+                OperationalOutcome.INFO,
+                runtime=item.family,
+                possibility=item.host_possibility.value,
+                support_tier=item.support_tier,
+            )
+
+    def _fail_product(
+        self, host: HostCapabilities, error: PreconditionFailedError
+    ) -> None:
+        reason = str(error.context.get("reason") or "") or None
+        stage = OperationalStage.DEPLOYMENT
+        if reason in _MINIMUM_REASON_CODES:
+            stage = OperationalStage.FEASIBILITY
+        self._emit(
+            host.host_id,
+            stage,
+            "deployment.failed",
+            error.message,
+            OperationalOutcome.FAIL,
+            reason=reason,
+        )
+        if self._runs is not None:
+            self._runs.mark_failed()
+
     def _emit(
         self,
         host_id: HostId,
@@ -413,6 +774,29 @@ class FoundationRealizeService:
             reason_code=reason,
             attributes=attributes,
         )
+
+
+_MINIMUM_REASON_CODES = frozenset(
+    {
+        "minimum_storage",
+        "minimum_ram",
+        "unsupported_platform",
+        "unsupported_architecture",
+        "accelerator_requirement",
+        "no_plausible_foundation",
+        "reclamation_not_safe",
+    }
+)
+
+
+def _byte_band(value: object) -> str | None:
+    if not isinstance(value, int):
+        return None
+    gib = value / (1024**3)
+    for edge in (8, 16, 24, 32, 48, 64, 96, 128, 192, 256):
+        if gib <= edge:
+            return f"<={edge}GiB"
+    return ">256GiB"
 
 
 def _runtime_family(overview: FoundationOverview, selected: str) -> str:

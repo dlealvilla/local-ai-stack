@@ -423,12 +423,20 @@ class OwnershipService:
             return False
         return not path.exists()
 
+    def delete_owned_root(self, path: Path, record: OwnershipRecord) -> bool:
+        """Delete a dual-owned root after a last-moment marker check."""
+        return self._delete_owned(path, record)
+
     def _require_within(self, path: Path, allowed_roots: Sequence[Path] | None) -> None:
         if not self._is_within(path, allowed_roots):
             raise ValidationError(
                 "managed root is outside allowed storage roots",
                 managed_root=str(path),
             )
+
+    def is_allowed(self, path: Path, allowed_roots: Sequence[Path] | None) -> bool:
+        """Whether path is inside the allowed reclaim/cleanup roots."""
+        return self._is_within(path, allowed_roots)
 
     def _is_within(self, path: Path, allowed_roots: Sequence[Path] | None) -> bool:
         allowed = [self._state_root]
@@ -486,6 +494,11 @@ def _looks_legacy(path: Path, state_root: Path) -> bool:
     except ValueError:
         return False
     return relative.parts[0] in LEGACY_DIRECTORY_NAMES if relative.parts else False
+
+
+def tree_bytes(path: Path) -> int:
+    """Best-effort size of a managed root. Absence is zero, not unknown."""
+    return _tree_bytes(path)
 
 
 def _tree_bytes(path: Path) -> int:

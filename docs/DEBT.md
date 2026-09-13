@@ -2012,6 +2012,31 @@ Retire when:  every remaining unnamed caller is classified as
               diagnostic, or the heuristic is removed after an audit.
 Status:       OPEN
 
+### K-115 — Minimum feasibility / reclaimable capacity physical proof
+Label:        WORKING
+Owner stage:  1.6L bounded pre-llama.cpp closure
+Subsystem:    storage / platform / vendor
+Authorizes:   NO
+What:         Local contracts exist for `MinimumFeasibilityAssessment`,
+              occupancy classification, planned reclaim, occupancy-
+              conditional Sonar upper observations, Layer 2 of the
+              guided DeploymentReport, and sanitized telemetry bands.
+              Sibling Kultrun state roots are discovered by marker or
+              registry directory, then dual-proofed. Foreign
+              `OwnershipRecord` rows may remain in a sibling FileStore
+              after delete (tree size 0; not counted). Customer-facing
+              simplified deployment UX is not built. llama.cpp / MLX
+              remain FUTURE declarations (K-112). Do not merge to
+              authoritative `kultrun` from this closure.
+Why now:      The physical observability run reused occupancy-conditional
+              EDQUOT evidence after prior Kultrun bytes were removed.
+To make real: Physical L2 on the Linux/NVIDIA quota host: product-owned
+              reclaim, re-characterize, then the vLLM vertical. Do not
+              `rm` prior installs to make the test pass.
+Retire when:  physical validation of Minimum Feasibility + reclaimable
+              capacity + guided observability is recorded.
+Status:       OPEN until the physical run of this closure PASSes.
+
 Stop of a serving process continues to release the GPU process while
 leaving `ResourceReservation` ACTIVE for restart. That is the product
 contract, not a gap. Process identity stays in `execution`;

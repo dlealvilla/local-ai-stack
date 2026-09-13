@@ -115,9 +115,7 @@ class ComponentHealth(Contract):
 
     component: Name = meaning("which component is reporting")
     status: HealthStatus = meaning("how it is doing")
-    detail: str | None = meaning(
-        "what is wrong, when something is", default=None
-    )
+    detail: str | None = meaning("what is wrong, when something is", default=None)
 
 
 @contract(kind="platform.health_report", version=1)
@@ -143,9 +141,7 @@ class PhaseReport(Contract):
 
     phase: Name = meaning("which phase ran")
     succeeded: bool = meaning("whether it completed")
-    detail: str | None = meaning(
-        "what it found or why it failed", default=None
-    )
+    detail: str | None = meaning("what it found or why it failed", default=None)
     defects: tuple[str, ...] = meaning(
         "problems it surfaced but did not resolve", default=()
     )
@@ -173,9 +169,7 @@ class StartupReport(Contract):
     @property
     def defects(self) -> tuple[str, ...]:
         """Every problem surfaced across phases, for the health view."""
-        return tuple(
-            defect for phase in self.phases for defect in phase.defects
-        )
+        return tuple(defect for phase in self.phases for defect in phase.defects)
 
 
 @contract(kind="config.platform", version=1)
@@ -194,8 +188,7 @@ class PlatformSettings(Contract):
         "directory the platform owns for its records", default="./.state"
     )
     api_address: str = meaning(
-        "address the Platform API binds to; loopback while there is no "
-        "authentication",
+        "address the Platform API binds to; loopback while there is no authentication",
         default="127.0.0.1",
     )
     api_port: int = meaning("port the Platform API binds to", default=8420)
@@ -249,6 +242,7 @@ class OperationalStage(StrEnum):
     INSTANCE = "instance"
     INFERENCE = "inference"
     DEPLOYMENT = "deployment"
+    FEASIBILITY = "feasibility"
 
 
 class OperationalOutcome(StrEnum):
@@ -270,13 +264,9 @@ class OperationalFact(Contract):
     host_id: HostId = meaning("host this observation was made on")
     occurred_at: dt.datetime = meaning("when it happened, UTC")
     stage: OperationalStage = meaning("which deployment column this belongs to")
-    event_type: Name = meaning(
-        "stable dotted name such as storage.sonar_tier_passed"
-    )
+    event_type: Name = meaning("stable dotted name such as storage.sonar_tier_passed")
     outcome: OperationalOutcome = meaning("pass, fail, unresolved, info, or blocked")
-    summary: str = meaning(
-        "short operator line; never a prompt, response, or document"
-    )
+    summary: str = meaning("short operator line; never a prompt, response, or document")
     reason_code: Maybe[str] = meaning(
         "typed product reason when one exists", default=NOT_PROVIDED
     )
@@ -571,4 +561,103 @@ class DeploymentReport(Contract):
     )
     available_count: Maybe[int] = meaning(
         "Available Models count after capacity filtering", default=NOT_PROVIDED
+    )
+    intended_storage_pool: Maybe[str] = meaning(
+        "managed destination from state_root policy, before a DeploymentPlan",
+        default=NOT_PROVIDED,
+    )
+    minimum: MinimumFeasibilityAssessment | None = meaning(
+        "strict Layer-2 gate projection, when composed", default=None
+    )
+
+
+class HostPossibility(StrEnum):
+    """Coarse host match for a foundation family. Not verified or selected."""
+
+    PLAUSIBLE = "plausible"
+    NOT_PLAUSIBLE = "not_plausible"
+
+
+class MinimumFeasibilityVerdict(StrEnum):
+    """Strict gate. Reclamation required is still PASS."""
+
+    PASS = "pass"
+    FAIL = "fail"
+
+
+@contract(kind="platform.foundation_possibility", version=1)
+@dataclass(frozen=True, slots=True)
+class FoundationPossibility(Contract):
+    """Advisory first glance. Never means installed or executable."""
+
+    family: str = meaning("runtime family identity")
+    host_possibility: HostPossibility = meaning("whether the host class can hold it")
+    support_tier: str = meaning("Kultrun product maturity for this family")
+    reason: str = meaning("why the host possibility is what it is", default="")
+
+
+@contract(kind="platform.minimum_host_profile", version=1)
+@dataclass(frozen=True, slots=True)
+class MinimumDeployableHostProfile(Contract):
+    """Versioned product minimum. Not a model catalog and not admission."""
+
+    profile_version: str = meaning("stable profile identity")
+    supported_os_families: tuple[str, ...] = meaning("OS families the product covers")
+    supported_architectures: tuple[str, ...] = meaning("CPU architectures covered")
+    min_ram_safe_bytes: int = meaning("minimum SAFE RAM")
+    min_vram_bytes: int = meaning(
+        "minimum physical VRAM when an NVIDIA PRODUCT path is required"
+    )
+    min_storage_peak_bytes: int = meaning(
+        "minimum deployable peak new footprint before reusable subtraction"
+    )
+    required_accelerator_family: str = meaning(
+        "accelerator family required for the PRODUCT path; empty if none"
+    )
+
+
+@contract(kind="platform.minimum_feasibility", version=1)
+@dataclass(frozen=True, slots=True)
+class MinimumFeasibilityAssessment(Contract):
+    """Strict high-level gate. Consumes storage/capacity; does not probe."""
+
+    host_id: HostId = meaning("host this assessment describes")
+    profile_version: str = meaning("MinimumDeployableHostProfile identity")
+    verdict: MinimumFeasibilityVerdict = meaning("PASS or FAIL")
+    reason_code: Maybe[str] = meaning("stable failure family, when failed")
+    requires_reclamation: bool = meaning(
+        "true when PASS depends on deleting inactive owned state first"
+    )
+    current_authorizing_bytes: Maybe[int] = meaning(
+        "current authorizing remaining on the destination pool"
+    )
+    current_safe_bytes: Maybe[int] = meaning("SAFE of current authorizing remaining")
+    reclaimable_bytes: int = meaning("inactive owned bytes on the same quota domain")
+    reusable_bytes: int = meaning("bytes that reduce net new requirement")
+    potential_authorizing_bytes: Maybe[int] = meaning(
+        "current authorizing plus reclaimable, capped by hard quota"
+    )
+    potential_safe_bytes: Maybe[int] = meaning(
+        "SAFE of potential authorizing; reserve applied once"
+    )
+    required_peak_bytes: int = meaning("manifest/recipe peak new footprint")
+    net_new_bytes: int = meaning("peak minus reusable; never negative")
+    hard_maximum_bytes: Maybe[int] = meaning(
+        "hard quota/entitlement cap when known", default=NOT_PROVIDED
+    )
+    destination_mount: Maybe[str] = meaning(
+        "intended managed storage destination", default=NOT_PROVIDED
+    )
+    condition: str = meaning(
+        "human precondition when reclamation is required", default=""
+    )
+    foundations: tuple[FoundationPossibility, ...] = meaning(
+        "coarse family possibilities", default=()
+    )
+    active_bytes: int = meaning(
+        "owned bytes required by a live workload or current install", default=0
+    )
+    protected_bytes: int = meaning("owned bytes retained on purpose", default=0)
+    unknown_bytes: int = meaning(
+        "unproven occupancy; never added to potential", default=0
     )

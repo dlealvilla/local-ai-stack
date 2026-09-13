@@ -1554,6 +1554,11 @@ recompute, fresh plan/request, ResourceManager), not a hot swap.
 
 **Output:** family declarations + preference + one-active invariant · **Gate:** L1
 
+Bounded 1.6L closure (not 1.6M, not llama.cpp/MLX implementation):
+strict Minimum Feasibility, reclaimable managed capacity, occupancy-
+conditional Sonar upper observations, and guided Layer-2 observability.
+Does not start llama.cpp, MLX, or merge to authoritative `kultrun`.
+
 ### Milestone 1 Hardware Breadth Review — after Stage 1.6, before broadening
 
 A required review and evidence checkpoint, not a stage, and **not an

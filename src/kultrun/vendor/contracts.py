@@ -68,3 +68,19 @@ class TelemetryRecord(Contract):
     executor: Maybe[str] = meaning(
         "executor class, when the fact recorded one", default=NOT_PROVIDED
     )
+    support_tier: Maybe[str] = meaning(
+        "product maturity of a foundation family", default=NOT_PROVIDED
+    )
+    profile: Maybe[str] = meaning(
+        "minimum host profile identity", default=NOT_PROVIDED
+    )
+    possibility: Maybe[str] = meaning(
+        "coarse host possibility, never verified", default=NOT_PROVIDED
+    )
+    requires_reclamation: Maybe[str] = meaning(
+        "whether PASS depended on planned reclaim", default=NOT_PROVIDED
+    )
+    byte_band: Maybe[str] = meaning(
+        "coarse capacity or footprint band, never an exact path",
+        default=NOT_PROVIDED,
+    )

@@ -260,7 +260,10 @@ def arbitrate(
         if is_resolved(selected) and selected >= upper:
             selected = max(0, upper - 1)
             status = StorageEvidenceStatus.BOUNDED
-            reason = "empirical failure is a hard upper bound"
+            reason = (
+                "empirical failure is an occupancy-conditional upper "
+                "observation, not an immutable quota"
+            )
 
     operational = selected
     return StorageCapacityEvidence(

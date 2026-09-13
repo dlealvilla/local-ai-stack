@@ -220,6 +220,7 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "platform.operational_fact",
         "platform.deployment_report",
         "platform.deployment_run",
+        "platform.minimum_feasibility",
     }
 )
 

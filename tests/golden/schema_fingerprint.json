@@ -5359,6 +5359,13 @@
         "optional": false,
         "type": "tuple[InstanceReport, ...]"
       },
+      "intended_storage_pool": {
+        "may_be_unresolved": true,
+        "meaning": "managed destination from state_root policy, before a DeploymentPlan",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "kultrun_build": {
         "may_be_unresolved": false,
         "meaning": "build id or origin string",
@@ -5400,6 +5407,13 @@
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
+      },
+      "minimum": {
+        "may_be_unresolved": false,
+        "meaning": "strict Layer-2 gate projection, when composed",
+        "nullable": true,
+        "optional": true,
+        "type": "MinimumFeasibilityAssessment | None"
       },
       "model_candidates": {
         "may_be_unresolved": false,
@@ -5626,6 +5640,39 @@
     },
     "python": "DeploymentRun"
   },
+  "platform.foundation_possibility@1": {
+    "fields": {
+      "family": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "host_possibility": {
+        "may_be_unresolved": false,
+        "meaning": "whether the host class can hold it",
+        "nullable": false,
+        "optional": false,
+        "type": "HostPossibility"
+      },
+      "reason": {
+        "may_be_unresolved": false,
+        "meaning": "why the host possibility is what it is",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "support_tier": {
+        "may_be_unresolved": false,
+        "meaning": "Kultrun product maturity for this family",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "FoundationPossibility"
+  },
   "platform.health_report@1": {
     "fields": {
       "components": {
@@ -5698,6 +5745,205 @@
       }
     },
     "python": "InferenceObservation"
+  },
+  "platform.minimum_feasibility@1": {
+    "fields": {
+      "active_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "owned bytes required by a live workload or current install",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "condition": {
+        "may_be_unresolved": false,
+        "meaning": "human precondition when reclamation is required",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "current_authorizing_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current authorizing remaining on the destination pool",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "current_safe_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE of current authorizing remaining",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "destination_mount": {
+        "may_be_unresolved": true,
+        "meaning": "intended managed storage destination",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "foundations": {
+        "may_be_unresolved": false,
+        "meaning": "coarse family possibilities",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[FoundationPossibility, ...]"
+      },
+      "hard_maximum_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "hard quota/entitlement cap when known",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this assessment describes",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "net_new_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "peak minus reusable; never negative",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "potential_authorizing_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "current authorizing plus reclaimable, capped by hard quota",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "potential_safe_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE of potential authorizing; reserve applied once",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "profile_version": {
+        "may_be_unresolved": false,
+        "meaning": "MinimumDeployableHostProfile identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "protected_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "owned bytes retained on purpose",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "reason_code": {
+        "may_be_unresolved": true,
+        "meaning": "stable failure family, when failed",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "reclaimable_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "inactive owned bytes on the same quota domain",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "required_peak_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "manifest/recipe peak new footprint",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "requires_reclamation": {
+        "may_be_unresolved": false,
+        "meaning": "true when PASS depends on deleting inactive owned state first",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "reusable_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "bytes that reduce net new requirement",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "unknown_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "unproven occupancy; never added to potential",
+        "nullable": false,
+        "optional": true,
+        "type": "int"
+      },
+      "verdict": {
+        "may_be_unresolved": false,
+        "meaning": "PASS or FAIL",
+        "nullable": false,
+        "optional": false,
+        "type": "MinimumFeasibilityVerdict"
+      }
+    },
+    "python": "MinimumFeasibilityAssessment"
+  },
+  "platform.minimum_host_profile@1": {
+    "fields": {
+      "min_ram_safe_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "minimum SAFE RAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "min_storage_peak_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "minimum deployable peak new footprint before reusable subtraction",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "min_vram_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "minimum physical VRAM when an NVIDIA PRODUCT path is required",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "profile_version": {
+        "may_be_unresolved": false,
+        "meaning": "stable profile identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "required_accelerator_family": {
+        "may_be_unresolved": false,
+        "meaning": "accelerator family required for the PRODUCT path; empty if none",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "supported_architectures": {
+        "may_be_unresolved": false,
+        "meaning": "CPU architectures covered",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "supported_os_families": {
+        "may_be_unresolved": false,
+        "meaning": "OS families the product covers",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      }
+    },
+    "python": "MinimumDeployableHostProfile"
   },
   "platform.operational_fact@1": {
     "fields": {
@@ -10083,6 +10329,74 @@
     },
     "python": "LowSpaceGuidance"
   },
+  "storage.managed_occupancy_item@1": {
+    "fields": {
+      "managed_root": {
+        "may_be_unresolved": false,
+        "meaning": "absolute owned root; local operational path",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "mount_point": {
+        "may_be_unresolved": true,
+        "meaning": "StoragePool mount this root spends from",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "occupancy_class": {
+        "may_be_unresolved": false,
+        "meaning": "active, reusable, reclaimable, protected, or unknown",
+        "nullable": false,
+        "optional": false,
+        "type": "ManagedOccupancyClass"
+      },
+      "occupied_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "best-effort tree size; unknown occupancy is omitted",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "ownership_id": {
+        "may_be_unresolved": false,
+        "meaning": "registry identity of this root",
+        "nullable": false,
+        "optional": false,
+        "type": "OwnershipId"
+      },
+      "pool_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "pool identity when bound",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain, when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "reason": {
+        "may_be_unresolved": false,
+        "meaning": "why this class was assigned",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "resource_type": {
+        "may_be_unresolved": false,
+        "meaning": "kind of managed root",
+        "nullable": false,
+        "optional": false,
+        "type": "ManagedResourceType"
+      }
+    },
+    "python": "ManagedOccupancyItem"
+  },
   "storage.managed_path@1": {
     "fields": {
       "host_id": {
@@ -10329,6 +10643,67 @@
     },
     "python": "StoragePool"
   },
+  "storage.pool_occupancy@1": {
+    "fields": {
+      "active_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "bytes required by a live workload or current install",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "StoragePool mount",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "pool_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "pool identity when bound",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "protected_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "owned bytes retained on purpose",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain, when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "reclaimable_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "inactive owned bytes that a planned reclaim may release",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "reusable_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "bytes that satisfy the next foundation/model",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "unknown_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "unproven occupancy; never added to potential",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      }
+    },
+    "python": "PoolOccupancy"
+  },
   "storage.probe_attempt@1": {
     "fields": {
       "detail": {
@@ -10429,6 +10804,119 @@
       }
     },
     "python": "ProbeReport"
+  },
+  "storage.reclaim_action@1": {
+    "fields": {
+      "expected_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "tree size at plan time",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "quota domain mount",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "ownership_id": {
+        "may_be_unresolved": false,
+        "meaning": "root proposed for deletion",
+        "nullable": false,
+        "optional": false,
+        "type": "OwnershipId"
+      },
+      "reason": {
+        "may_be_unresolved": false,
+        "meaning": "why this root was classified reclaimable",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "resource_type": {
+        "may_be_unresolved": false,
+        "meaning": "kind of managed root",
+        "nullable": false,
+        "optional": false,
+        "type": "ManagedResourceType"
+      }
+    },
+    "python": "ReclaimAction"
+  },
+  "storage.reclaim_plan@1": {
+    "fields": {
+      "actions": {
+        "may_be_unresolved": false,
+        "meaning": "ordered deletes",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[ReclaimAction, ...]"
+      },
+      "expected_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "sum of planned deletes",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "destination pool",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "StorageReclaimPlan"
+  },
+  "storage.reclaim_result@1": {
+    "fields": {
+      "actual_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "bytes observed gone after delete",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "blocked": {
+        "may_be_unresolved": false,
+        "meaning": "roots refused at execute time",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "expected_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "planned release",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "destination pool",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "rediscovery_required": {
+        "may_be_unresolved": false,
+        "meaning": "true; capacity must be recomputed",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "removed": {
+        "may_be_unresolved": false,
+        "meaning": "roots actually deleted",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      }
+    },
+    "python": "StorageReclaimResult"
   },
   "storage.requirement@1": {
     "fields": {
@@ -10798,6 +11286,13 @@
         "optional": true,
         "type": "str | Unresolved"
       },
+      "byte_band": {
+        "may_be_unresolved": true,
+        "meaning": "coarse capacity or footprint band, never an exact path",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "error_class": {
         "may_be_unresolved": true,
         "meaning": "error class, never an exception body",
@@ -10861,9 +11356,30 @@
         "optional": false,
         "type": "str"
       },
+      "possibility": {
+        "may_be_unresolved": true,
+        "meaning": "coarse host possibility, never verified",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "profile": {
+        "may_be_unresolved": true,
+        "meaning": "minimum host profile identity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "reason_code": {
         "may_be_unresolved": true,
         "meaning": "typed product reason",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "requires_reclamation": {
+        "may_be_unresolved": true,
+        "meaning": "whether PASS depended on planned reclaim",
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
@@ -10892,6 +11408,13 @@
       "storage_technology": {
         "may_be_unresolved": true,
         "meaning": "filesystem family, when the fact is about storage",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "support_tier": {
+        "may_be_unresolved": true,
+        "meaning": "product maturity of a foundation family",
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"

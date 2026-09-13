@@ -157,6 +157,8 @@ def test_report_projection_from_stored_state() -> None:
     assert "OVERALL: INCOMPLETE" in text
     assert "/workspace" in text
     assert "Managed by Kultrun" in text
+    assert "UNTRUSTED" in text
+    assert "LAYER 2 — MINIMUM FEASIBILITY" in text
 
 
 def test_telemetry_disabled_by_default_and_never_required() -> None:
@@ -431,13 +433,13 @@ def test_report_keeps_root_and_workspace_sonar_separate() -> None:
     assert report.selected_runtime == "cand_selected"
     assert report.plan_runtime_candidate == "cand_plan"
     text = format_deployment_report(report)
-    storage_text = text.split("LAYER 3 — EXECUTION FOUNDATION", 1)[0]
+    storage_text = text.split("LAYER 4 — EXECUTION FOUNDATION", 1)[0]
     root_section, workspace_section = storage_text.split("  Pool  /workspace", 1)
     assert "8 GiB EDQUOT" in root_section
     assert "32 GiB PASS" not in root_section
     assert "32 GiB PASS" in workspace_section
-    assert "LAYER 3 — EXECUTION FOUNDATION" in text
-    assert "LAYER 9 — INSTANCE & INFERENCE" in text
+    assert "LAYER 4 — EXECUTION FOUNDATION" in text
+    assert "LAYER 10 — INSTANCE & INFERENCE" in text
     assert "Inference 1" in text
     assert "Inference 2" in text
     assert "  Inference 2     PASS  9 ms" in text
@@ -504,10 +506,12 @@ def test_sonar_edquot_does_not_fail_the_vertical() -> None:
     )
     assert report.verdict is DeploymentVerdict.INCOMPLETE
     assert report.recommended_runtime == "cand_vllm"
-    assert report.selected_runtime == "cand_vllm"
+    assert not is_resolved(report.selected_runtime)
     text = format_deployment_report(report)
     assert "OVERALL: INCOMPLETE" in text
     assert "OVERALL: FAIL" not in text
+    assert "  selected" not in text.split("LAYER 5 —", 1)[0]
+    assert "- selected" not in text
 
 
 def _base_envelope(
@@ -572,6 +576,7 @@ def test_layers_are_ordered_and_linked() -> None:
     assert identities == (
         "run",
         "host",
+        "minimum",
         "storage",
         "foundation",
         "runtime",
@@ -586,19 +591,23 @@ def test_layers_are_ordered_and_linked() -> None:
     for heading in (
         "LAYER 0 — RUN",
         "LAYER 1 — HOST DISCOVERY",
-        "LAYER 2 — STORAGE & CAPACITY",
-        "LAYER 3 — EXECUTION FOUNDATION",
-        "LAYER 4 — RUNTIME ENVIRONMENT",
-        "LAYER 5 — MODEL FEASIBILITY",
-        "LAYER 6 — MODEL SELECTION",
-        "LAYER 7 — DEPLOYMENT PLAN",
-        "LAYER 8 — RESOURCE ADMISSION",
-        "LAYER 9 — INSTANCE & INFERENCE",
-        "LAYER 10 — FINAL OUTCOME",
+        "LAYER 2 — MINIMUM FEASIBILITY",
+        "LAYER 3 — STORAGE & CAPACITY",
+        "LAYER 4 — EXECUTION FOUNDATION",
+        "LAYER 5 — RUNTIME ENVIRONMENT",
+        "LAYER 6 — MODEL FEASIBILITY",
+        "LAYER 7 — MODEL SELECTION",
+        "LAYER 8 — DEPLOYMENT PLAN",
+        "LAYER 9 — RESOURCE ADMISSION",
+        "LAYER 10 — INSTANCE & INFERENCE",
+        "LAYER 11 — FINAL OUTCOME",
     ):
         assert heading in text
     assert report.run_id == "drun_test0000000001"
     assert "MooseFS / FUSE" in text
+    assert (
+        "Purpose: Determine whether this host can support a minimum Kultrun deployment."
+    ) in text
     for layer in report.layers:
         assert layer.inputs
         assert layer.process
@@ -801,6 +810,18 @@ def test_verified_selected_hides_component_missing_in_human_view() -> None:
     )
     assert _human_reason_codes(item, True) == ()
     assert _human_reason_codes(item, False) == ("required_component_missing",)
+    unselected = RuntimeCandidateReport(
+        candidate_id="rcand_other",
+        runtime="vllm",
+        version="0.28.0",
+        executor="native-process",
+        support_tier="product",
+        compatibility="compatible",
+        reason_codes=("required_component_missing",),
+        recommended=False,
+        selected=False,
+    )
+    assert _human_reason_codes(unselected, True) == ()
 
 
 def test_deployment_run_survives_second_cli(tmp_path: Path) -> None:
@@ -817,8 +838,7 @@ def test_deployment_run_survives_second_cli(tmp_path: Path) -> None:
     )
     stored = first.journal.facts(first.hosts.current.host_id)
     assert any(
-        is_resolved(item.correlation_id)
-        and item.correlation_id == run.run_id.value
+        is_resolved(item.correlation_id) and item.correlation_id == run.run_id.value
         for item in stored
     )
     second = build_platform(tmp_path, clock)
@@ -970,6 +990,9 @@ def test_guided_report_replays_physical_16l_shape() -> None:
     assert report.verdict is DeploymentVerdict.PASS
     text = format_deployment_report(report)
     assert "NVIDIA RTX PRO 4500" in text
+    assert "physical" in text
+    assert "SAFE" in text
+    assert "not selected" in text
     assert "MooseFS / FUSE" in text
     assert "16 GiB PASS" in text
     assert "32 GiB PASS" in text

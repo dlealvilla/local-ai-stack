@@ -70,3 +70,25 @@ class DeploymentRunStore:
         self._store.put(RUN_KEY, created)
         self._loaded = created
         return RunLoad(run=created, created=True)
+
+    def mark_failed(self) -> None:
+        """Record that this journey ended in a known product failure."""
+        current = self.current()
+        if current is None or current.status is DeploymentRunStatus.FAILED:
+            return
+        from dataclasses import replace
+
+        updated = replace(current, status=DeploymentRunStatus.FAILED)
+        self._store.put(RUN_KEY, updated)
+        self._loaded = updated
+
+    def mark_completed(self) -> None:
+        """Record a successful end of this journey."""
+        current = self.current()
+        if current is None:
+            return
+        from dataclasses import replace
+
+        updated = replace(current, status=DeploymentRunStatus.COMPLETED)
+        self._store.put(RUN_KEY, updated)
+        self._loaded = updated

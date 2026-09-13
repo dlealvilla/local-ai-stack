@@ -286,6 +286,22 @@ class CleanupPolicy(StrEnum):
     MANUAL = "manual"
 
 
+class ManagedOccupancyClass(StrEnum):
+    """Planning classification of one owned root. Not a second ownership model.
+
+    ACTIVE and REUSABLE occupy bytes that must not be treated as free.
+    RECLAIMABLE may be counted as potential post-reclaim capacity on the same
+    quota domain after a product-owned delete. UNKNOWN never increases
+    capacity.
+    """
+
+    ACTIVE = "active"
+    REUSABLE = "reusable"
+    RECLAIMABLE = "reclaimable"
+    PROTECTED = "protected"
+    UNKNOWN = "unknown"
+
+
 class OwnershipConflict(StrEnum):
     """Why automatic deletion is refused."""
 
@@ -678,3 +694,75 @@ class LowSpaceGuidance(Contract):
     cleaned_bytes: int = meaning("owned disposable bytes Step 0 removed")
     message: str = meaning("what the administrator is asked to do")
     rediscovery_required: bool = meaning("true; the next attempt must rediscover")
+
+
+@contract(kind="storage.managed_occupancy_item", version=1)
+@dataclass(frozen=True, slots=True)
+class ManagedOccupancyItem(Contract):
+    """One dual-owned root as occupancy. Not an admission and not a path guess."""
+
+    ownership_id: OwnershipId = meaning("registry identity of this root")
+    resource_type: ManagedResourceType = meaning("kind of managed root")
+    occupancy_class: ManagedOccupancyClass = meaning(
+        "active, reusable, reclaimable, protected, or unknown"
+    )
+    managed_root: str = meaning("absolute owned root; local operational path")
+    occupied_bytes: int = meaning("best-effort tree size; unknown occupancy is omitted")
+    mount_point: Maybe[str] = meaning("StoragePool mount this root spends from")
+    quota_identity: Maybe[str] = meaning("quota domain, when known")
+    pool_fingerprint: Maybe[str] = meaning("pool identity when bound")
+    reason: str = meaning("why this class was assigned", default="")
+
+
+@contract(kind="storage.pool_occupancy", version=1)
+@dataclass(frozen=True, slots=True)
+class PoolOccupancy(Contract):
+    """Per-pool occupancy totals. Reclaimable is not currently free."""
+
+    mount_point: str = meaning("StoragePool mount")
+    quota_identity: Maybe[str] = meaning("quota domain, when known")
+    pool_fingerprint: Maybe[str] = meaning("pool identity when bound")
+    active_bytes: int = meaning("bytes required by a live workload or current install")
+    reusable_bytes: int = meaning("bytes that satisfy the next foundation/model")
+    reclaimable_bytes: int = meaning(
+        "inactive owned bytes that a planned reclaim may release"
+    )
+    protected_bytes: int = meaning("owned bytes retained on purpose")
+    unknown_bytes: int = meaning("unproven occupancy; never added to potential")
+
+
+@contract(kind="storage.reclaim_action", version=1)
+@dataclass(frozen=True, slots=True)
+class ReclaimAction(Contract):
+    """One planned delete. Execution re-validates ownership immediately before."""
+
+    ownership_id: OwnershipId = meaning("root proposed for deletion")
+    resource_type: ManagedResourceType = meaning("kind of managed root")
+    expected_bytes: int = meaning("tree size at plan time")
+    mount_point: str = meaning("quota domain mount")
+    reason: str = meaning("why this root was classified reclaimable")
+
+
+@contract(kind="storage.reclaim_plan", version=1)
+@dataclass(frozen=True, slots=True)
+class StorageReclaimPlan(Contract):
+    """Pre-provision reclaim on one quota domain. Not a serving DeploymentPlan."""
+
+    mount_point: str = meaning("destination pool")
+    expected_bytes: int = meaning("sum of planned deletes")
+    actions: tuple[ReclaimAction, ...] = meaning("ordered deletes")
+
+
+@contract(kind="storage.reclaim_result", version=1)
+@dataclass(frozen=True, slots=True)
+class StorageReclaimResult(Contract):
+    """What a planned reclaim actually released. Expected is not actual."""
+
+    mount_point: str = meaning("destination pool")
+    expected_bytes: int = meaning("planned release")
+    actual_bytes: int = meaning("bytes observed gone after delete")
+    removed: int = meaning("roots actually deleted")
+    rediscovery_required: bool = meaning(
+        "true; capacity must be recomputed", default=True
+    )
+    blocked: tuple[str, ...] = meaning("roots refused at execute time", default=())

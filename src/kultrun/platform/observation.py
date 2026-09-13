@@ -127,6 +127,7 @@ def format_progress(fact: OperationalFact) -> str:
         OperationalStage.INSTANCE: "INSTANCE",
         OperationalStage.INFERENCE: "INFERENCE",
         OperationalStage.DEPLOYMENT: "DEPLOYMENT",
+        OperationalStage.FEASIBILITY: "FEASIBILITY",
     }.get(fact.stage, fact.stage.value.upper())
     return f"[{label}] {fact.summary}"
 

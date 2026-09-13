@@ -202,7 +202,7 @@ from kultrun.runtime.selection import FoundationSelectionService
 from kultrun.runtime.verify import VerificationService
 from kultrun.storage import contracts as _storage_contracts  # noqa: F401
 from kultrun.storage.characterize import StorageCharacterizationService
-from kultrun.storage.contracts import StorageSanityEvidence
+from kultrun.storage.contracts import OwnershipRecord, StorageSanityEvidence
 from kultrun.storage.index import StorageEvidenceIndex
 from kultrun.storage.manual import AdministratorCapacityService
 from kultrun.storage.ownership import OwnershipService
@@ -648,8 +648,7 @@ def build(
         ExportingObserver(
             DisabledProductTelemetryExporter(),
             enabled=(
-                vendor_settings.enabled
-                and vendor_settings.export_operational_metadata
+                vendor_settings.enabled and vendor_settings.export_operational_metadata
             ),
         )
     )
@@ -883,6 +882,11 @@ def build(
         storage_index,
         allow_empirical=shape is None,
         journal=journal,
+        ownership=ownership,
+        runs=runs,
+        occupancy_records=lambda _host: _occupancy_snapshot(
+            store, state_root, provisioning, instances, resources
+        ),
     )
     storage_acquire = StorageAwareAcquisition(
         acquisition,
@@ -1241,6 +1245,61 @@ def show_version() -> int:
     return 0
 
 
+def _occupancy_snapshot(
+    store: object,
+    state_root: Path,
+    provisioning: ProvisioningService,
+    instances: InstanceService,
+    resources: ResourceManager,
+) -> tuple[tuple[OwnershipRecord, ...], tuple[Path, ...], tuple[Path, ...]]:
+    """Load dual-owned roots from this state root and sibling Kultrun trees."""
+    from kultrun.inference.contracts import InferenceInstance
+    from kultrun.inference.contracts import LifecycleState as InstanceLife
+    from kultrun.kernel.errors import PersistenceError
+    from kultrun.platform.minimum import nearby_state_roots
+    from kultrun.resource.contracts import ReservationState
+    from kultrun.runtime.contracts import InstallationStatus
+
+    del store
+
+    current = Path(state_root).resolve()
+    records: list[OwnershipRecord] = []
+    live: list[Path] = []
+    reusable: list[Path] = []
+    for root in nearby_state_roots(current):
+        try:
+            opened = file_store.FileStore(root)
+            records.extend(opened.records(OwnershipRecord))
+            if root != current:
+                for instance in opened.records(InferenceInstance):
+                    if instance.lifecycle_state in {
+                        InstanceLife.RUNNING,
+                        InstanceLife.STARTING,
+                        InstanceLife.DEGRADED,
+                    }:
+                        live.append(root)
+        except (OSError, PersistenceError):
+            continue
+    for instance in instances.list():
+        if instance.lifecycle_state in {
+            InstanceLife.RUNNING,
+            InstanceLife.STARTING,
+            InstanceLife.DEGRADED,
+        }:
+            live.append(current / "runtimes")
+            live.append(current / "models")
+            break
+    for reservation in resources.reservations(include_released=True):
+        if reservation.state in {ReservationState.ACTIVE, ReservationState.ADMITTED}:
+            live.append(current / "models")
+            break
+    for installation in provisioning.installations():
+        if installation.status is InstallationStatus.INSTALLED:
+            reusable.append(current / "runtimes")
+            break
+    return tuple(records), tuple(live), tuple(reusable)
+
+
 def _warn_if_state_root_defaulted(platform: Platform) -> None:
     """An installed artifact must not keep durable state silently under cwd.
 
@@ -1268,9 +1327,7 @@ def _enable_live_progress(platform: Platform) -> None:
                 ConsoleProgress(),
                 ExportingObserver(
                     DisabledProductTelemetryExporter(),
-                    enabled=(
-                        vendor.enabled and vendor.export_operational_metadata
-                    ),
+                    enabled=(vendor.enabled and vendor.export_operational_metadata),
                 ),
             )
         )
@@ -1326,6 +1383,21 @@ def _compose_report(platform: Platform) -> DeploymentReport:
     }
     identity = build_identity()
     current = platform.runs.current()
+    from kultrun.platform.minimum import assess_minimum, destination_pool
+    from kultrun.storage.topology import pools_from_host
+
+    dest = destination_pool(platform.state_root, pools_from_host(host))
+    items = platform.plane.foundation_realize.occupancy_items(host)
+    remaining = plane.stored_storage(host)
+    dest_evidence = remaining.get(dest.mount_point) if dest is not None else None
+    minimum = assess_minimum(
+        host,
+        destination=dest,
+        evidence=dest_evidence,
+        items=items,
+        descriptors=descriptors,
+        ram_safe_bytes=envelope.memory.safe_bytes,
+    )
     return compose_deployment_report(
         host=host,
         envelope=envelope,
@@ -1353,6 +1425,8 @@ def _compose_report(platform: Platform) -> DeploymentReport:
         run_id=current.run_id.value if current is not None else None,
         run_started_at=current.started_at if current is not None else None,
         reservations=platform.resources.reservations(include_released=True),
+        intended_storage_pool=dest.mount_point if dest is not None else None,
+        minimum=minimum,
     )
 
 
@@ -2097,24 +2171,22 @@ def select_foundation(arguments: Sequence[str]) -> int:
     selected = (
         overview.selection.selected_candidate_id
         if isinstance(overview.selection.selected_candidate_id, str)
-        else "-"
+        else ""
     )
-    family = (
-        _runtime_family(overview, selected) if selected != "-" else selected
-    )
+    family = _runtime_family(overview, selected) if selected else ""
     print(
         f"selection {overview.selection.selection_mode.value}  "
-        f"selected {family}  "
+        f"selected {family or '-'}  "
         f"generation {overview.selection.generation}"
     )
+    if not selected:
+        return 0
     platform.journal.emit(
         host_id=host.host_id,
         stage=OperationalStage.RUNTIME,
         event_type="runtime.selected",
         summary=f"{family} selected",
-        outcome=OperationalOutcome.PASS
-        if selected != "-"
-        else OperationalOutcome.UNRESOLVED,
+        outcome=OperationalOutcome.PASS,
         attributes=(attr("candidate", selected), attr("runtime", family)),
     )
     return 0
@@ -2122,18 +2194,24 @@ def select_foundation(arguments: Sequence[str]) -> int:
 
 def realize_foundation(arguments: Sequence[str]) -> int:
     """Provision the selected foundation. Does not verify or switch."""
+    from kultrun.kernel.errors import KultrunError
+
     retry = "--retry" in arguments
     platform = build()
     _warn_if_state_root_defaulted(platform)
     _enable_live_progress(platform)
     host, executors, descriptors, components = _runtime_inputs(platform)
-    installation = platform.plane.foundation_realize.realize(
-        host,
-        executors,
-        descriptors,
-        components=components,
-        retry=retry,
-    )
+    try:
+        installation = platform.plane.foundation_realize.realize(
+            host,
+            executors,
+            descriptors,
+            components=components,
+            retry=retry,
+        )
+    except KultrunError as error:
+        print(f"kultrun: {error.message}", file=sys.stderr)
+        return 1
     print(
         f"installation {installation.installation_id.value}  "
         f"{installation.status.value}  "
@@ -2619,9 +2697,7 @@ def prepare_deployment() -> int:
         stage=OperationalStage.ADMISSION,
         event_type="resource.admission_completed",
         summary=f"admission {verdict.upper()}",
-        outcome=(
-            OperationalOutcome.PASS if admitted else OperationalOutcome.FAIL
-        ),
+        outcome=(OperationalOutcome.PASS if admitted else OperationalOutcome.FAIL),
         attributes=(
             attr("verdict", verdict),
             attr("reservation", details.get("reservation_id") or "-"),

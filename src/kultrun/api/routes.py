@@ -269,8 +269,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
         selection = plane.foundation.stored(host)
         recommended = (
             selection.recommended_candidate_id
-            if selection is not None
-            and is_resolved(selection.recommended_candidate_id)
+            if selection is not None and is_resolved(selection.recommended_candidate_id)
             else None
         )
         profiles = {
@@ -281,6 +280,21 @@ def register(router: Router, plane: ControlPlane) -> Router:
         build_token = identity.build_id or identity.version
         load = plane.runs.ensure(host.host_id, build_token)
         plane.journal.bind_correlation(load.run.run_id.value)
+        from kultrun.platform.minimum import assess_minimum, destination_pool
+        from kultrun.storage.topology import pools_from_host
+
+        dest = destination_pool(plane.state_root, pools_from_host(host))
+        items = plane.foundation_realize.occupancy_items(host)
+        remaining = plane.stored_storage(host)
+        dest_evidence = remaining.get(dest.mount_point) if dest is not None else None
+        minimum = assess_minimum(
+            host,
+            destination=dest,
+            evidence=dest_evidence,
+            items=items,
+            descriptors=plane.runtimes.descriptors(),
+            ram_safe_bytes=envelope.memory.safe_bytes,
+        )
         return compose_deployment_report(
             host=host,
             envelope=envelope,
@@ -310,15 +324,15 @@ def register(router: Router, plane: ControlPlane) -> Router:
             run_id=load.run.run_id.value,
             run_started_at=load.run.started_at,
             reservations=plane.resources.reservations(include_released=True),
+            intended_storage_pool=dest.mount_point if dest is not None else None,
+            minimum=minimum,
         )
 
     def deployment_run(_: ApiRequest) -> object:
         """Current deployment journey identity. Shared across CLI processes."""
         host = plane.hosts.current
         identity = build_identity()
-        load = plane.runs.ensure(
-            host.host_id, identity.build_id or identity.version
-        )
+        load = plane.runs.ensure(host.host_id, identity.build_id or identity.version)
         return load.run
 
     def version(_: ApiRequest) -> dict[str, object]:

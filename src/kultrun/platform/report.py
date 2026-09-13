@@ -28,6 +28,8 @@ from kultrun.platform.contracts import (
     DeploymentVerdict,
     InferenceObservation,
     InstanceReport,
+    MinimumFeasibilityAssessment,
+    MinimumFeasibilityVerdict,
     ModelCandidateReport,
     OperationalFact,
     OperationalOutcome,
@@ -41,13 +43,13 @@ from kultrun.platform.observation import attr_value, chronological_facts
 from kultrun.resource.contracts import ReservationState, ResourceReservation
 from kultrun.runtime.contracts import (
     FoundationSelection,
-    FoundationSelectionMode,
     RuntimeCandidate,
     RuntimeInstallation,
     RuntimeProvisioningPlan,
 )
 from kultrun.storage.contracts import EmpiricalProbeEvidence, StorageCapacityEvidence
 from kultrun.storage.remaining import remaining_after_usage
+from kultrun.storage.topology import family_of, is_credible_family
 
 
 def compose_deployment_report(
@@ -74,6 +76,8 @@ def compose_deployment_report(
     run_id: str | None = None,
     run_started_at: dt.datetime | None = None,
     reservations: Sequence[ResourceReservation] = (),
+    intended_storage_pool: str | None = None,
+    minimum: MinimumFeasibilityAssessment | None = None,
 ) -> DeploymentReport:
     """Project current product state. Does not mutate anything."""
     ordered = chronological_facts(facts)
@@ -89,7 +93,7 @@ def compose_deployment_report(
                 if is_resolved(item.space.reported_bytes)
                 else None
             ),
-            trusted=item.requirement.value != "empirical_evidence_needed",
+            trusted=is_credible_family(family_of(item.filesystem_type)),
             safe=(
                 item.space.safe_bytes if is_resolved(item.space.safe_bytes) else None
             ),
@@ -105,15 +109,6 @@ def compose_deployment_report(
         if selection is not None and is_resolved(selection.selected_candidate_id)
         else None
     )
-    if (
-        not isinstance(selected_id, str)
-        and isinstance(recommended_candidate_id, str)
-        and (
-            selection is None
-            or selection.selection_mode is FoundationSelectionMode.AUTO
-        )
-    ):
-        selected_id = recommended_candidate_id
     runtime_rows = tuple(
         RuntimeCandidateReport(
             candidate_id=item.candidate_id.value,
@@ -143,20 +138,15 @@ def compose_deployment_report(
         deployment_plan,
         instances,
         ordered,
+        minimum,
     )
     ownership = {
         handle.execution_id.value: handle.ownership.value for handle in executions
     }
     reservation_id, admission_verdict = _admission_view(ordered, reservations)
-    catalog_count = (
-        available.discovered_count if available is not None else None
-    )
-    compatible_count = (
-        available.compatibility_count if available is not None else None
-    )
-    available_count = (
-        available.available_count if available is not None else None
-    )
+    catalog_count = available.discovered_count if available is not None else None
+    compatible_count = available.compatibility_count if available is not None else None
+    available_count = available.available_count if available is not None else None
     report = DeploymentReport(
         report_id=DeploymentReportId.generate(),
         host_id=host.host_id,
@@ -233,9 +223,7 @@ def compose_deployment_report(
         run_started_at=run_started_at if run_started_at else NOT_PROVIDED,
         inferences=inferences,
         reservation_id=reservation_id if reservation_id else NOT_PROVIDED,
-        admission_verdict=(
-            admission_verdict if admission_verdict else NOT_PROVIDED
-        ),
+        admission_verdict=(admission_verdict if admission_verdict else NOT_PROVIDED),
         catalog_count=catalog_count if catalog_count is not None else NOT_PROVIDED,
         compatible_count=(
             compatible_count if compatible_count is not None else NOT_PROVIDED
@@ -244,6 +232,10 @@ def compose_deployment_report(
             available_count if available_count is not None else NOT_PROVIDED
         ),
         manual_intervention=_manual_intervention(ordered),
+        intended_storage_pool=(
+            intended_storage_pool if intended_storage_pool else NOT_PROVIDED
+        ),
+        minimum=minimum,
     )
     return replace(
         report,
@@ -253,13 +245,12 @@ def compose_deployment_report(
     )
 
 
-def format_deployment_report(
-    report: DeploymentReport, *, debug: bool = False
-) -> str:
+def format_deployment_report(report: DeploymentReport, *, debug: bool = False) -> str:
     """Guided human report. One consumer of the structured projection."""
     lines: list[str] = []
     lines.extend(_layer_run(report))
     lines.extend(_layer_host(report))
+    lines.extend(_layer_minimum(report))
     lines.extend(_layer_storage(report))
     lines.extend(_layer_foundation(report))
     lines.extend(_layer_runtime(report))
@@ -312,24 +303,110 @@ def _layer_host(report: DeploymentReport) -> list[str]:
     return lines
 
 
+def _layer_minimum(report: DeploymentReport) -> list[str]:
+    assessment = report.minimum
+    named = _layer_named(report, "minimum")
+    purpose = (
+        named.purpose
+        if named is not None
+        else "Determine whether this host can support a minimum Kultrun deployment."
+    )
+    lines = [
+        "LAYER 2 — MINIMUM FEASIBILITY",
+        f"Purpose: {purpose}",
+        *_flow(named),
+    ]
+    if assessment is None:
+        lines.append("  Status           not assessed")
+        lines.append("")
+        return lines
+    lines.append(f"  Profile          {assessment.profile_version}")
+    lines.append(
+        f"  OVERALL          {assessment.verdict.value.upper()}"
+        + ("  (requires reclamation)" if assessment.requires_reclamation else "")
+    )
+    dest = _show(assessment.destination_mount)
+    if dest == "-":
+        dest = _show(report.intended_storage_pool)
+    lines.append(f"  Destination      {dest if dest != '-' else 'not selected'}")
+    lines.append("  Storage")
+    lines.append(
+        f"    Current authoritative available  "
+        f"{_bytes(assessment.current_authorizing_bytes)}"
+    )
+    lines.append(
+        f"    Current SAFE                      {_bytes(assessment.current_safe_bytes)}"
+    )
+    lines.append("    Kultrun-managed existing state:")
+    lines.append(f"      Active                      {_bytes(assessment.active_bytes)}")
+    lines.append(
+        f"      Reusable                     {_bytes(assessment.reusable_bytes)}"
+    )
+    lines.append(
+        f"      Reclaimable                  {_bytes(assessment.reclaimable_bytes)}"
+    )
+    lines.append(
+        f"      Protected                   {_bytes(assessment.protected_bytes)}"
+    )
+    lines.append(
+        f"      Unknown                      {_bytes(assessment.unknown_bytes)}"
+    )
+    lines.append(
+        f"    Potential post-reclaim authorizing  "
+        f"{_bytes(assessment.potential_authorizing_bytes)}"
+    )
+    lines.append(
+        f"    Potential post-reclaim SAFE           "
+        f"{_bytes(assessment.potential_safe_bytes)}"
+    )
+    lines.append(
+        f"    Minimum peak requirement            "
+        f"{_bytes(assessment.required_peak_bytes)}"
+    )
+    lines.append(
+        f"    Net new requirement                 {_bytes(assessment.net_new_bytes)}"
+    )
+    if is_resolved(assessment.hard_maximum_bytes):
+        lines.append(
+            f"    Hard quota                         "
+            f"{_bytes(assessment.hard_maximum_bytes)}"
+        )
+    if assessment.condition:
+        lines.append(f"  Condition        {assessment.condition}")
+    if is_resolved(assessment.reason_code):
+        lines.append(f"  Reason           {_show(assessment.reason_code)}")
+    lines.append("  Foundation Possibilities")
+    if not assessment.foundations:
+        lines.append("    none")
+    for item in assessment.foundations:
+        host_pos = item.host_possibility.value.replace("_", " ").upper()
+        lines.append(f"    {item.family}")
+        lines.append(f"      Host          {host_pos}")
+        lines.append(f"      Product      {item.support_tier.upper()}")
+        if item.reason:
+            lines.append(f"      Reason       {item.reason}")
+    lines.append("")
+    return lines
+
+
 def _layer_storage(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 2 — STORAGE & CAPACITY",
+        "LAYER 3 — STORAGE & CAPACITY",
         "Question: What storage can Kultrun safely consume?",
         *_flow(_layer_named(report, "storage")),
     ]
     for pool in report.storage_pools:
         lines.extend(_format_pool(pool, debug=False))
-    dest = _show(report.plan_storage_pool)
-    if dest != "-":
-        lines.append(f"  Selected destination  {dest}")
+    dest = _destination_mount(report)
+    if dest != "not selected":
+        lines.append(f"  Intended destination  {dest}")
     lines.append("")
     return lines
 
 
 def _layer_foundation(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 3 — EXECUTION FOUNDATION",
+        "LAYER 4 — EXECUTION FOUNDATION",
         "Question: Which AI execution foundation can this host support?",
         *_flow(_layer_named(report, "foundation")),
         "  Runtime           Product status    Feasibility    Reason",
@@ -361,7 +438,7 @@ def _layer_foundation(report: DeploymentReport) -> list[str]:
 
 def _layer_runtime(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 4 — RUNTIME ENVIRONMENT",
+        "LAYER 5 — RUNTIME ENVIRONMENT",
         "Question: Can the selected runtime actually be installed and verified?",
         *_flow(_layer_named(report, "runtime")),
     ]
@@ -403,7 +480,7 @@ def _layer_models(report: DeploymentReport) -> list[str]:
     if available == "-":
         available = str(len(report.available_models) or 0)
     lines = [
-        "LAYER 5 — MODEL FEASIBILITY",
+        "LAYER 6 — MODEL FEASIBILITY",
         "Question: Which catalog models can actually run on this foundation and host?",
         *_flow(_layer_named(report, "model_feasibility")),
         f"  Catalog candidates      {catalog}",
@@ -429,7 +506,7 @@ def _layer_models(report: DeploymentReport) -> list[str]:
 def _layer_selection(report: DeploymentReport) -> list[str]:
     mode = _show(report.selection_mode)
     lines = [
-        "LAYER 6 — MODEL SELECTION",
+        "LAYER 7 — MODEL SELECTION",
         "Question: Which feasible model did Kultrun choose and why?",
         *_flow(_layer_named(report, "model_selection")),
         f"  Mode             {mode.upper() if mode != '-' else '-'}",
@@ -445,7 +522,7 @@ def _layer_selection(report: DeploymentReport) -> list[str]:
 
 def _layer_plan(report: DeploymentReport) -> list[str]:
     return [
-        "LAYER 7 — DEPLOYMENT PLAN",
+        "LAYER 8 — DEPLOYMENT PLAN",
         "Question: Exactly what will Kultrun attempt to run?",
         *_flow(_layer_named(report, "plan")),
         f"  Foundation       {_foundation_label(report)}",
@@ -461,7 +538,7 @@ def _layer_plan(report: DeploymentReport) -> list[str]:
 
 def _layer_admission(report: DeploymentReport) -> list[str]:
     return [
-        "LAYER 8 — RESOURCE ADMISSION",
+        "LAYER 9 — RESOURCE ADMISSION",
         "Question: Can the machine safely run this configuration right now?",
         *_flow(_layer_named(report, "admission")),
         f"  RAM requested     {_bytes(report.plan_ram_bytes)}",
@@ -476,7 +553,7 @@ def _layer_admission(report: DeploymentReport) -> list[str]:
 
 def _layer_instance(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 9 — INSTANCE & INFERENCE",
+        "LAYER 10 — INSTANCE & INFERENCE",
         "Question: Did the planned service actually run?",
         *_flow(_layer_named(report, "instance")),
     ]
@@ -511,7 +588,7 @@ def _layer_instance(report: DeploymentReport) -> list[str]:
 
 def _layer_outcome(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 10 — FINAL OUTCOME",
+        "LAYER 11 — FINAL OUTCOME",
         "Question: What stack did Kultrun ultimately build, and did it work?",
         *_flow(_layer_named(report, "outcome")),
         "  SELECTED STACK",
@@ -652,18 +729,14 @@ def _foundation_verified(report: DeploymentReport) -> bool:
 def _human_reason_codes(
     item: RuntimeCandidateReport, verified: bool
 ) -> tuple[str, ...]:
-    if item.selected and verified:
+    if verified:
         return tuple(
-            code
-            for code in item.reason_codes
-            if code != "required_component_missing"
+            code for code in item.reason_codes if code != "required_component_missing"
         )
     return item.reason_codes
 
 
-def _foundation_label(
-    report: DeploymentReport, *, recommended: bool = False
-) -> str:
+def _foundation_label(report: DeploymentReport, *, recommended: bool = False) -> str:
     wanted = (
         _show(report.recommended_runtime)
         if recommended
@@ -700,22 +773,31 @@ def _gpu_summary(report: DeploymentReport) -> str:
     if not report.accelerators:
         return f"{report.os_name} / {report.architecture}"
     line = report.accelerators[0]
-    # "[0] nvidia RTX PRO 4500 31.9 GiB  driver ..."
     body = line.split("] ", 1)[-1]
-    model = body.split("  driver", 1)[0].strip()
+    model = body.split("  physical", 1)[0].strip()
+    if "  driver" in model:
+        model = model.split("  driver", 1)[0].strip()
     return f"{report.os_name} / {model}"
 
 
-def _selected_stack(report: DeploymentReport) -> str:
+def _destination_mount(report: DeploymentReport) -> str:
     dest = _show(report.plan_storage_pool)
-    if dest == "-":
-        dest = next((pool.mount_point for pool in report.storage_pools), "-")
+    if dest != "-":
+        return dest
+    intended = _show(report.intended_storage_pool)
+    if intended != "-":
+        return intended
+    return "not selected"
+
+
+def _selected_stack(report: DeploymentReport) -> str:
+    dest = _destination_mount(report)
     pool = next(
         (item for item in report.storage_pools if item.mount_point == dest),
         None,
     )
     tech = _technology(pool.filesystem_type) if pool is not None else ""
-    storage = f"{dest} {tech}".strip() if dest != "-" else "-"
+    storage = f"{dest} {tech}".strip() if dest != "not selected" else "not selected"
     foundation = _foundation_label(report)
     model = _show(report.selected_model)
     ready = (
@@ -908,7 +990,40 @@ def _build_layers(
             inputs=("OS, CPU, RAM, accelerators, mounts",),
             process=("discover and normalize",),
             outputs=("HostCapabilityProfile",),
-            consumed_by=("capacity", "runtime feasibility"),
+            consumed_by=("capacity", "runtime feasibility", "minimum feasibility"),
+        ),
+        ReportLayer(
+            identity="minimum",
+            title="Minimum Feasibility",
+            purpose=(
+                "Determine whether this host can support a minimum Kultrun deployment."
+            ),
+            status=_minimum_layer_status(report),
+            kultrun=(
+                "MinimumDeployableHostProfile",
+                "MinimumFeasibilityAssessment",
+                "CapacityEnvelope",
+                "PoolOccupancy",
+            ),
+            inputs=(
+                "HostCapabilities",
+                "authorizing storage evidence",
+                "owned occupancy",
+            ),
+            process=(
+                "strict PASS/FAIL against minimum-host-v1",
+                "count reclaimable owned inactive bytes on the destination "
+                "quota domain",
+            ),
+            decision=(
+                (
+                    report.minimum.verdict.value.upper()
+                    if report.minimum is not None
+                    else "not assessed"
+                ),
+            ),
+            outputs=("MinimumFeasibilityAssessment", "FoundationPossibility"),
+            consumed_by=("Storage & Capacity", "foundation selection"),
         ),
         ReportLayer(
             identity="storage",
@@ -916,7 +1031,7 @@ def _build_layers(
             purpose="Establish authorizing storage, never reported FUSE free space.",
             status="pass" if storage_ready else "incomplete",
             kultrun=("StoragePool", "Storage Sonar", "CapacityEnvelope"),
-            inputs=("host mounts",),
+            inputs=("host mounts", "MinimumFeasibilityAssessment"),
             process=("specialist probe", "Sonar", "SAFE remaining"),
             outputs=("StoragePool", "CapacityEnvelope"),
             consumed_by=("foundation selection", "runtime provision"),
@@ -1012,9 +1127,19 @@ def _build_layers(
     )
 
 
+def _minimum_layer_status(report: DeploymentReport) -> str:
+    if report.minimum is None:
+        return "incomplete"
+    if report.minimum.verdict is MinimumFeasibilityVerdict.FAIL:
+        return "fail"
+    return "pass"
+
+
 def _failed_layer_title(report: DeploymentReport) -> str:
     mapping = {
         "host": "Host Discovery",
+        "minimum": "Minimum Feasibility",
+        "feasibility": "Minimum Feasibility",
         "storage": "Storage & Capacity",
         "probe": "Storage & Capacity",
         "sonar": "Storage & Capacity",
@@ -1032,6 +1157,8 @@ def _failed_layer_title(report: DeploymentReport) -> str:
 
 def _failure_input(report: DeploymentReport) -> str:
     token = _show(report.failed_at)
+    if token in {"feasibility", "minimum"}:
+        return "HostCapabilities + authorizing storage evidence"
     if token == "model":
         return "Verified runtime + current capacity"
     if token in {"runtime", "plan"}:
@@ -1043,6 +1170,8 @@ def _failure_input(report: DeploymentReport) -> str:
 
 def _last_valid_output(report: DeploymentReport) -> str:
     token = _show(report.failed_at)
+    if token in {"feasibility", "minimum"}:
+        return "HostCapabilityProfile"
     if token == "model":
         return "VerifiedRuntimeCapabilityProfile"
     if token == "admission":
@@ -1071,9 +1200,7 @@ def _pool_row(
     authorizing = None
     reason = ""
     if evidence is not None:
-        specialist = (
-            evidence.probe_name if is_resolved(evidence.probe_name) else None
-        )
+        specialist = evidence.probe_name if is_resolved(evidence.probe_name) else None
         if evidence.probe_available and not evidence.probe_executed:
             specialist_result = "unavailable"
         elif evidence.probe_executed and is_resolved(evidence.probe_available_bytes):
@@ -1141,8 +1268,8 @@ def _sonar_lines(
         failed = empirical.attempted_tier_units[-1]
         if failed not in empirical.completed_tier_units:
             code = str(empirical.failure_code)
-            label = "EDQUOT" if "quota" in code else (
-                "ENOSPC" if "space" in code else code
+            label = (
+                "EDQUOT" if "quota" in code else ("ENOSPC" if "space" in code else code)
             )
             lines.append(f"{failed} GiB {label}")
     return tuple(lines)
@@ -1155,9 +1282,7 @@ def _install_row(
 ) -> RuntimeInstallReport:
     duration: Maybe[float] = NOT_PROVIDED
     if installation.started_at is not None and installation.completed_at is not None:
-        duration = (
-            installation.completed_at - installation.started_at
-        ).total_seconds()
+        duration = (installation.completed_at - installation.started_at).total_seconds()
     mount = plan.storage_mount if plan is not None else NOT_PROVIDED
     return RuntimeInstallReport(
         installation_id=installation.installation_id.value,
@@ -1240,15 +1365,16 @@ def _accelerator_lines(
     lines: list[str] = []
     for accelerator in host.accelerators:
         cap = by_index.get(accelerator.index)
-        vram = (
+        physical = accelerator.memory_total_bytes
+        safe = (
             cap.memory.safe_bytes
             if cap is not None and is_resolved(cap.memory.safe_bytes)
-            else accelerator.memory_total_bytes
+            else NOT_PROVIDED
         )
         lines.append(
             f"[{accelerator.index}] {accelerator.vendor.value} "
-            f"{accelerator.model_name} {_bytes(vram)}  "
-            f"driver {_show(accelerator.driver_version)}"
+            f"{accelerator.model_name}  physical {_bytes(physical)}  "
+            f"SAFE {_bytes(safe)}  driver {_show(accelerator.driver_version)}"
         )
     return tuple(lines)
 
@@ -1256,11 +1382,7 @@ def _accelerator_lines(
 def _latest_inference(
     facts: Sequence[OperationalFact],
 ) -> tuple[int | None, str | None]:
-    latest = [
-        fact
-        for fact in facts
-        if fact.event_type.value == "inference.completed"
-    ]
+    latest = [fact for fact in facts if fact.event_type.value == "inference.completed"]
     if not latest:
         return None, None
     fact = latest[-1]
@@ -1307,13 +1429,13 @@ def _verdict(
     plan: DeploymentPlan | None,
     instances: Sequence[InferenceInstance],
     facts: Sequence[OperationalFact],
+    minimum: MinimumFeasibilityAssessment | None = None,
 ) -> tuple[DeploymentVerdict, str | None, str | None, str | None]:
     failed = [
         fact
         for fact in facts
         if fact.outcome is OperationalOutcome.FAIL
-        and fact.stage
-        not in {OperationalStage.SONAR, OperationalStage.PROBE}
+        and fact.stage not in {OperationalStage.SONAR, OperationalStage.PROBE}
     ]
     infer_pass = any(
         fact.event_type.value == "inference.completed"
@@ -1327,12 +1449,11 @@ def _verdict(
             "inference completed",
             "none",
         )
+    del minimum
     if failed:
         last = failed[-1]
         code = last.reason_code if is_resolved(last.reason_code) else None
-        detail = (
-            f"{code}: {last.summary}" if isinstance(code, str) else last.summary
-        )
+        detail = f"{code}: {last.summary}" if isinstance(code, str) else last.summary
         return (
             DeploymentVerdict.FAIL,
             last.stage.value,

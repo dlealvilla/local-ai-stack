@@ -41,6 +41,10 @@ _ALLOWED_ATTRS = frozenset(
         "compatible",
         "available_count",
         "support_tier",
+        "profile",
+        "possibility",
+        "requires_reclamation",
+        "byte_band",
     }
 )
 
@@ -71,6 +75,11 @@ def sanitize_fact(fact: OperationalFact) -> TelemetryRecord:
         error_class=fact.reason_code if fact.outcome.value == "fail" else NOT_PROVIDED,
         run_id=run_id,
         executor=parsed.get("executor", NOT_PROVIDED),
+        support_tier=parsed.get("support_tier", NOT_PROVIDED),
+        profile=parsed.get("profile", NOT_PROVIDED),
+        possibility=parsed.get("possibility", NOT_PROVIDED),
+        requires_reclamation=parsed.get("requires_reclamation", NOT_PROVIDED),
+        byte_band=parsed.get("byte_band", NOT_PROVIDED),
     )
 
 

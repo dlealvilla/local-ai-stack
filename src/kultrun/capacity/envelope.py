@@ -384,13 +384,10 @@ class CapacityService:
         authorizing = _authorizing_storage(capacity_evidence)
         if authorizing is not None:
             effective = authorizing
+            requirement = EvidenceRequirement.SUFFICIENT
             if capacity_evidence is not None and capacity_evidence.selected_reason:
                 note = capacity_evidence.selected_reason
-            safe = self._withhold(
-                effective,
-                self._policy.storage_reserve_fraction,
-                self._policy.storage_reserve_floor_bytes,
-            )
+            safe = storage_safe_bytes(effective, self._policy)
         elif requirement is EvidenceRequirement.SUFFICIENT:
             safe = self._withhold(
                 effective,
@@ -483,6 +480,25 @@ class CapacityService:
                 policy_version=self._policy.policy_version,
             ),
         )
+
+
+def storage_safe_bytes(
+    authorizing: int, policy: HeadroomPolicy | None = None
+) -> Maybe[int]:
+    """Apply the storage reserve once to an authorizing figure.
+
+    Reclaimable bytes must be added to authorizing remaining *before* this
+    is called. Never add reclaimable bytes onto an already-reserved SAFE.
+    """
+    resolved = policy or default_policy()
+    reserve = max(
+        int(authorizing * resolved.storage_reserve_fraction),
+        resolved.storage_reserve_floor_bytes,
+    )
+    remaining = authorizing - reserve
+    if remaining <= 0:
+        return NOT_MEASURED
+    return remaining
 
 
 def _authorizing_storage(
