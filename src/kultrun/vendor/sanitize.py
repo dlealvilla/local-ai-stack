@@ -2,6 +2,14 @@
 
 The allow-list is the privacy boundary. Attributes not named here never
 leave the host, even when export is enabled.
+
+Three levels stay separate:
+
+* Local operational truth (OperationalFact + domain state) always exists.
+* Development/acceptance evidence stays on the host.
+* Vendor product-improvement telemetry is this sanitized record, and only
+  when TelemetrySettings permits. Token counts, prompts, paths, hostnames,
+  usernames, and PIDs are not exported.
 """
 
 from __future__ import annotations
@@ -12,9 +20,9 @@ from kultrun.platform.contracts import OperationalFact
 from kultrun.vendor.contracts import TelemetryRecord
 from kultrun.vendor.ports import ProductTelemetryExporter
 
+#: Exact local paths, hostnames, PIDs, token counts, and content stay out.
 _ALLOWED_ATTRS = frozenset(
     {
-        "mount",
         "tier_units",
         "runtime",
         "version",
@@ -26,6 +34,13 @@ _ALLOWED_ATTRS = frozenset(
         "os",
         "arch",
         "filesystem",
+        "executor",
+        "quantization",
+        "finish_reason",
+        "discovered",
+        "compatible",
+        "available_count",
+        "support_tier",
     }
 )
 
@@ -34,6 +49,12 @@ def sanitize_fact(fact: OperationalFact) -> TelemetryRecord:
     """Operational metadata only. Prompt/response/document never appear."""
     parsed = _attributes(fact.attributes)
     build = build_identity()
+    run_id: Maybe[str] = NOT_PROVIDED
+    if (
+        is_resolved(fact.correlation_id)
+        and fact.correlation_id.startswith("drun_")
+    ):
+        run_id = fact.correlation_id
     return TelemetryRecord(
         occurred_at=fact.occurred_at,
         event_type=fact.event_type.value,
@@ -48,6 +69,8 @@ def sanitize_fact(fact: OperationalFact) -> TelemetryRecord:
         reason_code=fact.reason_code if is_resolved(fact.reason_code) else NOT_PROVIDED,
         latency_ms=_int(parsed.get("latency_ms")),
         error_class=fact.reason_code if fact.outcome.value == "fail" else NOT_PROVIDED,
+        run_id=run_id,
+        executor=parsed.get("executor", NOT_PROVIDED),
     )
 
 

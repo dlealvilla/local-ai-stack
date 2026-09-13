@@ -242,6 +242,21 @@ class AvailableModelsService:
     ) -> None:
         if self._journal is None:
             return
+        self._journal.emit(
+            host_id=host.host_id,
+            stage=OperationalStage.MODEL,
+            event_type="model.funnel_completed",
+            summary=(
+                f"{view.discovered_count} catalog → "
+                f"{view.available_count} available"
+            ),
+            outcome=OperationalOutcome.INFO,
+            attributes=(
+                attr("discovered", view.discovered_count),
+                attr("compatible", view.compatibility_count),
+                attr("available_count", view.available_count),
+            ),
+        )
         for member in view.members:
             self._journal.emit(
                 host_id=host.host_id,

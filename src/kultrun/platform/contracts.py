@@ -237,6 +237,7 @@ class OperationalFactId(EntityId):
 class OperationalStage(StrEnum):
     """Progress column. Stable labels for CLI/API, not a workflow engine."""
 
+    RUN = "run"
     HOST = "host"
     STORAGE = "storage"
     PROBE = "probe"
@@ -286,6 +287,36 @@ class OperationalFact(Contract):
     correlation_id: Maybe[str] = meaning(
         "ties this fact to the operation that caused it", default=NOT_PROVIDED
     )
+
+
+class DeploymentRunId(EntityId):
+    """Identifies one end-to-end deployment journey across CLI processes."""
+
+    prefix = "drun"
+
+
+class DeploymentRunStatus(StrEnum):
+    """Whether this correlation context is still the current journey."""
+
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+@contract(kind="platform.deployment_run", version=1)
+@dataclass(frozen=True, slots=True)
+class DeploymentRun(Contract):
+    """One deployment journey for this state root. Not a workflow engine.
+
+    Independent CLI processes reconstruct the same journey by reading this
+    record and stamping OperationalFact.correlation_id with run_id.
+    """
+
+    run_id: DeploymentRunId = meaning("durable correlation identity of this journey")
+    host_id: HostId = meaning("host this journey was recorded against")
+    started_at: dt.datetime = meaning("when this run identity was minted, UTC")
+    status: DeploymentRunStatus = meaning("open, completed, or failed")
+    kultrun_build: str = meaning("build that minted the run")
 
 
 class DeploymentReportId(EntityId):
@@ -395,6 +426,63 @@ class InstanceReport(Contract):
     )
 
 
+@contract(kind="platform.report_layer", version=1)
+@dataclass(frozen=True, slots=True)
+class ReportLayer(Contract):
+    """One stack layer as the report explains it. Projection, not new truth."""
+
+    identity: str = meaning("stable layer key such as host or storage")
+    title: str = meaning("human layer title")
+    purpose: str = meaning("what this layer is for")
+    status: str = meaning("pass, fail, incomplete, or info")
+    kultrun: tuple[str, ...] = meaning(
+        "conceptual module names, not a Python call stack", default=()
+    )
+    inputs: tuple[str, ...] = meaning("what this layer received", default=())
+    process: tuple[str, ...] = meaning("what Kultrun did", default=())
+    decision: tuple[str, ...] = meaning("what was measured or chosen", default=())
+    outputs: tuple[str, ...] = meaning("structured output of this layer", default=())
+    consumed_by: tuple[str, ...] = meaning("what consumes that output", default=())
+
+
+@contract(kind="platform.decision_snapshot", version=1)
+@dataclass(frozen=True, slots=True)
+class DecisionSnapshot(Contract):
+    """One automatic decision, projected from facts and domain state.
+
+    Not a DecisionStore. Reconstructable from OperationalFact plus the
+    owning domain records.
+    """
+
+    decision: str = meaning(
+        "FOUNDATION_SELECTION, MODEL_SELECTION, RESOURCE_ADMISSION, or REPLAN"
+    )
+    inputs: tuple[str, ...] = meaning("what Kultrun knew", default=())
+    options: tuple[str, ...] = meaning("what options existed", default=())
+    selected: Maybe[str] = meaning("what was selected", default=NOT_PROVIDED)
+    reason: Maybe[str] = meaning("why", default=NOT_PROVIDED)
+    outcome: Maybe[str] = meaning("what happened afterward", default=NOT_PROVIDED)
+
+
+@contract(kind="platform.inference_observation", version=1)
+@dataclass(frozen=True, slots=True)
+class InferenceObservation(Contract):
+    """One inference as the report presents it. Never prompt or response text."""
+
+    occurred_at: dt.datetime = meaning("when the inference completed, UTC")
+    outcome: str = meaning("pass or fail")
+    latency_ms: Maybe[int] = meaning("wall latency when recorded", default=NOT_PROVIDED)
+    input_tokens: Maybe[int] = meaning(
+        "local token count; not vendor telemetry by default", default=NOT_PROVIDED
+    )
+    output_tokens: Maybe[int] = meaning(
+        "local token count; not vendor telemetry by default", default=NOT_PROVIDED
+    )
+    finish_reason: Maybe[str] = meaning(
+        "runtime finish class when recorded", default=NOT_PROVIDED
+    )
+
+
 @contract(kind="platform.deployment_report", version=1)
 @dataclass(frozen=True, slots=True)
 class DeploymentReport(Contract):
@@ -445,4 +533,42 @@ class DeploymentReport(Contract):
     lifecycle: tuple[str, ...] = meaning(
         "ordered start/stop/restart/infer summaries from operational facts",
         default=(),
+    )
+    run_id: Maybe[str] = meaning(
+        "DeploymentRun identity correlating this journey", default=NOT_PROVIDED
+    )
+    run_started_at: Maybe[dt.datetime] = meaning(
+        "when the current DeploymentRun was minted", default=NOT_PROVIDED
+    )
+    layers: tuple[ReportLayer, ...] = meaning(
+        "guided stack layers for Admin UI and the human report", default=()
+    )
+    decisions: tuple[DecisionSnapshot, ...] = meaning(
+        "automatic decision snapshots projected at compose time", default=()
+    )
+    inferences: tuple[InferenceObservation, ...] = meaning(
+        "inference observations in occurred_at order; no prompt text", default=()
+    )
+    selected_stack: Maybe[str] = meaning(
+        "one-line selected host → storage → foundation → model → executor",
+        default=NOT_PROVIDED,
+    )
+    manual_intervention: Maybe[str] = meaning(
+        "NONE, or a short operator-reclaim note that is not a product failure",
+        default=NOT_PROVIDED,
+    )
+    reservation_id: Maybe[str] = meaning(
+        "current or last admission reservation", default=NOT_PROVIDED
+    )
+    admission_verdict: Maybe[str] = meaning(
+        "latest resource admission outcome", default=NOT_PROVIDED
+    )
+    catalog_count: Maybe[int] = meaning(
+        "catalog/discovery count feeding model feasibility", default=NOT_PROVIDED
+    )
+    compatible_count: Maybe[int] = meaning(
+        "runtime-compatible count before capacity filtering", default=NOT_PROVIDED
+    )
+    available_count: Maybe[int] = meaning(
+        "Available Models count after capacity filtering", default=NOT_PROVIDED
     )

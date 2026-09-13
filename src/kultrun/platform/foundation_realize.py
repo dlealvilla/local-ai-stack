@@ -35,7 +35,7 @@ from kultrun.runtime.contracts import (
     RuntimeSupportDescriptor,
 )
 from kultrun.runtime.resolve import ExecutorCapabilityView
-from kultrun.runtime.selection import FoundationSelectionService
+from kultrun.runtime.selection import FoundationOverview, FoundationSelectionService
 from kultrun.storage.characterize import StorageCharacterizationService
 from kultrun.storage.contracts import (
     StorageCapacityEvidence,
@@ -251,9 +251,10 @@ class FoundationRealizeService:
             host.host_id,
             OperationalStage.RUNTIME,
             "runtime.selected",
-            f"selected {selected}",
+            f"{_runtime_family(overview, selected)} selected",
             OperationalOutcome.PASS,
             candidate=selected,
+            runtime=_runtime_family(overview, selected),
         )
         for item in overview.candidates:
             blocked = item.role == "blocked"
@@ -412,6 +413,17 @@ class FoundationRealizeService:
             reason_code=reason,
             attributes=attributes,
         )
+
+
+def _runtime_family(overview: FoundationOverview, selected: str) -> str:
+    for item in (
+        *overview.resolution.candidates,
+        *overview.resolution.unsupported,
+        *overview.resolution.unresolved,
+    ):
+        if item.candidate_id.value == selected:
+            return item.runtime.value
+    return selected
 
 
 def _selected_identity(

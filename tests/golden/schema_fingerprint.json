@@ -5205,6 +5205,53 @@
     },
     "python": "ComponentHealth"
   },
+  "platform.decision_snapshot@1": {
+    "fields": {
+      "decision": {
+        "may_be_unresolved": false,
+        "meaning": "FOUNDATION_SELECTION, MODEL_SELECTION, RESOURCE_ADMISSION, or REPLAN",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "inputs": {
+        "may_be_unresolved": false,
+        "meaning": "what Kultrun knew",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "options": {
+        "may_be_unresolved": false,
+        "meaning": "what options existed",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "outcome": {
+        "may_be_unresolved": true,
+        "meaning": "what happened afterward",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "reason": {
+        "may_be_unresolved": true,
+        "meaning": "why",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selected": {
+        "may_be_unresolved": true,
+        "meaning": "what was selected",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "DecisionSnapshot"
+  },
   "platform.deployment_report@1": {
     "fields": {
       "accelerators": {
@@ -5214,6 +5261,13 @@
         "optional": false,
         "type": "tuple[str, ...]"
       },
+      "admission_verdict": {
+        "may_be_unresolved": true,
+        "meaning": "latest resource admission outcome",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "architecture": {
         "may_be_unresolved": false,
         "meaning": "CPU architecture",
@@ -5221,12 +5275,33 @@
         "optional": false,
         "type": "str"
       },
+      "available_count": {
+        "may_be_unresolved": true,
+        "meaning": "Available Models count after capacity filtering",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "available_models": {
         "may_be_unresolved": false,
         "meaning": "current Available Models names",
         "nullable": false,
         "optional": false,
         "type": "tuple[str, ...]"
+      },
+      "catalog_count": {
+        "may_be_unresolved": true,
+        "meaning": "catalog/discovery count feeding model feasibility",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "compatible_count": {
+        "may_be_unresolved": true,
+        "meaning": "runtime-compatible count before capacity filtering",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
       },
       "composed_at": {
         "may_be_unresolved": false,
@@ -5241,6 +5316,13 @@
         "nullable": false,
         "optional": false,
         "type": "str | Unresolved"
+      },
+      "decisions": {
+        "may_be_unresolved": false,
+        "meaning": "automatic decision snapshots projected at compose time",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[DecisionSnapshot, ...]"
       },
       "deployment_plan_id": {
         "may_be_unresolved": true,
@@ -5262,6 +5344,13 @@
         "nullable": false,
         "optional": false,
         "type": "HostId"
+      },
+      "inferences": {
+        "may_be_unresolved": false,
+        "meaning": "inference observations in occurred_at order; no prompt text",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[InferenceObservation, ...]"
       },
       "instances": {
         "may_be_unresolved": false,
@@ -5291,12 +5380,26 @@
         "optional": false,
         "type": "str | Unresolved"
       },
+      "layers": {
+        "may_be_unresolved": false,
+        "meaning": "guided stack layers for Admin UI and the human report",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[ReportLayer, ...]"
+      },
       "lifecycle": {
         "may_be_unresolved": false,
         "meaning": "ordered start/stop/restart/infer summaries from operational facts",
         "nullable": false,
         "optional": true,
         "type": "tuple[str, ...]"
+      },
+      "manual_intervention": {
+        "may_be_unresolved": true,
+        "meaning": "NONE, or a short operator-reclaim note that is not a product failure",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "model_candidates": {
         "may_be_unresolved": false,
@@ -5403,6 +5506,27 @@
         "optional": false,
         "type": "DeploymentReportId"
       },
+      "reservation_id": {
+        "may_be_unresolved": true,
+        "meaning": "current or last admission reservation",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "run_id": {
+        "may_be_unresolved": true,
+        "meaning": "DeploymentRun identity correlating this journey",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "run_started_at": {
+        "may_be_unresolved": true,
+        "meaning": "when the current DeploymentRun was minted",
+        "nullable": false,
+        "optional": true,
+        "type": "datetime | Unresolved"
+      },
       "runtime_candidates": {
         "may_be_unresolved": false,
         "meaning": "evaluated runtime paths",
@@ -5431,6 +5555,13 @@
         "optional": false,
         "type": "str | Unresolved"
       },
+      "selected_stack": {
+        "may_be_unresolved": true,
+        "meaning": "one-line selected host \u2192 storage \u2192 foundation \u2192 model \u2192 executor",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "selection_mode": {
         "may_be_unresolved": true,
         "meaning": "AUTO or MANUAL",
@@ -5454,6 +5585,46 @@
       }
     },
     "python": "DeploymentReport"
+  },
+  "platform.deployment_run@1": {
+    "fields": {
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this journey was recorded against",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "kultrun_build": {
+        "may_be_unresolved": false,
+        "meaning": "build that minted the run",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "run_id": {
+        "may_be_unresolved": false,
+        "meaning": "durable correlation identity of this journey",
+        "nullable": false,
+        "optional": false,
+        "type": "DeploymentRunId"
+      },
+      "started_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this run identity was minted, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "open, completed, or failed",
+        "nullable": false,
+        "optional": false,
+        "type": "DeploymentRunStatus"
+      }
+    },
+    "python": "DeploymentRun"
   },
   "platform.health_report@1": {
     "fields": {
@@ -5480,6 +5651,53 @@
       }
     },
     "python": "HealthReport"
+  },
+  "platform.inference_observation@1": {
+    "fields": {
+      "finish_reason": {
+        "may_be_unresolved": true,
+        "meaning": "runtime finish class when recorded",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "input_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "local token count; not vendor telemetry by default",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "latency_ms": {
+        "may_be_unresolved": true,
+        "meaning": "wall latency when recorded",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "occurred_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the inference completed, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "pass or fail",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "output_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "local token count; not vendor telemetry by default",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      }
+    },
+    "python": "InferenceObservation"
   },
   "platform.operational_fact@1": {
     "fields": {
@@ -5623,6 +5841,81 @@
       }
     },
     "python": "InstanceReport"
+  },
+  "platform.report_layer@1": {
+    "fields": {
+      "consumed_by": {
+        "may_be_unresolved": false,
+        "meaning": "what consumes that output",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "decision": {
+        "may_be_unresolved": false,
+        "meaning": "what was measured or chosen",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "identity": {
+        "may_be_unresolved": false,
+        "meaning": "stable layer key such as host or storage",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "inputs": {
+        "may_be_unresolved": false,
+        "meaning": "what this layer received",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "kultrun": {
+        "may_be_unresolved": false,
+        "meaning": "conceptual module names, not a Python call stack",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "outputs": {
+        "may_be_unresolved": false,
+        "meaning": "structured output of this layer",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "process": {
+        "may_be_unresolved": false,
+        "meaning": "what Kultrun did",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "purpose": {
+        "may_be_unresolved": false,
+        "meaning": "what this layer is for",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "pass, fail, incomplete, or info",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "title": {
+        "may_be_unresolved": false,
+        "meaning": "human layer title",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "ReportLayer"
   },
   "platform.report_model_candidate@1": {
     "fields": {
@@ -10519,6 +10812,13 @@
         "optional": false,
         "type": "str"
       },
+      "executor": {
+        "may_be_unresolved": true,
+        "meaning": "executor class, when the fact recorded one",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "kultrun_build": {
         "may_be_unresolved": true,
         "meaning": "build id when known",
@@ -10564,6 +10864,13 @@
       "reason_code": {
         "may_be_unresolved": true,
         "meaning": "typed product reason",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "run_id": {
+        "may_be_unresolved": true,
+        "meaning": "DeploymentRun identity when the fact was correlated",
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"

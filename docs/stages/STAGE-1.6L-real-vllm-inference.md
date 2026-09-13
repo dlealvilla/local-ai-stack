@@ -2,10 +2,14 @@
 
 **Milestone 1 — Walking skeleton.**
 
-Status: **OPEN — Stream A capture-lifetime fix after the second physical
-T3 returned READY but left `instances start` resident. K-96 still
-requires a new integration wheel on a new GPU host. Stage 1.6M not
-started.**
+Status: **CLOSED L3 — VLLM INSTALLATION-TO-INFERENCE + RESTART VERTICAL:
+PHYSICALLY CLOSED.** Guided DeploymentReport observability frozen with
+this stage package.
+
+Physical reference: `ba04df2f94ae7ff9e0fdeef3ec4cf0af20186b6a`
+Build: `0.1.0+ba04df2f94ae`
+Wheel SHA256: `d4369a6edec0d877f78c3f2c1ad3b96643e267bfc768a1dffb801a49ad3968eb`
+
 Checkpoint: `checkpoints/STAGE-1.6L-real-vllm-inference.json`.
 
 This stage extends the authoritative preparation chain into real serving.
@@ -162,6 +166,43 @@ anonymous files so the launching interpreter can exit while the serving
 child keeps writing. K-31 remains OPEN: a later CLI still does not own
 Popen and must not signal the child; `instances infer` uses the
 persisted endpoint and does not require that ownership. Capture files
-are not rotated (K-99). K-96 stays OPEN until a **new** integration wheel
-on a **new** GPU host observes READY and a returned start CLI. Do not
-reuse `216.81.151.62`. Do not begin Stage 1.6M from this freeze.
+are not rotated (K-99). K-96 remains estimator/calibration debt, not the
+T5 serving proof.
+
+## Physical T5 close
+
+On `ba04df2f94ae7ff9e0fdeef3ec4cf0af20186b6a` the product proved:
+
+```text
+installation → inference → stop → restart → second inference → stop
+```
+
+Ubuntu 24.04, NVIDIA RTX PRO 4500 Blackwell, 31.9 GiB VRAM. `/workspace`
+MooseFS/FUSE Sonar 16/24/32 GiB PASS, 48 GiB EDQUOT. vLLM 0.28.0 ~7.7 GiB.
+Available Models: Qwen 0.5B AWQ and Qwen 7B AWQ. AUTO selected Qwen 7B AWQ.
+Inference 1 PASS ~686 ms. Stop released GPU 0. Restart PASS. Inference 2
+PASS ~473 ms. Final stop PASS. Reservation held. OVERALL PASS.
+
+Shared-volume leftover from a predecessor install was operator reclaim,
+not a product deployment failure.
+
+## Observability freeze
+
+`DeploymentRun` (`drun_…`) is the correlation identity reused across CLI
+processes via `KULTRUN_STATE_ROOT`. `OperationalFact.correlation_id`
+carries it. `DeploymentReport` is the single projection for live CLI
+progress, the human guided stack report, JSON/API, and future Admin UI.
+`ProductTelemetryExporter` remains outbound-only, disabled by default,
+and never required. Token counts stay local. No cloud backend (K-113).
+
+## Residual report notes (not deployment defects)
+
+- `GET runtimes foundation` may print selected `-` when live AUTO
+  remaining SAFE shrinks; stored `FoundationSelection` still drove
+  verify/report.
+- First `instances start` may return before readiness; restart waits.
+  Start-wait semantics were not changed in the observability freeze.
+- `required_component_missing` on a selected verified foundation is
+  suppressed in the default human report; it remains in structured JSON.
+
+Do not begin llama.cpp, MLX, or Stage 1.6M from this freeze.

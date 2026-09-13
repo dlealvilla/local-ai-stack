@@ -910,19 +910,18 @@ Label:        DEFERRED
 Owner stage:  1.5B
 Subsystem:    runtime
 Authorizes:   NO
-What:         Native vLLM non-streaming text generation exists in
-              Stage 1.6L (T0/T1/T2). Real T5 on GPU is still required
-              for stage close. llama.cpp, MLX, CUDA/ROCm load outside
-              this path, chat, completions streaming, and token APIs
-              beyond the bounded contract are not implemented.
-Why now:      One vertical is enough to prove serving; other runtimes
+What:         Native vLLM non-streaming text generation is physically
+              proven in Stage 1.6L (T5 `ba04df2`). llama.cpp, MLX,
+              CUDA/ROCm load outside this path, chat, completions
+              streaming, and token APIs beyond the bounded contract
+              are not implemented (K-112, K-95).
+Why now:      One vertical was enough to prove serving; other runtimes
               and request types stay later.
-To make real: T5 on a real GPU host through Kultrun API/CLI; later
-              stages for other runtimes and streaming.
+To make real: later stages for other runtimes and streaming.
 Retire when:  a real Kultrun request reaches a real vLLM model on real
               hardware (Stage 1.6L CLOSED L3). Remaining runtimes and
               streaming are then separate entries.
-Status:       OPEN
+Status:       CLOSED — T5 physical `ba04df2`; remaining runtimes are K-112
 
 ### K-52 — no shared execution cache
 Label:        DEFERRED
@@ -1972,6 +1971,10 @@ What:         `config.vendor` and `ProductTelemetryExporter` exist.
               Enabling the section does not send anything off-host.
               Deployment never depends on export. Local operational
               facts remain in `platform.OperationalFact`.
+              `sanitize_fact` is the privacy boundary: exact paths,
+              hostnames, PIDs, prompts, responses, and token counts
+              are not in `TelemetryRecord`. Token counts stay local.
+              No cloud ingestion API exists (this entry).
 Why now:      Physical acceptance and Admin diagnostics need a product
               journal now. A cloud ingestion service is not required to
               close the installation → inference vertical.
@@ -2030,8 +2033,8 @@ order. Do not begin automatically.
 | Acquisition | CURRENT DeploymentPlan identity for normal executable acquire; STORE_ONLY catalog path preserved | same | done in 1.6J | STORE_ONLY remains plan-independent | ✅ |
 | ResourceManager | `ResourceRequest` from `DeploymentPlan.resource_request` + exact artifact_id | same | done in 1.6J; ResourceManager stays generic | `plan_for_entry` residual on artifact-id reserve only; not instance authority | ✅ |
 | InferenceInstance | `DeploymentPlan` + exact `ModelArtifact` + matching `ResourceReservation` | same | done in 1.6K; settings from plan | low-level `InstanceService.create` remains a test helper | ✅ |
-| Real vLLM serving | selected foundation + acquired artifact + reservation + real `RuntimeLaunchSpec` | same | done in 1.6L T0/T1/T2; exact installation; local artifact; loopback; readiness | none | OPEN until T5 |
-| Real inference | generic `InferenceRequest` / `InferenceResponse` through instance API/CLI | same | done in 1.6L T0/T1/T2; T5 pending | reference-serving remains fixture-only | OPEN until T5 |
+| Real vLLM serving | selected foundation + acquired artifact + reservation + real `RuntimeLaunchSpec` | same | done in 1.6L T0/T1/T2; exact installation; local artifact; loopback; readiness | none | ✅ T5 physical `ba04df2` |
+| Real inference | generic `InferenceRequest` / `InferenceResponse` through instance API/CLI | same | done in 1.6L T0/T1/T2; T5 physical restart vertical `ba04df2` | reference-serving remains fixture-only | ✅ |
 
 ## Deferred capability register
 

@@ -219,6 +219,7 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "planning.available_model_view",
         "platform.operational_fact",
         "platform.deployment_report",
+        "platform.deployment_run",
     }
 )
 

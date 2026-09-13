@@ -62,3 +62,9 @@ class TelemetryRecord(Contract):
     error_class: Maybe[str] = meaning(
         "error class, never an exception body", default=NOT_PROVIDED
     )
+    run_id: Maybe[str] = meaning(
+        "DeploymentRun identity when the fact was correlated", default=NOT_PROVIDED
+    )
+    executor: Maybe[str] = meaning(
+        "executor class, when the fact recorded one", default=NOT_PROVIDED
+    )

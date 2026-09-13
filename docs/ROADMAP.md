@@ -717,7 +717,7 @@ architecture harness enforcement gap closed   ← prerequisite, DEBT K-12
   ↓
 1.6K Plan-driven InferenceInstance        ← CLOSED L1; create from plan triple; no real serving
   ↓
-1.6L First real vLLM inference vertical   ← OPEN until T5 L3; native-process single-GPU
+1.6L First real vLLM inference vertical   ← CLOSED L3; guided DeploymentReport frozen; native-process single-GPU
   ↓
 1.6L2 Storage authorizing persist           ← cheap GET must not erase Sonar
   ↓
@@ -1377,8 +1377,8 @@ bind only. No reference-runtime fallback. No streaming, cancellation,
 container GPU, multi-GPU, or additional runtimes.
 
 **Output:** RUNNING native vLLM instance serving a real Kultrun request ·
-**Gate:** L3. T0/T1/T2 may pass locally while the stage stays OPEN until
-real T3/T5. Do not reopen 1.6B–1.6K.
+**Gate:** L3 CLOSED. Physical T5 at `ba04df2f94ae`. Guided DeploymentReport
+observability frozen. Do not reopen 1.6B–1.6K.
 
 ### Stage 1.6 — Real inference vertical
 
@@ -1395,12 +1395,12 @@ Split after 1.5C. **1.6A** is the ContainerExecutor portability proof.
 **1.6D is CLOSED L2.** **1.6E is CLOSED L1.** **1.6F is CLOSED L1.**
 **1.6G is CLOSED L1.** **1.6H is CLOSED L1.** **1.6I is CLOSED L1.**
 **1.6J is CLOSED L1.** **1.6K is CLOSED L1.**
-**1.6L is OPEN** until real T3 launch and T5 Kultrun prompt → generated
-response. Stream A runtime-memory calibration is implemented; T3/T5
-wait for Stream B to freeze, then one temporary integration artifact,
-then a fresh GPU host. Do not mark CLOSED at L1. Do not begin
-streaming, cancellation, container GPU, additional runtimes, or
-routing from this stage.
+**1.6L is CLOSED L3.** Physical T5 on
+`ba04df2f94ae7ff9e0fdeef3ec4cf0af20186b6a` proved installation →
+inference → stop → restart → inference → stop. Guided
+`DeploymentReport` + `DeploymentRun` correlation close the
+observability contract. Do not begin streaming, cancellation, container
+GPU, additional runtimes, or routing from this stage.
 
 Selected stored model, admitted reservation, runtime, executor,
 InferenceInstance, loopback endpoint, a real prompt, a real response.

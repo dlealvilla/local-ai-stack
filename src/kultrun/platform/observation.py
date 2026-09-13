@@ -43,6 +43,7 @@ __all__ = [
     "SonarProgressAdapter",
     "attr",
     "attr_value",
+    "chronological_facts",
     "format_progress",
     "storage_event_handler",
 ]
@@ -72,6 +73,8 @@ class ConsoleProgress:
 
     def observe(self, fact: OperationalFact) -> None:
         line = format_progress(fact)
+        if not line:
+            return
         sink = self._write
         if sink is None:
             print(line, flush=True)
@@ -93,9 +96,26 @@ class FanoutObserver:
                 continue
 
 
+_QUIET_PROGRESS = frozenset(
+    {
+        "model.blocked",
+        "model.available",
+        "runtime.candidate_evaluated",
+        "deployment.started",
+    }
+)
+
+
 def format_progress(fact: OperationalFact) -> str:
     """One live progress line. Derived from the fact, never invented."""
+    if fact.event_type.value in _QUIET_PROGRESS:
+        return ""
+    if fact.event_type.value == "model.funnel_completed":
+        return f"[MODELS] {fact.summary}"
+    if fact.event_type.value == "runtime.selected":
+        return f"[FOUNDATION] {fact.summary}"
     label = {
+        OperationalStage.RUN: "RUN",
         OperationalStage.HOST: "HOST",
         OperationalStage.STORAGE: "STORAGE",
         OperationalStage.PROBE: "PROBE",
@@ -109,6 +129,13 @@ def format_progress(fact: OperationalFact) -> str:
         OperationalStage.DEPLOYMENT: "DEPLOYMENT",
     }.get(fact.stage, fact.stage.value.upper())
     return f"[{label}] {fact.summary}"
+
+
+def chronological_facts(
+    facts: Sequence[OperationalFact],
+) -> tuple[OperationalFact, ...]:
+    """Stable occurred_at order. Same-instant ties keep input order."""
+    return tuple(sorted(facts, key=lambda item: item.occurred_at))
 
 
 def attr(key: str, value: object) -> str:
@@ -138,9 +165,15 @@ class OperationalJournal:
         self._store = store
         self._clock = clock or SystemClock()
         self._observer: OperationalObserver = observer or NullObserver()
+        self._correlation: str | None = None
 
     def set_observer(self, observer: OperationalObserver | None) -> None:
         self._observer = observer or NullObserver()
+
+    def bind_correlation(self, correlation_id: str) -> None:
+        """Stamp subsequent facts with this DeploymentRun identity."""
+        token = correlation_id.strip()
+        self._correlation = token or None
 
     def emit(
         self,
@@ -154,6 +187,7 @@ class OperationalJournal:
         attributes: Sequence[str] = (),
         correlation_id: str | None = None,
     ) -> OperationalFact:
+        resolved = correlation_id or self._correlation
         fact = OperationalFact(
             fact_id=OperationalFactId.generate(),
             host_id=host_id,
@@ -164,7 +198,7 @@ class OperationalJournal:
             summary=summary[:240],
             reason_code=reason_code if reason_code else NOT_PROVIDED,
             attributes=tuple(attributes),
-            correlation_id=correlation_id if correlation_id else NOT_PROVIDED,
+            correlation_id=resolved if resolved else NOT_PROVIDED,
         )
         self._store.put(fact.fact_id.value, fact)
         with suppress(Exception):
@@ -173,9 +207,9 @@ class OperationalJournal:
 
     def facts(self, host_id: HostId | None = None) -> tuple[OperationalFact, ...]:
         records = self._store.records(OperationalFact)
-        if host_id is None:
-            return records
-        return tuple(item for item in records if item.host_id == host_id)
+        if host_id is not None:
+            records = tuple(item for item in records if item.host_id == host_id)
+        return chronological_facts(records)
 
 
 class SonarProgressAdapter:

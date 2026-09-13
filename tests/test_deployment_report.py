@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from pathlib import Path
 
 from kultrun.adapters.persistence.file_store import FileStore
@@ -11,17 +12,20 @@ from kultrun.capacity.contracts import (
     EvidenceRequirement,
     PoolCapacity,
 )
-from kultrun.host.contracts import HostId
+from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.clock import FixedClock, now_utc
 from kultrun.kernel.ids import Name
+from kultrun.kernel.schema import to_dict
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.main import config_schema
 from kultrun.platform.contracts import (
+    DeploymentReport,
     DeploymentVerdict,
     OperationalFact,
     OperationalFactId,
     OperationalOutcome,
     OperationalStage,
+    RuntimeCandidateReport,
 )
 from kultrun.platform.observation import (
     OperationalJournal,
@@ -29,7 +33,12 @@ from kultrun.platform.observation import (
     format_progress,
     storage_event_handler,
 )
-from kultrun.platform.report import compose_deployment_report, format_deployment_report
+from kultrun.platform.report import (
+    _human_reason_codes,
+    compose_deployment_report,
+    format_deployment_report,
+)
+from kultrun.storage.contracts import StorageCapacityEvidence
 from kultrun.vendor.contracts import TelemetrySettings
 from kultrun.vendor.sanitize import ExportingObserver, sanitize_fact
 from tests.test_capacity import GIB, INSTANT, host
@@ -147,7 +156,7 @@ def test_report_projection_from_stored_state() -> None:
     text = format_deployment_report(report)
     assert "OVERALL: INCOMPLETE" in text
     assert "/workspace" in text
-    assert "Managed usage" in text
+    assert "Managed by Kultrun" in text
 
 
 def test_telemetry_disabled_by_default_and_never_required() -> None:
@@ -204,10 +213,12 @@ def test_enabled_exporter_failure_does_not_raise() -> None:
     observer.observe(fact)
 
 
-def _capacity_evidence(host_id: HostId, mount: str, fingerprint: str, quota: str):
+def _capacity_evidence(
+    host_id: HostId, mount: str, fingerprint: str, quota: str
+) -> StorageCapacityEvidence:
     from kultrun.evidence.contracts import Confidence, Provenance
     from kultrun.kernel.unresolved import NOT_PROVIDED
-    from kultrun.storage.contracts import StorageCapacityEvidence, StorageEvidenceStatus
+    from kultrun.storage.contracts import StorageEvidenceStatus
 
     return StorageCapacityEvidence(
         host_id=host_id,
@@ -420,19 +431,26 @@ def test_report_keeps_root_and_workspace_sonar_separate() -> None:
     assert report.selected_runtime == "cand_selected"
     assert report.plan_runtime_candidate == "cand_plan"
     text = format_deployment_report(report)
-    storage_text = text.split("RUNTIME CANDIDATES", 1)[0]
-    root_section, workspace_section = storage_text.split("  /workspace", 1)
+    storage_text = text.split("LAYER 3 — EXECUTION FOUNDATION", 1)[0]
+    root_section, workspace_section = storage_text.split("  Pool  /workspace", 1)
     assert "8 GiB EDQUOT" in root_section
     assert "32 GiB PASS" not in root_section
     assert "32 GiB PASS" in workspace_section
-    assert "recommended   cand_recommended" in text
-    assert "selected      cand_selected" in text
-    assert "plan          cand_plan" in text
-    assert "LIFECYCLE" in text
+    assert "LAYER 3 — EXECUTION FOUNDATION" in text
+    assert "LAYER 9 — INSTANCE & INFERENCE" in text
+    assert "Inference 1" in text
+    assert "Inference 2" in text
+    assert "  Inference 2     PASS  9 ms" in text
     assert "instance.started" in text
     assert "instance.stopped" in text
     assert "instance.restarted" in text
     assert "inference.completed" in text
+    assert report.latest_inference_latency_ms == 9
+    assert report.inferences[-1].latency_ms == 9
+    debug = format_deployment_report(report, debug=True)
+    assert "DEBUG EVIDENCE" in debug
+    assert "quota-workspace" in debug
+    assert "cand_selected" in debug
 
 
 def test_sonar_edquot_does_not_fail_the_vertical() -> None:
@@ -490,3 +508,472 @@ def test_sonar_edquot_does_not_fail_the_vertical() -> None:
     text = format_deployment_report(report)
     assert "OVERALL: INCOMPLETE" in text
     assert "OVERALL: FAIL" not in text
+
+
+def _base_envelope(
+    subject: HostCapabilities, pools: tuple[PoolCapacity, ...]
+) -> CapacityEnvelope:
+    return CapacityEnvelope(
+        host_id=subject.host_id,
+        host_fingerprint="test",
+        computed_at=INSTANT,
+        policy_version="t",
+        memory=_layered(48 * GIB),
+        memory_requirement=EvidenceRequirement.SUFFICIENT,
+        pools=pools,
+    )
+
+
+def _compose(
+    subject: HostCapabilities,
+    envelope: CapacityEnvelope,
+    facts: tuple[OperationalFact, ...],
+) -> DeploymentReport:
+    return compose_deployment_report(
+        host=subject,
+        envelope=envelope,
+        composed_at=INSTANT,
+        kultrun_build="test-build",
+        storage_evidence={},
+        empirical={},
+        managed={},
+        candidates=(),
+        recommended_candidate_id=None,
+        selection=None,
+        installations=(),
+        provisioning_plans=(),
+        profiles={},
+        available=None,
+        model_selection=None,
+        deployment_plan=None,
+        instances=(),
+        executions=(),
+        facts=facts,
+        run_id="drun_test0000000001",
+        run_started_at=INSTANT,
+    )
+
+
+def test_layers_are_ordered_and_linked() -> None:
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(
+        subject,
+        (
+            PoolCapacity(
+                mount_point="/workspace",
+                space=_layered(32 * GIB),
+                requirement=EvidenceRequirement.SUFFICIENT,
+                filesystem_type="fuse.moosefs",
+            ),
+        ),
+    )
+    report = _compose(subject, envelope, ())
+    identities = tuple(item.identity for item in report.layers)
+    assert identities == (
+        "run",
+        "host",
+        "storage",
+        "foundation",
+        "runtime",
+        "model_feasibility",
+        "model_selection",
+        "plan",
+        "admission",
+        "instance",
+        "outcome",
+    )
+    text = format_deployment_report(report)
+    for heading in (
+        "LAYER 0 — RUN",
+        "LAYER 1 — HOST DISCOVERY",
+        "LAYER 2 — STORAGE & CAPACITY",
+        "LAYER 3 — EXECUTION FOUNDATION",
+        "LAYER 4 — RUNTIME ENVIRONMENT",
+        "LAYER 5 — MODEL FEASIBILITY",
+        "LAYER 6 — MODEL SELECTION",
+        "LAYER 7 — DEPLOYMENT PLAN",
+        "LAYER 8 — RESOURCE ADMISSION",
+        "LAYER 9 — INSTANCE & INFERENCE",
+        "LAYER 10 — FINAL OUTCOME",
+    ):
+        assert heading in text
+    assert report.run_id == "drun_test0000000001"
+    assert "MooseFS / FUSE" in text
+    for layer in report.layers:
+        assert layer.inputs
+        assert layer.process
+        assert layer.outputs
+        assert layer.consumed_by
+    assert "Input            " in text
+    assert "Process          " in text
+    assert "Output           " in text
+    assert "Next             " in text
+
+
+def test_decision_snapshots_are_projected() -> None:
+    from kultrun.planning.contracts import (
+        ModelSelection,
+        ModelSelectionId,
+        ModelSelectionMode,
+    )
+    from kultrun.runtime.contracts import (
+        FoundationSelection,
+        FoundationSelectionId,
+        FoundationSelectionMode,
+    )
+
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(subject, ())
+    selection = FoundationSelection(
+        selection_id=FoundationSelectionId.parse("fsel_" + "b" * 16),
+        host_id=subject.host_id,
+        selection_mode=FoundationSelectionMode.AUTO,
+        created_at=INSTANT,
+        selected_at=INSTANT,
+        recommended_candidate_id="cand_vllm",
+        selected_candidate_id="cand_vllm",
+    )
+    model_selection = ModelSelection(
+        selection_id=ModelSelectionId.generate(),
+        host_id=subject.host_id,
+        selection_mode=ModelSelectionMode.AUTO,
+        created_at=INSTANT,
+        selected_at=INSTANT,
+        selection_basis="sel",
+        recommended_logical_name="qwen2.5-7b-instruct-awq",
+        selected_logical_name="qwen2.5-7b-instruct-awq",
+    )
+    facts = (
+        OperationalFact(
+            fact_id=OperationalFactId.generate(),
+            host_id=subject.host_id,
+            occurred_at=INSTANT,
+            stage=OperationalStage.ADMISSION,
+            event_type=Name("resource.admission_completed"),
+            outcome=OperationalOutcome.PASS,
+            summary="admission ADMITTED",
+            attributes=(attr("reservation", "resv_test000000001"),),
+        ),
+        OperationalFact(
+            fact_id=OperationalFactId.generate(),
+            host_id=subject.host_id,
+            occurred_at=INSTANT,
+            stage=OperationalStage.STORAGE,
+            event_type=Name("storage.replan_completed"),
+            outcome=OperationalOutcome.INFO,
+            summary="replan invoked",
+        ),
+    )
+    report = compose_deployment_report(
+        host=subject,
+        envelope=envelope,
+        composed_at=INSTANT,
+        kultrun_build="test-build",
+        storage_evidence={},
+        empirical={},
+        managed={},
+        candidates=(),
+        recommended_candidate_id="cand_vllm",
+        selection=selection,
+        installations=(),
+        provisioning_plans=(),
+        profiles={},
+        available=None,
+        model_selection=model_selection,
+        deployment_plan=None,
+        instances=(),
+        executions=(),
+        facts=facts,
+    )
+    kinds = tuple(item.decision for item in report.decisions)
+    assert kinds == (
+        "FOUNDATION_SELECTION",
+        "MODEL_SELECTION",
+        "RESOURCE_ADMISSION",
+        "REPLAN",
+    )
+    assert report.selected_model == "qwen2.5-7b-instruct-awq"
+    assert report.reservation_id == "resv_test000000001"
+    assert report.admission_verdict == "ADMITTED"
+
+
+def test_latest_inference_follows_occurred_at() -> None:
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(subject, ())
+    later = INSTANT + dt.timedelta(seconds=10)
+    first = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=subject.host_id,
+        occurred_at=INSTANT,
+        stage=OperationalStage.INFERENCE,
+        event_type=Name("inference.completed"),
+        outcome=OperationalOutcome.PASS,
+        summary="inference pass",
+        attributes=(attr("latency_ms", 686),),
+    )
+    second = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=subject.host_id,
+        occurred_at=later,
+        stage=OperationalStage.INFERENCE,
+        event_type=Name("inference.completed"),
+        outcome=OperationalOutcome.PASS,
+        summary="inference pass again",
+        attributes=(attr("latency_ms", 473), attr("input_tokens", 7)),
+    )
+    report = _compose(subject, envelope, (second, first))
+    assert report.latest_inference_latency_ms == 473
+    assert len(report.inferences) == 2
+    assert report.inferences[0].latency_ms == 686
+    assert report.inferences[1].latency_ms == 473
+    text = format_deployment_report(report)
+    assert "Inference 2     PASS  473 ms" in text
+
+
+def test_failure_boundary_names_the_layer() -> None:
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(subject, ())
+    fact = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=subject.host_id,
+        occurred_at=INSTANT,
+        stage=OperationalStage.MODEL,
+        event_type=Name("deployment.failed"),
+        outcome=OperationalOutcome.FAIL,
+        summary="No feasible model survived capacity filtering",
+        reason_code="infeasible_vram",
+    )
+    report = _compose(subject, envelope, (fact,))
+    assert report.verdict is DeploymentVerdict.FAIL
+    text = format_deployment_report(report)
+    assert "OVERALL: FAIL" in text
+    assert "FAILED LAYER:" in text
+    assert "Model Feasibility" in text
+    assert "VerifiedRuntimeCapabilityProfile" in text
+    assert "infeasible_vram" in text
+    assert "No feasible model survived capacity filtering" in text
+
+
+def test_blocked_model_progress_is_quiet() -> None:
+    fact = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=HostId.generate(),
+        occurred_at=now_utc(),
+        stage=OperationalStage.MODEL,
+        event_type=Name("model.blocked"),
+        outcome=OperationalOutcome.BLOCKED,
+        summary="huge-model BLOCKED: infeasible_vram",
+    )
+    assert format_progress(fact) == ""
+    funnel = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=HostId.generate(),
+        occurred_at=now_utc(),
+        stage=OperationalStage.MODEL,
+        event_type=Name("model.funnel_completed"),
+        outcome=OperationalOutcome.INFO,
+        summary="5 catalog → 2 available",
+    )
+    assert format_progress(funnel) == "[MODELS] 5 catalog → 2 available"
+    selected = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=HostId.generate(),
+        occurred_at=now_utc(),
+        stage=OperationalStage.RUNTIME,
+        event_type=Name("runtime.selected"),
+        outcome=OperationalOutcome.PASS,
+        summary="vllm selected",
+    )
+    assert format_progress(selected) == "[FOUNDATION] vllm selected"
+
+
+def test_verified_selected_hides_component_missing_in_human_view() -> None:
+    item = RuntimeCandidateReport(
+        candidate_id="rcand_verified",
+        runtime="vllm",
+        version="0.28.0",
+        executor="native-process",
+        support_tier="product",
+        compatibility="compatible",
+        reason_codes=("required_component_missing",),
+        recommended=True,
+        selected=True,
+    )
+    assert _human_reason_codes(item, True) == ()
+    assert _human_reason_codes(item, False) == ("required_component_missing",)
+
+
+def test_deployment_run_survives_second_cli(tmp_path: Path) -> None:
+    clock = FixedClock(now_utc())
+    first = build_platform(tmp_path, clock)
+    run = first.runs.current()
+    assert run is not None
+    first.journal.emit(
+        host_id=first.hosts.current.host_id,
+        stage=OperationalStage.STORAGE,
+        event_type="storage.authority_established",
+        summary="authorizing 32 GiB",
+        outcome=OperationalOutcome.PASS,
+    )
+    stored = first.journal.facts(first.hosts.current.host_id)
+    assert any(
+        is_resolved(item.correlation_id)
+        and item.correlation_id == run.run_id.value
+        for item in stored
+    )
+    second = build_platform(tmp_path, clock)
+    again = second.runs.current()
+    assert again is not None
+    assert again.run_id == run.run_id
+    started = [
+        item
+        for item in second.journal.facts()
+        if item.event_type.value == "deployment.started"
+    ]
+    assert len(started) == 1
+    payload = call(second, "/deployment-report")
+    assert payload["run_id"] == run.run_id.value
+    run_payload = call(second, "/deployment-run")
+    assert run_payload["kind"] == "platform.deployment_run"
+    assert run_payload["run_id"] == run.run_id.value
+
+
+def test_sanitize_excludes_paths_tokens_and_hostname() -> None:
+    fact = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=HostId.generate(),
+        occurred_at=now_utc(),
+        stage=OperationalStage.INFERENCE,
+        event_type=Name("inference.completed"),
+        outcome=OperationalOutcome.PASS,
+        summary="inference PASS",
+        correlation_id="drun_abc12300000000",
+        attributes=(
+            attr("mount", "/workspace/customer-a/secret-project/models"),
+            attr("input_tokens", 7),
+            attr("output_tokens", 10),
+            attr("hostname", "gpu-host-1"),
+            attr("pid", "4744"),
+            attr("latency_ms", 686),
+            attr("runtime", "vllm"),
+            attr("os", "linux"),
+        ),
+    )
+    record = sanitize_fact(fact)
+    encoded = str(to_dict(record))
+    assert "customer-a" not in encoded
+    assert "secret-project" not in encoded
+    assert record.latency_ms == 686
+    assert record.runtime == "vllm"
+    assert record.run_id == "drun_abc12300000000"
+    assert "input_tokens" not in encoded
+    assert record.os_name == "linux"
+
+
+def test_guided_report_replays_physical_16l_shape() -> None:
+    from kultrun.host.contracts import Accelerator, AcceleratorVendor
+
+    subject = host(
+        memory_total=64 * GIB,
+        accelerators=(
+            Accelerator(
+                index=0,
+                vendor=AcceleratorVendor.NVIDIA,
+                model_name="NVIDIA RTX PRO 4500 Blackwell",
+                memory_total_bytes=int(31.9 * GIB),
+                driver_version="580.178.04",
+                unified_memory=False,
+            ),
+        ),
+    )
+    envelope = _base_envelope(
+        subject,
+        (
+            PoolCapacity(
+                mount_point="/",
+                space=_layered(8 * GIB),
+                requirement=EvidenceRequirement.SUFFICIENT,
+                filesystem_type="overlay",
+            ),
+            PoolCapacity(
+                mount_point="/workspace",
+                space=_layered(32 * GIB),
+                requirement=EvidenceRequirement.SUFFICIENT,
+                filesystem_type="fuse.moosefs",
+            ),
+        ),
+    )
+    later = INSTANT + dt.timedelta(seconds=30)
+    facts = (
+        OperationalFact(
+            fact_id=OperationalFactId.generate(),
+            host_id=subject.host_id,
+            occurred_at=INSTANT,
+            stage=OperationalStage.SONAR,
+            event_type=Name("storage.sonar_tier_passed"),
+            outcome=OperationalOutcome.PASS,
+            summary="16 GiB PASS",
+            attributes=(attr("mount", "/workspace"),),
+        ),
+        OperationalFact(
+            fact_id=OperationalFactId.generate(),
+            host_id=subject.host_id,
+            occurred_at=INSTANT,
+            stage=OperationalStage.SONAR,
+            event_type=Name("storage.sonar_tier_passed"),
+            outcome=OperationalOutcome.PASS,
+            summary="24 GiB PASS",
+            attributes=(attr("mount", "/workspace"),),
+        ),
+        OperationalFact(
+            fact_id=OperationalFactId.generate(),
+            host_id=subject.host_id,
+            occurred_at=INSTANT,
+            stage=OperationalStage.SONAR,
+            event_type=Name("storage.sonar_tier_passed"),
+            outcome=OperationalOutcome.PASS,
+            summary="32 GiB PASS",
+            attributes=(attr("mount", "/workspace"),),
+        ),
+        OperationalFact(
+            fact_id=OperationalFactId.generate(),
+            host_id=subject.host_id,
+            occurred_at=INSTANT,
+            stage=OperationalStage.SONAR,
+            event_type=Name("storage.sonar_capacity_failure"),
+            outcome=OperationalOutcome.FAIL,
+            summary="48 GiB EDQUOT",
+            attributes=(attr("mount", "/workspace"),),
+        ),
+        OperationalFact(
+            fact_id=OperationalFactId.generate(),
+            host_id=subject.host_id,
+            occurred_at=INSTANT,
+            stage=OperationalStage.INFERENCE,
+            event_type=Name("inference.completed"),
+            outcome=OperationalOutcome.PASS,
+            summary="inference PASS",
+            attributes=(attr("latency_ms", 686),),
+        ),
+        OperationalFact(
+            fact_id=OperationalFactId.generate(),
+            host_id=subject.host_id,
+            occurred_at=later,
+            stage=OperationalStage.INFERENCE,
+            event_type=Name("inference.completed"),
+            outcome=OperationalOutcome.PASS,
+            summary="inference PASS",
+            attributes=(attr("latency_ms", 473),),
+        ),
+    )
+    report = _compose(subject, envelope, facts)
+    assert report.verdict is DeploymentVerdict.PASS
+    text = format_deployment_report(report)
+    assert "NVIDIA RTX PRO 4500" in text
+    assert "MooseFS / FUSE" in text
+    assert "16 GiB PASS" in text
+    assert "32 GiB PASS" in text
+    assert "48 GiB EDQUOT" in text
+    assert "Inference 2     PASS  473 ms" in text
+    assert "OVERALL: PASS" in text
+    assert "Manual intervention  NONE" in text

@@ -138,7 +138,10 @@ from kultrun.platform.deployment_plan import (
 )
 from kultrun.platform.deployment_prepare import DeploymentPreparationService
 from kultrun.platform.eligibility import catalog_facts, runtime_compatibility
-from kultrun.platform.foundation_realize import FoundationRealizeService
+from kultrun.platform.foundation_realize import (
+    FoundationRealizeService,
+    _runtime_family,
+)
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.managed_usage import PlatformManagedUsage
@@ -163,6 +166,7 @@ from kultrun.platform.report import compose_deployment_report, format_deployment
 from kultrun.platform.requirement import (
     RequirementAssessment,
 )
+from kultrun.platform.runs import DeploymentRunStore
 from kultrun.platform.runtime_memory import (
     RuntimeMemoryCalibrationService,
     format_estimated_feasible,
@@ -369,6 +373,7 @@ class Platform:
     #: artifact that defaulted is warned about; it must not be silent.
     state_root_configured: bool
     journal: OperationalJournal
+    runs: DeploymentRunStore
 
     def call(self, request: ApiRequest) -> ApiResponse:
         """Invoke the Platform API without a transport."""
@@ -638,6 +643,7 @@ def build(
     state_root = Path(settings.state_root).expanduser().resolve()
     store = store_registry().create(store_adapter, state_root)
     journal = OperationalJournal(store, resolved_clock)
+    runs = DeploymentRunStore(store, resolved_clock)
     journal.set_observer(
         ExportingObserver(
             DisabledProductTelemetryExporter(),
@@ -784,6 +790,18 @@ def build(
 
     report = startup.run(state=state)
     discovered = hosts.current
+    identity = build_identity()
+    load = runs.ensure(discovered.host_id, identity.build_id or identity.version)
+    journal.bind_correlation(load.run.run_id.value)
+    if load.created:
+        journal.emit(
+            host_id=discovered.host_id,
+            stage=OperationalStage.RUN,
+            event_type="deployment.started",
+            summary="deployment run started",
+            outcome=OperationalOutcome.INFO,
+            attributes=(attr("run", load.run.run_id.value),),
+        )
     ownership.ensure_platform_roots(discovered.host_id)
     cheap = characterization.characterize(
         discovered,
@@ -1135,6 +1153,7 @@ def build(
         stored_empirical=storage_index.empirical_for_host,
         managed_bytes=managed_usage.bytes_by_mount,
         journal=journal,
+        runs=runs,
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
         evidence_mode=mode.value,
         fixture_shape=shape,
@@ -1173,6 +1192,7 @@ def build(
         state_root=state_root,
         state_root_configured=(settings.state_root != PlatformSettings().state_root),
         journal=journal,
+        runs=runs,
     )
 
 
@@ -1257,11 +1277,20 @@ def _enable_live_progress(platform: Platform) -> None:
     )
     host = platform.hosts.current
     env = host.operating_environment
+    summary = f"Host profile ready — {env.os_name} {env.architecture.value}"
+    if host.accelerators:
+        first = host.accelerators[0]
+        vram = first.memory_total_bytes
+        if is_resolved(vram) and vram >= 1024**3:
+            size = f"{vram / 1024**3:.1f} GiB VRAM"
+        else:
+            size = "VRAM unknown"
+        summary = f"Host profile ready — {first.model_name} / {size}"
     platform.journal.emit(
         host_id=host.host_id,
         stage=OperationalStage.HOST,
         event_type="host.discovered",
-        summary=f"discovered {env.os_name} {env.architecture.value}",
+        summary=summary,
         outcome=OperationalOutcome.INFO,
         attributes=(
             attr("os", env.os_name),
@@ -1296,6 +1325,7 @@ def _compose_report(platform: Platform) -> DeploymentReport:
         for item in platform.verification.profiles(host, executors)
     }
     identity = build_identity()
+    current = platform.runs.current()
     return compose_deployment_report(
         host=host,
         envelope=envelope,
@@ -1320,15 +1350,25 @@ def _compose_report(platform: Platform) -> DeploymentReport:
         instances=platform.instances.list(),
         executions=platform.executions.list(),
         facts=platform.journal.facts(host.host_id),
+        run_id=current.run_id.value if current is not None else None,
+        run_started_at=current.started_at if current is not None else None,
+        reservations=platform.resources.reservations(include_released=True),
     )
 
 
-def show_deployment_report() -> int:
+def show_deployment_report(arguments: Sequence[str] = ()) -> int:
     """Print the product-owned deployment report. Not reconstructed logs."""
+    debug = False
+    for token in arguments:
+        if token == "--debug":
+            debug = True
+            continue
+        print(f"kultrun: unknown argument {token!r}", file=sys.stderr)
+        return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
     report = _compose_report(platform)
-    print(format_deployment_report(report), end="")
+    print(format_deployment_report(report, debug=debug), end="")
     return 0 if report.verdict is not DeploymentVerdict.FAIL else 1
 
 
@@ -1342,6 +1382,7 @@ def show_host() -> int:
     """
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     identity = build_identity()
     host = platform.hosts.current
     preparation = platform.preparation.last_outcome
@@ -2058,20 +2099,23 @@ def select_foundation(arguments: Sequence[str]) -> int:
         if isinstance(overview.selection.selected_candidate_id, str)
         else "-"
     )
+    family = (
+        _runtime_family(overview, selected) if selected != "-" else selected
+    )
     print(
         f"selection {overview.selection.selection_mode.value}  "
-        f"selected {selected}  "
+        f"selected {family}  "
         f"generation {overview.selection.generation}"
     )
     platform.journal.emit(
         host_id=host.host_id,
         stage=OperationalStage.RUNTIME,
         event_type="runtime.selected",
-        summary=f"selected {selected}",
+        summary=f"{family} selected",
         outcome=OperationalOutcome.PASS
         if selected != "-"
         else OperationalOutcome.UNRESOLVED,
-        attributes=(attr("candidate", selected),),
+        attributes=(attr("candidate", selected), attr("runtime", family)),
     )
     return 0
 
@@ -2577,6 +2621,10 @@ def prepare_deployment() -> int:
         summary=f"admission {verdict.upper()}",
         outcome=(
             OperationalOutcome.PASS if admitted else OperationalOutcome.FAIL
+        ),
+        attributes=(
+            attr("verdict", verdict),
+            attr("reservation", details.get("reservation_id") or "-"),
         ),
     )
     _print_acquisition(payload)
@@ -3174,6 +3222,7 @@ def create_named_instance(arguments: Sequence[str]) -> int:
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     try:
         view = platform.deployment_instance.create(
             platform.hosts.current,
@@ -3192,6 +3241,17 @@ def create_named_instance(arguments: Sequence[str]) -> int:
     print(f"Instance: {item.instance_id.value}  {item.observed_state.value.upper()}")
     current = "CURRENT" if view.configuration_current else (view.plan_status or "-")
     print(f"Configuration: {current.upper() if current != '-' else current}")
+    platform.journal.emit(
+        host_id=platform.hosts.current.host_id,
+        stage=OperationalStage.INSTANCE,
+        event_type="instance.created",
+        summary=f"created {item.instance_id.value}",
+        outcome=OperationalOutcome.INFO,
+        attributes=(
+            attr("instance", item.instance_id.value),
+            attr("reservation", _id_or_dash(item.reservation_id)),
+        ),
+    )
     return 0
 
 
@@ -3251,6 +3311,15 @@ def start_named_instance(arguments: Sequence[str]) -> int:
             attr("pid", pid),
         ),
     )
+    if is_resolved(instance.ready) and instance.ready:
+        platform.journal.emit(
+            host_id=platform.hosts.current.host_id,
+            stage=OperationalStage.INSTANCE,
+            event_type="instance.ready",
+            summary=f"ready {instance.instance_id.value}",
+            outcome=OperationalOutcome.PASS,
+            attributes=(attr("instance", instance.instance_id.value),),
+        )
     return 0
 
 
@@ -3394,6 +3463,10 @@ def infer_named_instance(arguments: Sequence[str]) -> int:
                 response.output_tokens if resolved(response.output_tokens) else "-",
             ),
             attr("model", response.served_model),
+            attr(
+                "finish_reason",
+                response.finish_reason if resolved(response.finish_reason) else "-",
+            ),
         ),
     )
     platform.journal.emit(
@@ -3501,7 +3574,7 @@ COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "storage": _storage,
     "runtime": _runtime,
     "runtimes": _runtimes,
-    "report": lambda _: show_deployment_report(),
+    "report": show_deployment_report,
     "serve": lambda _: serve(),
 }
 

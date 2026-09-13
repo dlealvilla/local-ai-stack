@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 
 from kultrun.capacity.contracts import CapacityEnvelope
 from kultrun.execution.contracts import ExecutorHandle
@@ -21,19 +22,23 @@ from kultrun.planning.contracts import (
     ModelSelection,
 )
 from kultrun.platform.contracts import (
+    DecisionSnapshot,
     DeploymentReport,
     DeploymentReportId,
     DeploymentVerdict,
+    InferenceObservation,
     InstanceReport,
     ModelCandidateReport,
     OperationalFact,
     OperationalOutcome,
     OperationalStage,
+    ReportLayer,
     RuntimeCandidateReport,
     RuntimeInstallReport,
     StoragePoolReport,
 )
-from kultrun.platform.observation import attr_value
+from kultrun.platform.observation import attr_value, chronological_facts
+from kultrun.resource.contracts import ReservationState, ResourceReservation
 from kultrun.runtime.contracts import (
     FoundationSelection,
     FoundationSelectionMode,
@@ -66,8 +71,12 @@ def compose_deployment_report(
     instances: Sequence[InferenceInstance],
     executions: Sequence[ExecutorHandle],
     facts: Sequence[OperationalFact],
+    run_id: str | None = None,
+    run_started_at: dt.datetime | None = None,
+    reservations: Sequence[ResourceReservation] = (),
 ) -> DeploymentReport:
     """Project current product state. Does not mutate anything."""
+    ordered = chronological_facts(facts)
     env = host.operating_environment
     pools = tuple(
         _pool_row(
@@ -87,7 +96,7 @@ def compose_deployment_report(
             evidence=storage_evidence.get(item.mount_point),
             empirical_row=empirical.get(item.mount_point),
             managed_bytes=managed.get(item.mount_point),
-            facts=facts,
+            facts=ordered,
         )
         for item in envelope.pools
     )
@@ -125,19 +134,30 @@ def compose_deployment_report(
         for item in installations
     )
     model_rows, available_names = _model_rows(available)
-    latest_latency, latest_infer = _latest_inference(facts)
+    inferences = _inference_observations(ordered)
+    latest_latency, latest_infer = _latest_inference(ordered)
     verdict, failed_at, reason, next_action = _verdict(
         pools,
         install_rows,
         available_names,
         deployment_plan,
         instances,
-        facts,
+        ordered,
     )
     ownership = {
         handle.execution_id.value: handle.ownership.value for handle in executions
     }
-    return DeploymentReport(
+    reservation_id, admission_verdict = _admission_view(ordered, reservations)
+    catalog_count = (
+        available.discovered_count if available is not None else None
+    )
+    compatible_count = (
+        available.compatibility_count if available is not None else None
+    )
+    available_count = (
+        available.available_count if available is not None else None
+    )
+    report = DeploymentReport(
         report_id=DeploymentReportId.generate(),
         host_id=host.host_id,
         composed_at=composed_at,
@@ -204,131 +224,370 @@ def compose_deployment_report(
         latest_inference_outcome=(
             latest_infer if latest_infer is not None else NOT_PROVIDED
         ),
-        lifecycle=_lifecycle_lines(facts),
+        lifecycle=_lifecycle_lines(ordered),
         verdict=verdict,
         failed_at=failed_at if failed_at else NOT_PROVIDED,
         reason=reason if reason else NOT_PROVIDED,
         next_action=next_action if next_action else NOT_PROVIDED,
+        run_id=run_id if run_id else NOT_PROVIDED,
+        run_started_at=run_started_at if run_started_at else NOT_PROVIDED,
+        inferences=inferences,
+        reservation_id=reservation_id if reservation_id else NOT_PROVIDED,
+        admission_verdict=(
+            admission_verdict if admission_verdict else NOT_PROVIDED
+        ),
+        catalog_count=catalog_count if catalog_count is not None else NOT_PROVIDED,
+        compatible_count=(
+            compatible_count if compatible_count is not None else NOT_PROVIDED
+        ),
+        available_count=(
+            available_count if available_count is not None else NOT_PROVIDED
+        ),
+        manual_intervention=_manual_intervention(ordered),
+    )
+    return replace(
+        report,
+        layers=_build_layers(report, ordered),
+        decisions=_decision_snapshots(report, ordered),
+        selected_stack=_selected_stack(report),
     )
 
 
-def format_deployment_report(report: DeploymentReport) -> str:
-    """Human-readable acceptance report. One consumer of the structured report."""
-    lines = [
-        f"Kultrun deployment report  {report.kultrun_build}",
-        f"host {report.host_id.value}  composed {report.composed_at.isoformat()}",
-        "",
-        "HOST",
-        f"  OS            {report.os_name} {_show(report.os_version)} "
-        f"{report.architecture}",
-        f"  CPU           {_show(report.cpu)}",
-        f"  RAM           total {_bytes(report.ram_total_bytes)}  "
-        f"safe {_bytes(report.ram_safe_bytes)}",
-    ]
-    if report.accelerators:
-        for line in report.accelerators:
-            lines.append(f"  GPU           {line}")
-    else:
-        lines.append("  GPU           none")
-    lines.append("")
-    lines.append("STORAGE")
-    for pool in report.storage_pools:
-        lines.extend(_format_pool(pool))
-    lines.extend(["", "RUNTIME CANDIDATES"])
-    for item in report.runtime_candidates:
-        mark = (
-            " selected"
-            if item.selected
-            else (" recommended" if item.recommended else "")
-        )
-        codes = ",".join(item.reason_codes) if item.reason_codes else "-"
-        lines.append(
-            f"  {item.runtime} {_show(item.version)} {item.executor}  "
-            f"{item.support_tier}/{item.compatibility}  {codes}{mark}"
-        )
-    if not report.runtime_candidates:
-        lines.append("  none")
-    lines.append(f"  recommended   {_show(report.recommended_runtime)}")
-    lines.append(f"  selected      {_show(report.selected_runtime)}")
-    plan_runtime = _show(report.plan_runtime_candidate)
-    if plan_runtime != "-" and plan_runtime != _show(report.selected_runtime):
-        lines.append(f"  plan          {plan_runtime}")
-    lines.extend(["", "RUNTIME INSTALLATION"])
-    for install in report.runtime_installs:
-        lines.append(
-            f"  {install.runtime}=={install.version}  {install.status}  "
-            f"pool {_show(install.storage_pool_mount)}  "
-            f"{_bytes(install.installed_bytes)}  verify {_show(install.verification)}"
-        )
-    if not report.runtime_installs:
-        lines.append("  none")
-    lines.extend(["", "MODEL CANDIDATES"])
-    for model in report.model_candidates:
-        state = (
-            "AVAILABLE"
-            if model.available
-            else f"BLOCKED {_show(model.blocked_reason)}"
-        )
-        lines.append(
-            f"  {model.logical_name} {_show(model.quantization)}  {state}  "
-            f"vram {_bytes(model.required_vram_bytes)}  "
-            f"ram {_bytes(model.required_ram_bytes)}"
-        )
-    if not report.model_candidates:
-        lines.append("  none")
-    lines.append(f"  available     {', '.join(report.available_models) or '-'}")
-    lines.append(f"  recommended    {_show(report.recommended_model)}")
-    lines.append(
-        f"  selected      {_show(report.selected_model)}  "
-        f"{_show(report.selection_mode)}"
-    )
-    lines.extend(["", "DEPLOYMENT"])
-    lines.append(f"  plan          {_show(report.deployment_plan_id)}")
-    lines.append(f"  storage pool  {_show(report.plan_storage_pool)}")
-    lines.append(
-        f"  ram {_bytes(report.plan_ram_bytes)}  "
-        f"vram {_bytes(report.plan_vram_bytes)}  "
-        f"storage {_bytes(report.plan_storage_bytes)}"
-    )
-    lines.extend(["", "INSTANCE / INFERENCE"])
-    for instance in report.instances:
-        lines.append(
-            f"  {instance.instance_id}  {instance.lifecycle}/{instance.health}  "
-            f"ready {_show(instance.ready)}  {_show(instance.endpoint)}  "
-            f"own {_show(instance.ownership)}  "
-            f"exec {_show(instance.execution_id)}  "
-            f"pid {_show(instance.pid)}"
-        )
-    if not report.instances:
-        lines.append("  none")
-    lines.append(
-        f"  last infer    {_show(report.latest_inference_outcome)}  "
-        f"{_show(report.latest_inference_latency_ms)} ms"
-    )
-    if report.lifecycle:
-        lines.extend(["", "LIFECYCLE"])
-        for event in report.lifecycle:
-            lines.append(f"  {event}")
-    lines.extend(
-        [
-            "",
-            "FINAL RESULT",
-            f"OVERALL: {report.verdict.value.upper()}",
-            f"FAILED AT: {_show(report.failed_at)}",
-            f"REASON: {_show(report.reason)}",
-            f"NEXT ACTION: {_show(report.next_action)}",
-        ]
-    )
+def format_deployment_report(
+    report: DeploymentReport, *, debug: bool = False
+) -> str:
+    """Guided human report. One consumer of the structured projection."""
+    lines: list[str] = []
+    lines.extend(_layer_run(report))
+    lines.extend(_layer_host(report))
+    lines.extend(_layer_storage(report))
+    lines.extend(_layer_foundation(report))
+    lines.extend(_layer_runtime(report))
+    lines.extend(_layer_models(report))
+    lines.extend(_layer_selection(report))
+    lines.extend(_layer_plan(report))
+    lines.extend(_layer_admission(report))
+    lines.extend(_layer_instance(report))
+    lines.extend(_layer_outcome(report))
+    if debug:
+        lines.extend(_debug_appendix(report))
     return "\n".join(lines) + "\n"
 
 
-def _format_pool(pool: StoragePoolReport) -> list[str]:
+def _layer_run(report: DeploymentReport) -> list[str]:
+    return [
+        "LAYER 0 — RUN",
+        "Purpose: identify the deployment journey.",
+        *_flow(_layer_named(report, "run")),
+        f"  Kultrun          {report.kultrun_build}",
+        f"  Deployment Run   {_show(report.run_id)}",
+        f"  Started          {_show(report.run_started_at)}",
+        f"  Status           {report.verdict.value.upper()}",
+        f"  Host             {report.host_id.value}",
+        "",
+    ]
+
+
+def _layer_host(report: DeploymentReport) -> list[str]:
+    lines = [
+        "LAYER 1 — HOST DISCOVERY",
+        "Question: What machine is Kultrun running on?",
+        *_flow(_layer_named(report, "host")),
+        f"  OS               {report.os_name} {_show(report.os_version)} "
+        f"{report.architecture}",
+        f"  CPU              {_show(report.cpu)}",
+        f"  RAM              total {_bytes(report.ram_total_bytes)}  "
+        f"SAFE {_bytes(report.ram_safe_bytes)}",
+    ]
+    if report.accelerators:
+        for line in report.accelerators:
+            lines.append(f"  GPU              {line}")
+    else:
+        lines.append("  GPU              none")
+    lines.append(
+        "  Host profile is the normalized hardware truth used by "
+        "capacity and runtime feasibility."
+    )
+    lines.append("")
+    return lines
+
+
+def _layer_storage(report: DeploymentReport) -> list[str]:
+    lines = [
+        "LAYER 2 — STORAGE & CAPACITY",
+        "Question: What storage can Kultrun safely consume?",
+        *_flow(_layer_named(report, "storage")),
+    ]
+    for pool in report.storage_pools:
+        lines.extend(_format_pool(pool, debug=False))
+    dest = _show(report.plan_storage_pool)
+    if dest != "-":
+        lines.append(f"  Selected destination  {dest}")
+    lines.append("")
+    return lines
+
+
+def _layer_foundation(report: DeploymentReport) -> list[str]:
+    lines = [
+        "LAYER 3 — EXECUTION FOUNDATION",
+        "Question: Which AI execution foundation can this host support?",
+        *_flow(_layer_named(report, "foundation")),
+        "  Runtime           Product status    Feasibility    Reason",
+    ]
+    verified = _foundation_verified(report)
+    for item in report.runtime_candidates:
+        codes = _human_reason_codes(item, verified)
+        reason = ",".join(codes) if codes else "-"
+        version = _show(item.version)
+        name = item.runtime if version == "-" else f"{item.runtime} {version}"
+        mark = ""
+        if item.selected:
+            mark = "  selected"
+        elif item.recommended:
+            mark = "  recommended"
+        lines.append(
+            f"  {name:<18} {item.support_tier.upper():<16} "
+            f"{item.compatibility.upper():<14} {reason}{mark}"
+        )
+    if not report.runtime_candidates:
+        lines.append("  none")
+    lines.append(f"  Recommended      {_foundation_label(report, recommended=True)}")
+    lines.append(f"  Selected        {_foundation_label(report)}")
+    mode = _show(report.selection_mode)
+    lines.append(f"  Selection mode  {mode.upper() if mode != '-' else '-'}")
+    lines.append("")
+    return lines
+
+
+def _layer_runtime(report: DeploymentReport) -> list[str]:
+    lines = [
+        "LAYER 4 — RUNTIME ENVIRONMENT",
+        "Question: Can the selected runtime actually be installed and verified?",
+        *_flow(_layer_named(report, "runtime")),
+    ]
+    if not report.runtime_installs:
+        lines.append("  none")
+        lines.append("")
+        return lines
+    for install in report.runtime_installs:
+        lines.append(f"  Runtime          {install.runtime}")
+        lines.append(f"  Version          {install.version}")
+        lines.append(f"  Destination      {_show(install.storage_pool_mount)}")
+        lines.append(f"  Installed        {_bytes(install.installed_bytes)}")
+        lines.append(f"  Status          {install.status}")
+        lines.append(f"  Verification    {_show(install.verification).upper()}")
+        dest = _show(install.storage_pool_mount)
+        pool = next(
+            (item for item in report.storage_pools if item.mount_point == dest),
+            None,
+        )
+        if (
+            pool is not None
+            and is_resolved(install.installed_bytes)
+            and is_resolved(pool.remaining_bytes)
+        ):
+            before = pool.remaining_bytes + install.installed_bytes
+            lines.append(f"  Before install   {_bytes(before)}")
+            lines.append(f"  After install    {_bytes(pool.remaining_bytes)}")
+            lines.append(f"  Remaining        {_bytes(pool.remaining_bytes)}")
+    lines.append("")
+    return lines
+
+
+def _layer_models(report: DeploymentReport) -> list[str]:
+    catalog = _show(report.catalog_count)
+    compatible = _show(report.compatible_count)
+    available = _show(report.available_count)
+    if catalog == "-":
+        catalog = str(len(report.model_candidates) or "-")
+    if available == "-":
+        available = str(len(report.available_models) or 0)
+    lines = [
+        "LAYER 5 — MODEL FEASIBILITY",
+        "Question: Which catalog models can actually run on this foundation and host?",
+        *_flow(_layer_named(report, "model_feasibility")),
+        f"  Catalog candidates      {catalog}",
+        f"  Runtime-compatible      {compatible}",
+        f"  Available Models        {available}",
+    ]
+    for model in report.model_candidates:
+        if model.available:
+            result = "AVAILABLE"
+        else:
+            result = f"BLOCKED {_show(model.blocked_reason)}"
+        lines.append(
+            f"  {model.logical_name} {_show(model.quantization)}  {result}  "
+            f"vram {_bytes(model.required_vram_bytes)}  "
+            f"storage {_bytes(model.required_storage_bytes)}"
+        )
+    if not report.model_candidates:
+        lines.append("  none")
+    lines.append("")
+    return lines
+
+
+def _layer_selection(report: DeploymentReport) -> list[str]:
+    mode = _show(report.selection_mode)
+    lines = [
+        "LAYER 6 — MODEL SELECTION",
+        "Question: Which feasible model did Kultrun choose and why?",
+        *_flow(_layer_named(report, "model_selection")),
+        f"  Mode             {mode.upper() if mode != '-' else '-'}",
+        f"  Recommended       {_show(report.recommended_model)}",
+        f"  Selected         {_show(report.selected_model)}",
+    ]
+    for snap in report.decisions:
+        if snap.decision == "MODEL_SELECTION" and is_resolved(snap.reason):
+            lines.append(f"  Reason           {_show(snap.reason)}")
+    lines.append("")
+    return lines
+
+
+def _layer_plan(report: DeploymentReport) -> list[str]:
+    return [
+        "LAYER 7 — DEPLOYMENT PLAN",
+        "Question: Exactly what will Kultrun attempt to run?",
+        *_flow(_layer_named(report, "plan")),
+        f"  Foundation       {_foundation_label(report)}",
+        f"  Model            {_show(report.selected_model)}",
+        f"  Storage pool     {_show(report.plan_storage_pool)}",
+        f"  RAM              {_bytes(report.plan_ram_bytes)}",
+        f"  VRAM             {_bytes(report.plan_vram_bytes)}",
+        f"  Storage          {_bytes(report.plan_storage_bytes)}",
+        f"  Plan             {_show(report.deployment_plan_id)}",
+        "",
+    ]
+
+
+def _layer_admission(report: DeploymentReport) -> list[str]:
+    return [
+        "LAYER 8 — RESOURCE ADMISSION",
+        "Question: Can the machine safely run this configuration right now?",
+        *_flow(_layer_named(report, "admission")),
+        f"  RAM requested     {_bytes(report.plan_ram_bytes)}",
+        f"  VRAM requested    {_bytes(report.plan_vram_bytes)}",
+        f"  Storage requested {_show(report.plan_storage_pool)} "
+        f"{_bytes(report.plan_storage_bytes)}",
+        f"  Decision          {_show(report.admission_verdict).upper()}",
+        f"  Reservation       {_show(report.reservation_id)}",
+        "",
+    ]
+
+
+def _layer_instance(report: DeploymentReport) -> list[str]:
+    lines = [
+        "LAYER 9 — INSTANCE & INFERENCE",
+        "Question: Did the planned service actually run?",
+        *_flow(_layer_named(report, "instance")),
+    ]
+    for instance in report.instances:
+        lines.append(
+            f"  Instance         {instance.lifecycle}/{instance.health}  "
+            f"ready {_show(instance.ready)}  own {_show(instance.ownership)}"
+        )
+    if not report.instances:
+        lines.append("  none")
+    for index, item in enumerate(report.inferences, start=1):
+        lines.append(
+            f"  Inference {index}     {_show(item.outcome).upper()}  "
+            f"{_show(item.latency_ms)} ms"
+        )
+        if is_resolved(item.input_tokens) or is_resolved(item.output_tokens):
+            lines.append(
+                f"                   in {_show(item.input_tokens)}  "
+                f"out {_show(item.output_tokens)}"
+            )
+    if report.lifecycle:
+        lines.append("  Lifecycle")
+        for event in report.lifecycle:
+            lines.append(f"    {event}")
+    lines.append(
+        "  Physical GPU released after stop and logical reservation "
+        "held/released are separate facts."
+    )
+    lines.append("")
+    return lines
+
+
+def _layer_outcome(report: DeploymentReport) -> list[str]:
+    lines = [
+        "LAYER 10 — FINAL OUTCOME",
+        "Question: What stack did Kultrun ultimately build, and did it work?",
+        *_flow(_layer_named(report, "outcome")),
+        "  SELECTED STACK",
+        f"  {_show(report.selected_stack)}",
+        "",
+        f"OVERALL: {report.verdict.value.upper()}",
+        f"  Manual intervention  {_show(report.manual_intervention)}",
+    ]
+    if report.verdict is DeploymentVerdict.FAIL:
+        lines.extend(_failure_block(report))
+    elif is_resolved(report.next_action) and report.next_action not in {"none", "-"}:
+        lines.append(f"  NEXT ACTION          {_show(report.next_action)}")
+    return lines
+
+
+def _failure_block(report: DeploymentReport) -> list[str]:
+    layer = _failed_layer_title(report)
+    failure, code = _failure_parts(report)
+    return [
+        "",
+        "FAILED LAYER:",
+        f"  {layer}",
+        "INPUT:",
+        f"  {_show(_failure_input(report))}",
+        "FAILURE:",
+        f"  {failure}",
+        "REASON:",
+        f"  {code}",
+        "LAST VALID OUTPUT:",
+        f"  {_last_valid_output(report)}",
+        "NEXT REQUIRED ACTION:",
+        f"  {_show(report.next_action)}",
+    ]
+
+
+def _failure_parts(report: DeploymentReport) -> tuple[str, str]:
+    detail = _show(report.reason)
+    if ": " in detail:
+        code, _, rest = detail.partition(": ")
+        if rest:
+            return rest, code
+    return detail, _show(report.failed_at)
+
+
+def _debug_appendix(report: DeploymentReport) -> list[str]:
+    lines = ["", "DEBUG EVIDENCE"]
+    lines.append(f"  report            {report.report_id.value}")
+    lines.append(f"  host             {report.host_id.value}")
+    lines.append(f"  recommended id   {_show(report.recommended_runtime)}")
+    lines.append(f"  selected id      {_show(report.selected_runtime)}")
+    lines.append(f"  plan runtime id  {_show(report.plan_runtime_candidate)}")
+    for pool in report.storage_pools:
+        lines.append(
+            f"  pool {pool.mount_point}  quota {_show(pool.quota_identity)}  "
+            f"fingerprint {_show(pool.pool_fingerprint)}"
+        )
+    for item in report.runtime_candidates:
+        codes = ",".join(item.reason_codes) if item.reason_codes else "-"
+        lines.append(f"  candidate {item.candidate_id}  {codes}")
+    for instance in report.instances:
+        lines.append(
+            f"  instance {instance.instance_id}  exec {_show(instance.execution_id)}  "
+            f"pid {_show(instance.pid)}"
+        )
+    for snap in report.decisions:
+        lines.append(f"  decision {snap.decision}  {_show(snap.selected)}")
+    return lines
+
+
+def _format_pool(pool: StoragePoolReport, *, debug: bool = False) -> list[str]:
     trusted = "trusted" if pool.reported_trusted else "UNTRUSTED"
     lines = [
-        f"  {pool.mount_point}",
-        f"    Technology: {_show(pool.filesystem_type)}",
-        f"    Reported free: {_bytes(pool.reported_free_bytes)} [{trusted}]",
-        f"    Specialist: {_show(pool.specialist_probe)} "
+        f"  Pool  {pool.mount_point}",
+        f"    Technology          {_technology(pool.filesystem_type)}",
+        f"    Reported free       {_bytes(pool.reported_free_bytes)} [{trusted}]",
+        f"    Specialist probe    {_show(pool.specialist_probe)} "
         f"{_show(pool.specialist_result)}",
         "    Sonar:",
     ]
@@ -337,18 +596,462 @@ def _format_pool(pool: StoragePoolReport) -> list[str]:
             lines.append(f"      {tier}")
     else:
         lines.append("      (not run)")
-    lines.append(f"    Authorizing: {_bytes(pool.authorizing_bytes)}")
-    lines.append(f"    SAFE: {_bytes(pool.safe_bytes)}")
-    lines.append(f"    Managed usage: {_bytes(pool.managed_bytes)}")
-    lines.append(f"    Remaining proven: {_bytes(pool.remaining_bytes)}")
-    if is_resolved(pool.quota_identity) or is_resolved(pool.pool_fingerprint):
+    lines.append(f"    Characterized       {_bytes(pool.authorizing_bytes)}")
+    lines.append(f"    SAFE                {_bytes(pool.safe_bytes)}")
+    lines.append(f"    Managed by Kultrun  {_bytes(pool.managed_bytes)}")
+    lines.append(f"    Remaining           {_bytes(pool.remaining_bytes)}")
+    if debug and (
+        is_resolved(pool.quota_identity) or is_resolved(pool.pool_fingerprint)
+    ):
         lines.append(
-            f"    Identity: quota {_show(pool.quota_identity)}  "
+            f"    Identity            quota {_show(pool.quota_identity)}  "
             f"fingerprint {_show(pool.pool_fingerprint)}"
         )
     if pool.selected_reason:
-        lines.append(f"    Reason: {pool.selected_reason}")
+        lines.append(f"    Reason             {pool.selected_reason}")
     return lines
+
+
+def _flow(layer: ReportLayer | None) -> list[str]:
+    if layer is None:
+        return []
+    lines = [f"  Kultrun          {', '.join(layer.kultrun) or '-'}"]
+    if layer.inputs:
+        lines.append(f"  Input            {'; '.join(layer.inputs)}")
+    if layer.process:
+        lines.append(f"  Process          {'; '.join(layer.process)}")
+    if layer.decision:
+        lines.append(f"  Decision         {'; '.join(layer.decision)}")
+    if layer.outputs:
+        lines.append(f"  Output           {'; '.join(layer.outputs)}")
+    if layer.consumed_by:
+        lines.append(f"  Next             {'; '.join(layer.consumed_by)}")
+    return lines
+
+
+def _layer_named(report: DeploymentReport, identity: str) -> ReportLayer | None:
+    return next((item for item in report.layers if item.identity == identity), None)
+
+
+def _technology(value: object) -> str:
+    token = _show(value)
+    if token == "fuse.moosefs":
+        return "MooseFS / FUSE"
+    if token == "overlay":
+        return "overlay"
+    return token
+
+
+def _foundation_verified(report: DeploymentReport) -> bool:
+    return any(
+        is_resolved(item.verification) and str(item.verification) == "verified"
+        for item in report.runtime_installs
+    )
+
+
+def _human_reason_codes(
+    item: RuntimeCandidateReport, verified: bool
+) -> tuple[str, ...]:
+    if item.selected and verified:
+        return tuple(
+            code
+            for code in item.reason_codes
+            if code != "required_component_missing"
+        )
+    return item.reason_codes
+
+
+def _foundation_label(
+    report: DeploymentReport, *, recommended: bool = False
+) -> str:
+    wanted = (
+        _show(report.recommended_runtime)
+        if recommended
+        else _show(report.selected_runtime)
+    )
+    for item in report.runtime_candidates:
+        matched = (
+            item.recommended
+            if recommended
+            else item.selected or item.candidate_id == wanted
+        )
+        if not matched:
+            continue
+        version = _show(item.version)
+        if version != "-":
+            return f"{item.runtime} {version}"
+        return item.runtime
+    if not recommended:
+        for install in report.runtime_installs:
+            return f"{install.runtime} {install.version}"
+    return wanted
+
+
+def _executor_label(report: DeploymentReport) -> str:
+    for item in report.runtime_candidates:
+        if item.selected:
+            if item.executor in {"native-process", "process"}:
+                return "Native Process Executor"
+            return item.executor
+    return "Native Process Executor"
+
+
+def _gpu_summary(report: DeploymentReport) -> str:
+    if not report.accelerators:
+        return f"{report.os_name} / {report.architecture}"
+    line = report.accelerators[0]
+    # "[0] nvidia RTX PRO 4500 31.9 GiB  driver ..."
+    body = line.split("] ", 1)[-1]
+    model = body.split("  driver", 1)[0].strip()
+    return f"{report.os_name} / {model}"
+
+
+def _selected_stack(report: DeploymentReport) -> str:
+    dest = _show(report.plan_storage_pool)
+    if dest == "-":
+        dest = next((pool.mount_point for pool in report.storage_pools), "-")
+    pool = next(
+        (item for item in report.storage_pools if item.mount_point == dest),
+        None,
+    )
+    tech = _technology(pool.filesystem_type) if pool is not None else ""
+    storage = f"{dest} {tech}".strip() if dest != "-" else "-"
+    foundation = _foundation_label(report)
+    model = _show(report.selected_model)
+    ready = (
+        "inference ready"
+        if report.verdict is DeploymentVerdict.PASS
+        else report.verdict.value
+    )
+    return (
+        f"{_gpu_summary(report)} → {storage} → {foundation} → {model} → "
+        f"{_executor_label(report)} → {ready}"
+    )
+
+
+def _admission_view(
+    facts: Sequence[OperationalFact],
+    reservations: Sequence[ResourceReservation],
+) -> tuple[str | None, str | None]:
+    held = [
+        item
+        for item in reservations
+        if item.state in {ReservationState.ADMITTED, ReservationState.ACTIVE}
+    ]
+    reservation_id = held[-1].reservation_id.value if held else None
+    verdict = None
+    for fact in facts:
+        if fact.event_type.value == "resource.admission_completed":
+            verdict = fact.summary.replace("admission ", "")
+            token = attr_value(fact, "reservation")
+            if token:
+                reservation_id = token
+    if verdict is None and reservation_id is not None:
+        verdict = "ADMITTED"
+    return reservation_id, verdict
+
+
+def _manual_intervention(facts: Sequence[OperationalFact]) -> Maybe[str]:
+    for fact in facts:
+        if "operator reclaim" in fact.summary.lower():
+            return fact.summary
+    return "NONE"
+
+
+def _int_attr(fact: OperationalFact, key: str) -> Maybe[int]:
+    raw = attr_value(fact, key)
+    if raw is None or not raw.isdigit():
+        return NOT_PROVIDED
+    return int(raw)
+
+
+def _inference_observations(
+    facts: Sequence[OperationalFact],
+) -> tuple[InferenceObservation, ...]:
+    rows: list[InferenceObservation] = []
+    for fact in facts:
+        if fact.event_type.value != "inference.completed":
+            continue
+        finish = attr_value(fact, "finish_reason")
+        rows.append(
+            InferenceObservation(
+                occurred_at=fact.occurred_at,
+                outcome=fact.outcome.value,
+                latency_ms=_int_attr(fact, "latency_ms"),
+                input_tokens=_int_attr(fact, "input_tokens"),
+                output_tokens=_int_attr(fact, "output_tokens"),
+                finish_reason=finish if finish else NOT_PROVIDED,
+            )
+        )
+    return tuple(rows)
+
+
+def _decision_snapshots(
+    report: DeploymentReport, facts: Sequence[OperationalFact]
+) -> tuple[DecisionSnapshot, ...]:
+    snaps: list[DecisionSnapshot] = []
+    foundation_options = tuple(
+        _foundation_option(item) for item in report.runtime_candidates
+    )
+    if report.runtime_candidates or is_resolved(report.selected_runtime):
+        snaps.append(
+            DecisionSnapshot(
+                decision="FOUNDATION_SELECTION",
+                inputs=(f"{len(report.runtime_candidates)} runtime candidates",),
+                options=foundation_options,
+                selected=_foundation_label(report),
+                reason="highest-ranked feasible PRODUCT foundation"
+                if is_resolved(report.selected_runtime)
+                else NOT_PROVIDED,
+                outcome=(
+                    "deployment PASS"
+                    if report.verdict is DeploymentVerdict.PASS
+                    else report.verdict.value
+                ),
+            )
+        )
+    if report.model_candidates or is_resolved(report.selected_model):
+        options = tuple(
+            item.logical_name for item in report.model_candidates if item.available
+        )
+        snaps.append(
+            DecisionSnapshot(
+                decision="MODEL_SELECTION",
+                inputs=(
+                    f"{_show(report.catalog_count)} catalog models",
+                    f"{len(report.available_models)} Available Models",
+                ),
+                options=options,
+                selected=_show(report.selected_model)
+                if is_resolved(report.selected_model)
+                else NOT_PROVIDED,
+                reason="highest-ranked model in the current Available Models set"
+                if is_resolved(report.selected_model)
+                else NOT_PROVIDED,
+                outcome=(
+                    "inference PASS"
+                    if report.verdict is DeploymentVerdict.PASS
+                    else report.verdict.value
+                ),
+            )
+        )
+    if is_resolved(report.admission_verdict) or is_resolved(report.reservation_id):
+        snaps.append(
+            DecisionSnapshot(
+                decision="RESOURCE_ADMISSION",
+                inputs=(
+                    f"RAM {_bytes(report.plan_ram_bytes)}",
+                    f"VRAM {_bytes(report.plan_vram_bytes)}",
+                ),
+                options=("admit", "reject"),
+                selected=_show(report.reservation_id),
+                reason=_show(report.admission_verdict),
+                outcome=_show(report.admission_verdict),
+            )
+        )
+    for fact in facts:
+        if "replan" in fact.event_type.value:
+            snaps.append(
+                DecisionSnapshot(
+                    decision="REPLAN",
+                    inputs=(fact.summary,),
+                    options=(),
+                    selected=NOT_PROVIDED,
+                    reason=fact.reason_code
+                    if is_resolved(fact.reason_code)
+                    else NOT_PROVIDED,
+                    outcome=fact.outcome.value,
+                )
+            )
+    return tuple(snaps)
+
+
+def _foundation_option(item: RuntimeCandidateReport) -> str:
+    version = _show(item.version)
+    label = item.runtime if version == "-" else f"{item.runtime} {version}"
+    return f"{label} ({item.support_tier}/{item.compatibility})"
+
+
+def _build_layers(
+    report: DeploymentReport, facts: Sequence[OperationalFact]
+) -> tuple[ReportLayer, ...]:
+    del facts
+    host_ready = bool(report.os_name)
+    storage_ready = any(
+        is_resolved(pool.authorizing_bytes) for pool in report.storage_pools
+    )
+    foundation_ready = is_resolved(report.selected_runtime)
+    runtime_ready = any(item.status == "installed" for item in report.runtime_installs)
+    models_ready = bool(report.available_models)
+    selected_ready = is_resolved(report.selected_model)
+    plan_ready = is_resolved(report.deployment_plan_id)
+    admitted = _show(report.admission_verdict).upper() == "ADMITTED"
+    inferred = bool(report.inferences)
+    return (
+        ReportLayer(
+            identity="run",
+            title="Run",
+            purpose="Identify the deployment journey.",
+            status=report.verdict.value,
+            kultrun=("DeploymentRun", "OperationalFact"),
+            inputs=("Kultrun build", "state root"),
+            process=("mint or reuse DeploymentRunId",),
+            outputs=("DeploymentRunId",),
+            consumed_by=("every OperationalFact.correlation_id",),
+        ),
+        ReportLayer(
+            identity="host",
+            title="Host Discovery",
+            purpose="Normalize what machine Kultrun is running on.",
+            status="pass" if host_ready else "incomplete",
+            kultrun=("Host Discovery", "HostCapabilities"),
+            inputs=("OS, CPU, RAM, accelerators, mounts",),
+            process=("discover and normalize",),
+            outputs=("HostCapabilityProfile",),
+            consumed_by=("capacity", "runtime feasibility"),
+        ),
+        ReportLayer(
+            identity="storage",
+            title="Storage & Capacity",
+            purpose="Establish authorizing storage, never reported FUSE free space.",
+            status="pass" if storage_ready else "incomplete",
+            kultrun=("StoragePool", "Storage Sonar", "CapacityEnvelope"),
+            inputs=("host mounts",),
+            process=("specialist probe", "Sonar", "SAFE remaining"),
+            outputs=("StoragePool", "CapacityEnvelope"),
+            consumed_by=("foundation selection", "runtime provision"),
+        ),
+        ReportLayer(
+            identity="foundation",
+            title="Execution Foundation",
+            purpose="Choose which AI execution foundation this host can support.",
+            status="pass" if foundation_ready else "incomplete",
+            kultrun=("RuntimeResolver", "RuntimeCatalogue", "FoundationSelection"),
+            inputs=("HostCapabilityProfile", "CapacityEnvelope"),
+            process=("evaluate candidates", "AUTO or MANUAL selection"),
+            outputs=("FoundationSelection",),
+            consumed_by=("runtime provision",),
+        ),
+        ReportLayer(
+            identity="runtime",
+            title="Runtime Environment",
+            purpose="Install and verify the selected foundation.",
+            status="pass" if runtime_ready else "incomplete",
+            kultrun=("RuntimeProvisioningPlan", "RuntimeVerifier"),
+            inputs=("FoundationSelection", "StoragePool"),
+            process=("provision", "verify"),
+            outputs=("VerifiedRuntimeCapabilityProfile",),
+            consumed_by=("model feasibility",),
+        ),
+        ReportLayer(
+            identity="model_feasibility",
+            title="Model Feasibility",
+            purpose="Which catalog models can run on this foundation and host.",
+            status="pass" if models_ready else "incomplete",
+            kultrun=("ModelCatalog", "ModelEligibility", "Available Models"),
+            inputs=("VerifiedRuntimeCapabilityProfile", "current capacity"),
+            process=("compatibility then capacity funnel",),
+            outputs=("AvailableModels",),
+            consumed_by=("model selection",),
+        ),
+        ReportLayer(
+            identity="model_selection",
+            title="Model Selection",
+            purpose="Choose among only the feasible models.",
+            status="pass" if selected_ready else "incomplete",
+            kultrun=("ModelSelector", "ModelSelection"),
+            inputs=("Available Models",),
+            process=("AUTO or MANUAL policy",),
+            outputs=("ModelSelection",),
+            consumed_by=("deployment plan",),
+        ),
+        ReportLayer(
+            identity="plan",
+            title="Deployment Plan",
+            purpose="Build the executable configuration.",
+            status="pass" if plan_ready else "incomplete",
+            kultrun=("DeploymentPlan", "ResourceRequest"),
+            inputs=("ModelSelection", "verified runtime"),
+            process=("compose authoritative plan",),
+            outputs=("DeploymentPlan", "ResourceRequest"),
+            consumed_by=("resource admission",),
+        ),
+        ReportLayer(
+            identity="admission",
+            title="Resource Admission",
+            purpose="Decide whether the machine can run this configuration now.",
+            status="pass" if admitted else "incomplete",
+            kultrun=("ResourceManager", "ResourceReservation"),
+            inputs=("ResourceRequest", "CurrentCapacitySnapshot"),
+            process=("admit or reject",),
+            outputs=("ResourceReservation",),
+            consumed_by=("instance launch",),
+        ),
+        ReportLayer(
+            identity="instance",
+            title="Instance & Inference",
+            purpose="Run the planned service and prove a request.",
+            status="pass" if inferred else "incomplete",
+            kultrun=("InferenceInstance", "Executor", "InferenceRuntime"),
+            inputs=("DeploymentPlan", "ResourceReservation"),
+            process=("start", "infer", "stop", "restart"),
+            outputs=("InferenceObservation",),
+            consumed_by=("final outcome",),
+        ),
+        ReportLayer(
+            identity="outcome",
+            title="Final Outcome",
+            purpose="Summarize the stack that was built and whether it worked.",
+            status=report.verdict.value,
+            kultrun=("DeploymentReport",),
+            inputs=("all prior layers",),
+            process=("project overall verdict",),
+            outputs=("DeploymentVerdict",),
+            consumed_by=("Admin UI", "acceptance", "support evidence"),
+        ),
+    )
+
+
+def _failed_layer_title(report: DeploymentReport) -> str:
+    mapping = {
+        "host": "Host Discovery",
+        "storage": "Storage & Capacity",
+        "probe": "Storage & Capacity",
+        "sonar": "Storage & Capacity",
+        "runtime": "Execution Foundation",
+        "model": "Model Feasibility",
+        "plan": "Deployment Plan",
+        "admission": "Resource Admission",
+        "instance": "Instance & Inference",
+        "inference": "Instance & Inference",
+        "deployment": "Final Outcome",
+    }
+    token = _show(report.failed_at)
+    return mapping.get(token, token)
+
+
+def _failure_input(report: DeploymentReport) -> str:
+    token = _show(report.failed_at)
+    if token == "model":
+        return "Verified runtime + current capacity"
+    if token in {"runtime", "plan"}:
+        return "FoundationSelection + CapacityEnvelope"
+    if token == "admission":
+        return "DeploymentPlan + CurrentCapacitySnapshot"
+    return "previous layer output"
+
+
+def _last_valid_output(report: DeploymentReport) -> str:
+    token = _show(report.failed_at)
+    if token == "model":
+        return "VerifiedRuntimeCapabilityProfile"
+    if token == "admission":
+        return "DeploymentPlan"
+    if token in {"instance", "inference"}:
+        return "ResourceReservation"
+    if token == "runtime":
+        return "FoundationSelection"
+    return "previous successful layer"
 
 
 def _pool_row(
@@ -580,6 +1283,8 @@ _LIFECYCLE_EVENTS = frozenset(
         "instance.started",
         "instance.restarted",
         "instance.stopped",
+        "instance.created",
+        "instance.ready",
         "inference.completed",
     }
 )
@@ -624,10 +1329,14 @@ def _verdict(
         )
     if failed:
         last = failed[-1]
+        code = last.reason_code if is_resolved(last.reason_code) else None
+        detail = (
+            f"{code}: {last.summary}" if isinstance(code, str) else last.summary
+        )
         return (
             DeploymentVerdict.FAIL,
             last.stage.value,
-            last.summary,
+            detail,
             "fix the failed stage and retry from product commands",
         )
     if instances:

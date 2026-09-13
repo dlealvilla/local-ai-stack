@@ -3,16 +3,16 @@
   "name": "real-vllm-inference",
   "milestone": 1,
   "output": "first real native vLLM serving vertical: exact RuntimeInstallation + local ModelArtifact + NativeProcessExecutor + readiness + bounded InferenceRequest/Response; highest-pressure runtime-memory calibration before Available Models",
-  "status": "open",
+  "status": "closed",
   "gate": "L3",
-  "evidence_level": "T2 local plus T0/T1 calibration; first T3 hung on start; second T3 reached READY then CLI stayed resident on capture threads; local capture-lifetime fix; T3/T5 retry not started",
+  "evidence_level": "T5 physical installation-to-inference+restart on ba04df2; guided DeploymentReport observability committed on this branch; physical observability validation follows",
   "t3_required": true,
   "t5_required": true,
-  "ready_for_t3": false,
-  "ready_for_integration": false,
+  "ready_for_t3": true,
+  "ready_for_integration": true,
   "runtime_calibration": "implemented",
-  "t3_after_calibration": "FAILED_START_HANG_THEN_LOCAL_FIX",
-  "t5_status": "NOT_STARTED",
+  "t3_after_calibration": "PASS_ON_BA04DF2",
+  "t5_status": "PASS",
   "stage_1_6m": "NOT_STARTED",
   "integration_artifact": "NOT_YET_CREATED",
   "START_LINK": {
@@ -162,8 +162,8 @@
     "T0": "launch spec authority; reservation-derived --gpu-memory-utilization; staged Available Models funnel; runtime-memory class/sentinel/raise-only calibration; optional live Hub listing; cheap Safetensors metadata bound; optional Accelerate empty-skeleton; runtime-aware ModelRequirement; derived current available snapshot; feasibility vs available; AUTO/MANUAL within Available Models; no reference fallback",
     "T1": "vLLM HTTP protocol fixture; funnel fixture; llmfit fixture after cheap bound; Available Models printed before selector; estimator invocations saved; analytical feasible set; dynamic reservation shrink/expand; incremental storage; AUTO/MANUAL blocked infeasible; estimated-feasible is not Available without calibration",
     "T2": "same clean wheel, two isolated installs: T2-A core-only offline catalog+fallback; T2-B extras prove live Hub/Safetensors/Accelerate/llmfit then Available Models before recommend. Historical evidence predates calibration-as-gate.",
-    "T3": "required; first physical attempt hung on FileStore readiness; second reached RUNNING/READY then CLI stayed resident on capture threads; local capture-lifetime fix in this freeze; retry needs a new integration wheel and a new GPU host, not 216.81.151.62",
-    "T5": "required; NOT STARTED; blocked on T3 retry"
+    "T3": "PASS; physical host NVIDIA RTX PRO 4500 Blackwell; vLLM 0.28.0 verified; Qwen 2.5 7B AWQ selected",
+    "T5": "PASS; start → infer 686ms → stop GPU 0 reservation held → restart → infer 473ms → stop; reservation ACTIVE; OVERALL PASS. Artifact 0.1.0+ba04df2f94ae sha256 d4369a6edec0d877f78c3f2c1ad3b96643e267bfc768a1dffb801a49ad3968eb"
   },
   "not_begun": [
     "streaming",
@@ -177,17 +177,18 @@
     "K-66 Managed Python",
     "K-77 driver remediation",
     "Stage 1.6M",
-    "acceptance/1.6L-with-telemetry",
-    "fresh-host T3 after calibration",
-    "fresh-host T5"
+    "acceptance/1.6L-with-telemetry"
   ],
   "merge": {
     "performed": false
   },
   "END_LINK": {
-    "acceptance_source_commit": "f13e6e9adacf40c86b7e713a098245f8805fafbd",
-    "stream_a_wheel_sha256": "c828b72bbcbfd50eba4c7cd28e1c2877b36fa71df572ab2c76da28433ed57c39",
+    "acceptance_source_commit": "ba04df2f94ae7ff9e0fdeef3ec4cf0af20186b6a",
+    "physical_t5_wheel_sha256": "d4369a6edec0d877f78c3f2c1ad3b96643e267bfc768a1dffb801a49ad3968eb",
+    "physical_t5_build": "0.1.0+ba04df2f94ae",
+    "vllm_vertical": "PHYSICALLY CLOSED",
+    "observability": "guided DeploymentReport + DeploymentRun correlation + sanitized ProductTelemetryExporter seam",
     "checkpoint": "checkpoints/STAGE-1.6L-real-vllm-inference.json",
-    "next": "STOP. Return the new Stream A freeze. Next bounded task: rebuild integration with frozen Stream B 792b0ea336112cab33b0e67d7fd1d2f2c5f0595a, then deploy that exact integration wheel to a completely fresh GPU host. Do not reuse 216.81.151.62. Do not begin Stage 1.6M."
+    "next": "STOP. STAGE 1.6L VLLM VERTICAL + GUIDED DEPLOYMENT OBSERVABILITY: FROZEN. Do not begin llama.cpp, MLX, or Stage 1.6M."
   }
 }

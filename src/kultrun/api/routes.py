@@ -68,6 +68,7 @@ from kultrun.platform.requirement import (
     RequirementAssessment,
     assessment_payload,
 )
+from kultrun.platform.runs import DeploymentRunStore
 from kultrun.platform.startup import Startup
 from kultrun.platform.state import PlatformStateStore
 from kultrun.platform.storage_acquire import StorageAwareAcquisition
@@ -151,6 +152,7 @@ class ControlPlane:
     stored_empirical: Callable[[HostCapabilities], dict[str, EmpiricalProbeEvidence]]
     managed_bytes: Callable[[HostId], dict[str, int]]
     journal: OperationalJournal
+    runs: DeploymentRunStore
     pool_fingerprint: Callable[[str], str | None]
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: str
@@ -277,6 +279,8 @@ def register(router: Router, plane: ControlPlane) -> Router:
         }
         identity = build_identity()
         build_token = identity.build_id or identity.version
+        load = plane.runs.ensure(host.host_id, build_token)
+        plane.journal.bind_correlation(load.run.run_id.value)
         return compose_deployment_report(
             host=host,
             envelope=envelope,
@@ -303,7 +307,19 @@ def register(router: Router, plane: ControlPlane) -> Router:
             instances=plane.instances.list(),
             executions=plane.executions.list(),
             facts=plane.journal.facts(host.host_id),
+            run_id=load.run.run_id.value,
+            run_started_at=load.run.started_at,
+            reservations=plane.resources.reservations(include_released=True),
         )
+
+    def deployment_run(_: ApiRequest) -> object:
+        """Current deployment journey identity. Shared across CLI processes."""
+        host = plane.hosts.current
+        identity = build_identity()
+        load = plane.runs.ensure(
+            host.host_id, identity.build_id or identity.version
+        )
+        return load.run
 
     def version(_: ApiRequest) -> dict[str, object]:
         """Which build is answering.
@@ -1348,6 +1364,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/inference/instances/stop", stop_instance)
     router.post("/inference/instances/infer", infer_instance)
     router.get("/deployment-report", deployment_report)
+    router.get("/deployment-run", deployment_run)
     router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)
