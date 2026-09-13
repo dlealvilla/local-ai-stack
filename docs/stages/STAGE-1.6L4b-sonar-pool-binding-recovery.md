@@ -5,6 +5,12 @@
 Status: **implementation on `stage/storage-sonar-pool-binding-recovery`.**
 Does not close Stage 1.6L. Does not start 1.6M. Does not add runtimes.
 
+Later bounded closure on this branch (`4f3ad61`): Minimum Feasibility +
+guided Layer 2 + vLLM vertical physically passed on run
+`drun_29e57bbf3054423e`. Product reclaim was inventoried (5.9 GiB) and
+not executed because realize-time SAFE already covered the peak. See
+K-115.
+
 Predecessor source: runtime-breadth exoskeleton
 `36820d78e5c76da12e6cf904db8f8365ca4aed3f`.
 
