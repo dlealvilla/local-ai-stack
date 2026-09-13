@@ -18,6 +18,7 @@ from kultrun.storage.contracts import (
     StorageReclaimPlan,
     StorageReclaimResult,
 )
+from kultrun.storage.inventory import unique_occupancy
 from kultrun.storage.ownership import OwnershipService, tree_bytes
 
 
@@ -25,6 +26,7 @@ def plan_reclaim(
     items: Sequence[ManagedOccupancyItem],
     *,
     mount_point: str,
+    capacity_required: bool = False,
 ) -> StorageReclaimPlan:
     """Collect reclaimable roots on one mount. Does not delete."""
     actions = tuple(
@@ -35,15 +37,18 @@ def plan_reclaim(
             mount_point=mount_point,
             reason=item.reason,
         )
-        for item in items
+        for item in unique_occupancy(items)
         if item.occupancy_class is ManagedOccupancyClass.RECLAIMABLE
         and item.mount_point == mount_point
         and item.occupied_bytes > 0
     )
+    expected = sum(item.expected_bytes for item in actions)
     return StorageReclaimPlan(
         mount_point=mount_point,
-        expected_bytes=sum(item.expected_bytes for item in actions),
+        expected_bytes=expected,
         actions=actions,
+        cleanup_required_by_lifecycle=expected > 0,
+        cleanup_required_for_capacity=capacity_required and expected > 0,
     )
 
 

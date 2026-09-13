@@ -5296,6 +5296,34 @@
         "optional": true,
         "type": "int | Unresolved"
       },
+      "cleanup_actual_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "bytes actually released by product reclaim",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "cleanup_expected_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "planned reclaim at realize time",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "cleanup_required_by_lifecycle": {
+        "may_be_unresolved": false,
+        "meaning": "true when stale owned state was cleanup-eligible",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "cleanup_required_for_capacity": {
+        "may_be_unresolved": false,
+        "meaning": "true when the minimum gate needed reclaim as potential capacity",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
       "compatible_count": {
         "may_be_unresolved": true,
         "meaning": "runtime-compatible count before capacity filtering",
@@ -5316,6 +5344,13 @@
         "nullable": false,
         "optional": false,
         "type": "str | Unresolved"
+      },
+      "current_minimum": {
+        "may_be_unresolved": false,
+        "meaning": "live remaining assessment after install; not a retrospective gate",
+        "nullable": true,
+        "optional": true,
+        "type": "MinimumFeasibilityAssessment | None"
       },
       "decisions": {
         "may_be_unresolved": false,
@@ -5415,6 +5450,13 @@
         "optional": true,
         "type": "MinimumFeasibilityAssessment | None"
       },
+      "minimum_source": {
+        "may_be_unresolved": true,
+        "meaning": "realize when projected from realize-time facts; live otherwise",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "model_candidates": {
         "may_be_unresolved": false,
         "meaning": "evaluated model paths",
@@ -5422,12 +5464,47 @@
         "optional": false,
         "type": "tuple[ModelCandidateReport, ...]"
       },
+      "model_policy_compatible": {
+        "may_be_unresolved": true,
+        "meaning": "model funnel survivors after product policy",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "model_ram_feasible": {
+        "may_be_unresolved": true,
+        "meaning": "model funnel survivors after RAM",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "model_storage_feasible": {
+        "may_be_unresolved": true,
+        "meaning": "model funnel survivors after storage",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "model_vram_feasible": {
+        "may_be_unresolved": true,
+        "meaning": "model funnel survivors after VRAM",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "next_action": {
         "may_be_unresolved": true,
         "meaning": "what the operator should do next",
         "nullable": false,
         "optional": false,
         "type": "str | Unresolved"
+      },
+      "occupancy": {
+        "may_be_unresolved": false,
+        "meaning": "collapsed owned occupancy rows for the destination pool",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[OccupancyReport, ...]"
       },
       "os_name": {
         "may_be_unresolved": false,
@@ -5443,12 +5520,40 @@
         "optional": false,
         "type": "str | Unresolved"
       },
+      "plan_context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "context length the plan assumed",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "plan_executor": {
+        "may_be_unresolved": true,
+        "meaning": "executor on the current plan",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "plan_quantization": {
+        "may_be_unresolved": true,
+        "meaning": "selected quantization on the current plan",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "plan_ram_bytes": {
         "may_be_unresolved": true,
         "meaning": "plan RAM requirement",
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "plan_revision": {
+        "may_be_unresolved": true,
+        "meaning": "model revision on the current plan",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "plan_runtime_candidate": {
         "may_be_unresolved": true,
@@ -5548,12 +5653,47 @@
         "optional": false,
         "type": "tuple[RuntimeCandidateReport, ...]"
       },
+      "runtime_capacity_feasible": {
+        "may_be_unresolved": true,
+        "meaning": "runtime candidate funnel: capacity-feasible",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "runtime_discovered": {
+        "may_be_unresolved": true,
+        "meaning": "runtime candidate funnel: discovered",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "runtime_executor_compatible": {
+        "may_be_unresolved": true,
+        "meaning": "runtime candidate funnel: executor-compatible",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "runtime_host_compatible": {
+        "may_be_unresolved": true,
+        "meaning": "runtime candidate funnel: host-compatible",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
       "runtime_installs": {
         "may_be_unresolved": false,
         "meaning": "install receipts",
         "nullable": false,
         "optional": false,
         "type": "tuple[RuntimeInstallReport, ...]"
+      },
+      "runtime_product_selectable": {
+        "may_be_unresolved": true,
+        "meaning": "runtime candidate funnel: product-selectable",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
       },
       "selected_model": {
         "may_be_unresolved": true,
@@ -5742,6 +5882,13 @@
         "nullable": false,
         "optional": true,
         "type": "int | Unresolved"
+      },
+      "purpose": {
+        "may_be_unresolved": true,
+        "meaning": "request for user/inference CLI; readiness is never this",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       }
     },
     "python": "InferenceObservation"
@@ -5945,6 +6092,46 @@
     },
     "python": "MinimumDeployableHostProfile"
   },
+  "platform.occupancy_report@1": {
+    "fields": {
+      "managed_root": {
+        "may_be_unresolved": true,
+        "meaning": "absolute path; debug/JSON only",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "occupancy_class": {
+        "may_be_unresolved": false,
+        "meaning": "active, reusable, reclaimable, protected, or unknown",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "occupied_bytes": {
+        "may_be_unresolved": false,
+        "meaning": "tree size at compose time",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "reason": {
+        "may_be_unresolved": false,
+        "meaning": "why this class was assigned",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "resource_type": {
+        "may_be_unresolved": false,
+        "meaning": "managed resource kind",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "OccupancyReport"
+  },
   "platform.operational_fact@1": {
     "fields": {
       "attributes": {
@@ -6090,6 +6277,13 @@
   },
   "platform.report_layer@1": {
     "fields": {
+      "candidates": {
+        "may_be_unresolved": false,
+        "meaning": "options considered at this layer, when a funnel applies",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
       "consumed_by": {
         "may_be_unresolved": false,
         "meaning": "what consumes that output",
@@ -6146,6 +6340,20 @@
         "optional": false,
         "type": "str"
       },
+      "reason": {
+        "may_be_unresolved": true,
+        "meaning": "why that result was reached",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "selected": {
+        "may_be_unresolved": true,
+        "meaning": "chosen or measured result",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "status": {
         "may_be_unresolved": false,
         "meaning": "pass, fail, incomplete, or info",
@@ -6185,6 +6393,13 @@
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "funnel_stage": {
+        "may_be_unresolved": true,
+        "meaning": "funnel stage that excluded this candidate, when blocked",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "logical_name": {
         "may_be_unresolved": false,
@@ -6260,6 +6475,13 @@
         "nullable": false,
         "optional": false,
         "type": "str"
+      },
+      "executor_type": {
+        "may_be_unresolved": true,
+        "meaning": "generic executor type such as process or container",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "reason_codes": {
         "may_be_unresolved": false,
@@ -10854,6 +11076,20 @@
         "optional": false,
         "type": "tuple[ReclaimAction, ...]"
       },
+      "cleanup_required_by_lifecycle": {
+        "may_be_unresolved": false,
+        "meaning": "true when stale owned state is cleanup-eligible even if SAFE already fits",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "cleanup_required_for_capacity": {
+        "may_be_unresolved": false,
+        "meaning": "true when the minimum gate needed those bytes as potential capacity",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
       "expected_bytes": {
         "may_be_unresolved": false,
         "meaning": "sum of planned deletes",
@@ -11293,6 +11529,34 @@
         "optional": true,
         "type": "str | Unresolved"
       },
+      "capacity_feasible": {
+        "may_be_unresolved": true,
+        "meaning": "runtime funnel capacity-feasible count",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "cleanup_capacity": {
+        "may_be_unresolved": true,
+        "meaning": "whether cleanup was also required for capacity",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "cleanup_lifecycle": {
+        "may_be_unresolved": true,
+        "meaning": "whether cleanup ran for lifecycle hygiene",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "discovered": {
+        "may_be_unresolved": true,
+        "meaning": "runtime or model funnel discovered count",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "error_class": {
         "may_be_unresolved": true,
         "meaning": "error class, never an exception body",
@@ -11310,6 +11574,20 @@
       "executor": {
         "may_be_unresolved": true,
         "meaning": "executor class, when the fact recorded one",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "executor_compatible": {
+        "may_be_unresolved": true,
+        "meaning": "runtime funnel executor-compatible count",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "host_compatible": {
+        "may_be_unresolved": true,
+        "meaning": "runtime funnel host-compatible count",
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
@@ -11359,6 +11637,13 @@
       "possibility": {
         "may_be_unresolved": true,
         "meaning": "coarse host possibility, never verified",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "product_selectable": {
+        "may_be_unresolved": true,
+        "meaning": "runtime funnel product-selectable count",
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"

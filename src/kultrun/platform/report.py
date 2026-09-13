@@ -31,6 +31,7 @@ from kultrun.platform.contracts import (
     MinimumFeasibilityAssessment,
     MinimumFeasibilityVerdict,
     ModelCandidateReport,
+    OccupancyReport,
     OperationalFact,
     OperationalOutcome,
     OperationalStage,
@@ -39,6 +40,7 @@ from kultrun.platform.contracts import (
     RuntimeInstallReport,
     StoragePoolReport,
 )
+from kultrun.platform.minimum import minimum_host_profile
 from kultrun.platform.observation import attr_value, chronological_facts
 from kultrun.resource.contracts import ReservationState, ResourceReservation
 from kultrun.runtime.contracts import (
@@ -78,6 +80,7 @@ def compose_deployment_report(
     reservations: Sequence[ResourceReservation] = (),
     intended_storage_pool: str | None = None,
     minimum: MinimumFeasibilityAssessment | None = None,
+    occupancy_items: Sequence[object] = (),
 ) -> DeploymentReport:
     """Project current product state. Does not mutate anything."""
     ordered = chronological_facts(facts)
@@ -115,6 +118,7 @@ def compose_deployment_report(
             runtime=item.runtime.value,
             version=item.version if is_resolved(item.version) else NOT_PROVIDED,
             executor=item.executor.value,
+            executor_type=item.executor_type.value,
             support_tier=item.support_tier.value,
             compatibility=item.compatibility.value,
             reason_codes=tuple(code.value for code in item.reason_codes),
@@ -131,6 +135,8 @@ def compose_deployment_report(
     model_rows, available_names = _model_rows(available)
     inferences = _inference_observations(ordered)
     latest_latency, latest_infer = _latest_inference(ordered)
+    live_minimum = minimum
+    gate_minimum = _gate_minimum(live_minimum, ordered)
     verdict, failed_at, reason, next_action = _verdict(
         pools,
         install_rows,
@@ -138,7 +144,7 @@ def compose_deployment_report(
         deployment_plan,
         instances,
         ordered,
-        minimum,
+        gate_minimum,
     )
     ownership = {
         handle.execution_id.value: handle.ownership.value for handle in executions
@@ -235,7 +241,43 @@ def compose_deployment_report(
         intended_storage_pool=(
             intended_storage_pool if intended_storage_pool else NOT_PROVIDED
         ),
-        minimum=minimum,
+        minimum=gate_minimum,
+        current_minimum=live_minimum,
+        occupancy=_occupancy_rows(occupancy_items),
+        cleanup_required_by_lifecycle=_cleanup_flag(ordered, "cleanup_lifecycle"),
+        cleanup_required_for_capacity=_cleanup_flag(ordered, "cleanup_capacity"),
+        cleanup_expected_bytes=_fact_int(ordered, "storage.reclaim_planned", "bytes"),
+        cleanup_actual_bytes=_fact_int(ordered, "storage.reclaim_completed", "bytes"),
+        plan_quantization=_maybe_name(
+            deployment_plan.quantization if deployment_plan is not None else None
+        ),
+        plan_executor=_maybe_name(
+            deployment_plan.executor_kind if deployment_plan is not None else None
+        ),
+        plan_revision=_maybe_name(
+            deployment_plan.source_revision if deployment_plan is not None else None
+        ),
+        plan_context_tokens=_maybe_int(
+            deployment_plan.context_tokens if deployment_plan is not None else None
+        ),
+        runtime_discovered=len(runtime_rows) or NOT_PROVIDED,
+        runtime_product_selectable=_funnel_count(
+            runtime_rows, _count_tier(runtime_rows, "product")
+        ),
+        runtime_host_compatible=_funnel_count(
+            runtime_rows, _count_host_ok(runtime_rows)
+        ),
+        runtime_executor_compatible=_funnel_count(
+            runtime_rows, _count_executor_ok(runtime_rows)
+        ),
+        runtime_capacity_feasible=_funnel_count(
+            runtime_rows, _count_compat(runtime_rows, "compatible")
+        ),
+        model_policy_compatible=_policy_compatible(available),
+        model_storage_feasible=_model_stage_count(available, "infeasible_storage"),
+        model_ram_feasible=_model_stage_count(available, "infeasible_ram"),
+        model_vram_feasible=_model_stage_count(available, "infeasible_vram"),
+        minimum_source=_minimum_source(ordered, live_minimum),
     )
     return replace(
         report,
@@ -250,11 +292,12 @@ def format_deployment_report(report: DeploymentReport, *, debug: bool = False) -
     lines: list[str] = []
     lines.extend(_layer_run(report))
     lines.extend(_layer_host(report))
+    lines.extend(_layer_cleanup(report, debug=debug))
     lines.extend(_layer_minimum(report))
     lines.extend(_layer_storage(report))
     lines.extend(_layer_foundation(report))
     lines.extend(_layer_runtime(report))
-    lines.extend(_layer_models(report))
+    lines.extend(_layer_models(report, debug=debug))
     lines.extend(_layer_selection(report))
     lines.extend(_layer_plan(report))
     lines.extend(_layer_admission(report))
@@ -282,7 +325,7 @@ def _layer_run(report: DeploymentReport) -> list[str]:
 def _layer_host(report: DeploymentReport) -> list[str]:
     lines = [
         "LAYER 1 — HOST DISCOVERY",
-        "Question: What machine is Kultrun running on?",
+        "Purpose: What machine is Kultrun operating on?",
         *_flow(_layer_named(report, "host")),
         f"  OS               {report.os_name} {_show(report.os_version)} "
         f"{report.architecture}",
@@ -295,10 +338,53 @@ def _layer_host(report: DeploymentReport) -> list[str]:
             lines.append(f"  GPU              {line}")
     else:
         lines.append("  GPU              none")
-    lines.append(
-        "  Host profile is the normalized hardware truth used by "
-        "capacity and runtime feasibility."
+    dest = _destination_mount(report)
+    lines.append(f"  Destination      {dest}")
+    lines.append("")
+    return lines
+
+
+def _layer_cleanup(report: DeploymentReport, *, debug: bool) -> list[str]:
+    named = _layer_named(report, "cleanup")
+    lines = [
+        "LAYER 2 — MANAGED-STATE RECONCILIATION",
+        "Purpose: What prior Kultrun state exists, what should survive, "
+        "and what should be removed?",
+        *_flow(named),
+        f"  cleanup_required_by_lifecycle   "
+        f"{str(report.cleanup_required_by_lifecycle).lower()}",
+        f"  cleanup_required_for_capacity   "
+        f"{str(report.cleanup_required_for_capacity).lower()}",
+        f"  Expected reclaimed               {_bytes(report.cleanup_expected_bytes)}",
+        f"  Actual reclaimed                {_bytes(report.cleanup_actual_bytes)}",
+        "  Inventory",
+    ]
+    by_class: dict[str, list[OccupancyReport]] = {
+        "active": [],
+        "reusable": [],
+        "reclaimable": [],
+        "protected": [],
+        "unknown": [],
+    }
+    for item in report.occupancy:
+        by_class.setdefault(item.occupancy_class, []).append(item)
+    labels = (
+        ("active", "ACTIVE"),
+        ("reusable", "REUSABLE"),
+        ("reclaimable", "CLEANUP ELIGIBLE"),
+        ("protected", "PROTECTED"),
+        ("unknown", "UNKNOWN"),
     )
+    for key, title in labels:
+        rows = by_class.get(key, [])
+        total = sum(item.occupied_bytes for item in rows)
+        lines.append(f"    {title:<18} {_bytes(total)}")
+        if debug:
+            for item in rows:
+                lines.append(
+                    f"      {item.resource_type} {_bytes(item.occupied_bytes)}  "
+                    f"{_show(item.managed_root)}"
+                )
     lines.append("")
     return lines
 
@@ -312,7 +398,7 @@ def _layer_minimum(report: DeploymentReport) -> list[str]:
         else "Determine whether this host can support a minimum Kultrun deployment."
     )
     lines = [
-        "LAYER 2 — MINIMUM FEASIBILITY",
+        "LAYER 3 — MINIMUM FEASIBILITY",
         f"Purpose: {purpose}",
         *_flow(named),
     ]
@@ -320,6 +406,17 @@ def _layer_minimum(report: DeploymentReport) -> list[str]:
         lines.append("  Status           not assessed")
         lines.append("")
         return lines
+    source = _show(report.minimum_source)
+    if source == "realize":
+        token = assessment.verdict.value.upper()
+        lines.append(f"  Deployment-time assessment  {token}")
+        if report.current_minimum is not None:
+            live = report.current_minimum
+            lines.append(
+                "  Current remaining SAFE       "
+                f"{_bytes(live.current_safe_bytes)}  "
+                "(post-install; not a retrospective FAIL)"
+            )
     lines.append(f"  Profile          {assessment.profile_version}")
     lines.append(
         f"  OVERALL          {assessment.verdict.value.upper()}"
@@ -329,6 +426,55 @@ def _layer_minimum(report: DeploymentReport) -> list[str]:
     if dest == "-":
         dest = _show(report.intended_storage_pool)
     lines.append(f"  Destination      {dest if dest != '-' else 'not selected'}")
+    profile = minimum_host_profile()
+    ram_ok = (
+        is_resolved(report.ram_safe_bytes)
+        and report.ram_safe_bytes >= profile.min_ram_safe_bytes
+    )
+    vram_ok = bool(report.accelerators)
+    storage_ok = assessment.verdict is MinimumFeasibilityVerdict.PASS or (
+        is_resolved(assessment.potential_safe_bytes)
+        and assessment.potential_safe_bytes >= assessment.net_new_bytes
+    )
+    exec_ok = any(
+        item.host_possibility.value == "plausible"
+        and item.support_tier.lower() == "product"
+        for item in assessment.foundations
+    )
+    platform_ok = report.os_name in profile.supported_os_families
+    arch_ok = report.architecture in profile.supported_architectures
+    lines.append("  Checks")
+    lines.append("    Requirement        Required       Observed      Result")
+    lines.append(
+        f"    Platform           {', '.join(profile.supported_os_families):<13} "
+        f"{report.os_name:<13} {'PASS' if platform_ok else 'FAIL'}"
+    )
+    lines.append(
+        f"    Architecture       {', '.join(profile.supported_architectures):<13} "
+        f"{report.architecture:<13} {'PASS' if arch_ok else 'FAIL'}"
+    )
+    lines.append(
+        f"    RAM                {_bytes(profile.min_ram_safe_bytes):<13} "
+        f"{_bytes(report.ram_safe_bytes):<13} {'PASS' if ram_ok else 'FAIL'}"
+    )
+    gpu = report.accelerators[0] if report.accelerators else "none"
+    lines.append(
+        f"    Accelerator        {profile.required_accelerator_family:<13} {gpu}"
+    )
+    lines.append(
+        f"    VRAM               {_bytes(profile.min_vram_bytes):<13} "
+        f"{'present' if vram_ok else 'none':<13} {'PASS' if vram_ok else 'FAIL'}"
+    )
+    lines.append(
+        f"    Storage            {_bytes(profile.min_storage_peak_bytes):<13} "
+        f"{_bytes(assessment.current_safe_bytes):<13} "
+        f"{'PASS' if storage_ok else 'FAIL'}"
+    )
+    lines.append(
+        f"    Execution path     PRODUCT        "
+        f"{'available' if exec_ok else 'none':<13} "
+        f"{'PASS' if exec_ok else 'FAIL'}"
+    )
     lines.append("  Storage")
     lines.append(
         f"    Current authoritative available  "
@@ -391,8 +537,8 @@ def _layer_minimum(report: DeploymentReport) -> list[str]:
 
 def _layer_storage(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 3 — STORAGE & CAPACITY",
-        "Question: What storage can Kultrun safely consume?",
+        "LAYER 4 — STORAGE & CAPACITY",
+        "Purpose: What can Kultrun actually consume safely?",
         *_flow(_layer_named(report, "storage")),
     ]
     for pool in report.storage_pools:
@@ -406,40 +552,52 @@ def _layer_storage(report: DeploymentReport) -> list[str]:
 
 def _layer_foundation(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 4 — EXECUTION FOUNDATION",
-        "Question: Which AI execution foundation can this host support?",
+        "LAYER 5 — EXECUTION FOUNDATION",
+        "Purpose: Which execution foundations were considered, filtered, "
+        "recommended, and selected?",
         *_flow(_layer_named(report, "foundation")),
-        "  Runtime           Product status    Feasibility    Reason",
+        f"  Candidates discovered       {_show(report.runtime_discovered)}",
+        f"  Product-selectable          {_show(report.runtime_product_selectable)}",
+        f"  Host-compatible             {_show(report.runtime_host_compatible)}",
+        f"  Executor-compatible         {_show(report.runtime_executor_compatible)}",
+        f"  Capacity-feasible           {_show(report.runtime_capacity_feasible)}",
+        "  Candidate            Host/Exec     Product    Result",
     ]
     verified = _foundation_verified(report)
     for item in report.runtime_candidates:
         codes = _human_reason_codes(item, verified)
         reason = ",".join(codes) if codes else "-"
-        version = _show(item.version)
-        name = item.runtime if version == "-" else f"{item.runtime} {version}"
+        executor = _executor_short(item)
+        name = f"{item.runtime}/{executor}"
+        result = _foundation_result(item)
         mark = ""
         if item.selected:
             mark = "  selected"
         elif item.recommended:
             mark = "  recommended"
         lines.append(
-            f"  {name:<18} {item.support_tier.upper():<16} "
-            f"{item.compatibility.upper():<14} {reason}{mark}"
+            f"  {name:<22} {item.compatibility.upper():<12} "
+            f"{item.support_tier.upper():<10} {result}  {reason}{mark}"
         )
     if not report.runtime_candidates:
         lines.append("  none")
-    lines.append(f"  Recommended      {_foundation_label(report, recommended=True)}")
-    lines.append(f"  Selected        {_foundation_label(report)}")
+    rec = _foundation_label(report, recommended=True)
+    sel = _foundation_label(report)
+    lines.append(f"  Recommended      {rec if rec != '-' else 'not selected'}")
+    lines.append(f"  Selected        {sel if sel != '-' else 'not selected'}")
     mode = _show(report.selection_mode)
     lines.append(f"  Selection mode  {mode.upper() if mode != '-' else '-'}")
+    for snap in report.decisions:
+        if snap.decision == "FOUNDATION_SELECTION" and is_resolved(snap.reason):
+            lines.append(f"  Reason           {_show(snap.reason)}")
     lines.append("")
     return lines
 
 
 def _layer_runtime(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 5 — RUNTIME ENVIRONMENT",
-        "Question: Can the selected runtime actually be installed and verified?",
+        "LAYER 6 — RUNTIME ENVIRONMENT",
+        "Purpose: Could the selected foundation actually be provisioned and verified?",
         *_flow(_layer_named(report, "runtime")),
     ]
     if not report.runtime_installs:
@@ -449,29 +607,20 @@ def _layer_runtime(report: DeploymentReport) -> list[str]:
     for install in report.runtime_installs:
         lines.append(f"  Runtime          {install.runtime}")
         lines.append(f"  Version          {install.version}")
+        lines.append(f"  Executor         {_executor_label(report)}")
         lines.append(f"  Destination      {_show(install.storage_pool_mount)}")
+        if report.minimum is not None:
+            lines.append(
+                f"  Estimated peak   {_bytes(report.minimum.required_peak_bytes)}"
+            )
         lines.append(f"  Installed        {_bytes(install.installed_bytes)}")
         lines.append(f"  Status          {install.status}")
         lines.append(f"  Verification    {_show(install.verification).upper()}")
-        dest = _show(install.storage_pool_mount)
-        pool = next(
-            (item for item in report.storage_pools if item.mount_point == dest),
-            None,
-        )
-        if (
-            pool is not None
-            and is_resolved(install.installed_bytes)
-            and is_resolved(pool.remaining_bytes)
-        ):
-            before = pool.remaining_bytes + install.installed_bytes
-            lines.append(f"  Before install   {_bytes(before)}")
-            lines.append(f"  After install    {_bytes(pool.remaining_bytes)}")
-            lines.append(f"  Remaining        {_bytes(pool.remaining_bytes)}")
     lines.append("")
     return lines
 
 
-def _layer_models(report: DeploymentReport) -> list[str]:
+def _layer_models(report: DeploymentReport, *, debug: bool = False) -> list[str]:
     catalog = _show(report.catalog_count)
     compatible = _show(report.compatible_count)
     available = _show(report.available_count)
@@ -480,24 +629,35 @@ def _layer_models(report: DeploymentReport) -> list[str]:
     if available == "-":
         available = str(len(report.available_models) or 0)
     lines = [
-        "LAYER 6 — MODEL FEASIBILITY",
-        "Question: Which catalog models can actually run on this foundation and host?",
+        "LAYER 7 — MODEL FEASIBILITY",
+        "Purpose: How did the catalog become the Available Models set?",
         *_flow(_layer_named(report, "model_feasibility")),
-        f"  Catalog candidates      {catalog}",
-        f"  Runtime-compatible      {compatible}",
-        f"  Available Models        {available}",
+        f"  Catalog discovered         {catalog}",
+        f"  Runtime compatible         {compatible}",
+        f"  Policy compatible          {_show(report.model_policy_compatible)}",
+        f"  Storage feasible           {_show(report.model_storage_feasible)}",
+        f"  RAM feasible               {_show(report.model_ram_feasible)}",
+        f"  VRAM feasible              {_show(report.model_vram_feasible)}",
+        f"  Available Models           {available}",
+        "  Model                      Runtime  Storage  Result",
     ]
+    shown = 0
     for model in report.model_candidates:
+        if not debug and not model.available and not _important_block(model):
+            continue
         if model.available:
             result = "AVAILABLE"
         else:
             result = f"BLOCKED {_show(model.blocked_reason)}"
-        lines.append(
-            f"  {model.logical_name} {_show(model.quantization)}  {result}  "
-            f"vram {_bytes(model.required_vram_bytes)}  "
-            f"storage {_bytes(model.required_storage_bytes)}"
+        runtime = "PASS" if model.available or _important_block(model) else "-"
+        storage = (
+            "FAIL"
+            if _show(model.blocked_reason) == "infeasible_storage"
+            else ("PASS" if model.available else "-")
         )
-    if not report.model_candidates:
+        lines.append(f"  {model.logical_name:<26} {runtime:<8} {storage:<8} {result}")
+        shown += 1
+    if shown == 0:
         lines.append("  none")
     lines.append("")
     return lines
@@ -506,95 +666,110 @@ def _layer_models(report: DeploymentReport) -> list[str]:
 def _layer_selection(report: DeploymentReport) -> list[str]:
     mode = _show(report.selection_mode)
     lines = [
-        "LAYER 7 — MODEL SELECTION",
-        "Question: Which feasible model did Kultrun choose and why?",
+        "LAYER 8 — MODEL SELECTION",
+        "Purpose: Which Available Model was chosen and why?",
         *_flow(_layer_named(report, "model_selection")),
-        f"  Mode             {mode.upper() if mode != '-' else '-'}",
-        f"  Recommended       {_show(report.recommended_model)}",
-        f"  Selected         {_show(report.selected_model)}",
+        f"  Available               {len(report.available_models)}",
+        f"  Recommended             {_show(report.recommended_model)}",
+        f"  Selected               {_show(report.selected_model)}",
+        f"  Mode                   {mode.upper() if mode != '-' else '-'}",
     ]
     for snap in report.decisions:
         if snap.decision == "MODEL_SELECTION" and is_resolved(snap.reason):
-            lines.append(f"  Reason           {_show(snap.reason)}")
+            lines.append(f"  Reason                 {_show(snap.reason)}")
     lines.append("")
     return lines
 
 
 def _layer_plan(report: DeploymentReport) -> list[str]:
     return [
-        "LAYER 8 — DEPLOYMENT PLAN",
-        "Question: Exactly what will Kultrun attempt to run?",
+        "LAYER 9 — DEPLOYMENT PLAN",
+        "Purpose: Exactly what configuration will Kultrun attempt to run?",
         *_flow(_layer_named(report, "plan")),
-        f"  Foundation       {_foundation_label(report)}",
-        f"  Model            {_show(report.selected_model)}",
-        f"  Storage pool     {_show(report.plan_storage_pool)}",
-        f"  RAM              {_bytes(report.plan_ram_bytes)}",
-        f"  VRAM             {_bytes(report.plan_vram_bytes)}",
-        f"  Storage          {_bytes(report.plan_storage_bytes)}",
-        f"  Plan             {_show(report.deployment_plan_id)}",
+        f"  Runtime           {_foundation_label(report)}",
+        f"  Model             {_show(report.selected_model)}",
+        f"  Revision          {_show(report.plan_revision)}",
+        f"  Quantization      {_show(report.plan_quantization)}",
+        f"  Executor          {_show(report.plan_executor)}",
+        f"  Storage pool      {_show(report.plan_storage_pool)}",
+        f"  Context           {_show(report.plan_context_tokens)}",
+        f"  RAM               {_bytes(report.plan_ram_bytes)}",
+        f"  VRAM              {_bytes(report.plan_vram_bytes)}",
+        f"  Storage           {_bytes(report.plan_storage_bytes)}",
+        f"  Plan              {_show(report.deployment_plan_id)}",
         "",
     ]
 
 
 def _layer_admission(report: DeploymentReport) -> list[str]:
     return [
-        "LAYER 9 — RESOURCE ADMISSION",
-        "Question: Can the machine safely run this configuration right now?",
+        "LAYER 10 — RESOURCE ADMISSION",
+        "Purpose: Can the physical machine safely admit this DeploymentPlan now?",
         *_flow(_layer_named(report, "admission")),
-        f"  RAM requested     {_bytes(report.plan_ram_bytes)}",
-        f"  VRAM requested    {_bytes(report.plan_vram_bytes)}",
-        f"  Storage requested {_show(report.plan_storage_pool)} "
+        f"  RAM requested      {_bytes(report.plan_ram_bytes)}",
+        f"  VRAM requested     {_bytes(report.plan_vram_bytes)}",
+        f"  Storage requested  {_show(report.plan_storage_pool)} "
         f"{_bytes(report.plan_storage_bytes)}",
-        f"  Decision          {_show(report.admission_verdict).upper()}",
-        f"  Reservation       {_show(report.reservation_id)}",
+        f"  Decision           {_show(report.admission_verdict).upper()}",
+        f"  Reservation        {_show(report.reservation_id)}",
         "",
     ]
 
 
 def _layer_instance(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 10 — INSTANCE & INFERENCE",
-        "Question: Did the planned service actually run?",
+        "LAYER 11 — INSTANCE & INFERENCE",
+        "Purpose: Did the planned service actually execute successfully?",
         *_flow(_layer_named(report, "instance")),
     ]
     for instance in report.instances:
         lines.append(
-            f"  Instance         {instance.lifecycle}/{instance.health}  "
-            f"ready {_show(instance.ready)}  own {_show(instance.ownership)}"
+            f"  Instance         {instance.lifecycle}/"
+            f"{_show(instance.observed_state)}  "
+            f"ready {_show(instance.ready)}"
         )
     if not report.instances:
         lines.append("  none")
-    for index, item in enumerate(report.inferences, start=1):
-        lines.append(
-            f"  Inference {index}     {_show(item.outcome).upper()}  "
-            f"{_show(item.latency_ms)} ms"
-        )
+    requests = [
+        item
+        for item in report.inferences
+        if not is_resolved(item.purpose) or str(item.purpose) == "request"
+    ]
+    for index, item in enumerate(requests, start=1):
+        lines.append(f"  INFERENCE {index}")
+        lines.append(f"    Result         {_show(item.outcome).upper()}")
+        lines.append(f"    Latency        {_show(item.latency_ms)} ms")
         if is_resolved(item.input_tokens) or is_resolved(item.output_tokens):
             lines.append(
-                f"                   in {_show(item.input_tokens)}  "
+                f"    Tokens         in {_show(item.input_tokens)}  "
                 f"out {_show(item.output_tokens)}"
             )
     if report.lifecycle:
         lines.append("  Lifecycle")
         for event in report.lifecycle:
+            if "inference.completed" in event:
+                continue
             lines.append(f"    {event}")
-    lines.append(
-        "  Physical GPU released after stop and logical reservation "
-        "held/released are separate facts."
-    )
     lines.append("")
     return lines
 
 
 def _layer_outcome(report: DeploymentReport) -> list[str]:
     lines = [
-        "LAYER 11 — FINAL OUTCOME",
-        "Question: What stack did Kultrun ultimately build, and did it work?",
+        "LAYER 12 — FINAL OUTCOME",
+        "Purpose: What stack did Kultrun ultimately create, and did the "
+        "deployment succeed?",
         *_flow(_layer_named(report, "outcome")),
         "  SELECTED STACK",
         f"  {_show(report.selected_stack)}",
         "",
         f"OVERALL: {report.verdict.value.upper()}",
+        f"  Cleanup            {_cleanup_verdict(report)}",
+        "  Minimum Feasibility "
+        + (report.minimum.verdict.value.upper() if report.minimum is not None else "-"),
+        f"  Runtime            {_foundation_label(report)}",
+        f"  Model              {_show(report.selected_model)}",
+        f"  Admission          {_show(report.admission_verdict).upper()}",
         f"  Manual intervention  {_show(report.manual_intervention)}",
     ]
     if report.verdict is DeploymentVerdict.FAIL:
@@ -695,10 +870,16 @@ def _flow(layer: ReportLayer | None) -> list[str]:
     lines = [f"  Kultrun          {', '.join(layer.kultrun) or '-'}"]
     if layer.inputs:
         lines.append(f"  Input            {'; '.join(layer.inputs)}")
+    if layer.candidates:
+        lines.append(f"  Candidates       {'; '.join(layer.candidates)}")
     if layer.process:
         lines.append(f"  Process          {'; '.join(layer.process)}")
     if layer.decision:
         lines.append(f"  Decision         {'; '.join(layer.decision)}")
+    if is_resolved(layer.selected):
+        lines.append(f"  Selected         {_show(layer.selected)}")
+    if is_resolved(layer.reason):
+        lines.append(f"  Why              {_show(layer.reason)}")
     if layer.outputs:
         lines.append(f"  Output           {'; '.join(layer.outputs)}")
     if layer.consumed_by:
@@ -855,6 +1036,7 @@ def _inference_observations(
         if fact.event_type.value != "inference.completed":
             continue
         finish = attr_value(fact, "finish_reason")
+        purpose = attr_value(fact, "purpose")
         rows.append(
             InferenceObservation(
                 occurred_at=fact.occurred_at,
@@ -863,6 +1045,7 @@ def _inference_observations(
                 input_tokens=_int_attr(fact, "input_tokens"),
                 output_tokens=_int_attr(fact, "output_tokens"),
                 finish_reason=finish if finish else NOT_PROVIDED,
+                purpose=purpose if purpose else NOT_PROVIDED,
             )
         )
     return tuple(rows)
@@ -990,7 +1173,40 @@ def _build_layers(
             inputs=("OS, CPU, RAM, accelerators, mounts",),
             process=("discover and normalize",),
             outputs=("HostCapabilityProfile",),
-            consumed_by=("capacity", "runtime feasibility", "minimum feasibility"),
+            consumed_by=("managed-state reconciliation", "minimum feasibility"),
+        ),
+        ReportLayer(
+            identity="cleanup",
+            title="Managed-State Reconciliation",
+            purpose=(
+                "Inventory owned state; retain active/reusable/protected/"
+                "unknown; remove cleanup-eligible."
+            ),
+            status=(
+                "pass"
+                if report.cleanup_required_by_lifecycle
+                and is_resolved(report.cleanup_actual_bytes)
+                else ("info" if report.occupancy else "incomplete")
+            ),
+            kultrun=(
+                "OwnershipRecord",
+                "ManagedOccupancyItem",
+                "StorageReclaimPlan",
+            ),
+            inputs=("ownership registry", "local markers", "live/reusable roots"),
+            process=(
+                "classify occupancy",
+                "delete cleanup-eligible dual-owned roots",
+                "reconcile managed usage",
+            ),
+            decision=(
+                (
+                    f"lifecycle={report.cleanup_required_by_lifecycle} "
+                    f"capacity={report.cleanup_required_for_capacity}"
+                ),
+            ),
+            outputs=("Reconciled occupancy", "updated managed usage"),
+            consumed_by=("minimum feasibility", "storage remaining"),
         ),
         ReportLayer(
             identity="minimum",
@@ -1006,15 +1222,11 @@ def _build_layers(
                 "PoolOccupancy",
             ),
             inputs=(
-                "HostCapabilities",
-                "authorizing storage evidence",
-                "owned occupancy",
+                "HostCapabilityProfile",
+                "reconciled occupancy",
+                "capacity evidence",
             ),
-            process=(
-                "strict PASS/FAIL against minimum-host-v1",
-                "count reclaimable owned inactive bytes on the destination "
-                "quota domain",
-            ),
+            process=("strict PASS/FAIL against minimum-host-v1",),
             decision=(
                 (
                     report.minimum.verdict.value.upper()
@@ -1024,6 +1236,11 @@ def _build_layers(
             ),
             outputs=("MinimumFeasibilityAssessment", "FoundationPossibility"),
             consumed_by=("Storage & Capacity", "foundation selection"),
+            selected=(
+                report.minimum.verdict.value.upper()
+                if report.minimum is not None
+                else NOT_PROVIDED
+            ),
         ),
         ReportLayer(
             identity="storage",
@@ -1046,6 +1263,18 @@ def _build_layers(
             process=("evaluate candidates", "AUTO or MANUAL selection"),
             outputs=("FoundationSelection",),
             consumed_by=("runtime provision",),
+            candidates=tuple(
+                f"{item.runtime}/{_executor_short(item)}"
+                for item in report.runtime_candidates
+            ),
+            selected=_foundation_label(report)
+            if is_resolved(report.selected_runtime)
+            else NOT_PROVIDED,
+            reason=(
+                "highest-ranked feasible PRODUCT foundation"
+                if is_resolved(report.selected_runtime)
+                else NOT_PROVIDED
+            ),
         ),
         ReportLayer(
             identity="runtime",
@@ -1068,6 +1297,9 @@ def _build_layers(
             process=("compatibility then capacity funnel",),
             outputs=("AvailableModels",),
             consumed_by=("model selection",),
+            candidates=tuple(
+                item.logical_name for item in report.model_candidates if item.available
+            ),
         ),
         ReportLayer(
             identity="model_selection",
@@ -1079,6 +1311,14 @@ def _build_layers(
             process=("AUTO or MANUAL policy",),
             outputs=("ModelSelection",),
             consumed_by=("deployment plan",),
+            selected=_show(report.selected_model)
+            if is_resolved(report.selected_model)
+            else NOT_PROVIDED,
+            reason=(
+                "highest-ranked model in the current Available Models set"
+                if is_resolved(report.selected_model)
+                else NOT_PROVIDED
+            ),
         ),
         ReportLayer(
             identity="plan",
@@ -1138,6 +1378,9 @@ def _minimum_layer_status(report: DeploymentReport) -> str:
 def _failed_layer_title(report: DeploymentReport) -> str:
     mapping = {
         "host": "Host Discovery",
+        "cleanup": "Managed-State Reconciliation",
+        "occupancy": "Managed-State Reconciliation",
+        "reclaim": "Managed-State Reconciliation",
         "minimum": "Minimum Feasibility",
         "feasibility": "Minimum Feasibility",
         "storage": "Storage & Capacity",
@@ -1313,6 +1556,7 @@ def _model_rows(
             required_ram_bytes=item.required_ram_bytes,
             required_storage_bytes=item.incremental_storage_bytes,
             context_tokens=item.requested_context_tokens,
+            funnel_stage="available",
         )
         for item in available.members
     )
@@ -1324,10 +1568,11 @@ def _model_rows(
             quantization=NOT_PROVIDED,
             available=False,
             blocked_reason=item.reason,
-            required_vram_bytes=NOT_PROVIDED,
+            required_vram_bytes=item.required_vram_bytes,
             required_ram_bytes=NOT_PROVIDED,
-            required_storage_bytes=NOT_PROVIDED,
+            required_storage_bytes=item.weight_lower_bound_bytes,
             context_tokens=NOT_PROVIDED,
+            funnel_stage=item.stage.value,
         )
         for item in available.exclusions
     )
@@ -1382,7 +1627,12 @@ def _accelerator_lines(
 def _latest_inference(
     facts: Sequence[OperationalFact],
 ) -> tuple[int | None, str | None]:
-    latest = [fact for fact in facts if fact.event_type.value == "inference.completed"]
+    latest = [
+        fact
+        for fact in facts
+        if fact.event_type.value == "inference.completed"
+        and _is_request_inference(fact)
+    ]
     if not latest:
         return None, None
     fact = latest[-1]
@@ -1440,6 +1690,7 @@ def _verdict(
     infer_pass = any(
         fact.event_type.value == "inference.completed"
         and fact.outcome is OperationalOutcome.PASS
+        and _is_request_inference(fact)
         for fact in facts
     )
     if infer_pass:
@@ -1527,3 +1778,201 @@ def _bytes(value: object) -> str:
     if value >= 1024**2:
         return f"{value / 1024**2:.1f} MiB"
     return f"{value} B"
+
+
+_IMPORTANT_MODEL_REASONS = frozenset(
+    {
+        "infeasible_storage",
+        "infeasible_ram",
+        "infeasible_vram",
+        "infeasible_unified",
+        "weights_exceed_available_placement",
+        "unsupported_quantization",
+        "runtime_incompatible",
+    }
+)
+
+
+def _cleanup_verdict(report: DeploymentReport) -> str:
+    if is_resolved(report.cleanup_actual_bytes):
+        return "PASS"
+    if not report.cleanup_required_by_lifecycle:
+        return "PASS"
+    return "see Layer 2"
+
+
+def _occupancy_rows(items: Sequence[object]) -> tuple[OccupancyReport, ...]:
+    rows: list[OccupancyReport] = []
+    seen: dict[str, OccupancyReport] = {}
+    priority = {
+        "active": 4,
+        "reusable": 3,
+        "protected": 2,
+        "reclaimable": 1,
+        "unknown": 0,
+    }
+    for item in items:
+        occupancy = getattr(item, "occupancy_class", "unknown")
+        resource = getattr(item, "resource_type", "unknown")
+        occupied = getattr(item, "occupied_bytes", 0)
+        reason = getattr(item, "reason", "")
+        root = getattr(item, "managed_root", NOT_PROVIDED)
+        class_token = occupancy.value if hasattr(occupancy, "value") else str(occupancy)
+        type_token = resource.value if hasattr(resource, "value") else str(resource)
+        row = OccupancyReport(
+            occupancy_class=class_token,
+            resource_type=type_token,
+            occupied_bytes=occupied if isinstance(occupied, int) else 0,
+            reason=str(reason),
+            managed_root=root if isinstance(root, str) else NOT_PROVIDED,
+        )
+        key = row.managed_root if isinstance(row.managed_root, str) else row.reason
+        existing = seen.get(str(key))
+        if existing is None or priority.get(class_token, 0) > priority.get(
+            existing.occupancy_class, 0
+        ):
+            seen[str(key)] = row
+    rows.extend(seen.values())
+    return tuple(rows)
+
+
+def _cleanup_flag(facts: Sequence[OperationalFact], key: str) -> bool:
+    for fact in reversed(facts):
+        raw = attr_value(fact, key)
+        if raw is not None:
+            return raw.lower() in {"true", "1", "yes"}
+    return False
+
+
+def _fact_int(facts: Sequence[OperationalFact], event: str, key: str) -> Maybe[int]:
+    for fact in reversed(facts):
+        if fact.event_type.value != event:
+            continue
+        raw = attr_value(fact, key)
+        if raw is None:
+            continue
+        token = raw.lstrip("-")
+        if token.isdigit():
+            return int(raw)
+    return NOT_PROVIDED
+
+
+def _funnel_count(rows: Sequence[object], value: int) -> Maybe[int]:
+    return value if rows else NOT_PROVIDED
+
+
+def _count_tier(rows: Sequence[RuntimeCandidateReport], token: str) -> int:
+    return sum(1 for item in rows if item.support_tier.lower() == token)
+
+
+def _count_host_ok(rows: Sequence[RuntimeCandidateReport]) -> int:
+    return sum(
+        1
+        for item in rows
+        if "unsupported_platform" not in item.reason_codes
+        and "host_os_unsupported" not in item.reason_codes
+    )
+
+
+def _count_executor_ok(rows: Sequence[RuntimeCandidateReport]) -> int:
+    return sum(1 for item in rows if "executor_unavailable" not in item.reason_codes)
+
+
+def _count_compat(rows: Sequence[RuntimeCandidateReport], token: str) -> int:
+    return sum(1 for item in rows if item.compatibility.lower() == token)
+
+
+def _policy_compatible(available: AvailableModelView | None) -> Maybe[int]:
+    if available is None:
+        return NOT_PROVIDED
+    blocked = sum(1 for item in available.exclusions if item.reason == "policy_blocked")
+    return max(0, available.compatibility_count - blocked)
+
+
+def _model_stage_count(
+    available: AvailableModelView | None, blocked_reason: str
+) -> Maybe[int]:
+    if available is None:
+        return NOT_PROVIDED
+    members = available.available_count
+    if blocked_reason == "infeasible_storage":
+        extra = sum(
+            1
+            for item in available.exclusions
+            if item.reason in {"infeasible_ram", "infeasible_vram"}
+            or item.stage.value == "runtime_calibration"
+        )
+        return members + extra
+    if blocked_reason == "infeasible_ram":
+        extra = sum(
+            1
+            for item in available.exclusions
+            if item.reason == "infeasible_vram"
+            or item.stage.value == "runtime_calibration"
+        )
+        return members + extra
+    extra = sum(
+        1 for item in available.exclusions if item.stage.value == "runtime_calibration"
+    )
+    return members + extra
+
+
+def _minimum_source(
+    facts: Sequence[OperationalFact], minimum: MinimumFeasibilityAssessment | None
+) -> Maybe[str]:
+    for fact in reversed(facts):
+        if fact.event_type.value == "minimum.feasibility_completed":
+            return "realize"
+    if minimum is not None:
+        return "live"
+    return NOT_PROVIDED
+
+
+def _gate_minimum(
+    live: MinimumFeasibilityAssessment | None, facts: Sequence[OperationalFact]
+) -> MinimumFeasibilityAssessment | None:
+    if live is None:
+        return None
+    realized = None
+    for fact in reversed(facts):
+        if fact.event_type.value == "minimum.feasibility_completed":
+            realized = attr_value(fact, "verdict")
+            break
+    if realized == "pass" and live.verdict is MinimumFeasibilityVerdict.FAIL:
+        return replace(live, verdict=MinimumFeasibilityVerdict.PASS)
+    return live
+
+
+def _executor_short(item: RuntimeCandidateReport) -> str:
+    token = item.executor
+    if token in {"native-process", "process"}:
+        return "native-process"
+    if "docker" in token or "container" in token:
+        return "container"
+    extra = _show(item.executor_type)
+    if extra in {"process", "native-process"}:
+        return "native-process"
+    if extra != "-":
+        return extra
+    return token or "unknown"
+
+
+def _foundation_result(item: RuntimeCandidateReport) -> str:
+    if item.support_tier.lower() != "product":
+        if "unsupported_platform" in item.reason_codes:
+            return "NOT PLAUSIBLE"
+        return "NOT SELECTABLE"
+    if item.compatibility == "compatible":
+        return "FEASIBLE"
+    if "unsupported_platform" in item.reason_codes:
+        return "NOT PLAUSIBLE"
+    return "FILTERED"
+
+
+def _important_block(model: ModelCandidateReport) -> bool:
+    return _show(model.blocked_reason) in _IMPORTANT_MODEL_REASONS
+
+
+def _is_request_inference(fact: OperationalFact) -> bool:
+    purpose = attr_value(fact, "purpose")
+    return purpose is None or purpose == "request"

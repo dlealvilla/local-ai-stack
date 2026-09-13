@@ -751,6 +751,14 @@ class StorageReclaimPlan(Contract):
     mount_point: str = meaning("destination pool")
     expected_bytes: int = meaning("sum of planned deletes")
     actions: tuple[ReclaimAction, ...] = meaning("ordered deletes")
+    cleanup_required_by_lifecycle: bool = meaning(
+        "true when stale owned state is cleanup-eligible even if SAFE already fits",
+        default=False,
+    )
+    cleanup_required_for_capacity: bool = meaning(
+        "true when the minimum gate needed those bytes as potential capacity",
+        default=False,
+    )
 
 
 @contract(kind="storage.reclaim_result", version=1)

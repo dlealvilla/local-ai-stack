@@ -40,7 +40,7 @@ from kultrun.storage.contracts import (
     ManagedResourceType,
     OwnershipId,
 )
-from kultrun.storage.inventory import classify_occupancy
+from kultrun.storage.inventory import classify_occupancy, unique_occupancy
 from kultrun.storage.limits import POLICY_VERSION
 from kultrun.storage.ownership import OwnershipService
 from kultrun.storage.recharacterize import should_recharacterize
@@ -758,13 +758,13 @@ def test_reclaim_then_capacity_pass_continues(tmp_path: Path) -> None:
     assert not prior.exists()
     facts = journal.facts(host_caps.host_id)
     assert any(item.event_type.value == "storage.reclaim_completed" for item in facts)
-    assert any(item.event_type.value == "storage.recharacterized" for item in facts)
+    assert not any(item.event_type.value == "storage.recharacterized" for item in facts)
     completed = [
         item
         for item in facts
         if item.event_type.value == "minimum.feasibility_completed"
     ]
-    assert len(completed) == 2
+    assert len(completed) == 1
     assert any(
         item.outcome is OperationalOutcome.PASS
         and "requires_reclamation=False" in " ".join(item.attributes)
@@ -884,3 +884,104 @@ def test_layer_two_renders_reclaimable_capacity() -> None:
     assert "mlx" in text
     assert "- selected" not in text
     assert "Intended destination  /workspace" in text
+    assert "LAYER 3 — MINIMUM FEASIBILITY" in text
+    assert "Foundation Possibilities" in text
+
+
+def test_cleanup_happens_despite_sufficient_capacity(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    current = tmp_path / "current" / "state"
+    prior = tmp_path / "prior" / "state" / "models"
+    current.mkdir(parents=True)
+    prior.mkdir(parents=True)
+    (prior / "blob").write_bytes(b"x" * 4096)
+    host_caps = _linux_nvidia(mount(point="/", filesystem="ext4", free=80 * GIB))
+    dest = destination_pool(current, pools_from_host(host_caps))
+    assert dest is not None
+    ownership = OwnershipService(FileStore(tmp_path / "own"), CLOCK, current)
+    ownership.assert_owned(
+        prior,
+        host_caps.host_id,
+        ManagedResourceType.MODEL_ARTIFACT,
+        allowed_roots=(tmp_path,),
+    )
+    after = {dest.mount_point: _capacity(host_caps.host_id, dest.mount_point, 40 * GIB)}
+    service, journal, _runs, _state = _realize_for_reclaim(
+        tmp_path,
+        host_caps,
+        ownership,
+        lambda _host: (tuple(ownership.records()), (), ()),
+        _stub_characterization(after),
+    )
+    with patch("kultrun.storage.inventory.tree_bytes", return_value=17 * GIB):
+        updated = service._apply_minimum_and_reclaim(
+            host_caps,
+            _descriptors(),
+            {
+                dest.mount_point: _capacity(
+                    host_caps.host_id, dest.mount_point, 40 * GIB
+                )
+            },
+            None,
+        )
+    assert updated[dest.mount_point].authorizing_available_bytes == 40 * GIB
+    assert not prior.exists()
+    facts = journal.facts(host_caps.host_id)
+    planned = next(
+        item for item in facts if item.event_type.value == "storage.reclaim_planned"
+    )
+    assert "cleanup_lifecycle=True" in " ".join(planned.attributes)
+    assert "cleanup_capacity=False" in " ".join(planned.attributes)
+    assert any(item.event_type.value == "storage.reclaim_completed" for item in facts)
+    completed = [
+        item
+        for item in facts
+        if item.event_type.value == "minimum.feasibility_completed"
+    ]
+    assert len(completed) == 1
+    assert completed[0].outcome is OperationalOutcome.PASS
+
+
+def test_unique_occupancy_keeps_stronger_class_and_nested_bytes_once() -> None:
+    parent = _item(
+        occupancy=ManagedOccupancyClass.RECLAIMABLE,
+        occupied=10 * GIB,
+        mount_point="/",
+        quota=NOT_PROVIDED,
+        fingerprint=NOT_PROVIDED,
+        root="/workspace/prior",
+    )
+    child = _item(
+        occupancy=ManagedOccupancyClass.UNKNOWN,
+        occupied=10 * GIB,
+        mount_point="/",
+        quota=NOT_PROVIDED,
+        fingerprint=NOT_PROVIDED,
+        root="/workspace/prior/models",
+    )
+    unique = unique_occupancy((parent, child))
+    assert len(unique) == 1
+    assert unique[0].occupancy_class is ManagedOccupancyClass.RECLAIMABLE
+    same = unique_occupancy(
+        (
+            _item(
+                occupancy=ManagedOccupancyClass.UNKNOWN,
+                occupied=4 * GIB,
+                mount_point="/",
+                quota=NOT_PROVIDED,
+                fingerprint=NOT_PROVIDED,
+                root="/workspace/prior",
+            ),
+            _item(
+                occupancy=ManagedOccupancyClass.REUSABLE,
+                occupied=4 * GIB,
+                mount_point="/",
+                quota=NOT_PROVIDED,
+                fingerprint=NOT_PROVIDED,
+                root="/workspace/prior",
+            ),
+        )
+    )
+    assert len(same) == 1
+    assert same[0].occupancy_class is ManagedOccupancyClass.REUSABLE

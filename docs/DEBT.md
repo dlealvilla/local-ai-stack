@@ -2012,39 +2012,30 @@ Retire when:  every remaining unnamed caller is classified as
               diagnostic, or the heuristic is removed after an audit.
 Status:       OPEN
 
-### K-115 — Product reclaim execution still unproven on a blocking host
+### K-115 — Product reclaim on a blocking host still unproven
 Label:        WORKING
 Owner stage:  1.6L bounded pre-llama.cpp closure
 Subsystem:    storage / platform / vendor
 Authorizes:   NO
-What:         Minimum Feasibility, occupancy classification, occupancy-
-              conditional Sonar uppers, Layer 2, and the vLLM vertical
-              are physically proven on `4f3ad6166b4178ca1b16afacaf3fee25e035958a`
-              (`drun_29e57bbf3054423e`). Realize-time
-              `minimum.feasibility_completed` was PASS,
-              `requires_reclamation=false`: authorizing remaining 32 GiB
-              already covered the 24 GiB peak, so 5.9 GiB dual-owned
-              inactive sibling models were inventoried and not deleted.
-              Cheap Layer 2 after install still shows those 5.9 GiB as
-              reclaimable. Product reclaim → reconcile → re-characterize →
-              reassess was therefore not executed. Human Layer 2 can list
-              Unknown next to Reclaimable for the same sibling tree;
-              unknown is not added to potential. The
-              `minimum.feasibility_completed` fact currently copies
-              `foundations[0].family` into `runtime` (llama.cpp on this
-              host) while separate `foundation.possibility` facts carry
-              each family. Customer-facing simplified deployment UX is not
-              built. llama.cpp / MLX remain FUTURE (K-112). Do not merge
-              to authoritative `kultrun` from this closure.
-Why now:      Counting reclaimable bytes in the gate is not the same as
-              proving the product reclaim path under a blocking SAFE
-              remainder.
-To make real: a host where current SAFE < net-new peak, same-domain
-              dual-owned inactive state exists, and product reclaim is
-              required before provision. Do not `rm` prior installs or
-              fabricate occupancy to force the path.
-Retire when:  product-owned reclaim, actual-vs-expected reconcile, and
-              post-reclaim re-characterization are physically proven.
+What:         Lifecycle cleanup of cleanup-eligible dual-owned state is
+              now the product rule even when current SAFE already covers
+              the peak (`cleanup_required_by_lifecycle` vs
+              `cleanup_required_for_capacity`). Realize no longer copies
+              `foundations[0]` into selected runtime. Remaining physical
+              proof is the always-clean path on a real host that still
+              holds inactive sibling Kultrun roots, plus occupancy-
+              conditional Sonar when SAFE still blocks after delete.
+              Customer-facing simplified deployment UX is not built.
+              llama.cpp / MLX remain FUTURE (K-112). Do not merge to
+              authoritative `kultrun` from this closure.
+Why now:      The previous closure inventoried 5.9 GiB reclaimable
+              sibling models and skipped delete because SAFE fitted.
+To make real: physical always-clean of genuine prior Kultrun-owned
+              inactive state, even when SAFE >= peak. Do not `rm` prior
+              installs or fabricate occupancy to force the path.
+Retire when:  product-owned always-clean reclaim is physically proven and
+              the guided DeploymentReport answers the stack journey
+              without logs.
 Status:       OPEN
 
 Stop of a serving process continues to release the GPU process while

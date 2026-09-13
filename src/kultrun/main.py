@@ -1427,6 +1427,7 @@ def _compose_report(platform: Platform) -> DeploymentReport:
         reservations=platform.resources.reservations(include_released=True),
         intended_storage_pool=dest.mount_point if dest is not None else None,
         minimum=minimum,
+        occupancy_items=items,
     )
 
 
@@ -3543,6 +3544,7 @@ def infer_named_instance(arguments: Sequence[str]) -> int:
                 "finish_reason",
                 response.finish_reason if resolved(response.finish_reason) else "-",
             ),
+            attr("purpose", "request"),
         ),
     )
     platform.journal.emit(

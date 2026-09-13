@@ -102,6 +102,7 @@ _QUIET_PROGRESS = frozenset(
         "model.available",
         "runtime.candidate_evaluated",
         "deployment.started",
+        "foundation.possibility",
     }
 )
 
@@ -114,6 +115,16 @@ def format_progress(fact: OperationalFact) -> str:
         return f"[MODELS] {fact.summary}"
     if fact.event_type.value == "runtime.selected":
         return f"[FOUNDATION] {fact.summary}"
+    if fact.event_type.value == "runtime.funnel_completed":
+        return f"[FOUNDATION] {fact.summary}"
+    if fact.event_type.value in {
+        "storage.occupancy_classified",
+        "storage.reclaim_planned",
+        "storage.reclaim_completed",
+    }:
+        return f"[CLEANUP] {fact.summary}"
+    if fact.event_type.value == "minimum.feasibility_completed":
+        return f"[MINIMUM] {fact.summary}"
     label = {
         OperationalStage.RUN: "RUN",
         OperationalStage.HOST: "HOST",
@@ -240,9 +251,7 @@ class SonarProgressAdapter:
                 ),
             )
         self._completed[mount] = completed
-        code = (
-            evidence.failure_code if is_resolved(evidence.failure_code) else None
-        )
+        code = evidence.failure_code if is_resolved(evidence.failure_code) else None
         if not isinstance(code, str) or not code:
             return
         previous = self._failed.get(mount)

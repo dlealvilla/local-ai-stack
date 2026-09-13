@@ -158,7 +158,7 @@ def test_report_projection_from_stored_state() -> None:
     assert "/workspace" in text
     assert "Managed by Kultrun" in text
     assert "UNTRUSTED" in text
-    assert "LAYER 2 — MINIMUM FEASIBILITY" in text
+    assert "LAYER 3 — MINIMUM FEASIBILITY" in text
 
 
 def test_telemetry_disabled_by_default_and_never_required() -> None:
@@ -433,20 +433,20 @@ def test_report_keeps_root_and_workspace_sonar_separate() -> None:
     assert report.selected_runtime == "cand_selected"
     assert report.plan_runtime_candidate == "cand_plan"
     text = format_deployment_report(report)
-    storage_text = text.split("LAYER 4 — EXECUTION FOUNDATION", 1)[0]
+    storage_text = text.split("LAYER 5 — EXECUTION FOUNDATION", 1)[0]
     root_section, workspace_section = storage_text.split("  Pool  /workspace", 1)
     assert "8 GiB EDQUOT" in root_section
     assert "32 GiB PASS" not in root_section
     assert "32 GiB PASS" in workspace_section
-    assert "LAYER 4 — EXECUTION FOUNDATION" in text
-    assert "LAYER 10 — INSTANCE & INFERENCE" in text
-    assert "Inference 1" in text
-    assert "Inference 2" in text
-    assert "  Inference 2     PASS  9 ms" in text
+    assert "LAYER 5 — EXECUTION FOUNDATION" in text
+    assert "LAYER 11 — INSTANCE & INFERENCE" in text
+    assert "INFERENCE 1" in text
+    assert "INFERENCE 2" in text
+    assert "Latency        9 ms" in text
     assert "instance.started" in text
     assert "instance.stopped" in text
     assert "instance.restarted" in text
-    assert "inference.completed" in text
+    assert "inference.completed" not in text
     assert report.latest_inference_latency_ms == 9
     assert report.inferences[-1].latency_ms == 9
     debug = format_deployment_report(report, debug=True)
@@ -576,6 +576,7 @@ def test_layers_are_ordered_and_linked() -> None:
     assert identities == (
         "run",
         "host",
+        "cleanup",
         "minimum",
         "storage",
         "foundation",
@@ -591,16 +592,17 @@ def test_layers_are_ordered_and_linked() -> None:
     for heading in (
         "LAYER 0 — RUN",
         "LAYER 1 — HOST DISCOVERY",
-        "LAYER 2 — MINIMUM FEASIBILITY",
-        "LAYER 3 — STORAGE & CAPACITY",
-        "LAYER 4 — EXECUTION FOUNDATION",
-        "LAYER 5 — RUNTIME ENVIRONMENT",
-        "LAYER 6 — MODEL FEASIBILITY",
-        "LAYER 7 — MODEL SELECTION",
-        "LAYER 8 — DEPLOYMENT PLAN",
-        "LAYER 9 — RESOURCE ADMISSION",
-        "LAYER 10 — INSTANCE & INFERENCE",
-        "LAYER 11 — FINAL OUTCOME",
+        "LAYER 2 — MANAGED-STATE RECONCILIATION",
+        "LAYER 3 — MINIMUM FEASIBILITY",
+        "LAYER 4 — STORAGE & CAPACITY",
+        "LAYER 5 — EXECUTION FOUNDATION",
+        "LAYER 6 — RUNTIME ENVIRONMENT",
+        "LAYER 7 — MODEL FEASIBILITY",
+        "LAYER 8 — MODEL SELECTION",
+        "LAYER 9 — DEPLOYMENT PLAN",
+        "LAYER 10 — RESOURCE ADMISSION",
+        "LAYER 11 — INSTANCE & INFERENCE",
+        "LAYER 12 — FINAL OUTCOME",
     ):
         assert heading in text
     assert report.run_id == "drun_test0000000001"
@@ -736,7 +738,8 @@ def test_latest_inference_follows_occurred_at() -> None:
     assert report.inferences[0].latency_ms == 686
     assert report.inferences[1].latency_ms == 473
     text = format_deployment_report(report)
-    assert "Inference 2     PASS  473 ms" in text
+    assert "INFERENCE 2" in text
+    assert "Latency        473 ms" in text
 
 
 def test_failure_boundary_names_the_layer() -> None:
@@ -997,6 +1000,484 @@ def test_guided_report_replays_physical_16l_shape() -> None:
     assert "16 GiB PASS" in text
     assert "32 GiB PASS" in text
     assert "48 GiB EDQUOT" in text
-    assert "Inference 2     PASS  473 ms" in text
+    assert "INFERENCE 2" in text
+    assert "Latency        473 ms" in text
     assert "OVERALL: PASS" in text
     assert "Manual intervention  NONE" in text
+
+
+def _runtime_candidate(
+    subject: HostCapabilities,
+    *,
+    ident: str,
+    runtime: str,
+    executor: str,
+    executor_type: str,
+    tier: str,
+    compatibility: str,
+    reasons: tuple[str, ...] = (),
+    version: str = "0.28.0",
+):
+    from kultrun.evidence.contracts import Confidence
+    from kultrun.runtime.contracts import (
+        CompatibilityClass,
+        ResolutionReasonCode,
+        RuntimeCandidate,
+        RuntimeCandidateId,
+        RuntimeResolverMode,
+        RuntimeSupportTier,
+    )
+
+    codes = tuple(ResolutionReasonCode(item) for item in reasons)
+    del ident
+    return RuntimeCandidate(
+        candidate_id=RuntimeCandidateId.generate(),
+        runtime=Name(runtime),
+        runtime_family=Name(runtime),
+        runtime_provider=Name(runtime),
+        executor=Name(executor),
+        executor_type=Name(executor_type),
+        host_id=subject.host_id,
+        compatibility=CompatibilityClass(compatibility),
+        support_tier=RuntimeSupportTier(tier),
+        reason="fixture",
+        version=version,
+        reason_codes=codes,
+        confidence=Confidence.MEDIUM,
+        policy_mode=RuntimeResolverMode.AUTO,
+    )
+
+
+def test_runtime_funnel_distinguishes_executor_and_recommendation() -> None:
+    from kultrun.runtime.contracts import (
+        FoundationSelection,
+        FoundationSelectionId,
+        FoundationSelectionMode,
+    )
+
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(subject, ())
+    native = _runtime_candidate(
+        subject,
+        ident="rcand_native0000001",
+        runtime="vllm",
+        executor="native-process",
+        executor_type="process",
+        tier="product",
+        compatibility="compatible",
+    )
+    container = _runtime_candidate(
+        subject,
+        ident="rcand_docker0000001",
+        runtime="vllm",
+        executor="container",
+        executor_type="container",
+        tier="product",
+        compatibility="unsupported",
+        reasons=("executor_unavailable",),
+    )
+    llama = _runtime_candidate(
+        subject,
+        ident="rcand_llama00000001",
+        runtime="llama.cpp",
+        executor="native-process",
+        executor_type="process",
+        tier="future",
+        compatibility="compatible",
+    )
+    selection = FoundationSelection(
+        selection_id=FoundationSelectionId.parse("fsel_" + "c" * 16),
+        host_id=subject.host_id,
+        selection_mode=FoundationSelectionMode.AUTO,
+        created_at=INSTANT,
+        selected_at=INSTANT,
+        recommended_candidate_id=native.candidate_id.value,
+        selected_candidate_id=native.candidate_id.value,
+    )
+    report = compose_deployment_report(
+        host=subject,
+        envelope=envelope,
+        composed_at=INSTANT,
+        kultrun_build="test-build",
+        storage_evidence={},
+        empirical={},
+        managed={},
+        candidates=(native, container, llama),
+        recommended_candidate_id=native.candidate_id.value,
+        selection=selection,
+        installations=(),
+        provisioning_plans=(),
+        profiles={},
+        available=None,
+        model_selection=None,
+        deployment_plan=None,
+        instances=(),
+        executions=(),
+        facts=(),
+    )
+    assert report.runtime_discovered == 3
+    assert report.runtime_product_selectable == 2
+    assert report.runtime_executor_compatible == 2
+    assert report.runtime_capacity_feasible == 2
+    text = format_deployment_report(report)
+    assert "vllm/native-process" in text
+    assert "vllm/container" in text
+    assert "NOT SELECTABLE" in text
+    assert "FILTERED" in text
+    assert "Recommended" in text
+    assert "Selected" in text
+    assert "- selected" not in text
+    assert report.recommended_runtime == native.candidate_id.value
+    assert report.selected_runtime == native.candidate_id.value
+
+
+def test_model_funnel_and_blocked_reasons() -> None:
+    from kultrun.planning.contracts import (
+        AvailableModelExclusion,
+        AvailableModelMember,
+        AvailableModelView,
+        AvailableModelViewId,
+        AvailableViewStatus,
+        FunnelStage,
+        ModelSelection,
+        ModelSelectionId,
+        ModelSelectionMode,
+    )
+
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(subject, ())
+    member = AvailableModelMember(
+        model_id="mdl_ok",
+        logical_name="qwen2.5-7b-instruct-awq",
+        source_ref="org/qwen",
+        source_revision=NOT_PROVIDED,
+        runtime="vllm",
+        runtime_version="0.28.0",
+        quantization="awq",
+        requested_context_tokens=4096,
+        required_vram_bytes=8 * GIB,
+        available_vram_bytes=24 * GIB,
+        required_ram_bytes=16 * GIB,
+        available_ram_bytes=48 * GIB,
+        incremental_storage_bytes=GIB,
+        available_storage_bytes=32 * GIB,
+        requirement_provider="test",
+        requirement_confidence="low",
+        requirement_basis="basis-ok",
+    )
+    blocked_storage = AvailableModelExclusion(
+        model_id="mdl_big",
+        logical_name="llama-8b-fp16",
+        stage=FunnelStage.DEEP_CAPACITY,
+        reason="infeasible_storage",
+    )
+    blocked_vram = AvailableModelExclusion(
+        model_id="mdl_vram",
+        logical_name="qwen-72b-awq",
+        stage=FunnelStage.DEEP_CAPACITY,
+        reason="infeasible_vram",
+        required_vram_bytes=40 * GIB,
+        available_vram_bytes=24 * GIB,
+    )
+    available = AvailableModelView(
+        view_id=AvailableModelViewId.generate(),
+        host_id=subject.host_id,
+        status=AvailableViewStatus.CURRENT,
+        evaluated_at=INSTANT,
+        view_basis="view-test",
+        snapshot_basis="snap",
+        host_fingerprint="fp",
+        eligible_view_id="emv_test",
+        runtime="vllm",
+        runtime_version="0.28.0",
+        requested_context_tokens=4096,
+        universe_count=4,
+        discovered_count=4,
+        compatibility_count=4,
+        cheap_reject_count=0,
+        deep_analyzed_count=3,
+        available_count=1,
+        excluded_count=2,
+        estimator_invocations=3,
+        members=(member,),
+        exclusions=(blocked_storage, blocked_vram),
+    )
+    model_selection = ModelSelection(
+        selection_id=ModelSelectionId.generate(),
+        host_id=subject.host_id,
+        selection_mode=ModelSelectionMode.AUTO,
+        created_at=INSTANT,
+        selected_at=INSTANT,
+        selection_basis="sel",
+        recommended_logical_name="qwen2.5-7b-instruct-awq",
+        selected_logical_name="qwen2.5-7b-instruct-awq",
+    )
+    report = compose_deployment_report(
+        host=subject,
+        envelope=envelope,
+        composed_at=INSTANT,
+        kultrun_build="test-build",
+        storage_evidence={},
+        empirical={},
+        managed={},
+        candidates=(),
+        recommended_candidate_id=None,
+        selection=None,
+        installations=(),
+        provisioning_plans=(),
+        profiles={},
+        available=available,
+        model_selection=model_selection,
+        deployment_plan=None,
+        instances=(),
+        executions=(),
+        facts=(),
+    )
+    assert report.catalog_count == 4
+    assert report.available_count == 1
+    assert report.model_storage_feasible == 2
+    assert report.recommended_model == "qwen2.5-7b-instruct-awq"
+    assert report.selected_model == "qwen2.5-7b-instruct-awq"
+    text = format_deployment_report(report)
+    assert "AVAILABLE" in text
+    assert "infeasible_storage" in text
+    assert "infeasible_vram" in text
+    assert report.selection_mode == "auto"
+
+
+def test_readiness_probe_is_not_counted_as_inference() -> None:
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(subject, ())
+    ready = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=subject.host_id,
+        occurred_at=INSTANT,
+        stage=OperationalStage.INSTANCE,
+        event_type=Name("inference.completed"),
+        outcome=OperationalOutcome.PASS,
+        summary="readiness probe",
+        attributes=(attr("latency_ms", 12), attr("purpose", "readiness")),
+    )
+    request = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=subject.host_id,
+        occurred_at=INSTANT + dt.timedelta(seconds=1),
+        stage=OperationalStage.INFERENCE,
+        event_type=Name("inference.completed"),
+        outcome=OperationalOutcome.PASS,
+        summary="inference PASS",
+        attributes=(attr("latency_ms", 125), attr("purpose", "request")),
+    )
+    report = _compose(subject, envelope, (ready, request))
+    assert report.latest_inference_latency_ms == 125
+    text = format_deployment_report(report)
+    assert "INFERENCE 1" in text
+    assert "INFERENCE 2" not in text
+    assert "125" in text
+
+
+def test_realize_minimum_is_not_overwritten_by_live_remaining() -> None:
+    from kultrun.platform.contracts import MinimumFeasibilityVerdict
+    from kultrun.platform.minimum import assess_minimum, destination_pool
+    from kultrun.storage.topology import pools_from_host
+
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(
+        subject,
+        (
+            PoolCapacity(
+                mount_point="/workspace",
+                space=_layered(4 * GIB),
+                requirement=EvidenceRequirement.SUFFICIENT,
+                filesystem_type="ext4",
+            ),
+        ),
+    )
+    dest = destination_pool(Path("/workspace/app/state"), pools_from_host(subject))
+    live = assess_minimum(
+        subject,
+        destination=dest,
+        evidence=None,
+        items=(),
+        descriptors=(),
+        ram_safe_bytes=32 * GIB,
+    )
+    fact = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=subject.host_id,
+        occurred_at=INSTANT,
+        stage=OperationalStage.FEASIBILITY,
+        event_type=Name("minimum.feasibility_completed"),
+        outcome=OperationalOutcome.PASS,
+        summary="MINIMUM FEASIBILITY PASS",
+        attributes=(attr("verdict", "pass"),),
+    )
+    report = compose_deployment_report(
+        host=subject,
+        envelope=envelope,
+        composed_at=INSTANT,
+        kultrun_build="test-build",
+        storage_evidence={},
+        empirical={},
+        managed={},
+        candidates=(),
+        recommended_candidate_id=None,
+        selection=None,
+        installations=(),
+        provisioning_plans=(),
+        profiles={},
+        available=None,
+        model_selection=None,
+        deployment_plan=None,
+        instances=(),
+        executions=(),
+        facts=(fact,),
+        minimum=live,
+    )
+    assert report.minimum_source == "realize"
+    assert report.minimum is not None
+    assert report.minimum.verdict is MinimumFeasibilityVerdict.PASS
+    text = format_deployment_report(report)
+    assert "Deployment-time assessment  PASS" in text
+    assert "post-install" in text
+
+
+def test_cleanup_and_funnel_progress_columns() -> None:
+    host_id = HostId.generate()
+    occupancy = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=host_id,
+        occurred_at=now_utc(),
+        stage=OperationalStage.STORAGE,
+        event_type=Name("storage.occupancy_classified"),
+        outcome=OperationalOutcome.INFO,
+        summary="17.0 GiB obsolete Kultrun state identified",
+    )
+    reclaimed = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=host_id,
+        occurred_at=now_utc(),
+        stage=OperationalStage.STORAGE,
+        event_type=Name("storage.reclaim_completed"),
+        outcome=OperationalOutcome.PASS,
+        summary="Cleanup PASS — 16.8 GiB reclaimed",
+    )
+    minimum = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=host_id,
+        occurred_at=now_utc(),
+        stage=OperationalStage.FEASIBILITY,
+        event_type=Name("minimum.feasibility_completed"),
+        outcome=OperationalOutcome.PASS,
+        summary="MINIMUM FEASIBILITY PASS",
+    )
+    funnel = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=host_id,
+        occurred_at=now_utc(),
+        stage=OperationalStage.RUNTIME,
+        event_type=Name("runtime.funnel_completed"),
+        outcome=OperationalOutcome.INFO,
+        summary="4 candidates → 1 feasible",
+    )
+    assert format_progress(occupancy).startswith("[CLEANUP]")
+    assert format_progress(reclaimed) == ("[CLEANUP] Cleanup PASS — 16.8 GiB reclaimed")
+    assert format_progress(minimum) == "[MINIMUM] MINIMUM FEASIBILITY PASS"
+    assert format_progress(funnel) == "[FOUNDATION] 4 candidates → 1 feasible"
+
+
+def test_sanitize_funnel_fields_and_drops_purpose() -> None:
+    fact = OperationalFact(
+        fact_id=OperationalFactId.generate(),
+        host_id=HostId.generate(),
+        occurred_at=now_utc(),
+        stage=OperationalStage.RUNTIME,
+        event_type=Name("runtime.funnel_completed"),
+        outcome=OperationalOutcome.INFO,
+        summary="4 candidates → 1 feasible",
+        correlation_id="drun_funnel00000000",
+        attributes=(
+            attr("discovered", 4),
+            attr("product_selectable", 2),
+            attr("host_compatible", 2),
+            attr("executor_compatible", 1),
+            attr("capacity_feasible", 1),
+            attr("cleanup_lifecycle", True),
+            attr("cleanup_capacity", False),
+            attr("purpose", "request"),
+            attr("mount", "/workspace/customer/models"),
+        ),
+    )
+    record = sanitize_fact(fact)
+    encoded = str(to_dict(record))
+    assert record.discovered == "4"
+    assert record.product_selectable == "2"
+    assert record.cleanup_lifecycle == "True"
+    assert record.cleanup_capacity == "False"
+    assert "customer" not in encoded
+    assert "purpose" not in encoded
+    assert "request" not in encoded
+
+
+def test_occupancy_categories_are_mutually_exclusive() -> None:
+    from kultrun.storage.contracts import (
+        ManagedOccupancyClass,
+        ManagedOccupancyItem,
+        ManagedResourceType,
+        OwnershipId,
+    )
+
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(subject, ())
+    items = (
+        ManagedOccupancyItem(
+            ownership_id=OwnershipId.generate(),
+            resource_type=ManagedResourceType.MODEL_ARTIFACT,
+            occupancy_class=ManagedOccupancyClass.UNKNOWN,
+            managed_root="/workspace/prior/models",
+            occupied_bytes=5 * GIB,
+            mount_point="/workspace",
+            quota_identity=NOT_PROVIDED,
+            pool_fingerprint=NOT_PROVIDED,
+            reason="unproven",
+        ),
+        ManagedOccupancyItem(
+            ownership_id=OwnershipId.generate(),
+            resource_type=ManagedResourceType.MODEL_ARTIFACT,
+            occupancy_class=ManagedOccupancyClass.RECLAIMABLE,
+            managed_root="/workspace/prior/models",
+            occupied_bytes=5 * GIB,
+            mount_point="/workspace",
+            quota_identity=NOT_PROVIDED,
+            pool_fingerprint=NOT_PROVIDED,
+            reason="inactive owned",
+        ),
+    )
+    report = compose_deployment_report(
+        host=subject,
+        envelope=envelope,
+        composed_at=INSTANT,
+        kultrun_build="test-build",
+        storage_evidence={},
+        empirical={},
+        managed={},
+        candidates=(),
+        recommended_candidate_id=None,
+        selection=None,
+        installations=(),
+        provisioning_plans=(),
+        profiles={},
+        available=None,
+        model_selection=None,
+        deployment_plan=None,
+        instances=(),
+        executions=(),
+        facts=(),
+        occupancy_items=items,
+    )
+    reclaimable = [
+        item for item in report.occupancy if item.occupancy_class == "reclaimable"
+    ]
+    unknown = [item for item in report.occupancy if item.occupancy_class == "unknown"]
+    assert len(reclaimable) == 1
+    assert unknown == []

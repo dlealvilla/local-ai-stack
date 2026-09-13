@@ -362,6 +362,9 @@ class RuntimeCandidateReport(Contract):
     reason_codes: tuple[str, ...] = meaning("normalized reason codes")
     recommended: bool = meaning("true when this is the current recommendation")
     selected: bool = meaning("true when this is the selected foundation")
+    executor_type: Maybe[str] = meaning(
+        "generic executor type such as process or container", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="platform.report_runtime_install", version=1)
@@ -394,6 +397,10 @@ class ModelCandidateReport(Contract):
     required_ram_bytes: Maybe[int] = meaning("evaluated RAM demand")
     required_storage_bytes: Maybe[int] = meaning("evaluated storage demand")
     context_tokens: Maybe[int] = meaning("context assumption")
+    funnel_stage: Maybe[str] = meaning(
+        "funnel stage that excluded this candidate, when blocked",
+        default=NOT_PROVIDED,
+    )
 
 
 @contract(kind="platform.report_instance", version=1)
@@ -433,6 +440,11 @@ class ReportLayer(Contract):
     decision: tuple[str, ...] = meaning("what was measured or chosen", default=())
     outputs: tuple[str, ...] = meaning("structured output of this layer", default=())
     consumed_by: tuple[str, ...] = meaning("what consumes that output", default=())
+    candidates: tuple[str, ...] = meaning(
+        "options considered at this layer, when a funnel applies", default=()
+    )
+    selected: Maybe[str] = meaning("chosen or measured result", default=NOT_PROVIDED)
+    reason: Maybe[str] = meaning("why that result was reached", default=NOT_PROVIDED)
 
 
 @contract(kind="platform.decision_snapshot", version=1)
@@ -470,6 +482,10 @@ class InferenceObservation(Contract):
     )
     finish_reason: Maybe[str] = meaning(
         "runtime finish class when recorded", default=NOT_PROVIDED
+    )
+    purpose: Maybe[str] = meaning(
+        "request for user/inference CLI; readiness is never this",
+        default=NOT_PROVIDED,
     )
 
 
@@ -568,6 +584,85 @@ class DeploymentReport(Contract):
     )
     minimum: MinimumFeasibilityAssessment | None = meaning(
         "strict Layer-2 gate projection, when composed", default=None
+    )
+    current_minimum: MinimumFeasibilityAssessment | None = meaning(
+        "live remaining assessment after install; not a retrospective gate",
+        default=None,
+    )
+    occupancy: tuple[OccupancyReport, ...] = meaning(
+        "collapsed owned occupancy rows for the destination pool", default=()
+    )
+    cleanup_required_by_lifecycle: bool = meaning(
+        "true when stale owned state was cleanup-eligible", default=False
+    )
+    cleanup_required_for_capacity: bool = meaning(
+        "true when the minimum gate needed reclaim as potential capacity",
+        default=False,
+    )
+    cleanup_expected_bytes: Maybe[int] = meaning(
+        "planned reclaim at realize time", default=NOT_PROVIDED
+    )
+    cleanup_actual_bytes: Maybe[int] = meaning(
+        "bytes actually released by product reclaim", default=NOT_PROVIDED
+    )
+    plan_quantization: Maybe[str] = meaning(
+        "selected quantization on the current plan", default=NOT_PROVIDED
+    )
+    plan_executor: Maybe[str] = meaning(
+        "executor on the current plan", default=NOT_PROVIDED
+    )
+    plan_revision: Maybe[str] = meaning(
+        "model revision on the current plan", default=NOT_PROVIDED
+    )
+    plan_context_tokens: Maybe[int] = meaning(
+        "context length the plan assumed", default=NOT_PROVIDED
+    )
+    runtime_discovered: Maybe[int] = meaning(
+        "runtime candidate funnel: discovered", default=NOT_PROVIDED
+    )
+    runtime_product_selectable: Maybe[int] = meaning(
+        "runtime candidate funnel: product-selectable", default=NOT_PROVIDED
+    )
+    runtime_host_compatible: Maybe[int] = meaning(
+        "runtime candidate funnel: host-compatible", default=NOT_PROVIDED
+    )
+    runtime_executor_compatible: Maybe[int] = meaning(
+        "runtime candidate funnel: executor-compatible", default=NOT_PROVIDED
+    )
+    runtime_capacity_feasible: Maybe[int] = meaning(
+        "runtime candidate funnel: capacity-feasible", default=NOT_PROVIDED
+    )
+    model_policy_compatible: Maybe[int] = meaning(
+        "model funnel survivors after product policy", default=NOT_PROVIDED
+    )
+    model_storage_feasible: Maybe[int] = meaning(
+        "model funnel survivors after storage", default=NOT_PROVIDED
+    )
+    model_ram_feasible: Maybe[int] = meaning(
+        "model funnel survivors after RAM", default=NOT_PROVIDED
+    )
+    model_vram_feasible: Maybe[int] = meaning(
+        "model funnel survivors after VRAM", default=NOT_PROVIDED
+    )
+    minimum_source: Maybe[str] = meaning(
+        "realize when projected from realize-time facts; live otherwise",
+        default=NOT_PROVIDED,
+    )
+
+
+@contract(kind="platform.occupancy_report", version=1)
+@dataclass(frozen=True, slots=True)
+class OccupancyReport(Contract):
+    """One owned root as the report presents it. Paths stay out of default text."""
+
+    occupancy_class: str = meaning(
+        "active, reusable, reclaimable, protected, or unknown"
+    )
+    resource_type: str = meaning("managed resource kind")
+    occupied_bytes: int = meaning("tree size at compose time")
+    reason: str = meaning("why this class was assigned")
+    managed_root: Maybe[str] = meaning(
+        "absolute path; debug/JSON only", default=NOT_PROVIDED
     )
 
 

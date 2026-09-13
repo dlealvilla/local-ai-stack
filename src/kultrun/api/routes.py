@@ -326,6 +326,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
             reservations=plane.resources.reservations(include_released=True),
             intended_storage_pool=dest.mount_point if dest is not None else None,
             minimum=minimum,
+            occupancy_items=items,
         )
 
     def deployment_run(_: ApiRequest) -> object:

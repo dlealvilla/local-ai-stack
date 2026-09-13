@@ -36,10 +36,12 @@ from kultrun.resource.contracts import (
 )
 from kultrun.resource.manager import ResourceManager
 from kultrun.runtime.contracts import (
+    CompatibilityClass,
     InstallationStatus,
     RuntimeInstallation,
     RuntimePolicy,
     RuntimeSupportDescriptor,
+    RuntimeSupportTier,
 )
 from kultrun.runtime.resolve import ExecutorCapabilityView
 from kultrun.runtime.selection import FoundationOverview, FoundationSelectionService
@@ -50,13 +52,18 @@ from kultrun.storage.contracts import (
     OwnershipRecord,
     StorageCapacityEvidence,
     StorageFailureCode,
+    StoragePool,
     StorageSanityEvidence,
 )
 from kultrun.storage.contradiction import contradict
 from kultrun.storage.failures import is_capacity_failure
 from kultrun.storage.footprint import runtime_provisioning_requirement
 from kultrun.storage.index import StorageEvidenceIndex
-from kultrun.storage.inventory import classify_occupancy, totals_by_pool
+from kultrun.storage.inventory import (
+    classify_occupancy,
+    totals_by_pool,
+    unique_occupancy,
+)
 from kultrun.storage.ownership import OwnershipService
 from kultrun.storage.recharacterize import should_recharacterize
 from kultrun.storage.reclaim import execute_reclaim, plan_reclaim
@@ -110,12 +117,14 @@ class FoundationRealizeService:
     ) -> tuple[ManagedOccupancyItem, ...]:
         """Classify dual-owned roots. Does not probe or delete."""
         records, live_roots, reusable_roots = self._occupancy(host)
-        return classify_occupancy(
-            records,
-            pools_from_host(host),
-            current_state_root=self._state_root,
-            live_roots=live_roots,
-            reusable_roots=reusable_roots,
+        return unique_occupancy(
+            classify_occupancy(
+                records,
+                pools_from_host(host),
+                current_state_root=self._state_root,
+                live_roots=live_roots,
+                reusable_roots=reusable_roots,
+            )
         )
 
     def realize(
@@ -296,6 +305,7 @@ class FoundationRealizeService:
             storage_evidence=storage_evidence,
             require_storage=True,
         )
+        self._emit_runtime_funnel(host.host_id, overview)
         selected = overview.selection.selected_candidate_id
         if not isinstance(selected, str):
             raise PreconditionFailedError(
@@ -479,70 +489,34 @@ class FoundationRealizeService:
         )
         mount = dest.mount_point if dest is not None else None
         evidence = storage_evidence.get(mount) if isinstance(mount, str) else None
-        empirical = None
-        if self._index is not None and dest is not None:
-            empirical = self._index.empirical_for_host(host).get(dest.mount_point)
         envelope = self._capacity.compute(
             host, sanity or {}, storage_evidence=storage_evidence
         )
-        reclaimable = 0
-        if dest is not None:
-            grouped = totals_by_pool(items).get(dest.mount_point)
-            if grouped is not None:
-                reclaimable = grouped.reclaimable_bytes
-        current_safe: object = NOT_PROVIDED
-        if dest is not None:
-            for pool in envelope.pools:
-                if pool.mount_point == dest.mount_point:
-                    current_safe = pool.space.safe_bytes
-                    break
-        peak = runtime_provisioning_requirement().required_peak_free_bytes
-        required = peak if isinstance(peak, int) else 0
-        blocks = not is_resolved(current_safe) or (
-            isinstance(current_safe, int) and current_safe < required
+        grouped = (
+            totals_by_pool(items).get(dest.mount_point) if dest is not None else None
         )
-        managed_now = None
-        if dest is not None:
-            grouped = totals_by_pool(items).get(dest.mount_point)
-            if grouped is not None:
-                managed_now = (
-                    grouped.active_bytes
-                    + grouped.reusable_bytes
-                    + grouped.reclaimable_bytes
-                    + grouped.protected_bytes
-                )
-        if (
-            dest is not None
-            and self._index is not None
-            and should_recharacterize(
-                empirical,
-                evidence,
-                managed_now=managed_now if isinstance(managed_now, int) else None,
-                reclaimable_bytes=reclaimable,
-                current_safe_blocks=blocks,
-            )
-        ):
-            self._emit(
-                host.host_id,
-                OperationalStage.STORAGE,
-                "storage.recharacterized",
-                "occupancy dropped; occupancy-conditional upper is not a quota",
-                OperationalOutcome.INFO,
-                reason="managed_occupancy_dropped",
-            )
-            self._index.invalidate(host.host_id, dest.mount_point)
-            characterized = self._characterization.characterize(
+        reclaimable = grouped.reclaimable_bytes if grouped is not None else 0
+        self._emit_occupancy(host.host_id, items, dest.mount_point if dest else None)
+        pre = assess_minimum(
+            host,
+            destination=dest,
+            evidence=evidence,
+            items=items,
+            descriptors=descriptors,
+            ram_safe_bytes=envelope.memory.safe_bytes,
+        )
+        capacity_needed = pre.requires_reclamation
+        if dest is not None and reclaimable > 0:
+            storage_evidence, items, records = self._cleanup_stale(
                 host,
-                run_cleanup=True,
-                run_empirical=self._allow_empirical,
+                dest,
+                items,
+                records,
+                storage_evidence,
+                sanity,
+                descriptors,
+                capacity_needed=capacity_needed,
             )
-            storage_evidence = characterized.evidence
-            self._index.record_expensive(
-                dict(storage_evidence), characterized.empirical_evidence
-            )
-            planning = self._index.for_host(host)
-            if planning:
-                storage_evidence = planning
             evidence = storage_evidence.get(dest.mount_point)
             envelope = self._capacity.compute(
                 host, sanity or {}, storage_evidence=storage_evidence
@@ -567,110 +541,219 @@ class FoundationRealizeService:
                 reason=str(code),
             )
         if assessment.requires_reclamation:
-            if dest is None or self._ownership is None:
-                raise PreconditionFailedError(
-                    "reclamation is required but cannot be executed safely",
-                    reason="reclamation_not_safe",
-                )
-            plan = plan_reclaim(items, mount_point=dest.mount_point)
-            if plan.expected_bytes <= 0:
-                raise PreconditionFailedError(
-                    "reclamation is required but no safe reclaim plan exists",
-                    reason="reclamation_not_safe",
-                )
-            self._emit(
-                host.host_id,
-                OperationalStage.STORAGE,
-                "storage.reclaim_planned",
-                f"reclaim {plan.expected_bytes} bytes",
-                OperationalOutcome.INFO,
-                bytes=plan.expected_bytes,
+            raise PreconditionFailedError(
+                assessment.condition or "capacity still infeasible after cleanup",
+                reason="reclamation_not_safe",
             )
-            allowed = (
-                *nearby_state_roots(self._state_root),
-                self._state_root,
-                *(
-                    Path(item.managed_root)
-                    for item in items
-                    if item.occupancy_class is ManagedOccupancyClass.RECLAIMABLE
-                ),
+        return storage_evidence
+
+    def _cleanup_stale(
+        self,
+        host: HostCapabilities,
+        dest: StoragePool,
+        items: tuple[ManagedOccupancyItem, ...],
+        records: tuple[OwnershipRecord, ...],
+        storage_evidence: Mapping[str, StorageCapacityEvidence],
+        sanity: Mapping[str, StorageSanityEvidence] | None,
+        descriptors: Sequence[RuntimeSupportDescriptor],
+        *,
+        capacity_needed: bool,
+    ) -> tuple[
+        Mapping[str, StorageCapacityEvidence],
+        tuple[ManagedOccupancyItem, ...],
+        tuple[OwnershipRecord, ...],
+    ]:
+        del descriptors
+        if self._ownership is None:
+            raise PreconditionFailedError(
+                "stale Kultrun state is cleanup-eligible but cannot be executed safely",
+                reason="reclamation_not_safe",
             )
-            result = execute_reclaim(
-                plan, records, self._ownership, allowed_roots=allowed
+        plan = plan_reclaim(
+            items,
+            mount_point=dest.mount_point,
+            capacity_required=capacity_needed,
+        )
+        if plan.expected_bytes <= 0:
+            return storage_evidence, items, records
+        self._emit(
+            host.host_id,
+            OperationalStage.STORAGE,
+            "storage.reclaim_planned",
+            f"reclaim {plan.expected_bytes} bytes",
+            OperationalOutcome.INFO,
+            bytes=plan.expected_bytes,
+            cleanup_lifecycle=True,
+            cleanup_capacity=capacity_needed,
+        )
+        allowed = (
+            *nearby_state_roots(self._state_root),
+            self._state_root,
+            *(
+                Path(item.managed_root)
+                for item in items
+                if item.occupancy_class is ManagedOccupancyClass.RECLAIMABLE
+            ),
+        )
+        result = execute_reclaim(plan, records, self._ownership, allowed_roots=allowed)
+        self._emit(
+            host.host_id,
+            OperationalStage.STORAGE,
+            "storage.reclaim_completed",
+            f"Cleanup PASS — {_fmt_bytes(result.actual_bytes)} reclaimed"
+            if result.actual_bytes > 0 and not result.blocked
+            else f"reclaimed {result.actual_bytes} bytes",
+            OperationalOutcome.PASS
+            if result.actual_bytes > 0 and not result.blocked
+            else OperationalOutcome.FAIL,
+            bytes=result.actual_bytes,
+            byte_band=_byte_band(result.actual_bytes),
+            cleanup_lifecycle=True,
+            cleanup_capacity=capacity_needed,
+        )
+        if result.blocked or (result.actual_bytes <= 0 and plan.expected_bytes > 0):
+            raise PreconditionFailedError(
+                "planned reclaim of stale Kultrun state failed",
+                reason="reclamation_not_safe",
             )
-            self._emit(
-                host.host_id,
-                OperationalStage.STORAGE,
-                "storage.reclaim_completed",
-                f"reclaimed {result.actual_bytes} bytes",
-                OperationalOutcome.PASS
-                if result.actual_bytes > 0
-                else OperationalOutcome.FAIL,
-                bytes=result.actual_bytes,
-                byte_band=_byte_band(result.actual_bytes),
+        pools = pools_from_host(host)
+        records, live_roots, reusable_roots = self._occupancy(host)
+        items = classify_occupancy(
+            records,
+            pools,
+            current_state_root=self._state_root,
+            live_roots=live_roots,
+            reusable_roots=reusable_roots,
+        )
+        evidence = storage_evidence.get(dest.mount_point)
+        empirical = None
+        if self._index is not None:
+            empirical = self._index.empirical_for_host(host).get(dest.mount_point)
+        envelope = self._capacity.compute(
+            host, sanity or {}, storage_evidence=storage_evidence
+        )
+        current_safe: object = NOT_PROVIDED
+        for pool in envelope.pools:
+            if pool.mount_point == dest.mount_point:
+                current_safe = pool.space.safe_bytes
+                break
+        peak = runtime_provisioning_requirement().required_peak_free_bytes
+        required = peak if isinstance(peak, int) else 0
+        blocks = not is_resolved(current_safe) or (
+            isinstance(current_safe, int) and current_safe < required
+        )
+        grouped = totals_by_pool(items).get(dest.mount_point)
+        managed_now = None
+        if grouped is not None:
+            managed_now = (
+                grouped.active_bytes
+                + grouped.reusable_bytes
+                + grouped.reclaimable_bytes
+                + grouped.protected_bytes
             )
-            if result.actual_bytes <= 0 and plan.expected_bytes > 0:
-                raise PreconditionFailedError(
-                    "planned reclaim released no bytes",
-                    reason="reclamation_not_safe",
-                )
-            if self._index is not None:
-                self._index.invalidate(host.host_id, dest.mount_point)
+        run_empirical = bool(
+            self._allow_empirical
+            and should_recharacterize(
+                empirical,
+                evidence,
+                managed_now=managed_now if isinstance(managed_now, int) else None,
+                reclaimable_bytes=grouped.reclaimable_bytes if grouped else 0,
+                current_safe_blocks=blocks,
+            )
+        )
+        if run_empirical and self._index is not None:
+            self._index.invalidate(host.host_id, dest.mount_point)
             self._emit(
                 host.host_id,
                 OperationalStage.STORAGE,
                 "storage.recharacterized",
-                "recompute capacity after product-owned reclaim",
+                "occupancy dropped; occupancy-conditional upper is not a quota",
                 OperationalOutcome.INFO,
-                reason="reclaim_completed",
+                reason="managed_occupancy_dropped",
             )
-            characterized = self._characterization.characterize(
-                host,
-                run_cleanup=True,
-                run_empirical=self._allow_empirical,
-            )
-            storage_evidence = characterized.evidence
-            if self._index is not None:
+        characterized = self._characterization.characterize(
+            host,
+            run_cleanup=True,
+            run_empirical=run_empirical,
+        )
+        storage_evidence = characterized.evidence
+        if self._index is not None:
+            if run_empirical:
                 self._index.record_expensive(
                     dict(storage_evidence), characterized.empirical_evidence
                 )
-                planning = self._index.for_host(host)
-                if planning:
-                    storage_evidence = planning
-            records, live_roots, reusable_roots = self._occupancy(host)
-            items = classify_occupancy(
-                records,
-                pools,
-                current_state_root=self._state_root,
-                live_roots=live_roots,
-                reusable_roots=reusable_roots,
-            )
-            evidence = storage_evidence.get(dest.mount_point)
-            envelope = self._capacity.compute(
-                host, sanity or {}, storage_evidence=storage_evidence
-            )
-            assessment = assess_minimum(
-                host,
-                destination=dest,
-                evidence=evidence,
-                items=items,
-                descriptors=descriptors,
-                ram_safe_bytes=envelope.memory.safe_bytes,
-            )
-            self._emit_minimum(host.host_id, assessment)
-            if (
-                assessment.verdict is MinimumFeasibilityVerdict.FAIL
-                or assessment.requires_reclamation
-            ):
-                raise PreconditionFailedError(
-                    assessment.condition or "capacity still infeasible after reclaim",
-                    reason=(
-                        str(assessment.reason_code)
-                        if is_resolved(assessment.reason_code)
-                        else "reclamation_not_safe"
-                    ),
-                )
-        return storage_evidence
+            else:
+                self._index.record_observation(characterized.evidence)
+            planning = self._index.for_host(host)
+            if planning:
+                storage_evidence = planning
+        return storage_evidence, items, records
+
+    def _emit_occupancy(
+        self,
+        host_id: HostId,
+        items: Sequence[ManagedOccupancyItem],
+        mount: str | None,
+    ) -> None:
+        grouped = totals_by_pool(items).get(mount) if mount is not None else None
+        reclaimable = grouped.reclaimable_bytes if grouped is not None else 0
+        self._emit(
+            host_id,
+            OperationalStage.STORAGE,
+            "storage.occupancy_classified",
+            (
+                f"{_fmt_bytes(reclaimable)} obsolete Kultrun state identified"
+                if reclaimable > 0
+                else "no cleanup-eligible Kultrun state"
+            ),
+            OperationalOutcome.INFO,
+            reclaimable_bytes=reclaimable,
+            reusable_bytes=grouped.reusable_bytes if grouped is not None else 0,
+            active_bytes=grouped.active_bytes if grouped is not None else 0,
+            protected_bytes=grouped.protected_bytes if grouped is not None else 0,
+            unknown_bytes=grouped.unknown_bytes if grouped is not None else 0,
+            cleanup_lifecycle=reclaimable > 0,
+        )
+
+    def _emit_runtime_funnel(
+        self, host_id: HostId, overview: FoundationOverview
+    ) -> None:
+        rows = (
+            *overview.resolution.candidates,
+            *overview.resolution.unsupported,
+            *overview.resolution.unresolved,
+        )
+        discovered = len(rows)
+        product_selectable = sum(
+            1 for item in rows if item.support_tier is RuntimeSupportTier.PRODUCT
+        )
+        host_compatible = sum(
+            1
+            for item in rows
+            if item.compatibility is not CompatibilityClass.UNSUPPORTED
+            or "unsupported_platform" not in {code.value for code in item.reason_codes}
+        )
+        executor_ok = sum(
+            1
+            for item in rows
+            if "executor_unavailable" not in {code.value for code in item.reason_codes}
+        )
+        capacity_ok = sum(
+            1 for item in rows if item.compatibility is CompatibilityClass.COMPATIBLE
+        )
+        feasible = len(overview.resolution.candidates)
+        self._emit(
+            host_id,
+            OperationalStage.RUNTIME,
+            "runtime.funnel_completed",
+            f"{discovered} candidates → {feasible} feasible",
+            OperationalOutcome.INFO,
+            discovered=discovered,
+            product_selectable=product_selectable,
+            host_compatible=host_compatible,
+            executor_compatible=executor_ok,
+            capacity_feasible=capacity_ok,
+        )
 
     def _occupancy(
         self, host: HostCapabilities
@@ -701,9 +784,6 @@ class FoundationRealizeService:
             verdict=assessment.verdict.value,
             profile=assessment.profile_version,
             requires_reclamation=assessment.requires_reclamation,
-            runtime=(
-                assessment.foundations[0].family if assessment.foundations else None
-            ),
             byte_band=_byte_band(assessment.potential_safe_bytes),
             current_authorizing_bytes=(
                 assessment.current_authorizing_bytes
@@ -787,6 +867,16 @@ _MINIMUM_REASON_CODES = frozenset(
         "reclamation_not_safe",
     }
 )
+
+
+def _fmt_bytes(value: int) -> str:
+    gib = value / (1024**3)
+    if gib >= 1:
+        return f"{gib:.1f} GiB"
+    mib = value / (1024**2)
+    if mib >= 1:
+        return f"{mib:.1f} MiB"
+    return f"{value} B"
 
 
 def _byte_band(value: object) -> str | None:

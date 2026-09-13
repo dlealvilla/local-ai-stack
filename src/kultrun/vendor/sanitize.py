@@ -45,6 +45,12 @@ _ALLOWED_ATTRS = frozenset(
         "possibility",
         "requires_reclamation",
         "byte_band",
+        "product_selectable",
+        "host_compatible",
+        "executor_compatible",
+        "capacity_feasible",
+        "cleanup_lifecycle",
+        "cleanup_capacity",
     }
 )
 
@@ -54,10 +60,7 @@ def sanitize_fact(fact: OperationalFact) -> TelemetryRecord:
     parsed = _attributes(fact.attributes)
     build = build_identity()
     run_id: Maybe[str] = NOT_PROVIDED
-    if (
-        is_resolved(fact.correlation_id)
-        and fact.correlation_id.startswith("drun_")
-    ):
+    if is_resolved(fact.correlation_id) and fact.correlation_id.startswith("drun_"):
         run_id = fact.correlation_id
     return TelemetryRecord(
         occurred_at=fact.occurred_at,
@@ -80,6 +83,13 @@ def sanitize_fact(fact: OperationalFact) -> TelemetryRecord:
         possibility=parsed.get("possibility", NOT_PROVIDED),
         requires_reclamation=parsed.get("requires_reclamation", NOT_PROVIDED),
         byte_band=parsed.get("byte_band", NOT_PROVIDED),
+        discovered=parsed.get("discovered", NOT_PROVIDED),
+        product_selectable=parsed.get("product_selectable", NOT_PROVIDED),
+        host_compatible=parsed.get("host_compatible", NOT_PROVIDED),
+        executor_compatible=parsed.get("executor_compatible", NOT_PROVIDED),
+        capacity_feasible=parsed.get("capacity_feasible", NOT_PROVIDED),
+        cleanup_lifecycle=parsed.get("cleanup_lifecycle", NOT_PROVIDED),
+        cleanup_capacity=parsed.get("cleanup_capacity", NOT_PROVIDED),
     )
 
 

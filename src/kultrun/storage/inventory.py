@@ -89,13 +89,48 @@ def classify_occupancy(
     return tuple(items)
 
 
+_CLASS_PRIORITY = {
+    ManagedOccupancyClass.ACTIVE: 4,
+    ManagedOccupancyClass.REUSABLE: 3,
+    ManagedOccupancyClass.PROTECTED: 2,
+    ManagedOccupancyClass.RECLAIMABLE: 1,
+    ManagedOccupancyClass.UNKNOWN: 0,
+}
+
+
+def unique_occupancy(
+    items: Sequence[ManagedOccupancyItem],
+) -> tuple[ManagedOccupancyItem, ...]:
+    """One class per path. Nested trees do not add the same bytes twice."""
+    by_path: dict[str, ManagedOccupancyItem] = {}
+    for item in items:
+        existing = by_path.get(item.managed_root)
+        if (
+            existing is None
+            or _CLASS_PRIORITY[item.occupancy_class]
+            > _CLASS_PRIORITY[existing.occupancy_class]
+        ):
+            by_path[item.managed_root] = item
+    ranked = sorted(
+        by_path.values(),
+        key=lambda item: (item.managed_root.count("/"), item.managed_root),
+    )
+    kept: list[ManagedOccupancyItem] = []
+    for item in ranked:
+        path = Path(item.managed_root)
+        if any(_under(path, Path(other.managed_root)) for other in kept):
+            continue
+        kept.append(item)
+    return tuple(kept)
+
+
 def totals_by_pool(
     items: Sequence[ManagedOccupancyItem],
 ) -> Mapping[str, PoolOccupancy]:
     """Sum occupancy per mount. Missing mounts are omitted, not zero."""
     grouped: dict[str, dict[str, int]] = {}
     meta: dict[str, tuple[Maybe[str], Maybe[str]]] = {}
-    for item in items:
+    for item in unique_occupancy(items):
         if not isinstance(item.mount_point, str):
             continue
         bucket = grouped.setdefault(

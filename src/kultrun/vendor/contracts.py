@@ -71,9 +71,7 @@ class TelemetryRecord(Contract):
     support_tier: Maybe[str] = meaning(
         "product maturity of a foundation family", default=NOT_PROVIDED
     )
-    profile: Maybe[str] = meaning(
-        "minimum host profile identity", default=NOT_PROVIDED
-    )
+    profile: Maybe[str] = meaning("minimum host profile identity", default=NOT_PROVIDED)
     possibility: Maybe[str] = meaning(
         "coarse host possibility, never verified", default=NOT_PROVIDED
     )
@@ -83,4 +81,25 @@ class TelemetryRecord(Contract):
     byte_band: Maybe[str] = meaning(
         "coarse capacity or footprint band, never an exact path",
         default=NOT_PROVIDED,
+    )
+    discovered: Maybe[str] = meaning(
+        "runtime or model funnel discovered count", default=NOT_PROVIDED
+    )
+    product_selectable: Maybe[str] = meaning(
+        "runtime funnel product-selectable count", default=NOT_PROVIDED
+    )
+    host_compatible: Maybe[str] = meaning(
+        "runtime funnel host-compatible count", default=NOT_PROVIDED
+    )
+    executor_compatible: Maybe[str] = meaning(
+        "runtime funnel executor-compatible count", default=NOT_PROVIDED
+    )
+    capacity_feasible: Maybe[str] = meaning(
+        "runtime funnel capacity-feasible count", default=NOT_PROVIDED
+    )
+    cleanup_lifecycle: Maybe[str] = meaning(
+        "whether cleanup ran for lifecycle hygiene", default=NOT_PROVIDED
+    )
+    cleanup_capacity: Maybe[str] = meaning(
+        "whether cleanup was also required for capacity", default=NOT_PROVIDED
     )
