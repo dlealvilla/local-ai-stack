@@ -125,6 +125,125 @@ def test_resolver_auto_is_not_selection_auto() -> None:
     assert "EXPLICIT" not in FoundationSelectionMode.__members__
 
 
+def test_ensure_auto_persists_the_candidate_realize_will_install(
+    tmp_path: Path,
+) -> None:
+    host = host_capabilities()
+    native = _native(host)
+    descriptors = (VllmRuntimeSupport().support(),)
+    foundation, store = _services(tmp_path)
+    viewed = foundation.view(
+        host, (native,), descriptors, components={"vllm": "missing"}
+    )
+    chosen = viewed.selection.selected_candidate_id
+    assert isinstance(chosen, str)
+    assert foundation.stored(host) is None
+    overview = foundation.ensure_auto_selection(
+        host,
+        (native,),
+        descriptors,
+        components={"vllm": "missing"},
+        selected_candidate_id=chosen,
+    )
+    stored = foundation.stored(host)
+    assert stored is not None
+    assert stored.selection_mode is FoundationSelectionMode.AUTO
+    assert stored.selected_candidate_id == chosen
+    assert stored.generation == 1
+    assert store.records(FoundationSelection)
+    assert overview.selection.selected_candidate_id == chosen
+    later = foundation.view(
+        host, (native,), descriptors, components={"vllm": "missing"}
+    )
+    assert foundation.stored(host).generation == 1
+    assert later.selection.generation == 1
+
+
+def test_ensure_auto_does_not_override_manual(tmp_path: Path) -> None:
+    host = host_capabilities()
+    native = _native(host)
+    descriptors = (VllmRuntimeSupport().support(), _alt_descriptor())
+    policy = RuntimePolicy(allow_test_only=True)
+    foundation, _ = _services(tmp_path)
+    viewed = foundation.view(
+        host, (native,), descriptors, policy, components={"vllm": "missing"}
+    )
+    other = next(
+        item for item in viewed.candidates if item.role == "other_provisionable"
+    )
+    foundation.select_manual(
+        other.candidate_id,
+        host,
+        (native,),
+        descriptors,
+        policy,
+        components={"vllm": "missing"},
+    )
+    foundation.ensure_auto_selection(
+        host,
+        (native,),
+        descriptors,
+        policy,
+        components={"vllm": "missing"},
+        selected_candidate_id=viewed.selection.recommended_candidate_id
+        if isinstance(viewed.selection.recommended_candidate_id, str)
+        else other.candidate_id,
+    )
+    stored = foundation.stored(host)
+    assert stored is not None
+    assert stored.selection_mode is FoundationSelectionMode.MANUAL
+    assert stored.selected_candidate_id == other.candidate_id
+
+
+def test_select_auto_without_recommendation_does_not_wipe_stored(
+    tmp_path: Path,
+) -> None:
+    from kultrun.evidence.contracts import Confidence, Provenance
+    from kultrun.kernel.unresolved import NOT_PROVIDED
+    from kultrun.storage.contracts import StorageCapacityEvidence, StorageEvidenceStatus
+    from tests.test_capacity_first_storage import GIB as STORAGE_GIB
+
+    host = host_capabilities()
+    native = _native(host)
+    descriptors = (VllmRuntimeSupport().support(),)
+    foundation, _ = _services(tmp_path)
+    selected = foundation.select_auto(
+        host, (native,), descriptors, components={"vllm": "missing"}
+    )
+    ident = selected.selection.selected_candidate_id
+    assert isinstance(ident, str)
+    evidence = StorageCapacityEvidence(
+        host_id=host.host_id,
+        mount_point="/",
+        quota_identity=NOT_PROVIDED,
+        pool_fingerprint="test",
+        observed_at=now_utc(),
+        status=StorageEvidenceStatus.PROBED,
+        confidence=Confidence.MEDIUM,
+        provenance=Provenance(
+            producer=Name("test"),
+            producer_version=NOT_PROVIDED,
+            observed_at=now_utc(),
+            policy_version="test",
+        ),
+        operational_available_bytes=1 * STORAGE_GIB,
+        authorizing_available_bytes=1 * STORAGE_GIB,
+        selected_reason="test",
+    )
+    overview = foundation.select_auto(
+        host,
+        (native,),
+        descriptors,
+        components={"vllm": "missing"},
+        storage_evidence={"/": evidence},
+        require_storage=True,
+    )
+    assert not isinstance(overview.selection.recommended_candidate_id, str)
+    stored = foundation.stored(host)
+    assert stored is not None
+    assert stored.selected_candidate_id == ident
+
+
 def test_get_view_does_not_persist(tmp_path: Path) -> None:
     host = host_capabilities()
     native = _native(host)

@@ -378,6 +378,29 @@ def test_get_does_not_mutate_product(tmp_path: Path) -> None:
     assert platform.instances.list() == ()
 
 
+def test_realize_without_select_persists_auto_foundation(tmp_path: Path) -> None:
+    platform = _product(tmp_path)
+    host = platform.hosts.current
+    assert platform.foundation.stored(host) is None
+    realized = _call(platform, "/runtimes/foundation/realize", Method.POST)
+    assert realized.status == 200
+    stored = platform.foundation.stored(host)
+    assert stored is not None
+    assert stored.selection_mode.value == "auto"
+    assert isinstance(stored.selected_candidate_id, str)
+    generation = stored.generation
+    viewed = _call(platform, "/runtimes/foundation")
+    assert viewed.status == 200
+    assert viewed.body["payload"]["mutations"] is False
+    assert platform.foundation.stored(host) is not None
+    assert platform.foundation.stored(host).generation == generation
+    verified = _call(platform, "/runtimes/foundation/verify", Method.POST)
+    assert verified.status == 200
+    created = _call(platform, "/deployments/plan", Method.POST)
+    assert created.status == 200
+    assert created.body["payload"]["status"] == "current"
+
+
 def test_refresh_performs_no_execution(tmp_path: Path) -> None:
     platform = _product(tmp_path)
     _realize(platform)

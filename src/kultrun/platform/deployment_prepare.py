@@ -142,6 +142,7 @@ class DeploymentPreparationService:
         clock: Clock,
         storage_acquire: StorageAwareAcquisition | None = None,
         replan: StorageReplanService | None = None,
+        refresh: Callable[[HostCapabilities], DeploymentPlanOverview] | None = None,
     ) -> None:
         self._overview = overview
         self._models = models
@@ -153,6 +154,21 @@ class DeploymentPreparationService:
         self._clock = clock
         self._storage_acquire = storage_acquire
         self._replan = replan
+        self._refresh = refresh
+
+    def _ensure_current(self, host: HostCapabilities) -> DeploymentPlanOverview:
+        """Refresh a refreshable STALE/UNAVAILABLE plan. GET never calls this.
+
+        Selecting a model invalidates the dependent plan. Prepare/acquire/admit
+        recompute a fresh CURRENT plan when one can be drafted. A plan that
+        cannot be made current is still refused.
+        """
+        overview = self._overview(host)
+        if overview.status is DeploymentPlanStatus.CURRENT:
+            return overview
+        if self._refresh is None or not overview.refreshable:
+            return overview
+        return self._refresh(host)
 
     def acquire(
         self, host: HostCapabilities, *, _replanned: bool = False
@@ -166,7 +182,7 @@ class DeploymentPreparationService:
             return self.acquire(host, _replanned=True)
 
     def _acquire_once(self, host: HostCapabilities) -> PlanAcquisitionResult:
-        overview = self._overview(host)
+        overview = self._ensure_current(host)
         plan = require_current_plan(overview)
         entry = catalog_entry_for_plan(self._models, plan)
         existing = find_plan_artifact(
@@ -252,7 +268,7 @@ class DeploymentPreparationService:
         host: HostCapabilities,
         artifact_id: ArtifactId | None,
     ) -> PreparedDeployment:
-        overview = self._overview(host)
+        overview = self._ensure_current(host)
         plan = require_current_plan(overview)
         artifact = self._artifact_for_admit(plan, artifact_id)
         request, decision = self._admission.reserve_for_plan(
@@ -277,7 +293,7 @@ class DeploymentPreparationService:
             if _replanned or not self._maybe_replan(host, error=error):
                 raise
             return self.prepare(host, _replanned=True)
-        overview = self._overview(host)
+        overview = self._ensure_current(host)
         plan = require_current_plan(overview)
         if not artifact_matches_plan(acquired.artifact, plan):
             raise PreconditionFailedError(

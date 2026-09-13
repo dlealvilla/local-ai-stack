@@ -147,15 +147,22 @@ def test_current_plan_acquire_reuses_and_does_not_admit(tmp_path: Path) -> None:
     assert platform.resources.reservations() == ()
 
 
-def test_stale_and_unavailable_acquire_refused(tmp_path: Path) -> None:
+def test_unavailable_acquire_refused_until_a_plan_can_be_drafted(
+    tmp_path: Path,
+) -> None:
     platform = _product(tmp_path)
     unread = _call(platform, "/deployments/plan/acquire", Method.POST)
     assert unread.status == 412
     error = unread.body["error"]
     assert error["code"] == "precondition_failed"
     assert error["context"]["reason"] == "plan_unavailable"
-    _realize(platform)
-    created = _call(platform, "/deployments/plan", Method.POST).body["payload"]
+    assert platform.inventory.artifacts() == ()
+    assert platform.resources.reservations() == ()
+
+
+def test_acquire_refreshes_stale_plan_after_model_change(tmp_path: Path) -> None:
+    platform = _product(tmp_path)
+    created = _current_plan(platform)
     recommended = created["selected_model"]
     selection = _call(platform, "/models/selection").body["payload"]
     other = next(
@@ -164,11 +171,40 @@ def test_stale_and_unavailable_acquire_refused(tmp_path: Path) -> None:
         if item["logical_name"] != recommended
     )
     _call(platform, "/models/selection", Method.POST, mode="manual", model=other)
-    stale = _call(platform, "/deployments/plan/acquire", Method.POST)
-    assert stale.status == 412
-    assert stale.body["error"]["context"]["reason"] == "plan_stale"
-    assert platform.inventory.artifacts() == ()
-    assert platform.resources.reservations() == ()
+    viewed = _call(platform, "/deployments/plan").body["payload"]
+    assert viewed["status"] == "stale"
+    assert viewed["mutations"] is False
+    assert viewed["selected_model"] == recommended
+    acquired = _call(platform, "/deployments/plan/acquire", Method.POST)
+    assert acquired.status == 200
+    payload = acquired.body["payload"]
+    assert payload["selected_model"] == other
+    later = _call(platform, "/deployments/plan").body["payload"]
+    assert later["status"] == "current"
+    assert later["selected_model"] == other
+    artifact = platform.inventory.get(ArtifactId.parse(payload["artifact_id"]))
+    assert artifact is not None
+    name = artifact.logical_name if is_resolved(artifact.logical_name) else ""
+    assert name == other
+
+
+def test_prepare_computes_fresh_plan_without_explicit_refresh(tmp_path: Path) -> None:
+    platform = _product(tmp_path)
+    _realize(platform)
+    selected = _call(platform, "/models/selection", Method.POST, mode="auto")
+    assert selected.status == 200
+    viewed = _call(platform, "/deployments/plan").body["payload"]
+    assert viewed["status"] == "unavailable"
+    assert viewed["mutations"] is False
+    prepared = _call(platform, "/deployments/plan/prepare", Method.POST)
+    assert prepared.status == 200
+    payload = prepared.body["payload"]
+    assert payload["plan_status"] == "current"
+    assert payload["admission"]["verdict"] == "admitted"
+    later = _call(platform, "/deployments/plan").body["payload"]
+    assert later["status"] == "current"
+    assert later["selected_model"] == payload["selected_model"]
+    assert later["mutations"] is False
 
 
 def test_wrong_revision_and_quantization_not_reused(tmp_path: Path) -> None:
@@ -328,14 +364,19 @@ def test_stale_between_acquire_and_admit(tmp_path: Path) -> None:
         if item["logical_name"] != plan["selected_model"]
     )
     _call(platform, "/models/selection", Method.POST, mode="manual", model=other)
+    viewed = _call(platform, "/deployments/plan").body["payload"]
+    assert viewed["status"] == "stale"
     counted = _count_admit(platform)
     refused = _call(platform, "/deployments/plan/admit", Method.POST)
     assert refused.status == 412
-    assert refused.body["error"]["context"]["reason"] == "plan_stale"
+    assert refused.body["error"]["context"]["reason"] == "artifact_missing"
     assert counted["count"] == 0
     assert platform.resources.reservations() == ()
     assert platform.inventory.get(ArtifactId.parse(artifact_id)) is not None
     assert platform.instances.list() == ()
+    later = _call(platform, "/deployments/plan").body["payload"]
+    assert later["status"] == "current"
+    assert later["selected_model"] == other
 
 
 def test_mismatched_artifact_refused_before_manager(tmp_path: Path) -> None:
@@ -399,16 +440,23 @@ def test_admission_failure_no_fallback(tmp_path: Path) -> None:
     )
     decision = platform.resources.admit(competing, envelope, artifact)
     assert decision.verdict.value == "admitted"
+    viewed = _call(platform, "/deployments/plan").body["payload"]
+    assert viewed["status"] == "stale"
+    assert viewed["mutations"] is False
     admitted = _call(platform, "/deployments/plan/admit", Method.POST)
-    assert admitted.status == 412
-    assert admitted.body["error"]["context"]["reason"] == "plan_stale"
     later = _call(platform, "/deployments/plan").body["payload"]
-    assert later["status"] == "stale"
     assert later["selected_model"] == plan["selected_model"]
     assert later["runtime"] == plan["runtime"]
-    assert (
-        later["resource_request"]["ram_bytes"] == plan["resource_request"]["ram_bytes"]
-    )
+    assert later["mutations"] is False
+    if admitted.status == 412:
+        assert admitted.body["error"]["context"]["reason"] == "plan_stale"
+        assert later["status"] == "stale"
+    else:
+        assert admitted.status == 200
+        payload = admitted.body["payload"]
+        assert payload["admission"]["verdict"] == "rejected"
+        assert payload["admission"]["reason_code"] == "insufficient_safe_accelerator"
+        assert later["status"] == "current"
     assert platform.instances.list() == ()
     plan_reservations = [
         item

@@ -2009,6 +2009,11 @@ Retire when:  every remaining unnamed caller is classified as
               diagnostic, or the heuristic is removed after an audit.
 Status:       OPEN
 
+Stop of a serving process continues to release the GPU process while
+leaving `ResourceReservation` ACTIVE for restart. That is the product
+contract, not a gap. Process identity stays in `execution`;
+ResourceManager must not grow lifecycle logic.
+
 ## Runtime-first migration ledger (after 1.6K)
 
 Not a second architecture. Existing components still to migrate, in

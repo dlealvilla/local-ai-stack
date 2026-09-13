@@ -231,6 +231,22 @@ class FoundationRealizeService:
                 "no storage-feasible foundation to realize",
                 reason="runtime_storage_infeasible",
             )
+        overview = self._foundation.ensure_auto_selection(
+            host,
+            executors,
+            descriptors,
+            policy,
+            components=components,
+            storage_evidence=storage_evidence,
+            require_storage=True,
+            selected_candidate_id=selected,
+        )
+        selected = overview.selection.selected_candidate_id
+        if not isinstance(selected, str):
+            raise PreconditionFailedError(
+                "no storage-feasible foundation to realize",
+                reason="runtime_storage_infeasible",
+            )
         self._emit(
             host.host_id,
             OperationalStage.RUNTIME,

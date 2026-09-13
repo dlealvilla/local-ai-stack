@@ -174,6 +174,7 @@ def test_realize_never_calls_installer_when_storage_infeasible(
             storage_evidence=evidence,
         )
     assert provisioner.install_calls == 0
+    assert foundation.stored(host) is None
 
 
 def test_sufficient_storage_admits_then_installs(tmp_path: Path) -> None:
@@ -202,14 +203,6 @@ def test_sufficient_storage_admits_then_installs(tmp_path: Path) -> None:
         StorageEvidenceIndex(records),
         allow_empirical=False,
     )
-    foundation.select_auto(
-        host,
-        (native,),
-        descriptors,
-        components={"vllm": "missing"},
-        storage_evidence=evidence,
-        require_storage=True,
-    )
     installation = service.realize(
         host,
         (native,),
@@ -217,5 +210,9 @@ def test_sufficient_storage_admits_then_installs(tmp_path: Path) -> None:
         components={"vllm": "missing"},
         storage_evidence=evidence,
     )
+    stored = foundation.stored(host)
+    assert stored is not None
+    assert stored.selection_mode.value == "auto"
+    assert isinstance(stored.selected_candidate_id, str)
     assert provisioner.install_calls == 1
     assert installation.status.value in {"installed", "failed"}

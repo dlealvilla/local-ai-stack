@@ -25,6 +25,7 @@ from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import to_dict
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.main import main
+from kultrun.resource.contracts import ReservationState
 from kultrun.runtime.catalogue import RuntimeCatalogue
 from kultrun.runtime.contracts import RuntimeLaunchRequest, RuntimeLaunchSpec
 from tests.architecture import BANNED_IMPLEMENTATION_FIELDS, _imports_named, scan
@@ -489,6 +490,9 @@ def test_start_ready_infer_stop_restart(
     assert UNIQUE_PROMPT not in records
     stopped = stack.instances.stop(instance.instance_id)
     assert stopped.observed_state is ObservedState.STOPPED
+    held = stack.resources.get(reservation.reservation_id)
+    assert held is not None
+    assert held.state is ReservationState.ACTIVE
     time.sleep(0.1)
     with pytest.raises(PreconditionFailedError) as refused:
         stack.instances.infer(instance.instance_id, InferenceRequest(prompt="again"))

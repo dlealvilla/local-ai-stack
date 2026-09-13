@@ -1060,7 +1060,12 @@ verification is for T0/T1/T2 only. GET never executes a probe.
 
 Stage 1.6E foundation selection composes the closed 1.6B–1.6D objects.
 It does not introduce `FoundationCandidate`, `DeploymentFoundation`,
-`EnvironmentProvider`, or a recipe DSL.
+`EnvironmentProvider`, or a recipe DSL. GET view synthesizes AUTO
+selection in memory (generation 0) and must not persist. A successful
+AUTO realize persists `FoundationSelection` for the candidate about to
+be installed, so downstream stages have an authoritative selected
+candidate. MANUAL is never overwritten by realize. `select --auto`
+does not persist an unresolved recommendation.
 
 ```text
 HostCapabilities
@@ -1204,7 +1209,13 @@ candidate, a matching INSTALLED installation, a matching fresh
 VERIFIED profile, current `ModelSelection`, a READY requirement for
 the selected model, and a currently feasible `CapacityAssessment`.
 GET classifies a persisted plan against that basis; it does not
-persist. POST create/refresh persists. MANUAL uses the selected
+persist. POST create/refresh persists. Prepare, acquire, and admit
+refresh a refreshable STALE or UNAVAILABLE plan before requiring
+CURRENT, so selecting a model does not require a separate plan-refresh
+command. GET `/deployments/plan` never persists. Instance create and
+start still refuse a bound stale plan (`plan_stale`); they must not
+silently switch models under an existing reservation. A plan that
+cannot be drafted remains refused. MANUAL uses the selected
 model, never the recommendation. Infeasible or invalid selection
 yields no CURRENT plan. `plan_from` is not authority.
 
@@ -1212,7 +1223,9 @@ Normal executable acquisition and admission consume that CURRENT
 plan. STORE_ONLY warehouse acquisition remains independent of the
 plan. ResourceManager stays generic: it receives a `ResourceRequest`
 and live host state, never DeploymentPlan internals. Capacity
-feasibility is not live admission.
+feasibility is not live admission. Stopping an inference process
+releases the GPU process; `ResourceReservation` remains held for
+restart. Process lifecycle is not ResourceManager's.
 
 Normal instance create consumes that CURRENT plan plus the matching
 artifact and ACTIVE reservation. Settings come from the plan. START of
@@ -1422,7 +1435,7 @@ else can be bypassed by a new caller.
 
 | | |
 |---|---|
-| **Owns** | `PlatformState`, installation identity, platform version, configuration wiring, the startup sequence, the **single** reconciliation path, health aggregation, `Approval`, bounded AUTO storage-replan orchestration (`StorageReplanService`), `OperationalFact` (control-plane operational journal), and `DeploymentReport` (a read-time projection, not a second source of truth). Replan sequences existing services; it does not rank, admit, or probe. |
+| **Owns** | `PlatformState`, installation identity, platform version, configuration wiring, the startup sequence, the **single** reconciliation path, health aggregation, `Approval`, bounded AUTO storage-replan orchestration (`StorageReplanService`), `OperationalFact` (control-plane operational journal), and `DeploymentReport` (a read-time projection, not a second source of truth). Storage/Sonar rows match `StoragePool` identity (exact mount, quota, fingerprint), never naïve path-prefix matching. Runtime recommended/selected/plan/running are shown as distinct facts when they differ. Replan sequences existing services; it does not rank, admit, or probe. |
 | **Consumes** | Every domain's `reconcile` and `health` |
 | **Ports** | `HealthSource` and `ReconcilePhase`. These live at tier 8, so only tiers **above** 8 implement them directly. A lower domain reports facts in its own vocabulary and the composition root adapts them — discovered implementing Stage 1.1, where `host` needed to report health from tier 2. Not a workaround: whether a missing provider makes the platform "degraded" depends on the whole platform's state, which one subsystem cannot know, so grading belongs to the aggregator. The same division the record store uses — the store returns facts, policy decides. |
 | **Must not** | Contain domain algorithms. Own state that a domain should own. Require a model to be present in order to start. Duplicate `analytics.UsageEvent` (AI consumption) or `audit.AuditEvent` (admin change). Transmit outbound telemetry — that is `vendor`. |

@@ -949,7 +949,9 @@ def build(
         stored_storage=storage_index.for_host,
     )
 
-    def _plan_overview_live(host: HostCapabilities) -> DeploymentPlanOverview:
+    def _plan_overview_live(
+        host: HostCapabilities, *, persist: bool = False
+    ) -> DeploymentPlanOverview:
         descriptors = runtimes.descriptors()
         view = eligibility.evaluate(
             host,
@@ -985,8 +987,18 @@ def build(
         chosen = model_selection.view(
             host, view, envelope, funnel.assessments, funnel.available
         )
+        stored_foundation = foundation.stored(host)
+        if persist:
+            return deployment_plan.refresh(
+                host,
+                view,
+                envelope,
+                funnel.assessments,
+                chosen,
+                stored_foundation,
+            )
         return deployment_plan.view(
-            host, view, envelope, funnel.assessments, chosen, foundation.stored(host)
+            host, view, envelope, funnel.assessments, chosen, stored_foundation
         )
 
     def _funnel_live(host: HostCapabilities) -> FunnelPass:
@@ -1062,7 +1074,7 @@ def build(
     foundation_realize._replan = storage_replan
 
     deployment_prepare = DeploymentPreparationService(
-        _plan_overview_live,
+        lambda host: _plan_overview_live(host, persist=False),
         models,
         acquisition,
         inventory,
@@ -1072,9 +1084,10 @@ def build(
         resolved_clock,
         storage_acquire=storage_acquire,
         replan=storage_replan,
+        refresh=lambda host: _plan_overview_live(host, persist=True),
     )
     deployment_instance = DeploymentInstanceService(
-        _plan_overview_live,
+        lambda host: _plan_overview_live(host, persist=False),
         inventory,
         resources,
         instances,
@@ -1268,10 +1281,14 @@ def _compose_report(platform: Platform) -> DeploymentReport:
     resolved = resolve(
         host, executors, descriptors, RuntimePolicy(), components=components
     )
-    selection = platform.foundation.stored(host)
+    foundation_overview = platform.foundation.view(
+        host, executors, descriptors, RuntimePolicy(), components=components
+    )
+    stored = platform.foundation.stored(host)
+    selection = stored if stored is not None else foundation_overview.selection
     recommended = (
-        selection.recommended_candidate_id
-        if selection is not None and is_resolved(selection.recommended_candidate_id)
+        foundation_overview.selection.recommended_candidate_id
+        if is_resolved(foundation_overview.selection.recommended_candidate_id)
         else None
     )
     profiles = {
@@ -3188,9 +3205,14 @@ def start_named_instance(arguments: Sequence[str]) -> int:
     platform = build()
     _warn_if_state_root_defaulted(platform)
     _enable_live_progress(platform)
+    instance_id = InstanceId.parse(arguments[0])
+    previous = platform.instances.get(instance_id)
+    was_stopped = (
+        previous is not None and previous.observed_state is ObservedState.STOPPED
+    )
     try:
         view = platform.deployment_instance.start(
-            InstanceId.parse(arguments[0]),
+            instance_id,
             platform.hosts.current,
             ledger_health=_ledger_health_of(platform),
         )
@@ -3206,15 +3228,28 @@ def start_named_instance(arguments: Sequence[str]) -> int:
         f"{instance.instance_id.value}  {instance.observed_state.value}  "
         f"pid {pid}  {endpoint}"
     )
+    execution = (
+        instance.execution_id.value if instance.execution_id is not None else "-"
+    )
+    event = "instance.restarted" if was_stopped else "instance.started"
+    summary = (
+        f"restarted {instance.instance_id.value}"
+        if was_stopped
+        else f"starting {instance.instance_id.value}"
+    )
     platform.journal.emit(
         host_id=platform.hosts.current.host_id,
         stage=OperationalStage.INSTANCE,
-        event_type="instance.started",
-        summary=f"starting {instance.instance_id.value}",
+        event_type=event,
+        summary=summary,
         outcome=OperationalOutcome.PASS
         if is_resolved(instance.ready) and instance.ready
         else OperationalOutcome.INFO,
-        attributes=(attr("instance", instance.instance_id.value),),
+        attributes=(
+            attr("instance", instance.instance_id.value),
+            attr("execution", execution),
+            attr("pid", pid),
+        ),
     )
     return 0
 
@@ -3240,13 +3275,22 @@ def stop_named_instance(arguments: Sequence[str]) -> int:
         f"{view.instance.instance_id.value}  {view.instance.observed_state.value}  "
         f"reservation held"
     )
+    execution = (
+        view.instance.execution_id.value
+        if view.instance.execution_id is not None
+        else "-"
+    )
     platform.journal.emit(
         host_id=platform.hosts.current.host_id,
         stage=OperationalStage.INSTANCE,
         event_type="instance.stopped",
         summary=f"stopped {view.instance.instance_id.value}",
         outcome=OperationalOutcome.INFO,
-        attributes=(attr("instance", view.instance.instance_id.value),),
+        attributes=(
+            attr("instance", view.instance.instance_id.value),
+            attr("execution", execution),
+            attr("reservation", "held"),
+        ),
     )
     return 0
 
@@ -3291,6 +3335,14 @@ def inspect_named_instance(arguments: Sequence[str]) -> int:
         f"{instance.execution_id.value if instance.execution_id is not None else '-'}"
     )
     print(f"pid {instance.pid if is_resolved(instance.pid) else '-'}")
+    ownership = "-"
+    if instance.execution_id is not None:
+        try:
+            handle = platform.executions.observe(instance.execution_id)
+            ownership = handle.ownership.value
+        except KultrunError:
+            ownership = "absent"
+    print(f"ownership {ownership}")
     print(f"endpoint {endpoint}")
     print(f"ready {instance.ready if is_resolved(instance.ready) else 'unknown'}")
     return 0

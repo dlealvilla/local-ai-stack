@@ -238,11 +238,72 @@ class FoundationSelectionService:
                 storage_evidence=storage_evidence,
                 require_storage=require_storage,
             )
+            recommended = overview.selection.recommended_candidate_id
+            if not isinstance(recommended, str):
+                return overview
             self._persist(
                 host,
                 FoundationSelectionMode.AUTO,
-                overview.selection.recommended_candidate_id,
-                overview.selection.recommended_candidate_id,
+                recommended,
+                recommended,
+            )
+            return self._view(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components,
+                storage_evidence=storage_evidence,
+                require_storage=require_storage,
+            )
+
+    def ensure_auto_selection(
+        self,
+        host: HostCapabilities,
+        executors: Sequence[ExecutorCapabilityView],
+        descriptors: Sequence[RuntimeSupportDescriptor],
+        policy: RuntimePolicy | None = None,
+        *,
+        components: Mapping[str, str] | None = None,
+        storage_evidence: Mapping[str, StorageCapacityEvidence] | None = None,
+        require_storage: bool = False,
+        selected_candidate_id: str | None = None,
+    ) -> FoundationOverview:
+        """Persist the AUTO selection realize will install. Does not override MANUAL.
+
+        GET must not call this. Realize is a mutation: a successful AUTO
+        recommendation that is about to be installed must leave an
+        authoritative FoundationSelection for downstream stages.
+        """
+        with self._lock.hold():
+            stored = self._load(host.host_id.value)
+            overview = self._view(
+                host,
+                executors,
+                descriptors,
+                policy,
+                components,
+                storage_evidence=storage_evidence,
+                require_storage=require_storage,
+            )
+            if (
+                stored is not None
+                and stored.selection_mode is FoundationSelectionMode.MANUAL
+            ):
+                return overview
+            chosen = selected_candidate_id
+            if not isinstance(chosen, str):
+                current = overview.selection.selected_candidate_id
+                chosen = current if isinstance(current, str) else None
+            if not isinstance(chosen, str):
+                return overview
+            recommended = overview.selection.recommended_candidate_id
+            rec = recommended if isinstance(recommended, str) else chosen
+            self._persist(
+                host,
+                FoundationSelectionMode.AUTO,
+                rec,
+                chosen,
             )
             return self._view(
                 host,

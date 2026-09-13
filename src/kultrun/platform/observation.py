@@ -42,6 +42,7 @@ __all__ = [
     "OperationalStage",
     "SonarProgressAdapter",
     "attr",
+    "attr_value",
     "format_progress",
     "storage_event_handler",
 ]
@@ -114,6 +115,15 @@ def attr(key: str, value: object) -> str:
     """One allowlisted attribute. Values are stringified; never nested."""
     token = str(value).replace("\n", " ").strip()
     return f"{key}={token}"
+
+
+def attr_value(fact: OperationalFact, key: str) -> str | None:
+    """Exact attribute value. Prefix matching is not identity."""
+    prefix = f"{key}="
+    for item in fact.attributes:
+        if item.startswith(prefix):
+            return item[len(prefix) :]
+    return None
 
 
 class OperationalJournal:

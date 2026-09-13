@@ -5291,6 +5291,13 @@
         "optional": false,
         "type": "str | Unresolved"
       },
+      "lifecycle": {
+        "may_be_unresolved": false,
+        "meaning": "ordered start/stop/restart/infer summaries from operational facts",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
       "model_candidates": {
         "may_be_unresolved": false,
         "meaning": "evaluated model paths",
@@ -5325,6 +5332,13 @@
         "nullable": false,
         "optional": false,
         "type": "int | Unresolved"
+      },
+      "plan_runtime_candidate": {
+        "may_be_unresolved": true,
+        "meaning": "runtime candidate bound on the current plan",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "plan_storage_bytes": {
         "may_be_unresolved": true,
@@ -5551,6 +5565,13 @@
         "optional": false,
         "type": "str | Unresolved"
       },
+      "execution_id": {
+        "may_be_unresolved": true,
+        "meaning": "current execution identity, when one exists",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "health": {
         "may_be_unresolved": false,
         "meaning": "API health",
@@ -5572,12 +5593,26 @@
         "optional": false,
         "type": "str"
       },
+      "observed_state": {
+        "may_be_unresolved": true,
+        "meaning": "observed instance state",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
       "ownership": {
         "may_be_unresolved": true,
         "meaning": "process ownership class when known",
         "nullable": false,
         "optional": false,
         "type": "str | Unresolved"
+      },
+      "pid": {
+        "may_be_unresolved": true,
+        "meaning": "observed PID when owned",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
       },
       "ready": {
         "may_be_unresolved": true,
@@ -5822,6 +5857,20 @@
         "nullable": false,
         "optional": false,
         "type": "str"
+      },
+      "pool_fingerprint": {
+        "may_be_unresolved": true,
+        "meaning": "pool identity; invalid when the mount changes",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "quota_identity": {
+        "may_be_unresolved": true,
+        "meaning": "quota domain of this pool, when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       },
       "remaining_bytes": {
         "may_be_unresolved": true,

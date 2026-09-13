@@ -319,6 +319,12 @@ class StoragePoolReport(Contract):
     managed_bytes: Maybe[int] = meaning("platform-managed bytes on this pool")
     remaining_bytes: Maybe[int] = meaning("authorizing remaining after managed usage")
     selected_reason: str = meaning("why the operational figure was chosen", default="")
+    quota_identity: Maybe[str] = meaning(
+        "quota domain of this pool, when known", default=NOT_PROVIDED
+    )
+    pool_fingerprint: Maybe[str] = meaning(
+        "pool identity; invalid when the mount changes", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="platform.report_runtime_candidate", version=1)
@@ -380,6 +386,13 @@ class InstanceReport(Contract):
     ownership: Maybe[str] = meaning("process ownership class when known")
     lifecycle: str = meaning("intended/observed lifecycle")
     health: str = meaning("API health")
+    execution_id: Maybe[str] = meaning(
+        "current execution identity, when one exists", default=NOT_PROVIDED
+    )
+    pid: Maybe[int] = meaning("observed PID when owned", default=NOT_PROVIDED)
+    observed_state: Maybe[str] = meaning(
+        "observed instance state", default=NOT_PROVIDED
+    )
 
 
 @contract(kind="platform.deployment_report", version=1)
@@ -426,3 +439,10 @@ class DeploymentReport(Contract):
     failed_at: Maybe[str] = meaning("stage that blocked, when failed")
     reason: Maybe[str] = meaning("why the verdict is what it is")
     next_action: Maybe[str] = meaning("what the operator should do next")
+    plan_runtime_candidate: Maybe[str] = meaning(
+        "runtime candidate bound on the current plan", default=NOT_PROVIDED
+    )
+    lifecycle: tuple[str, ...] = meaning(
+        "ordered start/stop/restart/infer summaries from operational facts",
+        default=(),
+    )

@@ -28,12 +28,15 @@ from kultrun.platform.contracts import (
     ModelCandidateReport,
     OperationalFact,
     OperationalOutcome,
+    OperationalStage,
     RuntimeCandidateReport,
     RuntimeInstallReport,
     StoragePoolReport,
 )
+from kultrun.platform.observation import attr_value
 from kultrun.runtime.contracts import (
     FoundationSelection,
+    FoundationSelectionMode,
     RuntimeCandidate,
     RuntimeInstallation,
     RuntimeProvisioningPlan,
@@ -93,6 +96,15 @@ def compose_deployment_report(
         if selection is not None and is_resolved(selection.selected_candidate_id)
         else None
     )
+    if (
+        not isinstance(selected_id, str)
+        and isinstance(recommended_candidate_id, str)
+        and (
+            selection is None
+            or selection.selection_mode is FoundationSelectionMode.AUTO
+        )
+    ):
+        selected_id = recommended_candidate_id
     runtime_rows = tuple(
         RuntimeCandidateReport(
             candidate_id=item.candidate_id.value,
@@ -180,6 +192,11 @@ def compose_deployment_report(
             if deployment_plan is not None
             else None
         ),
+        plan_runtime_candidate=_maybe_name(
+            deployment_plan.selected_candidate_id
+            if deployment_plan is not None
+            else None
+        ),
         instances=tuple(_instance_row(item, ownership) for item in instances),
         latest_inference_latency_ms=(
             latest_latency if latest_latency is not None else NOT_PROVIDED
@@ -187,6 +204,7 @@ def compose_deployment_report(
         latest_inference_outcome=(
             latest_infer if latest_infer is not None else NOT_PROVIDED
         ),
+        lifecycle=_lifecycle_lines(facts),
         verdict=verdict,
         failed_at=failed_at if failed_at else NOT_PROVIDED,
         reason=reason if reason else NOT_PROVIDED,
@@ -232,6 +250,9 @@ def format_deployment_report(report: DeploymentReport) -> str:
         lines.append("  none")
     lines.append(f"  recommended   {_show(report.recommended_runtime)}")
     lines.append(f"  selected      {_show(report.selected_runtime)}")
+    plan_runtime = _show(report.plan_runtime_candidate)
+    if plan_runtime != "-" and plan_runtime != _show(report.selected_runtime):
+        lines.append(f"  plan          {plan_runtime}")
     lines.extend(["", "RUNTIME INSTALLATION"])
     for install in report.runtime_installs:
         lines.append(
@@ -274,7 +295,9 @@ def format_deployment_report(report: DeploymentReport) -> str:
         lines.append(
             f"  {instance.instance_id}  {instance.lifecycle}/{instance.health}  "
             f"ready {_show(instance.ready)}  {_show(instance.endpoint)}  "
-            f"own {_show(instance.ownership)}"
+            f"own {_show(instance.ownership)}  "
+            f"exec {_show(instance.execution_id)}  "
+            f"pid {_show(instance.pid)}"
         )
     if not report.instances:
         lines.append("  none")
@@ -282,6 +305,10 @@ def format_deployment_report(report: DeploymentReport) -> str:
         f"  last infer    {_show(report.latest_inference_outcome)}  "
         f"{_show(report.latest_inference_latency_ms)} ms"
     )
+    if report.lifecycle:
+        lines.extend(["", "LIFECYCLE"])
+        for event in report.lifecycle:
+            lines.append(f"  {event}")
     lines.extend(
         [
             "",
@@ -314,6 +341,11 @@ def _format_pool(pool: StoragePoolReport) -> list[str]:
     lines.append(f"    SAFE: {_bytes(pool.safe_bytes)}")
     lines.append(f"    Managed usage: {_bytes(pool.managed_bytes)}")
     lines.append(f"    Remaining proven: {_bytes(pool.remaining_bytes)}")
+    if is_resolved(pool.quota_identity) or is_resolved(pool.pool_fingerprint):
+        lines.append(
+            f"    Identity: quota {_show(pool.quota_identity)}  "
+            f"fingerprint {_show(pool.pool_fingerprint)}"
+        )
     if pool.selected_reason:
         lines.append(f"    Reason: {pool.selected_reason}")
     return lines
@@ -373,6 +405,16 @@ def _pool_row(
         managed_bytes=managed_val if managed_val is not None else NOT_PROVIDED,
         remaining_bytes=remaining if remaining is not None else NOT_PROVIDED,
         selected_reason=reason,
+        quota_identity=(
+            evidence.quota_identity
+            if evidence is not None and is_resolved(evidence.quota_identity)
+            else NOT_PROVIDED
+        ),
+        pool_fingerprint=(
+            evidence.pool_fingerprint
+            if evidence is not None and is_resolved(evidence.pool_fingerprint)
+            else NOT_PROVIDED
+        ),
     )
 
 
@@ -385,7 +427,7 @@ def _sonar_lines(
         fact.summary
         for fact in facts
         if fact.event_type.value.startswith("storage.sonar")
-        and any(item.startswith("mount=" + mount) for item in fact.attributes)
+        and attr_value(fact, "mount") == mount
     )
     if from_facts:
         return from_facts
@@ -482,6 +524,9 @@ def _instance_row(
         ownership=ownership.get(exec_id, NOT_PROVIDED) if exec_id else NOT_PROVIDED,
         lifecycle=instance.lifecycle_state.value,
         health=instance.health.value,
+        execution_id=exec_id if exec_id else NOT_PROVIDED,
+        pid=instance.pid if is_resolved(instance.pid) else NOT_PROVIDED,
+        observed_state=instance.observed_state.value,
     )
 
 
@@ -525,6 +570,31 @@ def _latest_inference(
     return latency, fact.outcome.value
 
 
+_LIFECYCLE_EVENTS = frozenset(
+    {
+        "runtime.selected",
+        "runtime.verified",
+        "model.selected",
+        "deployment.plan_created",
+        "resource.admission_completed",
+        "instance.started",
+        "instance.restarted",
+        "instance.stopped",
+        "inference.completed",
+    }
+)
+
+
+def _lifecycle_lines(facts: Sequence[OperationalFact]) -> tuple[str, ...]:
+    lines: list[str] = []
+    for fact in facts:
+        if fact.event_type.value not in _LIFECYCLE_EVENTS:
+            continue
+        stamp = fact.occurred_at.strftime("%H:%M:%SZ")
+        lines.append(f"{stamp}  {fact.event_type.value}  {fact.summary}")
+    return tuple(lines)
+
+
 def _verdict(
     pools: Sequence[StoragePoolReport],
     installs: Sequence[RuntimeInstallReport],
@@ -533,7 +603,13 @@ def _verdict(
     instances: Sequence[InferenceInstance],
     facts: Sequence[OperationalFact],
 ) -> tuple[DeploymentVerdict, str | None, str | None, str | None]:
-    failed = [fact for fact in facts if fact.outcome is OperationalOutcome.FAIL]
+    failed = [
+        fact
+        for fact in facts
+        if fact.outcome is OperationalOutcome.FAIL
+        and fact.stage
+        not in {OperationalStage.SONAR, OperationalStage.PROBE}
+    ]
     infer_pass = any(
         fact.event_type.value == "inference.completed"
         and fact.outcome is OperationalOutcome.PASS

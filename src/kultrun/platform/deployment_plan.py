@@ -329,6 +329,8 @@ class DeploymentPlanningService:
             return None, reasons
         if foundation is None:
             return None, ("foundation selection is unavailable",)
+        if not isinstance(foundation.selected_candidate_id, str):
+            return None, ("foundation selection is unavailable",)
         foundation_id = foundation.selection_id.value
         executor = _token(eligible.executor) or self._executor_identity
         storage_mount = ""
