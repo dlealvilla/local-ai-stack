@@ -11,6 +11,7 @@ way to prove the seams were real before there was a program to run.
 
 from __future__ import annotations
 
+import datetime as dt
 import os
 import sys
 from collections.abc import Callable, Mapping, Sequence
@@ -45,6 +46,7 @@ from kultrun.adapters.runtime.vllm import VllmModelCompatibility, VllmRuntimeSup
 from kultrun.adapters.runtime.vllm_memory import VllmMemoryInterpreter
 from kultrun.adapters.storage import default_probe_registry, posix_reservation, replayed
 from kultrun.adapters.storage.empirical_write import RealWritePort
+from kultrun.adapters.telemetry.disabled import DisabledProductTelemetryExporter
 from kultrun.adapters.verification.fixture import (
     FixtureProbeRunner,
     FixtureRuntimeVerifier,
@@ -121,6 +123,8 @@ from kultrun.platform.capacity_snapshot import (
 )
 from kultrun.platform.contracts import (
     ComponentHealth,
+    DeploymentReport,
+    DeploymentVerdict,
     HealthStatus,
     PhaseReport,
     PlatformSettings,
@@ -143,7 +147,19 @@ from kultrun.platform.model_selection import (
     ModelSelectionOverview,
     ModelSelectionService,
 )
+from kultrun.platform.observation import (
+    ConsoleProgress,
+    DeferredSonarProgress,
+    FanoutObserver,
+    OperationalJournal,
+    OperationalOutcome,
+    OperationalStage,
+    attr,
+    fanout_empirical,
+    storage_event_handler,
+)
 from kultrun.platform.probe_run import ExecutorProbeRunner
+from kultrun.platform.report import compose_deployment_report, format_deployment_report
 from kultrun.platform.requirement import (
     RequirementAssessment,
 )
@@ -190,6 +206,9 @@ from kultrun.storage.sanity import StorageSanityService
 from kultrun.storage.sonar import EmpiricalStorageProbe
 from kultrun.storage.topology import mount_for_path
 from kultrun.training import contracts as _training_contracts  # noqa: F401
+from kultrun.vendor import contracts as _vendor_contracts  # noqa: F401
+from kultrun.vendor.contracts import TelemetrySettings
+from kultrun.vendor.sanitize import ExportingObserver
 
 PLATFORM_VERSION = "0.1.0"
 
@@ -349,6 +368,7 @@ class Platform:
     #: Whether the root was chosen rather than defaulted. An installed
     #: artifact that defaulted is warned about; it must not be silent.
     state_root_configured: bool
+    journal: OperationalJournal
 
     def call(self, request: ApiRequest) -> ApiResponse:
         """Invoke the Platform API without a transport."""
@@ -465,6 +485,7 @@ def config_schema() -> ConfigSchema:
     """The configuration sections the platform recognises."""
     schema = ConfigSchema()
     schema.register("platform", PlatformSettings)
+    schema.register("vendor", TelemetrySettings)
     return schema
 
 
@@ -612,9 +633,20 @@ def build(
     resolved_clock = clock or SystemClock()
     resolved_config = configuration or resolve_configuration()
     settings = resolved_config.section(PlatformSettings)
+    vendor_settings = resolved_config.section(TelemetrySettings)
 
     state_root = Path(settings.state_root).expanduser().resolve()
     store = store_registry().create(store_adapter, state_root)
+    journal = OperationalJournal(store, resolved_clock)
+    journal.set_observer(
+        ExportingObserver(
+            DisabledProductTelemetryExporter(),
+            enabled=(
+                vendor_settings.enabled
+                and vendor_settings.export_operational_metadata
+            ),
+        )
+    )
     ownership = OwnershipService(store, resolved_clock, state_root)
     storage_index = StorageEvidenceIndex(store)
 
@@ -682,7 +714,10 @@ def build(
             RealWritePort(),
             resolved_clock,
             ownership,
-            on_progress=storage_index.put_empirical,
+            on_progress=fanout_empirical(
+                storage_index.put_empirical,
+                DeferredSonarProgress(journal, lambda: hosts.current.host_id),
+            ),
         )
     )
     characterization = StorageCharacterizationService(
@@ -692,6 +727,7 @@ def build(
         empirical,
         index=storage_index,
         use_live_native=shape is None,
+        on_event=storage_event_handler(journal, lambda: hosts.current.host_id),
     )
     chosen_executor, container_image = resolve_live_executor()
     container_executor = ContainerExecutor(
@@ -783,9 +819,8 @@ def build(
         ProvisioningLock(state_root),
     )
     provisioning.reconcile()
-    storage_index.bind_usage(
-        PlatformManagedUsage(store, inventory, state_root)
-    )
+    managed_usage = PlatformManagedUsage(store, inventory, state_root)
+    storage_index.bind_usage(managed_usage)
     runtime_checker = resolve_runtime_verifier(
         runtime_verifier, fixture_host=shape is not None
     )
@@ -829,6 +864,7 @@ def build(
         state_root,
         storage_index,
         allow_empirical=shape is None,
+        journal=journal,
     )
     storage_acquire = StorageAwareAcquisition(
         acquisition,
@@ -890,6 +926,7 @@ def build(
             state_root=state_root,
         ),
         refresh_capacity=refresh_capacity,
+        journal=journal,
     )
     deployment_plan = DeploymentPlanningService(
         store,
@@ -897,6 +934,7 @@ def build(
         DeploymentPlanLock(state_root),
         live_executor.identity.value,
         selection.policy.policy_version,
+        state_root,
     )
     admission = AdmissionService(
         resources,
@@ -1080,6 +1118,10 @@ def build(
         container_capability=container_executor.capabilities,
         stored_sanity=lambda host: _stored_sanity_with(sanity, host),
         stored_storage=storage_index.for_host,
+        stored_authorizing=storage_index.snapshots_for_host,
+        stored_empirical=storage_index.empirical_for_host,
+        managed_bytes=managed_usage.bytes_by_mount,
+        journal=journal,
         pool_fingerprint=lambda point: _fingerprint_of(hosts, point),
         evidence_mode=mode.value,
         fixture_shape=shape,
@@ -1117,6 +1159,7 @@ def build(
         fixture_shape=shape,
         state_root=state_root,
         state_root_configured=(settings.state_root != PlatformSettings().state_root),
+        journal=journal,
     )
 
 
@@ -1181,6 +1224,95 @@ def _warn_if_state_root_defaulted(platform: Platform) -> None:
         f"fixed location",
         file=sys.stderr,
     )
+
+
+def _enable_live_progress(platform: Platform) -> None:
+    """Print product facts as they are written. Not a log parser."""
+    vendor = platform.plane.configuration.section(TelemetrySettings)
+    platform.journal.set_observer(
+        FanoutObserver(
+            (
+                ConsoleProgress(),
+                ExportingObserver(
+                    DisabledProductTelemetryExporter(),
+                    enabled=(
+                        vendor.enabled and vendor.export_operational_metadata
+                    ),
+                ),
+            )
+        )
+    )
+    host = platform.hosts.current
+    env = host.operating_environment
+    platform.journal.emit(
+        host_id=host.host_id,
+        stage=OperationalStage.HOST,
+        event_type="host.discovered",
+        summary=f"discovered {env.os_name} {env.architecture.value}",
+        outcome=OperationalOutcome.INFO,
+        attributes=(
+            attr("os", env.os_name),
+            attr("arch", env.architecture.value),
+        ),
+    )
+
+
+def _compose_report(platform: Platform) -> DeploymentReport:
+    host = platform.hosts.current
+    plane = platform.plane
+    envelope = platform.capacity.compute(
+        host, plane.stored_sanity(host), plane.stored_storage(host)
+    )
+    host_in, executors, descriptors, components = _runtime_inputs(platform)
+    del host_in
+    resolved = resolve(
+        host, executors, descriptors, RuntimePolicy(), components=components
+    )
+    selection = platform.foundation.stored(host)
+    recommended = (
+        selection.recommended_candidate_id
+        if selection is not None and is_resolved(selection.recommended_candidate_id)
+        else None
+    )
+    profiles = {
+        item.installation_id.value: item.status.value
+        for item in platform.verification.profiles(host, executors)
+    }
+    identity = build_identity()
+    return compose_deployment_report(
+        host=host,
+        envelope=envelope,
+        composed_at=dt.datetime.now(dt.UTC),
+        kultrun_build=identity.build_id or identity.version,
+        storage_evidence=plane.stored_authorizing(host),
+        empirical=plane.stored_empirical(host),
+        managed=plane.managed_bytes(host.host_id),
+        candidates=(
+            *resolved.candidates,
+            *resolved.unsupported,
+            *resolved.unresolved,
+        ),
+        recommended_candidate_id=recommended if isinstance(recommended, str) else None,
+        selection=selection,
+        installations=platform.provisioning.installations(),
+        provisioning_plans=platform.provisioning.plans(),
+        profiles=profiles,
+        available=platform.available_models.stored(host),
+        model_selection=platform.model_selection.stored(host),
+        deployment_plan=platform.deployment_plan.stored(host),
+        instances=platform.instances.list(),
+        executions=platform.executions.list(),
+        facts=platform.journal.facts(host.host_id),
+    )
+
+
+def show_deployment_report() -> int:
+    """Print the product-owned deployment report. Not reconstructed logs."""
+    platform = build()
+    _warn_if_state_root_defaulted(platform)
+    report = _compose_report(platform)
+    print(format_deployment_report(report), end="")
+    return 0 if report.verdict is not DeploymentVerdict.FAIL else 1
 
 
 def show_host() -> int:
@@ -1883,6 +2015,7 @@ def select_foundation(arguments: Sequence[str]) -> int:
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     host, executors, descriptors, components = _runtime_inputs(platform)
     if mode == "auto":
         overview = platform.foundation.select_auto(
@@ -1913,6 +2046,16 @@ def select_foundation(arguments: Sequence[str]) -> int:
         f"selected {selected}  "
         f"generation {overview.selection.generation}"
     )
+    platform.journal.emit(
+        host_id=host.host_id,
+        stage=OperationalStage.RUNTIME,
+        event_type="runtime.selected",
+        summary=f"selected {selected}",
+        outcome=OperationalOutcome.PASS
+        if selected != "-"
+        else OperationalOutcome.UNRESOLVED,
+        attributes=(attr("candidate", selected),),
+    )
     return 0
 
 
@@ -1921,6 +2064,7 @@ def realize_foundation(arguments: Sequence[str]) -> int:
     retry = "--retry" in arguments
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     host, executors, descriptors, components = _runtime_inputs(platform)
     installation = platform.plane.foundation_realize.realize(
         host,
@@ -2057,6 +2201,7 @@ def verify_runtime(arguments: Sequence[str]) -> int:
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     host, executors, descriptors, components = _runtime_inputs(platform)
     if arguments[0] == "--selected":
         profile = platform.foundation.verify_selected(
@@ -2068,6 +2213,18 @@ def verify_runtime(arguments: Sequence[str]) -> int:
             host,
             executors,
         )
+    verified = profile.status is VerificationStatus.VERIFIED
+    platform.journal.emit(
+        host_id=host.host_id,
+        stage=OperationalStage.RUNTIME,
+        event_type="runtime.verified",
+        summary=f"verification {'PASS' if verified else profile.status.value}",
+        outcome=OperationalOutcome.PASS if verified else OperationalOutcome.FAIL,
+        attributes=(
+            attr("runtime", profile.runtime.value),
+            attr("version", profile.runtime_version),
+        ),
+    )
     print(
         f"profile {profile.profile_id.value}  {profile.status.value}  "
         f"{profile.runtime.value}=={profile.runtime_version}  "
@@ -2369,12 +2526,42 @@ def prepare_deployment() -> int:
 
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     try:
         result = platform.deployment_prepare.prepare(platform.hosts.current)
     except KultrunError as error:
+        platform.journal.emit(
+            host_id=platform.hosts.current.host_id,
+            stage=OperationalStage.DEPLOYMENT,
+            event_type="deployment.failed",
+            summary=error.message,
+            outcome=OperationalOutcome.FAIL,
+        )
         print(f"kultrun: {error.message}", file=sys.stderr)
         return 1
     payload = result.payload()
+    plan_id = payload.get("plan_id") or "-"
+    platform.journal.emit(
+        host_id=platform.hosts.current.host_id,
+        stage=OperationalStage.PLAN,
+        event_type="deployment.plan_created",
+        summary=f"plan {plan_id}",
+        outcome=OperationalOutcome.INFO,
+        attributes=(attr("plan", plan_id),),
+    )
+    admission = payload.get("admission")
+    details = admission if isinstance(admission, Mapping) else {}
+    verdict = str(details.get("verdict") or "unresolved")
+    admitted = verdict.lower() == "admitted"
+    platform.journal.emit(
+        host_id=platform.hosts.current.host_id,
+        stage=OperationalStage.ADMISSION,
+        event_type="resource.admission_completed",
+        summary=f"admission {verdict.upper()}",
+        outcome=(
+            OperationalOutcome.PASS if admitted else OperationalOutcome.FAIL
+        ),
+    )
     _print_acquisition(payload)
     return _print_admission(payload)
 
@@ -2511,6 +2698,7 @@ def show_available_models() -> int:
     """Print Available Models. Does not recommend or select."""
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     result = _funnel(platform, persist=True)
     _print_availability_report(result)
     return 0
@@ -2651,6 +2839,7 @@ def select_named_model(arguments: Sequence[str]) -> int:
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     host = platform.hosts.current
     result = _funnel(platform, persist=True, pending_model=None if auto else names[0])
     _print_availability_report(result)
@@ -2691,6 +2880,21 @@ def select_named_model(arguments: Sequence[str]) -> int:
     print(sel if isinstance(sel, str) else "none")
     print("MODE:")
     print(overview.selection.selection_mode.value.upper())
+    platform.journal.emit(
+        host_id=host.host_id,
+        stage=OperationalStage.MODEL,
+        event_type="model.selected",
+        summary=f"selected {sel if isinstance(sel, str) else '-'}",
+        outcome=(
+            OperationalOutcome.PASS
+            if isinstance(sel, str)
+            else OperationalOutcome.UNRESOLVED
+        ),
+        attributes=(
+            attr("model", sel if isinstance(sel, str) else "-"),
+            attr("mode", overview.selection.selection_mode.value),
+        ),
+    )
     return 0
 
 
@@ -2983,6 +3187,7 @@ def start_named_instance(arguments: Sequence[str]) -> int:
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     try:
         view = platform.deployment_instance.start(
             InstanceId.parse(arguments[0]),
@@ -3001,6 +3206,16 @@ def start_named_instance(arguments: Sequence[str]) -> int:
         f"{instance.instance_id.value}  {instance.observed_state.value}  "
         f"pid {pid}  {endpoint}"
     )
+    platform.journal.emit(
+        host_id=platform.hosts.current.host_id,
+        stage=OperationalStage.INSTANCE,
+        event_type="instance.started",
+        summary=f"starting {instance.instance_id.value}",
+        outcome=OperationalOutcome.PASS
+        if is_resolved(instance.ready) and instance.ready
+        else OperationalOutcome.INFO,
+        attributes=(attr("instance", instance.instance_id.value),),
+    )
     return 0
 
 
@@ -3013,6 +3228,7 @@ def stop_named_instance(arguments: Sequence[str]) -> int:
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     try:
         view = platform.deployment_instance.stop(
             InstanceId.parse(arguments[0]), platform.hosts.current
@@ -3023,6 +3239,14 @@ def stop_named_instance(arguments: Sequence[str]) -> int:
     print(
         f"{view.instance.instance_id.value}  {view.instance.observed_state.value}  "
         f"reservation held"
+    )
+    platform.journal.emit(
+        host_id=platform.hosts.current.host_id,
+        stage=OperationalStage.INSTANCE,
+        event_type="instance.stopped",
+        summary=f"stopped {view.instance.instance_id.value}",
+        outcome=OperationalOutcome.INFO,
+        attributes=(attr("instance", view.instance.instance_id.value),),
     )
     return 0
 
@@ -3084,6 +3308,7 @@ def infer_named_instance(arguments: Sequence[str]) -> int:
         return 2
     platform = build()
     _warn_if_state_root_defaulted(platform)
+    _enable_live_progress(platform)
     try:
         response = platform.deployment_instance.infer(
             InstanceId.parse(instance_id),
@@ -3091,8 +3316,41 @@ def infer_named_instance(arguments: Sequence[str]) -> int:
             parse_inference_request(query),
         )
     except KultrunError as error:
+        platform.journal.emit(
+            host_id=platform.hosts.current.host_id,
+            stage=OperationalStage.DEPLOYMENT,
+            event_type="deployment.failed",
+            summary=error.message,
+            outcome=OperationalOutcome.FAIL,
+        )
         print(f"kultrun: {error.message}", file=sys.stderr)
         return 1
+    platform.journal.emit(
+        host_id=platform.hosts.current.host_id,
+        stage=OperationalStage.INFERENCE,
+        event_type="inference.completed",
+        summary="inference PASS",
+        outcome=OperationalOutcome.PASS,
+        attributes=(
+            attr("latency_ms", response.latency_ms),
+            attr(
+                "input_tokens",
+                response.input_tokens if resolved(response.input_tokens) else "-",
+            ),
+            attr(
+                "output_tokens",
+                response.output_tokens if resolved(response.output_tokens) else "-",
+            ),
+            attr("model", response.served_model),
+        ),
+    )
+    platform.journal.emit(
+        host_id=platform.hosts.current.host_id,
+        stage=OperationalStage.DEPLOYMENT,
+        event_type="deployment.completed",
+        summary="inference PASS",
+        outcome=OperationalOutcome.PASS,
+    )
     print(f"instance {response.instance_id.value}")
     print(f"request {response.request_id.value}")
     print(f"model {response.served_model}")
@@ -3191,6 +3449,7 @@ COMMANDS: dict[str, Callable[[Sequence[str]], int]] = {
     "storage": _storage,
     "runtime": _runtime,
     "runtimes": _runtimes,
+    "report": lambda _: show_deployment_report(),
     "serve": lambda _: serve(),
 }
 
@@ -3207,7 +3466,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     that plan, `resources` admits capacity, `instances`
     binds a CURRENT plan to a matching reservation and starts native
     vLLM when that path is selected, `storage` and `runtime`
-    are explicit mutations, and `serve` is what the platform does.
+    are explicit mutations, `report` prints the product-owned
+    deployment picture, and `serve` is what the platform does.
     """
     arguments = list(sys.argv[1:] if argv is None else argv)
     if not arguments or arguments[0] in ("-h", "--help", "help"):

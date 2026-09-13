@@ -222,6 +222,7 @@ def plan_for_entry(
     runtime: str,
     runtime_version: Maybe[str] = NOT_PROVIDED,
     requirement_basis: Maybe[str] = NOT_PROVIDED,
+    storage_mount: str | None = None,
 ) -> DeploymentPlan:
     """Residual amounts for the artifact-id reservation path.
 
@@ -231,7 +232,7 @@ def plan_for_entry(
     and InferenceInstance tests keep a ResourceRequest until that remap.
     Compatibility is recorded, not defaulted.
     """
-    capacity = deployment_capacity(envelope)
+    capacity = deployment_capacity(envelope, storage_mount=storage_mount)
     request = estimation_request(
         entry,
         capacity.placement,

@@ -87,7 +87,11 @@ def needed_bytes(request: ModelAcquisitionRequest) -> int | None:
 def safe_storage(
     envelope: CapacityEnvelope, mount: str | None = None
 ) -> tuple[str | None, object]:
-    """SAFE layer only. Reported and effective never authorize."""
+    """SAFE layer only. Reported and effective never authorize.
+
+    A consume path must pass ``mount``. With several resolved SAFE pools,
+    an unnamed call stays unresolved rather than picking one.
+    """
     if mount:
         pool = next(
             (item for item in envelope.pools if item.mount_point == mount),

@@ -45,6 +45,7 @@ from kultrun.runtime.plan import (
 from kultrun.runtime.ports import RuntimeProvisioner
 from kultrun.runtime.python import locate_python
 from kultrun.runtime.resolve import ExecutorCapabilityView, resolve
+from kultrun.storage.topology import mount_for_path
 
 REPORT_NAME = "installer-report.json"
 METADATA_NAME = "installation-metadata.json"
@@ -124,16 +125,18 @@ class ProvisioningService:
                 candidate_id, host, executors, descriptors, components
             )
             python = self._python_or_fail()
+            destination = mount_for_path(self._runtimes, host)
             plan = build_plan(
                 candidate,
                 host,
                 mechanism=self._provisioner.installer_mechanism,
                 python_executable=python,
                 created_at=self._clock.now(),
+                destination_mount=destination if destination else NOT_PROVIDED,
             )
             existing = self._store.get(RuntimeProvisioningPlan, plan.plan_id.value)
             if existing is not None:
-                return existing
+                return _backfill_plan_destination(existing, plan, self._store)
             self._store.put(plan.plan_id.value, plan)
             return plan
 
@@ -440,6 +443,42 @@ class ProvisioningService:
                 path=str(path),
             ) from error
         shutil.rmtree(path, ignore_errors=True)
+
+
+def _backfill_plan_destination(
+    existing: RuntimeProvisioningPlan,
+    planned: RuntimeProvisioningPlan,
+    store: Store,
+) -> RuntimeProvisioningPlan:
+    """Fill a destination that an older plan omitted. Do not retarget a known pool."""
+    if is_resolved(existing.storage_mount) or not is_resolved(planned.storage_mount):
+        return existing
+    filled = replace(
+        existing,
+        storage_mount=planned.storage_mount,
+        persistent_bytes=(
+            existing.persistent_bytes
+            if is_resolved(existing.persistent_bytes)
+            else planned.persistent_bytes
+        ),
+        peak_transient_bytes=(
+            existing.peak_transient_bytes
+            if is_resolved(existing.peak_transient_bytes)
+            else planned.peak_transient_bytes
+        ),
+        cache_bytes=(
+            existing.cache_bytes
+            if is_resolved(existing.cache_bytes)
+            else planned.cache_bytes
+        ),
+        required_peak_free_bytes=(
+            existing.required_peak_free_bytes
+            if is_resolved(existing.required_peak_free_bytes)
+            else planned.required_peak_free_bytes
+        ),
+    )
+    store.put(filled.plan_id.value, filled)
+    return filled
 
 
 def _directory_bytes(path: Path) -> int:

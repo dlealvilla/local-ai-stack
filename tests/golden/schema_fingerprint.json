@@ -749,6 +749,25 @@
     },
     "python": "PlatformSettings"
   },
+  "config.vendor@1": {
+    "fields": {
+      "enabled": {
+        "may_be_unresolved": false,
+        "meaning": "whether the installation may offer operational metadata to an exporter",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      },
+      "export_operational_metadata": {
+        "may_be_unresolved": false,
+        "meaning": "whether sanitized operational facts may be queued for export; never includes prompts, responses, or documents",
+        "nullable": false,
+        "optional": true,
+        "type": "bool"
+      }
+    },
+    "python": "TelemetrySettings"
+  },
   "entitlement.claim@1": {
     "fields": {
       "claim": {
@@ -4571,6 +4590,13 @@
         "nullable": false,
         "optional": true,
         "type": "str | Unresolved"
+      },
+      "storage_pool_mount": {
+        "may_be_unresolved": true,
+        "meaning": "destination StoragePool this plan would consume",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
       }
     },
     "python": "DeploymentPlan"
@@ -5179,6 +5205,242 @@
     },
     "python": "ComponentHealth"
   },
+  "platform.deployment_report@1": {
+    "fields": {
+      "accelerators": {
+        "may_be_unresolved": false,
+        "meaning": "one line per assigned GPU",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "architecture": {
+        "may_be_unresolved": false,
+        "meaning": "CPU architecture",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "available_models": {
+        "may_be_unresolved": false,
+        "meaning": "current Available Models names",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "composed_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this projection was built, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "cpu": {
+        "may_be_unresolved": true,
+        "meaning": "CPU model",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "deployment_plan_id": {
+        "may_be_unresolved": true,
+        "meaning": "authoritative plan identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "failed_at": {
+        "may_be_unresolved": true,
+        "meaning": "stage that blocked, when failed",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host the report describes",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "instances": {
+        "may_be_unresolved": false,
+        "meaning": "serving instances",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[InstanceReport, ...]"
+      },
+      "kultrun_build": {
+        "may_be_unresolved": false,
+        "meaning": "build id or origin string",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "latest_inference_latency_ms": {
+        "may_be_unresolved": true,
+        "meaning": "last recorded inference latency from operational facts",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "latest_inference_outcome": {
+        "may_be_unresolved": true,
+        "meaning": "last inference operational outcome",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "model_candidates": {
+        "may_be_unresolved": false,
+        "meaning": "evaluated model paths",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[ModelCandidateReport, ...]"
+      },
+      "next_action": {
+        "may_be_unresolved": true,
+        "meaning": "what the operator should do next",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "os_name": {
+        "may_be_unresolved": false,
+        "meaning": "operating system family",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "os_version": {
+        "may_be_unresolved": true,
+        "meaning": "OS version",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "plan_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "plan RAM requirement",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "plan_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "plan storage requirement",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "plan_storage_pool": {
+        "may_be_unresolved": true,
+        "meaning": "plan destination pool",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "plan_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "plan VRAM requirement",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "ram_safe_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE RAM",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "ram_total_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "reported RAM total",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "reason": {
+        "may_be_unresolved": true,
+        "meaning": "why the verdict is what it is",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "recommended_model": {
+        "may_be_unresolved": true,
+        "meaning": "recommended catalog name",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "recommended_runtime": {
+        "may_be_unresolved": true,
+        "meaning": "recommended candidate id",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "report_id": {
+        "may_be_unresolved": false,
+        "meaning": "identity of this composed report",
+        "nullable": false,
+        "optional": false,
+        "type": "DeploymentReportId"
+      },
+      "runtime_candidates": {
+        "may_be_unresolved": false,
+        "meaning": "evaluated runtime paths",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[RuntimeCandidateReport, ...]"
+      },
+      "runtime_installs": {
+        "may_be_unresolved": false,
+        "meaning": "install receipts",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[RuntimeInstallReport, ...]"
+      },
+      "selected_model": {
+        "may_be_unresolved": true,
+        "meaning": "selected catalog name",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "selected_runtime": {
+        "may_be_unresolved": true,
+        "meaning": "selected candidate id",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "selection_mode": {
+        "may_be_unresolved": true,
+        "meaning": "AUTO or MANUAL",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "storage_pools": {
+        "may_be_unresolved": false,
+        "meaning": "each known pool",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[StoragePoolReport, ...]"
+      },
+      "verdict": {
+        "may_be_unresolved": false,
+        "meaning": "overall standing of this vertical",
+        "nullable": false,
+        "optional": false,
+        "type": "DeploymentVerdict"
+      }
+    },
+    "python": "DeploymentReport"
+  },
   "platform.health_report@1": {
     "fields": {
       "components": {
@@ -5204,6 +5466,421 @@
       }
     },
     "python": "HealthReport"
+  },
+  "platform.operational_fact@1": {
+    "fields": {
+      "attributes": {
+        "may_be_unresolved": false,
+        "meaning": "key=value metadata; never file contents or generated text",
+        "nullable": false,
+        "optional": true,
+        "type": "tuple[str, ...]"
+      },
+      "correlation_id": {
+        "may_be_unresolved": true,
+        "meaning": "ties this fact to the operation that caused it",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "event_type": {
+        "may_be_unresolved": false,
+        "meaning": "stable dotted name such as storage.sonar_tier_passed",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "fact_id": {
+        "may_be_unresolved": false,
+        "meaning": "platform-minted identity of this fact",
+        "nullable": false,
+        "optional": false,
+        "type": "OperationalFactId"
+      },
+      "host_id": {
+        "may_be_unresolved": false,
+        "meaning": "host this observation was made on",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId"
+      },
+      "occurred_at": {
+        "may_be_unresolved": false,
+        "meaning": "when it happened, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "pass, fail, unresolved, info, or blocked",
+        "nullable": false,
+        "optional": false,
+        "type": "OperationalOutcome"
+      },
+      "reason_code": {
+        "may_be_unresolved": true,
+        "meaning": "typed product reason when one exists",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "stage": {
+        "may_be_unresolved": false,
+        "meaning": "which deployment column this belongs to",
+        "nullable": false,
+        "optional": false,
+        "type": "OperationalStage"
+      },
+      "summary": {
+        "may_be_unresolved": false,
+        "meaning": "short operator line; never a prompt, response, or document",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "OperationalFact"
+  },
+  "platform.report_instance@1": {
+    "fields": {
+      "endpoint": {
+        "may_be_unresolved": true,
+        "meaning": "loopback URL when bound",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "health": {
+        "may_be_unresolved": false,
+        "meaning": "API health",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "instance_id": {
+        "may_be_unresolved": false,
+        "meaning": "instance identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "lifecycle": {
+        "may_be_unresolved": false,
+        "meaning": "intended/observed lifecycle",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "ownership": {
+        "may_be_unresolved": true,
+        "meaning": "process ownership class when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "ready": {
+        "may_be_unresolved": true,
+        "meaning": "readiness, distinct from reachable",
+        "nullable": false,
+        "optional": false,
+        "type": "bool | Unresolved"
+      }
+    },
+    "python": "InstanceReport"
+  },
+  "platform.report_model_candidate@1": {
+    "fields": {
+      "available": {
+        "may_be_unresolved": false,
+        "meaning": "true when in the current Available Models set",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "blocked_reason": {
+        "may_be_unresolved": true,
+        "meaning": "exclusion reason when not available",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "context_tokens": {
+        "may_be_unresolved": true,
+        "meaning": "context assumption",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "logical_name": {
+        "may_be_unresolved": false,
+        "meaning": "catalog name",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "model_id": {
+        "may_be_unresolved": false,
+        "meaning": "catalog identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "quantization": {
+        "may_be_unresolved": true,
+        "meaning": "variant",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "required_ram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "evaluated RAM demand",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "required_storage_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "evaluated storage demand",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "required_vram_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "evaluated VRAM demand",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "revision": {
+        "may_be_unresolved": true,
+        "meaning": "source revision",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "ModelCandidateReport"
+  },
+  "platform.report_runtime_candidate@1": {
+    "fields": {
+      "candidate_id": {
+        "may_be_unresolved": false,
+        "meaning": "RuntimeCandidate identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "compatibility": {
+        "may_be_unresolved": false,
+        "meaning": "compatibility class",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "executor": {
+        "may_be_unresolved": false,
+        "meaning": "executor identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "reason_codes": {
+        "may_be_unresolved": false,
+        "meaning": "normalized reason codes",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "recommended": {
+        "may_be_unresolved": false,
+        "meaning": "true when this is the current recommendation",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "selected": {
+        "may_be_unresolved": false,
+        "meaning": "true when this is the selected foundation",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "support_tier": {
+        "may_be_unresolved": false,
+        "meaning": "PRODUCT, FUTURE, or other declared tier",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "version": {
+        "may_be_unresolved": true,
+        "meaning": "version pin when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "RuntimeCandidateReport"
+  },
+  "platform.report_runtime_install@1": {
+    "fields": {
+      "duration_seconds": {
+        "may_be_unresolved": true,
+        "meaning": "install attempt wall time",
+        "nullable": false,
+        "optional": false,
+        "type": "float | Unresolved"
+      },
+      "installation_id": {
+        "may_be_unresolved": false,
+        "meaning": "installation identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "installed_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "measured persistent bytes",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "runtime": {
+        "may_be_unresolved": false,
+        "meaning": "runtime family",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "installing, installed, or failed",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "storage_pool_mount": {
+        "may_be_unresolved": true,
+        "meaning": "destination pool",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "verification": {
+        "may_be_unresolved": true,
+        "meaning": "verification status when known",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "version": {
+        "may_be_unresolved": false,
+        "meaning": "requested version",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "RuntimeInstallReport"
+  },
+  "platform.report_storage_pool@1": {
+    "fields": {
+      "authorizing_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "authorizing remaining at report time",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "filesystem_type": {
+        "may_be_unresolved": true,
+        "meaning": "filesystem family",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "managed_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "platform-managed bytes on this pool",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "mount_point": {
+        "may_be_unresolved": false,
+        "meaning": "pool mount",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "remaining_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "authorizing remaining after managed usage",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "reported_free_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "generic reported free space",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "reported_trusted": {
+        "may_be_unresolved": false,
+        "meaning": "whether reported free space may be believed",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "safe_bytes": {
+        "may_be_unresolved": true,
+        "meaning": "SAFE remaining; never reported",
+        "nullable": false,
+        "optional": false,
+        "type": "int | Unresolved"
+      },
+      "selected_reason": {
+        "may_be_unresolved": false,
+        "meaning": "why the operational figure was chosen",
+        "nullable": false,
+        "optional": true,
+        "type": "str"
+      },
+      "sonar_tiers": {
+        "may_be_unresolved": false,
+        "meaning": "official tier results, in order",
+        "nullable": false,
+        "optional": false,
+        "type": "tuple[str, ...]"
+      },
+      "specialist_probe": {
+        "may_be_unresolved": true,
+        "meaning": "compatible specialist identity",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      },
+      "specialist_result": {
+        "may_be_unresolved": true,
+        "meaning": "specialist outcome summary",
+        "nullable": false,
+        "optional": false,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "StoragePoolReport"
   },
   "platform.startup_phase@1": {
     "fields": {
@@ -9769,5 +10446,101 @@
       }
     },
     "python": "DerivedModel"
+  },
+  "vendor.telemetry_record@1": {
+    "fields": {
+      "architecture": {
+        "may_be_unresolved": true,
+        "meaning": "CPU architecture",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "error_class": {
+        "may_be_unresolved": true,
+        "meaning": "error class, never an exception body",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "event_type": {
+        "may_be_unresolved": false,
+        "meaning": "stable dotted operational event name",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "kultrun_build": {
+        "may_be_unresolved": true,
+        "meaning": "build id when known",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "latency_ms": {
+        "may_be_unresolved": true,
+        "meaning": "latency when the fact recorded one",
+        "nullable": false,
+        "optional": true,
+        "type": "int | Unresolved"
+      },
+      "model": {
+        "may_be_unresolved": true,
+        "meaning": "catalog logical name, never generated text",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "occurred_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the fact happened, UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "os_name": {
+        "may_be_unresolved": true,
+        "meaning": "OS family",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "pass, fail, unresolved, info, or blocked",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "reason_code": {
+        "may_be_unresolved": true,
+        "meaning": "typed product reason",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "runtime": {
+        "may_be_unresolved": true,
+        "meaning": "runtime family, when applicable",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      },
+      "stage": {
+        "may_be_unresolved": false,
+        "meaning": "deployment column",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "storage_technology": {
+        "may_be_unresolved": true,
+        "meaning": "filesystem family, when the fact is about storage",
+        "nullable": false,
+        "optional": true,
+        "type": "str | Unresolved"
+      }
+    },
+    "python": "TelemetryRecord"
   }
 }

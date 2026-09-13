@@ -1962,6 +1962,53 @@ Retire when:  each family has a verified executable path and physical
               acceptance on its intended host class.
 Status:       OPEN
 
+### K-113 — vendor cloud telemetry export is a seam, not a service
+Label:        DEFERRED
+Owner stage:  9.1–9.2
+Subsystem:    vendor
+Authorizes:   NO
+What:         `config.vendor` and `ProductTelemetryExporter` exist.
+              Default is disabled. The only adapter is a no-op.
+              Enabling the section does not send anything off-host.
+              Deployment never depends on export. Local operational
+              facts remain in `platform.OperationalFact`.
+Why now:      Physical acceptance and Admin diagnostics need a product
+              journal now. A cloud ingestion service is not required to
+              close the installation → inference vertical.
+To make real: a real exporter adapter, consent/privacy review, and
+              the vendor ingestion service. Never include prompts,
+              responses, documents, or named personal content.
+Retire when:  Stage 9.x implements outbound product telemetry with
+              an air-gapped default that still works.
+Status:       OPEN
+
+### K-114 — unnamed unique-SAFE storage remains for diagnostic callers
+Label:        WORKING
+Owner stage:  1.6L / closing the vertical
+Subsystem:    storage / model / planning
+Authorizes:   NO (unnamed multi-pool stays unresolved)
+What:         `safe_storage(envelope, None)` and unnamed
+              `deployment_capacity` still resolve when **exactly one**
+              pool has resolved SAFE. Consume paths (runtime plan,
+              calibration acquire, Available Models, DeploymentPlan,
+              ResourceRequest) pass an explicit `StoragePool` mount
+              derived from `state_root`. Several resolved SAFE pools
+              stay unresolved unless named.
+              Remaining unnamed callers: `SelectionService.recommend`
+              (isolated ranking; unused on the product path),
+              `assess_entry` when capacity is omitted, and
+              `plan_from` (non-authoritative recommendation projection).
+Why now:      Cheap diagnostic reads (`kultrun host`, some tests)
+              should not invent a destination. The physical defect
+              was consume-path callers omitting the mount they already
+              knew.
+To make real: not required. The unique-pool heuristic is intentional
+              for unnamed diagnostics. Product consume paths pass a
+              mount derived from `state_root`.
+Retire when:  every remaining unnamed caller is classified as
+              diagnostic, or the heuristic is removed after an audit.
+Status:       OPEN
+
 ## Runtime-first migration ledger (after 1.6K)
 
 Not a second architecture. Existing components still to migrate, in

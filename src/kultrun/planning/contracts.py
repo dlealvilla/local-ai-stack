@@ -473,6 +473,9 @@ class DeploymentPlan(Contract):
     eligible_view_id: Maybe[str] = meaning(
         "EligibleModelView identity consumed", default=NOT_PROVIDED
     )
+    storage_pool_mount: Maybe[str] = meaning(
+        "destination StoragePool this plan would consume", default=NOT_PROVIDED
+    )
 
 
 class AvailableModelViewId(EntityId):

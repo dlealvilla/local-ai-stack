@@ -217,6 +217,8 @@ HOST_SCOPED_KINDS: frozenset[str] = frozenset(
         "runtime.memory_profile",
         "planning.model_selection",
         "planning.available_model_view",
+        "platform.operational_fact",
+        "platform.deployment_report",
     }
 )
 

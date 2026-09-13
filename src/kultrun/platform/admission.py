@@ -264,6 +264,15 @@ def request_from_plan(
         capacity_policy_version=envelope.policy_version,
         host_fingerprint=envelope.host_fingerprint,
         workload_type=WorkloadType.INFERENCE,
+        storage_pool_mount=(
+            plan.storage_pool_mount
+            if is_resolved(plan.storage_pool_mount)
+            else (
+                artifact.storage_mount
+                if is_resolved(artifact.storage_mount)
+                else NOT_PROVIDED
+            )
+        ),
     )
 
 
@@ -314,6 +323,7 @@ def request_from_artifact(
         )
     ident = entry.metadata.model_id.value
     verdict = runtime_compatibility.get(ident, CompatibilityVerdict.UNRESOLVED)
+    mount = artifact.storage_mount if isinstance(artifact.storage_mount, str) else None
     plan = plan_for_entry(
         selection,
         entry,
@@ -321,8 +331,9 @@ def request_from_artifact(
         verdict,
         runtime=runtime,
         runtime_version=runtime_version,
+        storage_mount=mount,
     )
-    capacity = deployment_capacity(envelope)
+    capacity = deployment_capacity(envelope, storage_mount=mount)
     fingerprint = _plan_fingerprint(artifact, plan, capacity.accelerator_index)
     incremental = NOT_PROVIDED
     return ResourceRequest(
@@ -355,6 +366,7 @@ def request_from_artifact(
         capacity_policy_version=envelope.policy_version,
         host_fingerprint=envelope.host_fingerprint,
         workload_type=WorkloadType.INFERENCE,
+        storage_pool_mount=mount if mount is not None else NOT_PROVIDED,
     )
 
 

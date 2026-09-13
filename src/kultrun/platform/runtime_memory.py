@@ -78,6 +78,7 @@ from kultrun.runtime.ports import (
     RuntimeMemoryInterpreter,
 )
 from kultrun.runtime.provision import ProvisioningService
+from kultrun.storage.topology import mount_for_path
 
 PROBE_TIMEOUT_SECONDS = 1800.0
 PROBE_POLL_SECONDS = 0.2
@@ -466,7 +467,15 @@ class RuntimeMemoryCalibrationService:
         handle = None
         try:
             decision = self._resources.admit(
-                _probe_request(host, eligible, capacity, sentinel, artifact, budget),
+                _probe_request(
+                    host,
+                    eligible,
+                    capacity,
+                    sentinel,
+                    artifact,
+                    budget,
+                    storage_mount=self._model_destination(host),
+                ),
                 envelope,
                 artifact,
             )
@@ -565,7 +574,10 @@ class RuntimeMemoryCalibrationService:
         assert self._acquisition is not None
         assert self._inventory is not None
         request = request_from_entry(entry)
-        receipt = self._acquisition.acquire(request, envelope, host.host_id)
+        destination = self._model_destination(host)
+        receipt = self._acquisition.acquire(
+            request, envelope, host.host_id, destination_mount=destination
+        )
         artifact = self._inventory.get(receipt.artifact_id)
         if artifact is None or artifact.state is not ArtifactState.STORED:
             raise PreconditionFailedError(
@@ -573,6 +585,21 @@ class RuntimeMemoryCalibrationService:
                 reason="artifact_not_stored",
             )
         return artifact
+
+    def _model_destination(self, host: HostCapabilities) -> str:
+        """Pool that holds state_root/models. Never the unique-SAFE heuristic."""
+        if self._state_root is None:
+            raise PreconditionFailedError(
+                "model destination pool is unresolved",
+                reason="storage_pool_unresolved",
+            )
+        mount = mount_for_path(self._state_root / "models", host)
+        if not isinstance(mount, str):
+            raise PreconditionFailedError(
+                "model destination pool is unresolved",
+                reason="storage_pool_unresolved",
+            )
+        return mount
 
     def _profile_from_observation(
         self,
@@ -1027,8 +1054,13 @@ def _probe_request(
     sentinel: EstimatedFeasibleCandidate,
     artifact: ModelArtifact,
     budget: int,
+    *,
+    storage_mount: str | None = None,
 ) -> ResourceRequest:
     ram = sentinel.requirement.ram_bytes
+    dest = storage_mount
+    if dest is None and is_resolved(artifact.storage_mount):
+        dest = artifact.storage_mount
     return ResourceRequest(
         request_id=RequestId.generate(),
         host_id=host.host_id,
@@ -1048,6 +1080,7 @@ def _probe_request(
         context_tokens=sentinel.requirement.assumed_context_tokens,
         host_fingerprint=host.fingerprint,
         workload_type=WorkloadType.EVALUATION,
+        storage_pool_mount=dest if isinstance(dest, str) else NOT_PROVIDED,
     )
 
 

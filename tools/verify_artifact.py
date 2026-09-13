@@ -159,6 +159,29 @@ def verify(wheel: Path) -> int:
             usage.returncode != 0 or "usage" in usage.stdout,
             _first_line(usage.stdout),
         )
+        check(
+            "deployment report command is packaged",
+            "report" in usage.stdout,
+            _first_line(usage.stdout),
+        )
+
+        vendor = run(
+            [
+                str(python),
+                "-c",
+                "from kultrun.vendor.contracts import TelemetrySettings;"
+                "from kultrun.adapters.telemetry.disabled import "
+                "DisabledProductTelemetryExporter;"
+                "s=TelemetrySettings();"
+                "DisabledProductTelemetryExporter().export(());"
+                "print(int(s.enabled), int(s.export_operational_metadata))",
+            ]
+        )
+        check(
+            "vendor telemetry seam ships disabled",
+            vendor.returncode == 0 and vendor.stdout.strip() == "0 0",
+            vendor.stdout.strip() or vendor.stderr.strip()[:200],
+        )
 
     return report(checks)
 

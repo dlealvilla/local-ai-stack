@@ -56,6 +56,8 @@ def deployment_capacity(
 
     Storage is the named destination pool. Several mounts must not collapse
     to the first SAFE figure — that reintroduces the FUSE first-pool leak.
+    Callers that consume storage must pass ``storage_mount``. The unique
+    resolved-SAFE fallback is only for unnamed diagnostic reads.
     """
     gpu = next(
         (

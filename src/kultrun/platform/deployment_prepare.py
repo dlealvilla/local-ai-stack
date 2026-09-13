@@ -188,10 +188,16 @@ class DeploymentPreparationService:
                 self._stored_sanity(host),
             )
         else:
+            dest = (
+                plan.storage_pool_mount
+                if is_resolved(plan.storage_pool_mount)
+                else None
+            )
             receipt = self._acquisition.acquire(
                 acquisition_request_for_plan(plan, entry),
                 envelope,
                 host.host_id,
+                destination_mount=dest if isinstance(dest, str) else None,
             )
         artifact = self._inventory.get(receipt.artifact_id)
         if (

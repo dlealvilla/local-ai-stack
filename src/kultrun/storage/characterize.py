@@ -13,7 +13,7 @@ does not inherit a sibling FUSE pool's need for Sonar.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -70,6 +70,7 @@ class StorageCharacterizationService:
         low_space_bytes: int = LOW_SPACE_THRESHOLD_BYTES,
         belief_bound_bytes: int = DEFAULT_BELIEF_BOUND_BYTES,
         use_live_native: bool = True,
+        on_event: Callable[[str, Mapping[str, str]], None] | None = None,
     ) -> None:
         self._clock = clock
         self._registry = registry
@@ -79,6 +80,7 @@ class StorageCharacterizationService:
         self._low_space = low_space_bytes
         self._belief = belief_bound_bytes
         self._use_live_native = use_live_native
+        self._on_event = on_event
 
     def characterize(
         self,
@@ -118,6 +120,16 @@ class StorageCharacterizationService:
             mount = mounts.get(pool.mount_point)
             if mount is None:
                 continue
+            if run_empirical:
+                self._notify(
+                    "storage.pool_evaluated",
+                    mount=pool.mount_point,
+                    filesystem=str(mount.filesystem_type)
+                    if is_resolved(mount.filesystem_type)
+                    else "unknown",
+                    summary=f"evaluating {pool.mount_point}",
+                    outcome="info",
+                )
             item = self._one(
                 host,
                 pool,
@@ -130,6 +142,18 @@ class StorageCharacterizationService:
                 empirical_evidence=empirical_evidence,
             )
             evidence[pool.mount_point] = item
+            if run_empirical:
+                auth = item.authorizing_available_bytes
+                self._notify(
+                    "storage.authority_established",
+                    mount=pool.mount_point,
+                    summary=(
+                        f"authorizing {auth} bytes"
+                        if isinstance(auth, int)
+                        else "authorizing unresolved"
+                    ),
+                    outcome="pass" if isinstance(auth, int) else "unresolved",
+                )
         low = tuple(
             _low_space(host, item, self._low_space, cleanup)
             for item in evidence.values()
@@ -175,6 +199,23 @@ class StorageCharacterizationService:
                 probe_name = report.probe_name
                 if report.executed and is_resolved(report.available_bytes):
                     break
+        if run_empirical and (not compatible or probe_name == "none"):
+            self._notify(
+                "storage.probe_result",
+                mount=pool.mount_point,
+                summary=f"{family or 'unknown'} specialist unavailable",
+                outcome="unresolved",
+                reason="specialist_unavailable",
+            )
+        elif run_empirical and isinstance(probe_name, str):
+            result = "ran" if executed else "compatible-not-run"
+            self._notify(
+                "storage.probe_result",
+                mount=pool.mount_point,
+                probe=probe_name,
+                summary=f"{probe_name} {result}",
+                outcome="info" if executed else "unresolved",
+            )
         first = arbitrate(
             host_id=host.host_id,
             mount_point=pool.mount_point,
@@ -335,6 +376,11 @@ class StorageCharacterizationService:
             empirical=stored,
             native_trusted=native_trusted,
         )
+
+    def _notify(self, event_type: str, **fields: str) -> None:
+        if self._on_event is None:
+            return
+        self._on_event(event_type, fields)
 
 
 def environment_for(host: HostCapabilities, mount: MountFacts) -> StorageEnvironment:

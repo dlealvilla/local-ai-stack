@@ -54,6 +54,12 @@ from kultrun.planning.contracts import (
     SelectionPolicy,
 )
 from kultrun.planning.evaluate import cheap_weight_fit, evaluate
+from kultrun.platform.observation import (
+    OperationalJournal,
+    OperationalOutcome,
+    OperationalStage,
+    attr,
+)
 from kultrun.platform.requirement import (
     RequirementAssessment,
     RequirementStatus,
@@ -212,6 +218,7 @@ class AvailableModelsService:
         inventory: ModelInventory | None = None,
         calibrator: RuntimeMemoryCalibrationService | None = None,
         refresh_capacity: CapacityRefresh | None = None,
+        journal: OperationalJournal | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
@@ -224,10 +231,39 @@ class AvailableModelsService:
         self._inventory = inventory
         self._calibrator = calibrator
         self._refresh_capacity = refresh_capacity
+        self._journal = journal
 
     def stored(self, host: HostCapabilities) -> AvailableModelView | None:
         """Persisted view, if any. Does not recompute."""
         return self._store.get(AvailableModelView, store_key(host.host_id.value))
+
+    def _record_models(
+        self, host: HostCapabilities, view: AvailableModelView
+    ) -> None:
+        if self._journal is None:
+            return
+        for member in view.members:
+            self._journal.emit(
+                host_id=host.host_id,
+                stage=OperationalStage.MODEL,
+                event_type="model.available",
+                summary=f"{member.logical_name} ELIGIBLE",
+                outcome=OperationalOutcome.PASS,
+                attributes=(
+                    attr("model", member.logical_name),
+                    attr("model_id", member.model_id),
+                ),
+            )
+        for item in view.exclusions:
+            self._journal.emit(
+                host_id=host.host_id,
+                stage=OperationalStage.MODEL,
+                event_type="model.blocked",
+                summary=f"{item.logical_name} BLOCKED: {item.reason}",
+                outcome=OperationalOutcome.BLOCKED,
+                reason_code=item.reason,
+                attributes=(attr("model", item.logical_name),),
+            )
 
     def evaluate(
         self,
@@ -246,6 +282,7 @@ class AvailableModelsService:
             )
             if persist:
                 self._store.put(store_key(host.host_id.value), result.available)
+                self._record_models(host, result.available)
             return result
 
     def _evaluate(

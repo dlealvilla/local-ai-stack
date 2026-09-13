@@ -181,6 +181,15 @@ class StorageEvidenceIndex:
             for mount, item in merged.items()
         }
 
+    def snapshots_for_host(
+        self, host: HostCapabilities
+    ) -> dict[str, StorageCapacityEvidence]:
+        """Authorizing characterization snapshot. Does not subtract managed usage."""
+        observations, authorizing = self._split(host.host_id)
+        if authorizing:
+            return authorizing
+        return observations
+
     def empirical_for_host(
         self, host: HostCapabilities
     ) -> dict[str, EmpiricalProbeEvidence]:

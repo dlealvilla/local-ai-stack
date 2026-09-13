@@ -6,10 +6,16 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from kultrun.capacity.envelope import CapacityService
-from kultrun.host.contracts import HostCapabilities
+from kultrun.host.contracts import HostCapabilities, HostId
 from kultrun.kernel.errors import PreconditionFailedError
 from kultrun.kernel.unresolved import NOT_PROVIDED, is_resolved
 from kultrun.model.contracts import MemoryPlacement
+from kultrun.platform.observation import (
+    OperationalJournal,
+    OperationalOutcome,
+    OperationalStage,
+    attr,
+)
 from kultrun.platform.storage_replan import (
     ReplanOutcome,
     ReplanStage,
@@ -61,6 +67,7 @@ class FoundationRealizeService:
         *,
         allow_empirical: bool = False,
         replan: StorageReplanService | None = None,
+        journal: OperationalJournal | None = None,
     ) -> None:
         self._foundation = foundation
         self._characterization = characterization
@@ -70,6 +77,7 @@ class FoundationRealizeService:
         self._index = index
         self._allow_empirical = allow_empirical
         self._replan = replan
+        self._journal = journal
 
     def realize(
         self,
@@ -223,6 +231,25 @@ class FoundationRealizeService:
                 "no storage-feasible foundation to realize",
                 reason="runtime_storage_infeasible",
             )
+        self._emit(
+            host.host_id,
+            OperationalStage.RUNTIME,
+            "runtime.selected",
+            f"selected {selected}",
+            OperationalOutcome.PASS,
+            candidate=selected,
+        )
+        for item in overview.candidates:
+            blocked = item.role == "blocked"
+            self._emit(
+                host.host_id,
+                OperationalStage.RUNTIME,
+                "runtime.candidate_evaluated",
+                f"evaluating {item.candidate_id} {item.role}",
+                OperationalOutcome.BLOCKED if blocked else OperationalOutcome.INFO,
+                candidate=item.candidate_id,
+                reason=item.reason if blocked else None,
+            )
         envelope = self._capacity.compute(
             host, sanity or {}, storage_evidence=storage_evidence
         )
@@ -260,7 +287,24 @@ class FoundationRealizeService:
                 decision.reasons[0] if decision.reasons else "storage not admitted",
                 reason=code,
             )
+        self._emit(
+            host.host_id,
+            OperationalStage.ADMISSION,
+            "resource.admission_completed",
+            "admission PASS",
+            OperationalOutcome.PASS,
+            candidate=selected,
+            mount=mount,
+        )
         try:
+            self._emit(
+                host.host_id,
+                OperationalStage.RUNTIME,
+                "runtime.provision_started",
+                "installing selected runtime",
+                OperationalOutcome.INFO,
+                candidate=selected,
+            )
             installation = self._foundation.realize_selected(
                 host,
                 executors,
@@ -274,6 +318,28 @@ class FoundationRealizeService:
         finally:
             if decision.reservation is not None:
                 self._resources.release(decision.reservation.reservation_id)
+        outcome = (
+            OperationalOutcome.PASS
+            if installation.status is InstallationStatus.INSTALLED
+            else OperationalOutcome.FAIL
+        )
+        size = (
+            f"{installation.installed_bytes} bytes"
+            if is_resolved(installation.installed_bytes)
+            else "size unknown"
+        )
+        self._emit(
+            host.host_id,
+            OperationalStage.RUNTIME,
+            "runtime.provision_completed",
+            f"installed {installation.runtime.value} {size}",
+            outcome,
+            candidate=selected,
+            bytes=installation.installed_bytes
+            if is_resolved(installation.installed_bytes)
+            else None,
+            mount=mount,
+        )
         self._after(host, storage_evidence, installation)
         return installation
 
@@ -305,6 +371,31 @@ class FoundationRealizeService:
         )
         if self._index is not None:
             self._index.record_observation(rediscovered.evidence)
+
+    def _emit(
+        self,
+        host_id: HostId,
+        stage: OperationalStage,
+        event_type: str,
+        summary: str,
+        outcome: OperationalOutcome,
+        reason: str | None = None,
+        **fields: object,
+    ) -> None:
+        if self._journal is None:
+            return
+        attributes = tuple(
+            attr(key, value) for key, value in fields.items() if value is not None
+        )
+        self._journal.emit(
+            host_id=host_id,
+            stage=stage,
+            event_type=event_type,
+            summary=summary,
+            outcome=outcome,
+            reason_code=reason,
+            attributes=attributes,
+        )
 
 
 def _selected_identity(

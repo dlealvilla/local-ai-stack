@@ -1422,11 +1422,11 @@ else can be bypassed by a new caller.
 
 | | |
 |---|---|
-| **Owns** | `PlatformState`, installation identity, platform version, configuration wiring, the startup sequence, the **single** reconciliation path, health aggregation, `Approval`, and bounded AUTO storage-replan orchestration (`StorageReplanService`). Replan sequences existing services; it does not rank, admit, or probe. |
+| **Owns** | `PlatformState`, installation identity, platform version, configuration wiring, the startup sequence, the **single** reconciliation path, health aggregation, `Approval`, bounded AUTO storage-replan orchestration (`StorageReplanService`), `OperationalFact` (control-plane operational journal), and `DeploymentReport` (a read-time projection, not a second source of truth). Replan sequences existing services; it does not rank, admit, or probe. |
 | **Consumes** | Every domain's `reconcile` and `health` |
 | **Ports** | `HealthSource` and `ReconcilePhase`. These live at tier 8, so only tiers **above** 8 implement them directly. A lower domain reports facts in its own vocabulary and the composition root adapts them — discovered implementing Stage 1.1, where `host` needed to report health from tier 2. Not a workaround: whether a missing provider makes the platform "degraded" depends on the whole platform's state, which one subsystem cannot know, so grading belongs to the aggregator. The same division the record store uses — the store returns facts, policy decides. |
-| **Must not** | Contain domain algorithms. Own state that a domain should own. Require a model to be present in order to start. |
-| **Created** | 0.3 · **Deepened** 6.3 idempotent startup |
+| **Must not** | Contain domain algorithms. Own state that a domain should own. Require a model to be present in order to start. Duplicate `analytics.UsageEvent` (AI consumption) or `audit.AuditEvent` (admin change). Transmit outbound telemetry — that is `vendor`. |
+| **Created** | 0.3 · **Deepened** 6.3 idempotent startup · **Deepened** operational journal + deployment-report projection |
 
 An absent model is a valid unsatisfied deployment state. The previous
 attempt hit a bootstrap deadlock — the platform needed a model to start,
@@ -1477,10 +1477,10 @@ provable at `L1` without a live port.
 
 | | |
 |---|---|
-| **Owns** | The single outbound boundary: heartbeat, product telemetry batching, optional cloud analytics export, update checks, crash reporting and entitlement renewal transport. Per-channel visibility and configuration. |
-| **Consumes** | `entitlement`, `analytics` aggregates, `platform` state |
+| **Owns** | The single outbound boundary: heartbeat, product telemetry batching, optional cloud analytics export, update checks, crash reporting and entitlement renewal transport. Per-channel visibility and configuration. `TelemetrySettings` (`config.vendor`) and `TelemetryRecord` are the v1 seam. The only adapter in this stage is `DisabledProductTelemetryExporter`. |
+| **Consumes** | `entitlement`, `analytics` aggregates, `platform` operational facts (sanitized) |
 | **Ports** | `ProductTelemetryExporter` · `HeartbeatTransport` |
-| **Must not** | Transmit prompts, responses, documents or retrieved content by default. Be required for the platform to function. |
+| **Must not** | Transmit prompts, responses, documents or retrieved content by default. Be required for the platform to function. Own local operational truth — that stays in `platform.OperationalFact` and domain records. |
 | **Created** | 9.1–9.2 |
 
 ### `install`

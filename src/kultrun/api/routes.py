@@ -7,6 +7,7 @@ reserve storage.
 
 from __future__ import annotations
 
+import datetime as dt
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,7 +18,7 @@ from kultrun.capacity.contracts import CapacityEnvelope, HeadroomPolicy
 from kultrun.capacity.envelope import CapacityService
 from kultrun.execution.contracts import ExecutionId, ExecutorCapabilityProfile
 from kultrun.execution.service import ExecutionService
-from kultrun.host.contracts import DeploymentProfile, HostCapabilities
+from kultrun.host.contracts import DeploymentProfile, HostCapabilities, HostId
 from kultrun.host.inventory import HostInventory
 from kultrun.host.profile import shape_of
 from kultrun.inference.contracts import InstanceId, ObservedState
@@ -31,7 +32,7 @@ from kultrun.kernel.errors import (
 )
 from kultrun.kernel.ids import Name
 from kultrun.kernel.schema import registered_contracts
-from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 from kultrun.model.acquisition import AcquisitionService, request_from_entry
 from kultrun.model.catalogue import ModelCatalogue
 from kultrun.model.contracts import ArtifactId
@@ -61,6 +62,8 @@ from kultrun.platform.foundation_realize import FoundationRealizeService
 from kultrun.platform.health import HealthAggregator
 from kultrun.platform.launch import executor_spec_from
 from kultrun.platform.model_selection import ModelSelectionService
+from kultrun.platform.observation import OperationalJournal
+from kultrun.platform.report import compose_deployment_report
 from kultrun.platform.requirement import (
     RequirementAssessment,
     assessment_payload,
@@ -84,7 +87,11 @@ from kultrun.runtime.provision import ProvisioningService
 from kultrun.runtime.resolve import path_presence, resolve
 from kultrun.runtime.selection import FoundationSelectionService
 from kultrun.runtime.verify import VerificationService
-from kultrun.storage.contracts import StorageCapacityEvidence, StorageSanityEvidence
+from kultrun.storage.contracts import (
+    EmpiricalProbeEvidence,
+    StorageCapacityEvidence,
+    StorageSanityEvidence,
+)
 from kultrun.storage.manual import AdministratorCapacityService
 from kultrun.storage.sanity import StorageSanityService, summarize
 from kultrun.storage.topology import mount_for_path
@@ -140,6 +147,10 @@ class ControlPlane:
     #: logic; the composition root owns the wiring.
     stored_sanity: Callable[[HostCapabilities], dict[str, StorageSanityEvidence]]
     stored_storage: Callable[[HostCapabilities], dict[str, StorageCapacityEvidence]]
+    stored_authorizing: Callable[[HostCapabilities], dict[str, StorageCapacityEvidence]]
+    stored_empirical: Callable[[HostCapabilities], dict[str, EmpiricalProbeEvidence]]
+    managed_bytes: Callable[[HostId], dict[str, int]]
+    journal: OperationalJournal
     pool_fingerprint: Callable[[str], str | None]
     #: Whether the facts came from this machine or from captured evidence.
     evidence_mode: str
@@ -239,6 +250,60 @@ def register(router: Router, plane: ControlPlane) -> Router:
             }
             for report in plane.hosts.current.provider_reports
         ]
+
+    def deployment_report(_: ApiRequest) -> object:
+        """Composed deployment picture. Projection of stored product state."""
+        host = plane.hosts.current
+        envelope = plane.capacity.compute(
+            host, plane.stored_sanity(host), plane.stored_storage(host)
+        )
+        resolved = resolve(
+            host,
+            _executors(host),
+            plane.runtimes.descriptors(),
+            RuntimePolicy(),
+            components=_components(),
+        )
+        selection = plane.foundation.stored(host)
+        recommended = (
+            selection.recommended_candidate_id
+            if selection is not None
+            and is_resolved(selection.recommended_candidate_id)
+            else None
+        )
+        profiles = {
+            item.installation_id.value: item.status.value
+            for item in plane.verification.profiles(host, _executors(host))
+        }
+        identity = build_identity()
+        build_token = identity.build_id or identity.version
+        return compose_deployment_report(
+            host=host,
+            envelope=envelope,
+            composed_at=dt.datetime.now(dt.UTC),
+            kultrun_build=build_token,
+            storage_evidence=plane.stored_authorizing(host),
+            empirical=plane.stored_empirical(host),
+            managed=plane.managed_bytes(host.host_id),
+            candidates=(
+                *resolved.candidates,
+                *resolved.unsupported,
+                *resolved.unresolved,
+            ),
+            recommended_candidate_id=(
+                recommended if isinstance(recommended, str) else None
+            ),
+            selection=selection,
+            installations=plane.provisioning.installations(),
+            provisioning_plans=plane.provisioning.plans(),
+            profiles=profiles,
+            available=plane.available_models.stored(host),
+            model_selection=plane.model_selection.stored(host),
+            deployment_plan=plane.deployment_plan.stored(host),
+            instances=plane.instances.list(),
+            executions=plane.executions.list(),
+            facts=plane.journal.facts(host.host_id),
+        )
 
     def version(_: ApiRequest) -> dict[str, object]:
         """Which build is answering.
@@ -1282,6 +1347,7 @@ def register(router: Router, plane: ControlPlane) -> Router:
     router.post("/inference/instances/start", start_instance)
     router.post("/inference/instances/stop", stop_instance)
     router.post("/inference/instances/infer", infer_instance)
+    router.get("/deployment-report", deployment_report)
     router.get("/mode", mode)
     router.get("/version", version)
     router.get("/health", health)

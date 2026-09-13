@@ -34,6 +34,7 @@ from kultrun.runtime.contracts import (
     EligibleViewStatus,
     FoundationSelection,
 )
+from kultrun.storage.topology import mount_for_path
 
 DEPLOYMENT_PLAN_SCHEMA = "planning.deployment_plan@1"
 LOCK_NAME = "plan.lock"
@@ -54,6 +55,7 @@ def plan_basis(
     foundation_selection_id: str,
     executor_identity: str,
     policy_version: str,
+    storage_pool_mount: str = "",
 ) -> str:
     """Fingerprint of the inputs that make a deployment plan current."""
     selected = _token(selection.selection.selected_model_id) or ""
@@ -89,6 +91,7 @@ def plan_basis(
             context,
             placement.value if placement is not None else "",
             "" if accel is None else str(accel),
+            storage_pool_mount,
         )
     )
     return hashlib.sha256(material.encode()).hexdigest()[:16]
@@ -177,6 +180,9 @@ class DeploymentPlanOverview:
             "capacity": _capacity(plan) if plan is not None else None,
             "resource_request": _resource_spec(plan) if plan is not None else None,
             "settings": _settings(plan) if plan is not None else None,
+            "storage_pool_mount": (
+                _token(plan.storage_pool_mount) if plan is not None else None
+            ),
             "mutations": False,
             "acquire": False,
             "admit": False,
@@ -194,12 +200,16 @@ class DeploymentPlanningService:
         lock: DeploymentPlanLock,
         executor_identity: str,
         policy_version: str,
+        state_root: Path | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
         self._lock = lock
         self._executor_identity = executor_identity
         self._policy_version = policy_version
+        self._state_root = (
+            Path(state_root).resolve() if state_root is not None else None
+        )
 
     def stored(self, host: HostCapabilities) -> DeploymentPlan | None:
         """Persisted plan, if any. Does not revalidate."""
@@ -321,6 +331,10 @@ class DeploymentPlanningService:
             return None, ("foundation selection is unavailable",)
         foundation_id = foundation.selection_id.value
         executor = _token(eligible.executor) or self._executor_identity
+        storage_mount = ""
+        if self._state_root is not None:
+            found = mount_for_path(self._state_root / "models", host)
+            storage_mount = found if isinstance(found, str) else ""
         basis = plan_basis(
             eligible,
             envelope,
@@ -329,6 +343,7 @@ class DeploymentPlanningService:
             foundation_selection_id=foundation_id,
             executor_identity=executor,
             policy_version=self._policy_version,
+            storage_pool_mount=storage_mount,
         )
         evaluation = assessment.evaluation
         requirement = assessment.requirement
@@ -397,6 +412,7 @@ class DeploymentPlanningService:
                 host_fingerprint=envelope.host_fingerprint,
                 accelerator_index=_accelerator_index(envelope),
                 eligible_view_id=eligible.view_id.value,
+                storage_pool_mount=storage_mount or NOT_PROVIDED,
             ),
             (),
         )
@@ -516,6 +532,7 @@ def _resource_spec(plan: DeploymentPlan) -> dict[str, object]:
         "quantization": _token(plan.quantization),
         "context_tokens": _resolved_int(plan.context_tokens),
         "host_fingerprint": _token(plan.host_fingerprint),
+        "storage_pool_mount": _token(plan.storage_pool_mount),
         "submitted": False,
     }
 

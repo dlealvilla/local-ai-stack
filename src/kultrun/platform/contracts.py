@@ -17,10 +17,11 @@ import datetime as dt
 from dataclasses import dataclass
 from enum import StrEnum
 
+from kultrun.host.contracts import HostId
 from kultrun.identity.contracts import SubjectId
 from kultrun.kernel.ids import EntityId, Name
 from kultrun.kernel.schema import Contract, contract, meaning
-from kultrun.kernel.unresolved import Maybe
+from kultrun.kernel.unresolved import NOT_PROVIDED, Maybe
 
 
 class InstallationId(EntityId):
@@ -225,3 +226,203 @@ class PlatformSettings(Contract):
         "the 32 GiB Sonar tier",
         default=64 * 1024**3,
     )
+
+
+class OperationalFactId(EntityId):
+    """Identifies one persisted operational fact."""
+
+    prefix = "opf"
+
+
+class OperationalStage(StrEnum):
+    """Progress column. Stable labels for CLI/API, not a workflow engine."""
+
+    HOST = "host"
+    STORAGE = "storage"
+    PROBE = "probe"
+    SONAR = "sonar"
+    RUNTIME = "runtime"
+    MODEL = "model"
+    PLAN = "plan"
+    ADMISSION = "admission"
+    INSTANCE = "instance"
+    INFERENCE = "inference"
+    DEPLOYMENT = "deployment"
+
+
+class OperationalOutcome(StrEnum):
+    """How the fact ended. Unknown stays unresolved, never a pass."""
+
+    PASS = "pass"
+    FAIL = "fail"
+    UNRESOLVED = "unresolved"
+    INFO = "info"
+    BLOCKED = "blocked"
+
+
+@contract(kind="platform.operational_fact", version=1)
+@dataclass(frozen=True, slots=True)
+class OperationalFact(Contract):
+    """One control-plane observation. Metadata only; never customer content."""
+
+    fact_id: OperationalFactId = meaning("platform-minted identity of this fact")
+    host_id: HostId = meaning("host this observation was made on")
+    occurred_at: dt.datetime = meaning("when it happened, UTC")
+    stage: OperationalStage = meaning("which deployment column this belongs to")
+    event_type: Name = meaning(
+        "stable dotted name such as storage.sonar_tier_passed"
+    )
+    outcome: OperationalOutcome = meaning("pass, fail, unresolved, info, or blocked")
+    summary: str = meaning(
+        "short operator line; never a prompt, response, or document"
+    )
+    reason_code: Maybe[str] = meaning(
+        "typed product reason when one exists", default=NOT_PROVIDED
+    )
+    attributes: tuple[str, ...] = meaning(
+        "key=value metadata; never file contents or generated text",
+        default=(),
+    )
+    correlation_id: Maybe[str] = meaning(
+        "ties this fact to the operation that caused it", default=NOT_PROVIDED
+    )
+
+
+class DeploymentReportId(EntityId):
+    """Identifies one composed deployment report."""
+
+    prefix = "drpt"
+
+
+class DeploymentVerdict(StrEnum):
+    """Overall vertical standing. Incomplete is not a pass."""
+
+    PASS = "pass"
+    FAIL = "fail"
+    INCOMPLETE = "incomplete"
+
+
+@contract(kind="platform.report_storage_pool", version=1)
+@dataclass(frozen=True, slots=True)
+class StoragePoolReport(Contract):
+    """One pool as the deployment report presents it. Not authorizing."""
+
+    mount_point: str = meaning("pool mount")
+    filesystem_type: Maybe[str] = meaning("filesystem family")
+    reported_free_bytes: Maybe[int] = meaning("generic reported free space")
+    reported_trusted: bool = meaning("whether reported free space may be believed")
+    specialist_probe: Maybe[str] = meaning("compatible specialist identity")
+    specialist_result: Maybe[str] = meaning("specialist outcome summary")
+    sonar_tiers: tuple[str, ...] = meaning("official tier results, in order")
+    authorizing_bytes: Maybe[int] = meaning("authorizing remaining at report time")
+    safe_bytes: Maybe[int] = meaning("SAFE remaining; never reported")
+    managed_bytes: Maybe[int] = meaning("platform-managed bytes on this pool")
+    remaining_bytes: Maybe[int] = meaning("authorizing remaining after managed usage")
+    selected_reason: str = meaning("why the operational figure was chosen", default="")
+
+
+@contract(kind="platform.report_runtime_candidate", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeCandidateReport(Contract):
+    """One runtime path as evaluated. Not a selection."""
+
+    candidate_id: str = meaning("RuntimeCandidate identity")
+    runtime: str = meaning("runtime family")
+    version: Maybe[str] = meaning("version pin when known")
+    executor: str = meaning("executor identity")
+    support_tier: str = meaning("PRODUCT, FUTURE, or other declared tier")
+    compatibility: str = meaning("compatibility class")
+    reason_codes: tuple[str, ...] = meaning("normalized reason codes")
+    recommended: bool = meaning("true when this is the current recommendation")
+    selected: bool = meaning("true when this is the selected foundation")
+
+
+@contract(kind="platform.report_runtime_install", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeInstallReport(Contract):
+    """One runtime installation as installed. Not verification."""
+
+    installation_id: str = meaning("installation identity")
+    runtime: str = meaning("runtime family")
+    version: str = meaning("requested version")
+    storage_pool_mount: Maybe[str] = meaning("destination pool")
+    installed_bytes: Maybe[int] = meaning("measured persistent bytes")
+    status: str = meaning("installing, installed, or failed")
+    verification: Maybe[str] = meaning("verification status when known")
+    duration_seconds: Maybe[float] = meaning("install attempt wall time")
+
+
+@contract(kind="platform.report_model_candidate", version=1)
+@dataclass(frozen=True, slots=True)
+class ModelCandidateReport(Contract):
+    """One model as the funnel last evaluated it."""
+
+    model_id: str = meaning("catalog identity")
+    logical_name: str = meaning("catalog name")
+    revision: Maybe[str] = meaning("source revision")
+    quantization: Maybe[str] = meaning("variant")
+    available: bool = meaning("true when in the current Available Models set")
+    blocked_reason: Maybe[str] = meaning("exclusion reason when not available")
+    required_vram_bytes: Maybe[int] = meaning("evaluated VRAM demand")
+    required_ram_bytes: Maybe[int] = meaning("evaluated RAM demand")
+    required_storage_bytes: Maybe[int] = meaning("evaluated storage demand")
+    context_tokens: Maybe[int] = meaning("context assumption")
+
+
+@contract(kind="platform.report_instance", version=1)
+@dataclass(frozen=True, slots=True)
+class InstanceReport(Contract):
+    """One serving instance as observed. Prompt text is never included."""
+
+    instance_id: str = meaning("instance identity")
+    endpoint: Maybe[str] = meaning("loopback URL when bound")
+    ready: Maybe[bool] = meaning("readiness, distinct from reachable")
+    ownership: Maybe[str] = meaning("process ownership class when known")
+    lifecycle: str = meaning("intended/observed lifecycle")
+    health: str = meaning("API health")
+
+
+@contract(kind="platform.deployment_report", version=1)
+@dataclass(frozen=True, slots=True)
+class DeploymentReport(Contract):
+    """Composed deployment picture. Nested rows are projections, not new truth."""
+
+    report_id: DeploymentReportId = meaning("identity of this composed report")
+    host_id: HostId = meaning("host the report describes")
+    composed_at: dt.datetime = meaning("when this projection was built, UTC")
+    kultrun_build: str = meaning("build id or origin string")
+    os_name: str = meaning("operating system family")
+    os_version: Maybe[str] = meaning("OS version")
+    architecture: str = meaning("CPU architecture")
+    cpu: Maybe[str] = meaning("CPU model")
+    ram_total_bytes: Maybe[int] = meaning("reported RAM total")
+    ram_safe_bytes: Maybe[int] = meaning("SAFE RAM")
+    accelerators: tuple[str, ...] = meaning("one line per assigned GPU")
+    storage_pools: tuple[StoragePoolReport, ...] = meaning("each known pool")
+    runtime_candidates: tuple[RuntimeCandidateReport, ...] = meaning(
+        "evaluated runtime paths"
+    )
+    recommended_runtime: Maybe[str] = meaning("recommended candidate id")
+    selected_runtime: Maybe[str] = meaning("selected candidate id")
+    runtime_installs: tuple[RuntimeInstallReport, ...] = meaning("install receipts")
+    model_candidates: tuple[ModelCandidateReport, ...] = meaning(
+        "evaluated model paths"
+    )
+    available_models: tuple[str, ...] = meaning("current Available Models names")
+    recommended_model: Maybe[str] = meaning("recommended catalog name")
+    selected_model: Maybe[str] = meaning("selected catalog name")
+    selection_mode: Maybe[str] = meaning("AUTO or MANUAL")
+    deployment_plan_id: Maybe[str] = meaning("authoritative plan identity")
+    plan_storage_pool: Maybe[str] = meaning("plan destination pool")
+    plan_ram_bytes: Maybe[int] = meaning("plan RAM requirement")
+    plan_vram_bytes: Maybe[int] = meaning("plan VRAM requirement")
+    plan_storage_bytes: Maybe[int] = meaning("plan storage requirement")
+    instances: tuple[InstanceReport, ...] = meaning("serving instances")
+    latest_inference_latency_ms: Maybe[int] = meaning(
+        "last recorded inference latency from operational facts"
+    )
+    latest_inference_outcome: Maybe[str] = meaning("last inference operational outcome")
+    verdict: DeploymentVerdict = meaning("overall standing of this vertical")
+    failed_at: Maybe[str] = meaning("stage that blocked, when failed")
+    reason: Maybe[str] = meaning("why the verdict is what it is")
+    next_action: Maybe[str] = meaning("what the operator should do next")
