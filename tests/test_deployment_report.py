@@ -1124,11 +1124,90 @@ def test_runtime_funnel_distinguishes_executor_and_recommendation() -> None:
     assert "vllm/container" in text
     assert "NOT SELECTABLE" in text
     assert "FILTERED" in text
+    assert "FEASIBLE" in text
     assert "Recommended" in text
     assert "Selected" in text
     assert "- selected" not in text
     assert report.recommended_runtime == native.candidate_id.value
     assert report.selected_runtime == native.candidate_id.value
+
+
+def test_conditional_selected_foundation_is_feasible_not_filtered() -> None:
+    from kultrun.runtime.contracts import (
+        FoundationSelection,
+        FoundationSelectionId,
+        FoundationSelectionMode,
+    )
+
+    subject = host(memory_total=64 * GIB)
+    envelope = _base_envelope(subject, ())
+    native = _runtime_candidate(
+        subject,
+        ident="rcand_native0000001",
+        runtime="vllm",
+        executor="native-process",
+        executor_type="process",
+        tier="product",
+        compatibility="conditional",
+        reasons=("required_component_missing",),
+    )
+    container = _runtime_candidate(
+        subject,
+        ident="rcand_docker0000001",
+        runtime="vllm",
+        executor="container",
+        executor_type="container",
+        tier="product",
+        compatibility="unsupported",
+        reasons=("executor_unavailable",),
+    )
+    selection = FoundationSelection(
+        selection_id=FoundationSelectionId.parse("fsel_" + "c" * 16),
+        host_id=subject.host_id,
+        selection_mode=FoundationSelectionMode.AUTO,
+        created_at=INSTANT,
+        selected_at=INSTANT,
+        recommended_candidate_id=native.candidate_id.value,
+        selected_candidate_id=native.candidate_id.value,
+    )
+    report = compose_deployment_report(
+        host=subject,
+        envelope=envelope,
+        composed_at=INSTANT,
+        kultrun_build="test-build",
+        storage_evidence={},
+        empirical={},
+        managed={},
+        candidates=(native, container),
+        recommended_candidate_id=native.candidate_id.value,
+        selection=selection,
+        installations=(),
+        provisioning_plans=(),
+        profiles={},
+        available=None,
+        model_selection=None,
+        deployment_plan=None,
+        instances=(),
+        executions=(),
+        facts=(),
+    )
+    assert report.runtime_discovered == 2
+    assert report.runtime_product_selectable == 2
+    assert report.runtime_executor_compatible == 1
+    assert report.runtime_capacity_feasible == 1
+    text = format_deployment_report(report)
+    assert "vllm/native-process" in text
+    assert "FEASIBLE" in text
+    assert "FILTERED" in text
+    assert "FILTERED  -  selected" not in text
+    assert "- selected" not in text
+    native_line = next(
+        line
+        for line in text.splitlines()
+        if line.strip().startswith("vllm/native-process")
+    )
+    assert "selected" in native_line
+    assert "FILTERED" not in native_line
 
 
 def test_model_funnel_and_blocked_reasons() -> None:
@@ -1310,7 +1389,12 @@ def test_realize_minimum_is_not_overwritten_by_live_remaining() -> None:
         event_type=Name("minimum.feasibility_completed"),
         outcome=OperationalOutcome.PASS,
         summary="MINIMUM FEASIBILITY PASS",
-        attributes=(attr("verdict", "pass"),),
+        attributes=(
+            attr("verdict", "pass"),
+            attr("potential_safe_bytes", 32 * GIB),
+            attr("current_authorizing_bytes", 32 * GIB),
+            attr("current_safe_bytes", 27 * GIB),
+        ),
     )
     report = compose_deployment_report(
         host=subject,
@@ -1337,9 +1421,14 @@ def test_realize_minimum_is_not_overwritten_by_live_remaining() -> None:
     assert report.minimum_source == "realize"
     assert report.minimum is not None
     assert report.minimum.verdict is MinimumFeasibilityVerdict.PASS
+    assert report.current_minimum is not None
+    assert report.current_minimum.verdict is MinimumFeasibilityVerdict.FAIL
     text = format_deployment_report(report)
     assert "Deployment-time assessment  PASS" in text
     assert "post-install" in text
+    assert "potential post-reclaim SAFE is below net new peak" not in text
+    assert "minimum_storage" not in text
+    assert report.minimum.potential_safe_bytes == 32 * GIB
 
 
 def test_cleanup_and_funnel_progress_columns() -> None:

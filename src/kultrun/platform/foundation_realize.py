@@ -800,7 +800,10 @@ class FoundationRealizeService:
             if "executor_unavailable" not in {code.value for code in item.reason_codes}
         )
         capacity_ok = sum(
-            1 for item in rows if item.compatibility is CompatibilityClass.COMPATIBLE
+            1
+            for item in rows
+            if item.compatibility
+            in {CompatibilityClass.COMPATIBLE, CompatibilityClass.CONDITIONAL}
         )
         feasible = len(overview.resolution.candidates)
         self._emit(
@@ -851,10 +854,20 @@ class FoundationRealizeService:
                 if is_resolved(assessment.current_authorizing_bytes)
                 else None
             ),
+            current_safe_bytes=(
+                assessment.current_safe_bytes
+                if is_resolved(assessment.current_safe_bytes)
+                else None
+            ),
             reclaimable_bytes=assessment.reclaimable_bytes,
             reusable_bytes=assessment.reusable_bytes,
             required_peak_bytes=assessment.required_peak_bytes,
             net_new_bytes=assessment.net_new_bytes,
+            potential_authorizing_bytes=(
+                assessment.potential_authorizing_bytes
+                if is_resolved(assessment.potential_authorizing_bytes)
+                else None
+            ),
             potential_safe_bytes=(
                 assessment.potential_safe_bytes
                 if is_resolved(assessment.potential_safe_bytes)

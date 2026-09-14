@@ -271,7 +271,7 @@ def compose_deployment_report(
             runtime_rows, _count_executor_ok(runtime_rows)
         ),
         runtime_capacity_feasible=_funnel_count(
-            runtime_rows, _count_compat(runtime_rows, "compatible")
+            runtime_rows, _count_feasible(runtime_rows)
         ),
         model_policy_compatible=_policy_compatible(available),
         model_storage_feasible=_model_stage_count(available, "infeasible_storage"),
@@ -465,9 +465,12 @@ def _layer_minimum(report: DeploymentReport) -> list[str]:
         f"    VRAM               {_bytes(profile.min_vram_bytes):<13} "
         f"{'present' if vram_ok else 'none':<13} {'PASS' if vram_ok else 'FAIL'}"
     )
+    storage_observed = assessment.current_safe_bytes
+    if source == "realize" and is_resolved(assessment.potential_safe_bytes):
+        storage_observed = assessment.potential_safe_bytes
     lines.append(
         f"    Storage            {_bytes(profile.min_storage_peak_bytes):<13} "
-        f"{_bytes(assessment.current_safe_bytes):<13} "
+        f"{_bytes(storage_observed):<13} "
         f"{'PASS' if storage_ok else 'FAIL'}"
     )
     lines.append(
@@ -566,18 +569,19 @@ def _layer_foundation(report: DeploymentReport) -> list[str]:
     verified = _foundation_verified(report)
     for item in report.runtime_candidates:
         codes = _human_reason_codes(item, verified)
-        reason = ",".join(codes) if codes else "-"
+        reason = ",".join(codes)
         executor = _executor_short(item)
         name = f"{item.runtime}/{executor}"
         result = _foundation_result(item)
         mark = ""
         if item.selected:
-            mark = "  selected"
+            mark = "selected"
         elif item.recommended:
-            mark = "  recommended"
+            mark = "recommended"
+        extra = "  ".join(part for part in (result, reason, mark) if part)
         lines.append(
             f"  {name:<22} {item.compatibility.upper():<12} "
-            f"{item.support_tier.upper():<10} {result}  {reason}{mark}"
+            f"{item.support_tier.upper():<10} {extra}"
         )
     if not report.runtime_candidates:
         lines.append("  none")
@@ -744,6 +748,8 @@ def _layer_instance(report: DeploymentReport) -> list[str]:
                 f"    Tokens         in {_show(item.input_tokens)}  "
                 f"out {_show(item.output_tokens)}"
             )
+        if is_resolved(item.finish_reason):
+            lines.append(f"    Finish         {_show(item.finish_reason)}")
     if report.lifecycle:
         lines.append("  Lifecycle")
         for event in report.lifecycle:
@@ -1184,8 +1190,11 @@ def _build_layers(
             ),
             status=(
                 "pass"
-                if report.cleanup_required_by_lifecycle
-                and is_resolved(report.cleanup_actual_bytes)
+                if is_resolved(report.cleanup_actual_bytes)
+                or (
+                    not report.cleanup_required_by_lifecycle
+                    and not report.cleanup_required_for_capacity
+                )
                 else ("info" if report.occupancy else "incomplete")
             ),
             kultrun=(
@@ -1878,8 +1887,12 @@ def _count_executor_ok(rows: Sequence[RuntimeCandidateReport]) -> int:
     return sum(1 for item in rows if "executor_unavailable" not in item.reason_codes)
 
 
-def _count_compat(rows: Sequence[RuntimeCandidateReport], token: str) -> int:
-    return sum(1 for item in rows if item.compatibility.lower() == token)
+def _count_feasible(rows: Sequence[RuntimeCandidateReport]) -> int:
+    return sum(
+        1
+        for item in rows
+        if item.compatibility.lower() in {"compatible", "conditional"}
+    )
 
 
 def _policy_compatible(available: AvailableModelView | None) -> Maybe[int]:
@@ -1934,13 +1947,64 @@ def _gate_minimum(
     if live is None:
         return None
     realized = None
-    for fact in reversed(facts):
-        if fact.event_type.value == "minimum.feasibility_completed":
-            realized = attr_value(fact, "verdict")
+    fact = None
+    for item in reversed(facts):
+        if item.event_type.value == "minimum.feasibility_completed":
+            realized = attr_value(item, "verdict")
+            fact = item
             break
-    if realized == "pass" and live.verdict is MinimumFeasibilityVerdict.FAIL:
-        return replace(live, verdict=MinimumFeasibilityVerdict.PASS)
-    return live
+    if realized != "pass":
+        return live
+    failed = live.verdict is MinimumFeasibilityVerdict.FAIL
+    gated = replace(
+        live,
+        verdict=MinimumFeasibilityVerdict.PASS,
+        condition="" if failed else live.condition,
+        reason_code=NOT_PROVIDED if failed else live.reason_code,
+        requires_reclamation=False if failed else live.requires_reclamation,
+    )
+    if fact is None:
+        return gated
+    return replace(
+        gated,
+        current_authorizing_bytes=_overlay_maybe(
+            fact, "current_authorizing_bytes", gated.current_authorizing_bytes
+        ),
+        current_safe_bytes=_overlay_maybe(
+            fact, "current_safe_bytes", gated.current_safe_bytes
+        ),
+        potential_authorizing_bytes=_overlay_maybe(
+            fact, "potential_authorizing_bytes", gated.potential_authorizing_bytes
+        ),
+        potential_safe_bytes=_overlay_maybe(
+            fact, "potential_safe_bytes", gated.potential_safe_bytes
+        ),
+        required_peak_bytes=_overlay_required(
+            fact, "required_peak_bytes", gated.required_peak_bytes
+        ),
+        net_new_bytes=_overlay_required(fact, "net_new_bytes", gated.net_new_bytes),
+        reclaimable_bytes=_overlay_required(
+            fact, "reclaimable_bytes", gated.reclaimable_bytes
+        ),
+        reusable_bytes=_overlay_required(fact, "reusable_bytes", gated.reusable_bytes),
+        active_bytes=_overlay_required(fact, "active_bytes", gated.active_bytes),
+        protected_bytes=_overlay_required(
+            fact, "protected_bytes", gated.protected_bytes
+        ),
+        unknown_bytes=_overlay_required(fact, "unknown_bytes", gated.unknown_bytes),
+    )
+
+
+def _overlay_maybe(
+    fact: OperationalFact, field: str, current: Maybe[int]
+) -> Maybe[int]:
+    parsed = _int_attr(fact, field)
+    return parsed if is_resolved(parsed) else current
+
+
+def _overlay_required(fact: OperationalFact, field: str, current: int) -> int:
+    parsed = _int_attr(fact, field)
+    return parsed if is_resolved(parsed) else current
 
 
 def _executor_short(item: RuntimeCandidateReport) -> str:
@@ -1962,7 +2026,7 @@ def _foundation_result(item: RuntimeCandidateReport) -> str:
         if "unsupported_platform" in item.reason_codes:
             return "NOT PLAUSIBLE"
         return "NOT SELECTABLE"
-    if item.compatibility == "compatible":
+    if item.compatibility in {"compatible", "conditional"}:
         return "FEASIBLE"
     if "unsupported_platform" in item.reason_codes:
         return "NOT PLAUSIBLE"
