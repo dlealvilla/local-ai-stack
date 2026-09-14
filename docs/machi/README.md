@@ -31,6 +31,7 @@ contracts. It does not own deployment truth.
 | [M0-0.4.1.md](M0-0.4.1.md) | 0.4.1 Store implementation notes. |
 | [M0-0.4.1-PHYSICAL.md](M0-0.4.1-PHYSICAL.md) | 0.4.1 physical acceptance evidence for `7bfdbf3`. |
 | [M1-1.3.2.md](M1-1.3.2.md) | 1.3.2 RegistrySeed implementation notes. |
+| [M1-1.3.2-LOCAL.md](M1-1.3.2-LOCAL.md) | 1.3.2 local acceptance; physical pending for `34272e8`. |
 | [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,
