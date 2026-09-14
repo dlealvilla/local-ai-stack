@@ -80,6 +80,7 @@ versioned document form (the Kultrun `to_dict` lesson).
 Names are examples; the catalogue is owned by Kernel 0.3.
 
 - `install.state_root.bound` (1.2.1; path omitted from payload; privacy `restricted`)
+- `install.ownership.local_marked` (1.3.1; marker id + root fingerprint; privacy `restricted`; not dual proof; never `ownership.verified`)
 - `install.started` / `install.bound` (1.4.1; InstallRun exists)
 - `discover.completed`
 - `steward.classified` / `steward.reclaim.planned` / `steward.reclaim.completed`
@@ -168,6 +169,13 @@ analytics-failure rule).
 Sanitizer is allow-list, not denylist. Paths, prompts, purpose strings
 that encode customer intent, and ownership IDs that are filesystem
 paths do not export.
+
+`install.ownership.local_marked` is `restricted`, not `public_ops`:
+it names a local evidence identity and a root fingerprint. That is
+enough to correlate later registry work without putting a filesystem
+path, username, or organisation directory on the event. It is not
+vendor-safe `public_ops` because a marker id is still installation
+inventory.
 
 ---
 

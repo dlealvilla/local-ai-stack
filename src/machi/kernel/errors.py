@@ -21,6 +21,7 @@ class ErrorCode(StrEnum):
     NOT_FOUND = "not_found"
     PERSISTENCE = "persistence"
     UNRESOLVED = "unresolved"
+    CONFLICT = "conflict"
     INTERNAL = "internal"
 
 
@@ -86,6 +87,16 @@ class UnresolvedValueError(MachiError):
     """An unresolved value was used where a determinate value is required."""
 
     code = ErrorCode.UNRESOLVED
+
+
+class ConflictError(MachiError):
+    """Two facts disagree, or a claim is unsafe.
+
+    Distinct from ValidationError (a value is malformed). Ownership
+    collisions and copied markers are conflicts: fail closed, do not repair.
+    """
+
+    code = ErrorCode.CONFLICT
 
 
 class InternalError(MachiError):

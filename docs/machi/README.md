@@ -1,8 +1,8 @@
 # Machi
 
-**Work token:** `MACHI-1.2.1-STATE-ROOT-BINDER`  
-**Chain:** architecture `df1c21e` → M0 Kernel `8c614e5` / evidence `25f6960` (promoted to `machi`, tag `checkpoint/machi-m0-closed-25f6960`) → 1.2.1 on `m1/1.2.1-state-root-binder`.  
-**Status:** M0 is the canonical `machi` baseline. 1.2.1 is implemented on a feature branch and is **not** merged to `machi` until Lead Developer promotion.
+**Work token:** `MACHI-1.3.1-SELF-OWNERSHIP-MARKER`  
+**Chain:** architecture `df1c21e` → M0 Kernel `8c614e5` / evidence `25f6960` (tag `checkpoint/machi-m0-closed-25f6960`) → 1.2.1 `fe5b02c` (promoted to `machi`, tag `checkpoint/machi-1.2.1-closed-fe5b02c`) → 1.3.1 on `m1/1.3.1-self-ownership-marker`.  
+**Status:** Canonical `machi` is 1.2.1. 1.3.1 is implemented on a feature branch and is **not** merged to `machi` until Lead Developer promotion.
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
@@ -26,6 +26,7 @@ contracts. It does not own deployment truth.
 | [M0-PHYSICAL.md](M0-PHYSICAL.md) | M0 physical acceptance evidence for `8c614e5`. |
 | [M1.md](M1.md) | 1.2.1 StateRootBinder implementation notes. |
 | [M1-PHYSICAL.md](M1-PHYSICAL.md) | 1.2.1 physical acceptance evidence for `86639aa`. |
+| [M1-1.3.1.md](M1-1.3.1.md) | 1.3.1 SelfOwnershipMarker implementation notes. |
 | [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,

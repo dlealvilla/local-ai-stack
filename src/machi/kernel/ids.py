@@ -165,3 +165,13 @@ class HostId(EntityId):
     """Stable host fingerprint id. Minted by Block 2, typed here."""
 
     prefix = "host"
+
+
+class LocalOwnershipId(EntityId):
+    """Identifies one local ownership marker. Minted by 1.3.1.
+
+    Not an InstallId, not an InstallRun, and not dual-ownership proof.
+    Component 1.3.2 may later reference the same value in a registry row.
+    """
+
+    prefix = "lown"

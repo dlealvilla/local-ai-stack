@@ -19,7 +19,10 @@ from machi.kernel.errors import ValidationError
 
 STATE_ROOT_VARIABLE = "MACHI_STATE_ROOT"
 JOURNAL_LEAF = "journal"
+JOURNAL_EVENTS_FILENAME = "events.jsonl"
 KULTRUN_OWNER_FILENAME = ".kultrun-owner.json"
+MACHI_OWNER_FILENAME = ".machi-owner.json"
+PRODUCT_NAMESPACE = "machi"
 KULTRUN_SYSTEM_ROOT = Path("/var/lib/kultrun")
 
 

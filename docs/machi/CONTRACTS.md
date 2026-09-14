@@ -37,6 +37,8 @@ Recommendation never authorizes. Reservation never launches.
 
 ```text
 StateRootBinding
+    → LocalOwnershipEstablishment   (1.3.1 local marker only; not dual proof)
+    → (1.3.2 registry record; not implemented)
     → InstallRecord
     → HostProfile
     → OccupancyMap
@@ -66,12 +68,14 @@ rewrite them in place.
 |---|---|---|---|---|---|
 | `EventRecord` | every block | journal, Witness, export | Event | append-only | emitter Block ID + payload version |
 | `StateRootBinding` | 1.2.1 StateRootBinder | 1.3.1, 1.1.1, 1.4.1, composition | Profile / location | directory exists; contract is returned, not an entity file yet | selection source |
+| `LocalOwnershipMarker` | 1.3.1 SelfOwnershipMarker | 1.3.2, composition, later Steward | Evidence (local only) | `.machi-owner.json` | schema, product `machi`, `marker_id`, root fingerprint |
+| `LocalOwnershipEstablishment` | 1.3.1 SelfOwnershipMarker | composition; never Steward delete | Evidence (local only) | no; result of establish | `dual_ownership=false`, `destructive_authorization=false` |
 | `InstallRecord` | 1.1.1 InstallRecord | all | Profile | yes | artifact SHA, build id, bound root |
 | `InstallRun` | 1.4.1 InstallRunStore | EventRecord.correlation | Profile | yes | state root |
 | `HostObservation` | 2 adapters | Discover | Observation | optional raw | adapter name, tool version |
 | `HostProfile` | 2 Discover | Capacity, Foundation, Admit | Profile | yes | observation IDs |
 | `MountObservation` | 2.4 | Capacity | Observation | yes | path, fs type, reported free flagged |
-| `OwnershipRecord` | 3.1 | Steward, reclaim | Inventory | yes | dual proof |
+| `OwnershipRecord` | 3.1 | Steward, reclaim | Inventory | yes | dual proof (local marker **and** registry). Not the 1.3.1 contract. |
 | `OccupancyMap` | 3.2 | Steward, Capacity remaining | Inventory | yes | classifier version |
 | `ReclaimPlan` / `ReclaimResult` | 3.3 | Capacity recharacterize | Inventory | yes | dual-owned roots only |
 | `CapacityEvidence` | 4.2 | Envelope | Evidence | yes | pool identity, method, bounds |
@@ -101,6 +105,10 @@ Reservations are released only by explicit release, not by stop.
 Versioning: `kind` + integer version, same as Kultrun `contract()`.
 A change of meaning keeps a new version. Name reuse with a new
 meaning is a human-reviewed event (Kultrun K-05).
+
+`LocalOwnershipMarker` is not `OwnershipRecord`. Steward 3.1 keeps that
+name for dual-proof inventory. 1.3.1 status is `local_marker_present`,
+never `ownership_verified`.
 
 ---
 

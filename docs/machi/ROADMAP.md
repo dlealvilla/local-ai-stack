@@ -106,9 +106,9 @@ and reports identity. No host probing.
 
 **Milestone ID:** `M1`  
 **Architecture IDs:** `1`, `1.1.1` InstallRecord, `1.2.1` StateRootBinder,
-`1.3.1` SelfOwnershipMarker, `1.4.1` InstallRunStore
+`1.3.1` SelfOwnershipMarker, `1.3.2` RegistrySeed, `1.4.1` InstallRunStore
 
-**Working Component order:** `1.2.1` → `1.3.1` → `1.1.1` → `1.4.1`.
+**Working Component order:** `1.2.1` → `1.3.1` → `1.3.2` → `1.1.1` → `1.4.1`.
 Do not implement later Components in an earlier increment.
 
 **Objective:** this copy of Machi knows where it lives and who it is.
@@ -119,30 +119,44 @@ optional `MACHI_STATE_ROOT`.
 **1.2.1 outputs:** `StateRootBinding`; directory established; Kernel
 event `install.state_root.bound`.
 
-**Full M1 outputs:** `InstallRecord`, `InstallRun`, self
-`OwnershipRecord`, state root with local owner marker.
+**1.3.1 (this increment) inputs:** `StateRootBinding` from 1.2.1.
 
-**Telemetry:** `install.state_root.bound` at 1.2.1 (`restricted`;
-absolute path omitted from the event). `install.bound` and InstallRun
-correlation wait for 1.4.1.
+**1.3.1 outputs:** `LocalOwnershipEstablishment`; `.machi-owner.json`;
+Kernel event `install.ownership.local_marked`. Status is
+`local_marker_present`. Dual ownership and destructive authorization are
+always false.
 
-**Local tests (1.2.1):** T0 binding; precedence; default is not
-cwd-relative; file-at-path; re-entry; two-root isolation; Kernel
-`kernel.alive` regression.
+**1.3.2 (next recommended; not this increment):** central registry record
+citing the same `marker_id` and root fingerprint. Likely requires Kernel
+`0.4.1` Store. Do not treat InstallRecord as the second ownership half.
 
-**Physical (1.2.1):** T3 filesystem host; no GPU. Two isolated state
-roots. Same-root re-entry. `kernel.alive` still works.
+**Full M1 outputs:** `InstallRecord`, `InstallRun`, local marker, and
+later the registry half. Steward `OwnershipRecord` remains Block 3.
 
-**Cumulative:** M0 → 1.2.1, then M0 → M1.
+**Telemetry:** `install.state_root.bound` at 1.2.1 and
+`install.ownership.local_marked` at 1.3.1 (`restricted`; absolute path
+omitted). Never `ownership.verified` from 1.3.1. `install.bound` and
+InstallRun correlation wait for 1.4.1.
+
+**Local tests (1.3.1):** marker create; re-entry; two-root isolation;
+copied marker fail-closed; unknown content refused; Kultrun collision;
+malformed marker; no InstallId/InstallRun fabrication; M0 and 1.2.1
+regression.
+
+**Physical (1.3.1):** T3 filesystem host; no GPU. Cumulative
+M0 → 1.2.1 → 1.3.1.
+
+**Cumulative:** M0 → 1.2.1 → 1.3.1, then M0 → M1.
 
 **Acceptance (full M1):** `machi version` + persisted InstallRun; events
-correlated. **1.2.1 gate:** bound root + restricted event + M0 green.
+correlated. **1.3.1 gate:** local marker + restricted event + no
+destructive authorization + M0/1.2.1 green.
 
-**Non-goals (1.2.1):** ownership marker, InstallRecord, InstallRun,
-scanning siblings, host inventory, capacity, reclaim.
+**Non-goals (1.3.1):** central registry, dual-proof evaluator, Steward
+cleanup, reclaim, sibling scan, InstallRecord, InstallRun.
 
-**Unlocks:** 1.3.1 can mark the bound tree. Discover still waits for
-full M1 identity.
+**Unlocks:** 1.3.2 can cite a stable local evidence identity. Discover
+still waits for full M1 identity.
 
 ---
 

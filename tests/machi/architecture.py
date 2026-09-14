@@ -39,6 +39,9 @@ KERNEL_POLICY_TOKENS = (
     ".local/state/machi",
     "StateRootBinder",
     "KULTRUN_STATE_ROOT",
+    "SelfOwnershipMarker",
+    ".machi-owner.json",
+    "local_marker_present",
 )
 
 
@@ -161,4 +164,40 @@ def kernel_policy_violations(root: Path) -> list[str]:
         for token in KERNEL_POLICY_TOKENS:
             if token in text:
                 found.append(f"{path.name} contains Install policy token {token!r}")
+    return found
+
+
+def binder_ownership_violations(root: Path) -> list[str]:
+    """StateRootBinder must not write the local ownership marker."""
+    binder = root / "install" / "binder.py"
+    text = binder.read_text(encoding="utf-8")
+    if ".machi-owner.json" in text or "SelfOwnershipMarker" in text:
+        return [f"{binder.name} must not create local ownership evidence"]
+    return []
+
+
+MARKER_FORBIDDEN_TOKENS = (
+    "StateRootBinder",
+    "shutil.rmtree",
+    "rglob",
+    "OwnershipRecord",
+    "InstallId",
+    "InstallRunId",
+    "HostId",
+    "delete_owned",
+    "reclaim",
+    "steward",
+)
+
+
+def marker_boundary_violations(root: Path) -> list[str]:
+    """1.3.1 consumes a binding; it does not re-bind, register, or destroy."""
+    marker = root / "install" / "marker.py"
+    text = marker.read_text(encoding="utf-8")
+    found: list[str] = []
+    for token in MARKER_FORBIDDEN_TOKENS:
+        if token in text:
+            found.append(f"{marker.name} must not contain {token!r}")
+    if "def establish(self, binding: StateRootBinding)" not in text:
+        found.append("SelfOwnershipMarker.establish must consume StateRootBinding")
     return found

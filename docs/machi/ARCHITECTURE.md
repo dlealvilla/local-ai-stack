@@ -184,6 +184,7 @@ Recompute (not a second pipeline) is Diagram E.
       1.2.1 StateRootBinder
   1.3 Self-ownership
       1.3.1 SelfOwnershipMarker
+      1.3.2 RegistrySeed
   1.4 InstallRun
       1.4.1 InstallRunStore
 2 Discover
@@ -239,7 +240,7 @@ Recompute (not a second pipeline) is Diagram E.
 | ID | Block | Purpose | Capabilities | Adapters | Primary input | Primary output | Primary telemetry |
 |---|---|---|---|---|---|---|---|
 | 0 | Kernel | Mechanisms, events, witness | 0.1–0.7 | store, disabled export | none | EventRecord, Witness | `kernel.alive` |
-| 1 | Install | This copy on this disk | 1.1–1.4 | none at v0 | artifact | `StateRootBinding` (1.2.1); later InstallRecord, InstallRun, self OwnershipRecord | `install.state_root.bound` (1.2.1); `install.bound` (1.4.1) |
+| 1 | Install | This copy on this disk | 1.1–1.4 | none at v0 | artifact | `StateRootBinding` (1.2.1); `LocalOwnershipEstablishment` (1.3.1; not dual proof); later InstallRecord, InstallRun, registry (1.3.2) | `install.state_root.bound` (1.2.1); `install.ownership.local_marked` (1.3.1); `install.bound` (1.4.1) |
 | 2 | Discover | Observe the machine | 2.1–2.4 | OS, NVIDIA, fixture | InstallRecord | HostProfile | `discover.completed` |
 | 3 | Steward | Own, classify, reclaim | 3.1–3.3 | filesystem markers | HostProfile | OccupancyMap, ReclaimResult | `steward.*` |
 | 4 | Capacity | What may be consumed | 4.1–4.6 | posix, fuse, quota, sonar writer | OccupancyMap | CapacityEnvelope, HostMinimumVerdict | `capacity.*` |
@@ -345,36 +346,58 @@ InstallRun.
 
 | ID | Name | Role | Status |
 |---|---|---|---|
-| `1.2.1` | StateRootBinder | Resolve, normalize, establish the filesystem root | first M1 increment |
-| `1.3.1` | SelfOwnershipMarker | Durable ownership evidence for this tree | not started |
+| `1.2.1` | StateRootBinder | Resolve, normalize, establish the filesystem root | accepted |
+| `1.3.1` | SelfOwnershipMarker | Local ownership evidence for this bound root (`LOCAL_MARKER_PRESENT`) | this increment |
+| `1.3.2` | RegistrySeed | Central ownership registry half; dual proof with 1.3.1 | defined, not started |
 | `1.1.1` | InstallRecord | Bind Kernel build identity into an install-scoped persistent contract | not started |
 | `1.4.1` | InstallRunStore | Mint/reuse InstallRun; complete Install correlation | not started |
 
-Working implementation order: `1.2.1` → `1.3.1` → `1.1.1` → `1.4.1`.
-Location before ownership before install identity before correlation.
-Wheel `BUILD.json` remains Kernel (M0); `1.1.1` is not “identity in the
-wheel”.
+Working implementation order: `1.2.1` → `1.3.1` → `1.3.2` → `1.1.1` → `1.4.1`.
+Location before local evidence before central registry before install identity
+before correlation. Wheel `BUILD.json` remains Kernel (M0); `1.1.1` is not
+“identity in the wheel”.
+
+**Dual ownership is two authorities, not one file.**
+
+- `1.3.1` proves: a valid Machi local marker exists for this bound state root.
+- `1.3.1` does **not** prove dual ownership, Install identity, or cleanup rights.
+- `1.3.2` will persist the matching central registry record that cites the same
+  local evidence identity (`marker_id`) and root fingerprint.
+- Steward `3.1 OwnershipRecord` is later dual-proof evaluation. Do not reuse
+  that name for the 1.3.1 local marker.
+- Until local marker and registry agree: **destructive authorization = false**.
+  Presence of `.machi-owner.json` is never a delete permit.
+- `1.3.2` is expected to need Kernel `0.4.1` entity Store (deferred in M0).
 
 **Adapters:** none v0 (later: OS package helper is Foundation, not
 this).
 
-**Inputs:** invocation, optional `--state-root`, optional `MACHI_STATE_ROOT`.  
-**Outputs:** `StateRootBinding` (1.2.1). Later: InstallRecord, InstallRun, self OwnershipRecord.  
-**Preconditions:** Kernel journal port (directory injected; Kernel does not choose the root).  
-**Success (1.2.1):** directory exists; `StateRootBinding` returned; `install.state_root.bound` journaled. Full M1 still requires ownership + InstallRun.  
-**Blocked:** cannot create or write the root; file at path; Kultrun-owned tree.  
-**State owned (1.2.1):** none beyond the directory itself. Binding is not ownership.  
-**Persistence:** directory create; event via Kernel journal under `<root>/journal` unless injected.  
-**Side effects (1.2.1):** create the bound directory only. No owner marker, no models/runtimes, no sibling scan.  
-**Downstream:** 1.3.1, then 1.1.1, then 1.4.1, then all later Blocks.  
-**Re-entry (1.2.1):** bind the same valid root again; `existed=true`, `created=false`; append another event.  
-**Idempotence:** second bind does not recreate structure. InstallRun reuse is 1.4.1.  
-**Invalidated by:** moving the tree without markers (conflict; later).  
-**Recompute:** none.  
-**Telemetry:** `install.state_root.bound` (privacy `restricted`; path omitted from payload). `install.bound` waits for 1.4.1.  
-**Independent test:** two roots isolated; same-root re-entry.  
-**Cumulative:** M0→1.2.1, then M0→M1.  
-**Lessons:** Kultrun K-20 (cwd-relative default, blank env ≠ `/`); default-root warning on artifacts; install≠apt; do not claim `.kultrun-owner.json` trees.
+**Inputs:** invocation, optional `--state-root`, optional `MACHI_STATE_ROOT`.
+`1.3.1` consumes `StateRootBinding`; it does not re-resolve the root.
+**Outputs:** `StateRootBinding` (1.2.1); `LocalOwnershipEstablishment` (1.3.1).
+Later: registry record (1.3.2), InstallRecord, InstallRun. Not `OwnershipRecord`.
+**Preconditions:** Kernel journal port (directory injected; Kernel does not choose the root).
+**Success (1.2.1):** directory exists; `StateRootBinding` returned; `install.state_root.bound` journaled.
+**Success (1.3.1):** `.machi-owner.json` created or validated for this fingerprint;
+status `local_marker_present`; `dual_ownership=false`; `destructive_authorization=false`;
+`install.ownership.local_marked` journaled. Full M1 still requires registry + InstallRun.
+**Blocked:** cannot create or write the root; file at path; Kultrun-owned tree;
+malformed or conflicting Machi marker; unknown pre-existing content (1.3.1).
+**State owned (1.2.1):** none beyond the directory itself. Binding is not ownership.
+**State owned (1.3.1):** local marker file only. Not the tree as dual-owned property.
+**Persistence:** directory create; `.machi-owner.json`; event via Kernel journal under `<root>/journal` unless injected.
+**Side effects (1.2.1):** create the bound directory only. No owner marker, no models/runtimes, no sibling scan.
+**Side effects (1.3.1):** exclusive create or validate `.machi-owner.json`. Never overwrite, reclaim, or scan siblings.
+**Downstream:** 1.3.2, then 1.1.1, then 1.4.1, then all later Blocks.
+**Re-entry (1.2.1):** bind the same valid root again; `existed=true`, `created=false`; append another event.
+**Re-entry (1.3.1):** return the same `marker_id` and `created_at`; do not rewrite the file.
+**Idempotence:** second bind does not recreate structure. Marker identity is stable. InstallRun reuse is 1.4.1.
+**Invalidated by:** moving the tree without markers (conflict; copied marker fails closed).
+**Recompute:** none.
+**Telemetry:** `install.state_root.bound` and `install.ownership.local_marked` (privacy `restricted`; path omitted). `install.bound` waits for 1.4.1. Never emit `ownership.verified` from 1.3.1.
+**Independent test:** two roots isolated; same-root re-entry; copied marker rejected; unknown content refused; Kultrun marker refused.
+**Cumulative:** M0→1.2.1→1.3.1, then M0→M1.
+**Lessons:** Kultrun K-20 (cwd-relative default, blank env ≠ `/`); default-root warning on artifacts; install≠apt; do not claim `.kultrun-owner.json` trees; do not treat malformed marker JSON as absence; do not store absolute paths on the marker.
 
 ## 2 Discover
 
@@ -676,7 +699,7 @@ cleanup on stop.
     1.2.1 StateRootBinder
   1.3 Self-ownership
     1.3.1 SelfOwnershipMarker
-    1.3.2 Registry seed (later; not in the first M1 Component set)
+    1.3.2 RegistrySeed (central registry half; not this increment)
   1.4 InstallRun
     1.4.1 InstallRunStore (reuse across processes)
 2 Discover

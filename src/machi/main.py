@@ -16,9 +16,18 @@ from pathlib import Path
 
 from machi.adapters.journal.jsonl import JsonlJournal
 from machi.install.binder import StateRootBinder
-from machi.install.contracts import SelectionSource, StateRootBinding
-from machi.install.defaults import STATE_ROOT_VARIABLE, journal_dir
-from machi.install.events import state_root_bound
+from machi.install.contracts import (
+    LocalOwnershipEstablishment,
+    SelectionSource,
+    StateRootBinding,
+)
+from machi.install.defaults import (
+    MACHI_OWNER_FILENAME,
+    STATE_ROOT_VARIABLE,
+    journal_dir,
+)
+from machi.install.events import local_ownership_marked, state_root_bound
+from machi.install.marker import SelfOwnershipMarker
 from machi.kernel.alive import kernel_alive
 from machi.kernel.build import identity as build_identity
 from machi.kernel.errors import MachiError, PersistenceError, ValidationError
@@ -58,6 +67,33 @@ def bind_state_root(
     )
     event = JsonlJournal(target).append(state_root_bound(binding))
     return binding, event, target
+
+
+def mark_local_ownership(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    journal_dir_path: Path | None,
+) -> tuple[
+    StateRootBinding, EventRecord, LocalOwnershipEstablishment, EventRecord, Path
+]:
+    """Bind via 1.2.1, mark via 1.3.1, then persist both Kernel events.
+
+    The marker runs before the journal write so a refused claim does not
+    create Install bootstrap files in an unknown tree.
+    """
+    validate_registry(module_prefix="machi.")
+    binding = StateRootBinder().bind(explicit=explicit, environment=environment)
+    establishment = SelfOwnershipMarker().establish(binding)
+    target = (
+        journal_dir_path
+        if journal_dir_path is not None
+        else journal_dir(Path(binding.root))
+    )
+    journal = JsonlJournal(target)
+    bind_event = journal.append(state_root_bound(binding))
+    mark_event = journal.append(local_ownership_marked(establishment))
+    return binding, bind_event, establishment, mark_event, target
 
 
 def show_version() -> int:
@@ -144,6 +180,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="Kernel journal directory; defaults to <state-root>/journal",
     )
+    mark = install_sub.add_parser(
+        "mark-local",
+        help="bind the state root then write or validate local ownership evidence",
+    )
+    mark.add_argument(
+        "--state-root",
+        default=None,
+        help="explicit state root consumed via 1.2.1; 1.3.1 does not re-resolve policy",
+    )
+    mark.add_argument(
+        "--journal-dir",
+        default=None,
+        help="Kernel journal directory; defaults to <state-root>/journal",
+    )
 
     ns = parser.parse_args(list(argv) if argv is not None else None)
     try:
@@ -177,6 +227,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"journal  {JsonlJournal(target).path}")
             _print_document(binding)
             _print_document(event)
+            return 0
+        if ns.command == "install" and ns.install_command == "mark-local":
+            binding, _bind_event, establishment, mark_event, target = (
+                mark_local_ownership(
+                    explicit=ns.state_root,
+                    environment=_environment_override(),
+                    journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+                )
+            )
+            _warn_if_defaulted(binding)
+            print(f"root     {binding.root}")
+            print(f"marker   {Path(binding.root) / MACHI_OWNER_FILENAME}")
+            print(f"status   {establishment.status.value}")
+            print(f"dual     {str(establishment.dual_ownership).lower()}")
+            print(f"destroy  {str(establishment.destructive_authorization).lower()}")
+            print(f"journal  {JsonlJournal(target).path}")
+            _print_document(establishment)
+            _print_document(mark_event)
             return 0
     except PersistenceError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

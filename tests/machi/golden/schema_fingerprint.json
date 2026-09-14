@@ -88,6 +88,60 @@
     },
     "python": "EventRecord"
   },
+  "install.ownership.local_marked@1": {
+    "fields": {
+      "created": {
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation wrote the marker file",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "destructive_authorization": {
+        "may_be_unresolved": false,
+        "meaning": "always false for 1.3.1",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "dual_ownership": {
+        "may_be_unresolved": false,
+        "meaning": "always false until 1.3.2 agrees",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "existed": {
+        "may_be_unresolved": false,
+        "meaning": "whether the marker file already existed",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "marker_id": {
+        "may_be_unresolved": false,
+        "meaning": "stable identity of the local marker; not an InstallId",
+        "nullable": false,
+        "optional": false,
+        "type": "LocalOwnershipId"
+      },
+      "root_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 of the bound root; the absolute path is omitted",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "always local_marker_present; never ownership_verified",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "LocalOwnershipMarkedPayload"
+  },
   "install.state_root.bound@1": {
     "fields": {
       "created": {
@@ -200,6 +254,100 @@
       }
     },
     "python": "KernelAlivePayload"
+  },
+  "local_ownership_establishment@1": {
+    "fields": {
+      "created": {
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation wrote the marker file",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "destructive_authorization": {
+        "may_be_unresolved": false,
+        "meaning": "whether this result may authorize delete/reclaim; 1.3.1 is always false",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "dual_ownership": {
+        "may_be_unresolved": false,
+        "meaning": "whether local marker and registry currently agree; 1.3.1 is always false",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "existed": {
+        "may_be_unresolved": false,
+        "meaning": "whether the marker file already existed before this call",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "marker": {
+        "may_be_unresolved": false,
+        "meaning": "the validated or newly written local marker",
+        "nullable": false,
+        "optional": false,
+        "type": "LocalOwnershipMarker"
+      },
+      "status": {
+        "may_be_unresolved": false,
+        "meaning": "local_marker_present; never ownership_verified or install_owned",
+        "nullable": false,
+        "optional": false,
+        "type": "LocalOwnershipStatus"
+      }
+    },
+    "python": "LocalOwnershipEstablishment"
+  },
+  "local_ownership_marker@1": {
+    "fields": {
+      "created_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this marker was first written; timezone-aware UTC; never rewritten",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "created_by_build_id": {
+        "may_be_unresolved": false,
+        "meaning": "build id of the artifact that first wrote the marker; None in a checkout",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "created_by_origin": {
+        "may_be_unresolved": false,
+        "meaning": "artifact or source origin of the writer; not a host path",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "marker_id": {
+        "may_be_unresolved": false,
+        "meaning": "stable identity of this local marker; 1.3.2 may cite the same value",
+        "nullable": false,
+        "optional": false,
+        "type": "LocalOwnershipId"
+      },
+      "product": {
+        "may_be_unresolved": false,
+        "meaning": "product namespace; always machi",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "root_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 hex digest of the UTF-8 normalized absolute root this marker was created for; a copied file is invalid on any other root",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "LocalOwnershipMarker"
   },
   "state_root_binding@1": {
     "fields": {
