@@ -310,6 +310,17 @@ persistence port, privacy, witness projection, health aggregation.
 **Major Components:** 0.1 Contracts, 0.2 IDs, 0.3 Events, 0.4 Store,
 0.5 Privacy, 0.6 Witness, 0.7 Health.
 
+**Approved Kernel increment (0.4.1):**
+
+| ID | Name | Role | Status |
+|---|---|---|---|
+| `0.4.1` | Store | Persist/retrieve versioned entity contracts by caller-owned key | this increment |
+
+`Store` is a Kernel port. The filesystem adapter is `FileStore` under
+`adapters/persistence`. The journal remains a separate port. Store is
+not event-sourced, does not choose its root, and does not implement
+RegistrySeed.
+
 **Adapters:** persistence filesystem; disabled telemetry export.
 
 **Inputs:** none.  
@@ -367,7 +378,7 @@ before correlation. Wheel `BUILD.json` remains Kernel (M0); `1.1.1` is not
   that name for the 1.3.1 local marker.
 - Until local marker and registry agree: **destructive authorization = false**.
   Presence of `.machi-owner.json` is never a delete permit.
-- `1.3.2` is expected to need Kernel `0.4.1` entity Store (deferred in M0).
+- `1.3.2` consumes Kernel `0.4.1` entity Store (Kernel increment; not an Install port).
 
 **Adapters:** none v0 (later: OS package helper is Foundation, not
 this).
@@ -685,7 +696,7 @@ cleanup on stop.
     0.3.2 Append journal
     0.3.3 Non-blocking observers
   0.4 Persistence
-    0.4.1 Store port
+    0.4.1 Store port (injected root; FileStore adapter; create + get; not the journal)
   0.5 Privacy
     0.5.1 Classification + export allow-list
   0.6 Witness

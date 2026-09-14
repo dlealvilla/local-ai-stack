@@ -22,8 +22,11 @@ Full standing instructions: `docs/machi/MACHI_LEAD_DEVELOPER.md`.
 - Kernel does not own Install state-root or ownership-marker policy.
 - Events are append-only facts, not operational state. Do not event-source Install/Plan/Admit.
 - Inject journal/storage roots. Kernel does not choose the Install state root.
+- `0.4.1` Store is a Kernel port with an injected root. It is not the
+  journal, not ownership policy, and not RegistrySeed.
 - Binding a path is not ownership. 1.3.1 writes local evidence only
-  (`LOCAL_MARKER_PRESENT`). It does not implement 1.3.2, 1.1.1, or 1.4.1.
+  (`LOCAL_MARKER_PRESENT`). Do not implement 1.3.2, 1.1.1, or 1.4.1
+  during 0.4.1.
 - Local marker presence is not dual ownership and must not authorize
   destruction. Do not emit `ownership.verified`.
 - Privacy classification is required on every EventRecord. Filesystem paths are not `public_ops`.
@@ -33,7 +36,7 @@ Full standing instructions: `docs/machi/MACHI_LEAD_DEVELOPER.md`.
 ## Must not
 
 - Merge Machi into `kultrun` or Kultrun into `machi`.
-- Implement 1.3.2, 1.1.1, 1.4.1, or Blocks 2–9 during a 1.3.1 increment.
+- Implement 1.3.2, 1.1.1, 1.4.1, or Blocks 2–9 during a 0.4.1 increment.
 - Treat `.machi-owner.json` as a delete permit.
 - Fabricate DeploymentWitness from live re-resolution.
 - Encode a vLLM-only architecture or implement extra runtime adapters to prove a port.

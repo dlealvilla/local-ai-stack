@@ -201,3 +201,48 @@ def marker_boundary_violations(root: Path) -> list[str]:
     if "def establish(self, binding: StateRootBinding)" not in text:
         found.append("SelfOwnershipMarker.establish must consume StateRootBinding")
     return found
+
+
+STORE_PORT_FORBIDDEN = (
+    "MACHI_STATE_ROOT",
+    "StateRootBinder",
+    "SelfOwnershipMarker",
+    ".machi-owner.json",
+    "RegistrySeed",
+    "EventRecord",
+    "JsonlJournal",
+    "FileStore",
+    "os.environ",
+)
+
+STORE_ADAPTER_FORBIDDEN = (
+    "MACHI_STATE_ROOT",
+    "StateRootBinder",
+    "SelfOwnershipMarker",
+    ".machi-owner.json",
+    "RegistrySeed",
+    "EventRecord",
+    "JsonlJournal",
+    "os.environ",
+    "shutil.rmtree",
+    "machi.install",
+)
+
+
+def store_boundary_violations(root: Path) -> list[str]:
+    """0.4.1 Store stays a Kernel mechanism with an injected root."""
+    found: list[str] = []
+    port = root / "kernel" / "store.py"
+    port_text = port.read_text(encoding="utf-8")
+    for token in STORE_PORT_FORBIDDEN:
+        if token in port_text:
+            found.append(f"{port.name} must not contain {token!r}")
+    adapter = root / "adapters" / "persistence" / "file_store.py"
+    adapter_text = adapter.read_text(encoding="utf-8")
+    for token in STORE_ADAPTER_FORBIDDEN:
+        if token in adapter_text:
+            found.append(f"{adapter.name} must not contain {token!r}")
+    journal = (root / "kernel" / "journal.py").read_text(encoding="utf-8")
+    if "FileStore" in journal or "validate_record_key" in journal:
+        found.append("journal.py must not depend on Store")
+    return found

@@ -19,6 +19,7 @@ from machi.kernel.errors import ValidationError
 
 STATE_ROOT_VARIABLE = "MACHI_STATE_ROOT"
 JOURNAL_LEAF = "journal"
+STORE_LEAF = "store"
 JOURNAL_EVENTS_FILENAME = "events.jsonl"
 KULTRUN_OWNER_FILENAME = ".kultrun-owner.json"
 MACHI_OWNER_FILENAME = ".machi-owner.json"
@@ -45,3 +46,13 @@ def journal_dir(root: Path) -> Path:
     directory and does not choose this path.
     """
     return Path(root) / JOURNAL_LEAF
+
+
+def store_dir(root: Path) -> Path:
+    """Where composition injects the Kernel Store for this bound root.
+
+    Layout convention owned by Install. Kernel still receives an injected
+    directory and does not choose this path. Store does not assert
+    ownership of this tree.
+    """
+    return Path(root) / STORE_LEAF

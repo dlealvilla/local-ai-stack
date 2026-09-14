@@ -79,6 +79,8 @@ versioned document form (the Kultrun `to_dict` lesson).
 
 Names are examples; the catalogue is owned by Kernel 0.3.
 
+- `kernel.alive` (M0; privacy `public_ops`)
+- `kernel.store.proved` (0.4.1 proof only; key fingerprint; privacy `restricted`; no path, no entity body)
 - `install.state_root.bound` (1.2.1; path omitted from payload; privacy `restricted`)
 - `install.ownership.local_marked` (1.3.1; marker id + root fingerprint; privacy `restricted`; not dual proof; never `ownership.verified`)
 - `install.started` / `install.bound` (1.4.1; InstallRun exists)

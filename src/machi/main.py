@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from machi.adapters.journal.jsonl import JsonlJournal
+from machi.adapters.persistence.file_store import FileStore
 from machi.install.binder import StateRootBinder
 from machi.install.contracts import (
     LocalOwnershipEstablishment,
@@ -34,6 +35,7 @@ from machi.kernel.errors import MachiError, PersistenceError, ValidationError
 from machi.kernel.events import EventRecord
 from machi.kernel.journal import JournalDefect
 from machi.kernel.schema import Contract, to_dict, validate_registry
+from machi.kernel.store_proof import StoreProof, store_proved
 
 
 def prove_alive(journal_dir_path: Path) -> EventRecord:
@@ -41,6 +43,30 @@ def prove_alive(journal_dir_path: Path) -> EventRecord:
     validate_registry(module_prefix="machi.")
     journal = JsonlJournal(journal_dir_path)
     return journal.append(kernel_alive())
+
+
+def put_store_proof(
+    *,
+    store_dir_path: Path,
+    key: str,
+    token: str,
+    journal_dir_path: Path | None,
+) -> tuple[StoreProof, bool, bool, EventRecord | None, Path]:
+    """Create or re-enter a Kernel StoreProof under an injected store root."""
+    validate_registry(module_prefix="machi.")
+    store = FileStore(store_dir_path)
+    result = store.create(key, StoreProof(token=token))
+    proof = store.get(StoreProof, key)
+    event = None
+    if journal_dir_path is not None:
+        event = JsonlJournal(journal_dir_path).append(store_proved(result, key=key))
+    return proof, result.created, result.existed, event, store.root
+
+
+def get_store_proof(*, store_dir_path: Path, key: str) -> StoreProof:
+    """Read a Kernel StoreProof from an injected store root."""
+    validate_registry(module_prefix="machi.")
+    return FileStore(store_dir_path).get(StoreProof, key)
 
 
 def read_events(
@@ -164,6 +190,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     events.add_argument("--journal-dir", required=True)
 
+    store_put = kernel_sub.add_parser(
+        "store-put",
+        help="create or re-enter a Kernel StoreProof under an injected store root",
+    )
+    store_put.add_argument(
+        "--store-dir",
+        required=True,
+        help="injected Store root; Kernel does not choose the Install state root",
+    )
+    store_put.add_argument("--key", required=True, help="caller-owned logical identity")
+    store_put.add_argument(
+        "--token",
+        default="prove",
+        help="opaque proof token; not a domain entity",
+    )
+    store_put.add_argument(
+        "--journal-dir",
+        default=None,
+        help="optional journal for kernel.store.proved; Store does not require it",
+    )
+    store_get = kernel_sub.add_parser(
+        "store-get",
+        help="read a Kernel StoreProof from an injected store root",
+    )
+    store_get.add_argument("--store-dir", required=True)
+    store_get.add_argument("--key", required=True)
+
     install = sub.add_parser("install", help="Install (Block 1) commands")
     install_sub = install.add_subparsers(dest="install_command", required=True)
     bind = install_sub.add_parser(
@@ -212,6 +265,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _print_document(record)
             for defect in defects:
                 _print_document(defect)
+            return 0
+        if ns.command == "kernel" and ns.kernel_command == "store-put":
+            proof, created, existed, proof_event, store_root = put_store_proof(
+                store_dir_path=Path(ns.store_dir),
+                key=ns.key,
+                token=ns.token,
+                journal_dir_path=Path(ns.journal_dir) if ns.journal_dir else None,
+            )
+            print(f"store    {store_root}")
+            print(f"created  {str(created).lower()}")
+            print(f"existed  {str(existed).lower()}")
+            print(f"kind     {proof.kind}")
+            _print_document(proof)
+            if proof_event is not None:
+                _print_document(proof_event)
+            return 0
+        if ns.command == "kernel" and ns.kernel_command == "store-get":
+            proof = get_store_proof(store_dir_path=Path(ns.store_dir), key=ns.key)
+            print(f"kind     {proof.kind}")
+            _print_document(proof)
             return 0
         if ns.command == "install" and ns.install_command == "bind-root":
             binding, event, target = bind_state_root(

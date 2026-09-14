@@ -255,6 +255,51 @@
     },
     "python": "KernelAlivePayload"
   },
+  "kernel.store.proof@1": {
+    "fields": {
+      "token": {
+        "may_be_unresolved": false,
+        "meaning": "opaque proof token; not a domain identity and not customer content",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "StoreProof"
+  },
+  "kernel.store.proved@1": {
+    "fields": {
+      "created": {
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation published a new file",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "existed": {
+        "may_be_unresolved": false,
+        "meaning": "whether a record already existed at this key",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "key_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 hex digest of the UTF-8 logical key; the key itself is omitted",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "record_kind": {
+        "may_be_unresolved": false,
+        "meaning": "kind of the persisted proof contract",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "StoreProvedPayload"
+  },
   "local_ownership_establishment@1": {
     "fields": {
       "created": {

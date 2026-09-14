@@ -9,7 +9,8 @@ from typing import Any
 
 import pytest
 
-import machi.install  # noqa: F401 — register Block 1 contracts
+import machi.install
+import machi.kernel.store_proof  # noqa: F401
 from machi.kernel.alive import KernelAlivePayload, kernel_alive
 from machi.kernel.clock import FixedClock
 from machi.kernel.errors import UnknownKindError, ValidationError

@@ -1,4 +1,4 @@
-"""Machi architecture boundary tests (M0 Kernel + 1.2.1 + 1.3.1)."""
+"""Machi architecture boundary tests (M0 Kernel + 1.2.1 + 1.3.1 + 0.4.1)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from tests.machi.architecture import (
     marker_boundary_violations,
     scan,
     source_root,
+    store_boundary_violations,
     unassigned_packages,
     violations,
 )
@@ -36,3 +37,7 @@ def test_state_root_binder_does_not_write_ownership_markers() -> None:
 
 def test_self_ownership_marker_stays_inside_local_evidence() -> None:
     assert marker_boundary_violations(source_root()) == []
+
+
+def test_kernel_store_does_not_own_install_or_journal() -> None:
+    assert store_boundary_violations(source_root()) == []

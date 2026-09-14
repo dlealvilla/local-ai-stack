@@ -62,16 +62,19 @@ Unresolved, `0.2.1` Typed IDs, `0.3.1` EventRecord, `0.3.2` Journal,
 `0.5.1` Privacy classification.
 
 **Deferred inside Kernel (not required to persist `kernel.alive`):**
-`0.3.3` Observers, `0.4.1` entity Store port, `0.6.1`
-DeploymentWitness, `0.7.1` Health aggregator.
+`0.3.3` Observers, `0.6.1` DeploymentWitness, `0.7.1` Health aggregator.
+
+`0.4.1` Store was deferred from the first Kernel vertical because M0
+did not yet persist addressable entities. It is implemented now as a
+Kernel increment so `1.3.2 RegistrySeed` can persist a registry record
+without inventing a second persistence mechanism.
 
 **Objective:** Machi can exist as an artifact that persists one
 versioned event without owning any domain decision.
 
 **Architecture units:** contracts, Unresolved, EventRecord, journal
-port, privacy class. The entity file-store port (`0.4.1`) waits until
-a Block needs operational entity persistence; M0 injects a journal
-directory and does not choose the Install state root.
+port, privacy class. The entity Store (`0.4.1`) is a later Kernel
+increment: injected root, create/get, not the event journal.
 
 **Inputs:** none (bootstrap).
 
@@ -119,15 +122,18 @@ optional `MACHI_STATE_ROOT`.
 **1.2.1 outputs:** `StateRootBinding`; directory established; Kernel
 event `install.state_root.bound`.
 
-**1.3.1 (this increment) inputs:** `StateRootBinding` from 1.2.1.
+**1.3.1 (accepted) inputs:** `StateRootBinding` from 1.2.1.
 
 **1.3.1 outputs:** `LocalOwnershipEstablishment`; `.machi-owner.json`;
 Kernel event `install.ownership.local_marked`. Status is
 `local_marker_present`. Dual ownership and destructive authorization are
 always false.
 
+**0.4.1 (this increment):** Kernel Store port and `FileStore` adapter.
+Injected root; exclusive create + get; not the journal; not RegistrySeed.
+
 **1.3.2 (next recommended; not this increment):** central registry record
-citing the same `marker_id` and root fingerprint. Likely requires Kernel
+citing the same `marker_id` and root fingerprint. Requires Kernel
 `0.4.1` Store. Do not treat InstallRecord as the second ownership half.
 
 **Full M1 outputs:** `InstallRecord`, `InstallRun`, local marker, and
@@ -146,11 +152,21 @@ regression.
 **Physical (1.3.1):** T3 filesystem host; no GPU. Cumulative
 M0 → 1.2.1 → 1.3.1.
 
-**Cumulative:** M0 → 1.2.1 → 1.3.1, then M0 → M1.
+**Local tests (0.4.1):** exclusive create; get; identical re-entry;
+conflict fail-closed; malformed/unsupported fail-closed; unsafe keys
+refused; two-root isolation; corruption locality; journal independence;
+M0/1.2.1/1.3.1 regression.
+
+**Physical (0.4.1):** T3 filesystem host; no GPU. Fresh process read;
+two store roots; cumulative M0 → 1.2.1 → 1.3.1 → 0.4.1.
+
+**Cumulative:** M0 → 1.2.1 → 1.3.1 → 0.4.1, then M0 → M1.
 
 **Acceptance (full M1):** `machi version` + persisted InstallRun; events
 correlated. **1.3.1 gate:** local marker + restricted event + no
-destructive authorization + M0/1.2.1 green.
+destructive authorization + M0/1.2.1 green. **0.4.1 gate:** durable
+entity round-trip on an injected root + restricted proof event +
+predecessors green.
 
 **Non-goals (1.3.1):** central registry, dual-proof evaluator, Steward
 cleanup, reclaim, sibling scan, InstallRecord, InstallRun.

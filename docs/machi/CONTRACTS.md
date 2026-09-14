@@ -67,6 +67,7 @@ rewrite them in place.
 | Name | Producer | Consumers | Category | Persist | Provenance required |
 |---|---|---|---|---|---|
 | `EventRecord` | every block | journal, Witness, export | Event | append-only | emitter Block ID + payload version |
+| `StoreProof` | 0.4.1 proof CLI | Kernel Store proof only | Proof / test | `<store>/<kind>/<key>.json` | opaque token; not RegistrySeed |
 | `StateRootBinding` | 1.2.1 StateRootBinder | 1.3.1, 1.1.1, 1.4.1, composition | Profile / location | directory exists; contract is returned, not an entity file yet | selection source |
 | `LocalOwnershipMarker` | 1.3.1 SelfOwnershipMarker | 1.3.2, composition, later Steward | Evidence (local only) | `.machi-owner.json` | schema, product `machi`, `marker_id`, root fingerprint |
 | `LocalOwnershipEstablishment` | 1.3.1 SelfOwnershipMarker | composition; never Steward delete | Evidence (local only) | no; result of establish | `dual_ownership=false`, `destructive_authorization=false` |
@@ -109,6 +110,10 @@ meaning is a human-reviewed event (Kultrun K-05).
 `LocalOwnershipMarker` is not `OwnershipRecord`. Steward 3.1 keeps that
 name for dual-proof inventory. 1.3.1 status is `local_marker_present`,
 never `ownership_verified`.
+
+The Kernel `Store` port is not a domain contract. Callers persist their
+own versioned contracts under caller-owned keys. `StoreProof` exists
+only to prove 0.4.1; it is not a registry record.
 
 ---
 

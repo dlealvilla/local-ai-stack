@@ -92,8 +92,9 @@ class UnresolvedValueError(MachiError):
 class ConflictError(MachiError):
     """Two facts disagree, or a claim is unsafe.
 
-    Distinct from ValidationError (a value is malformed). Ownership
-    collisions and copied markers are conflicts: fail closed, do not repair.
+    Distinct from ValidationError (a value is malformed). Store key
+    collisions, ownership collisions, and copied markers are conflicts:
+    fail closed, do not repair.
     """
 
     code = ErrorCode.CONFLICT

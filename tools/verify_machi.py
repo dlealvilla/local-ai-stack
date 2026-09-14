@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove M0, 1.2.1, 1.3.1.
+"""Install a Machi wheel into a throwaway environment and prove M0 through 0.4.1.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """
@@ -297,6 +297,185 @@ def main() -> int:
     print(restored.stdout, end="")
     if load_marker(root_a)["marker_id"] != marker_a["marker_id"]:
         raise SystemExit("restored marker identity changed")
+
+    store_a = root_a / "store"
+    store_b = root_b / "store"
+    put_a = run(
+        [
+            str(machi),
+            "kernel",
+            "store-put",
+            "--store-dir",
+            str(store_a),
+            "--key",
+            "proof-a",
+            "--token",
+            "alpha",
+            "--journal-dir",
+            str(root_a / "journal"),
+        ],
+        env=env,
+    )
+    print(put_a.stdout, end="")
+    if '"kind": "kernel.store.proof"' not in put_a.stdout:
+        raise SystemExit("store-put did not persist kernel.store.proof")
+    if "kernel.store.proved" not in put_a.stdout:
+        raise SystemExit("store-put did not emit kernel.store.proved")
+    if '"privacy": "restricted"' not in put_a.stdout:
+        raise SystemExit("store-proved was not restricted")
+    event_at = put_a.stdout.find('"kind": "event_record"')
+    if event_at < 0:
+        raise SystemExit("store-put did not print an EventRecord")
+    if str(store_a) in put_a.stdout[event_at:]:
+        raise SystemExit("absolute store path leaked into the proof event")
+    if "alpha" in put_a.stdout[event_at:]:
+        raise SystemExit("proof token leaked into the proof event")
+
+    got_a = run(
+        [
+            str(machi),
+            "kernel",
+            "store-get",
+            "--store-dir",
+            str(store_a),
+            "--key",
+            "proof-a",
+        ],
+        env=env,
+    )
+    print(got_a.stdout, end="")
+    if '"token": "alpha"' not in got_a.stdout:
+        raise SystemExit("fresh-process store-get did not return the proof token")
+
+    again = run(
+        [
+            str(machi),
+            "kernel",
+            "store-put",
+            "--store-dir",
+            str(store_a),
+            "--key",
+            "proof-a",
+            "--token",
+            "alpha",
+        ],
+        env=env,
+    )
+    print(again.stdout, end="")
+    if "created  false" not in again.stdout:
+        raise SystemExit("identical store re-entry did not report created=false")
+
+    conflict = run_expect_fail(
+        [
+            str(machi),
+            "kernel",
+            "store-put",
+            "--store-dir",
+            str(store_a),
+            "--key",
+            "proof-a",
+            "--token",
+            "other",
+        ],
+        env=env,
+    )
+    print(conflict.stderr, end="")
+    if "does not match" not in conflict.stderr:
+        raise SystemExit("conflicting store key did not fail closed")
+
+    put_b = run(
+        [
+            str(machi),
+            "kernel",
+            "store-put",
+            "--store-dir",
+            str(store_b),
+            "--key",
+            "proof-a",
+            "--token",
+            "beta",
+        ],
+        env=env,
+    )
+    print(put_b.stdout, end="")
+    if '"token": "beta"' not in put_b.stdout:
+        raise SystemExit("store B did not accept the same logical key independently")
+    got_b = run(
+        [
+            str(machi),
+            "kernel",
+            "store-get",
+            "--store-dir",
+            str(store_b),
+            "--key",
+            "proof-a",
+        ],
+        env=env,
+    )
+    if '"token": "alpha"' in got_b.stdout:
+        raise SystemExit("store B read store A's token")
+
+    kind_a = store_a / "kernel.store.proof"
+    (kind_a / "b.json").write_text("{broken\n", encoding="utf-8")
+    run(
+        [
+            str(machi),
+            "kernel",
+            "store-put",
+            "--store-dir",
+            str(store_a),
+            "--key",
+            "c",
+            "--token",
+            "charlie",
+        ],
+        env=env,
+    )
+    still_a = run(
+        [
+            str(machi),
+            "kernel",
+            "store-get",
+            "--store-dir",
+            str(store_a),
+            "--key",
+            "proof-a",
+        ],
+        env=env,
+    )
+    if '"token": "alpha"' not in still_a.stdout:
+        raise SystemExit("corruption of B broke reading A")
+    broken_b = run_expect_fail(
+        [str(machi), "kernel", "store-get", "--store-dir", str(store_a), "--key", "b"],
+        env=env,
+    )
+    print(broken_b.stderr, end="")
+    if "malformed JSON" not in broken_b.stderr:
+        raise SystemExit("malformed stored entity did not fail closed")
+    still_c = run(
+        [str(machi), "kernel", "store-get", "--store-dir", str(store_a), "--key", "c"],
+        env=env,
+    )
+    if '"token": "charlie"' not in still_c.stdout:
+        raise SystemExit("corruption of B broke reading C")
+
+    unsafe = run_expect_fail(
+        [
+            str(machi),
+            "kernel",
+            "store-put",
+            "--store-dir",
+            str(store_a),
+            "--key",
+            "../escape",
+            "--token",
+            "nope",
+        ],
+        env=env,
+    )
+    print(unsafe.stderr, end="")
+    if "record key" not in unsafe.stderr:
+        raise SystemExit("unsafe store key was not refused")
 
     print("verify_ok")
     return 0
