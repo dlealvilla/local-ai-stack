@@ -2,7 +2,7 @@
 
 **Work token:** `MACHI-1.3.2-REGISTRY-SEED`  
 **Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` (promoted to `machi`, tag `checkpoint/machi-0.4.1-closed-2a7097e`) → 1.3.2 on `m1/1.3.2-registry-seed`.  
-**Status:** Canonical `machi` is accepted 0.4.1. 1.3.2 is implemented on a feature branch, locally qualified, and is **not** merged to `machi` until physical acceptance.
+**Status:** Canonical `machi` is accepted 0.4.1. 1.3.2 is physically qualified on `m1/1.3.2-registry-seed` and is **not** merged to `machi` until a separate promotion instruction.
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
@@ -31,7 +31,8 @@ contracts. It does not own deployment truth.
 | [M0-0.4.1.md](M0-0.4.1.md) | 0.4.1 Store implementation notes. |
 | [M0-0.4.1-PHYSICAL.md](M0-0.4.1-PHYSICAL.md) | 0.4.1 physical acceptance evidence for `7bfdbf3`. |
 | [M1-1.3.2.md](M1-1.3.2.md) | 1.3.2 RegistrySeed implementation notes. |
-| [M1-1.3.2-LOCAL.md](M1-1.3.2-LOCAL.md) | 1.3.2 local acceptance; physical pending for `34272e8`. |
+| [M1-1.3.2-LOCAL.md](M1-1.3.2-LOCAL.md) | 1.3.2 local acceptance of the `34272e8` wheel. |
+| [M1-1.3.2-PHYSICAL.md](M1-1.3.2-PHYSICAL.md) | 1.3.2 physical acceptance evidence for `34272e8`. |
 | [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,
