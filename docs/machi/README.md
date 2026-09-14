@@ -1,8 +1,8 @@
 # Machi
 
 **Work token:** `MACHI-0.0.1-ARCHITECTURE`  
-**Chain:** `MACHI-ROOT-000` → architecture `df1c21e` → M0 Kernel on `m0/0-kernel`  
-**Status:** architecture accepted; Kernel M0 implementation is on `m0/0-kernel` (`src/machi/`).
+**Chain:** `MACHI-ROOT-000` → architecture `df1c21e` → M0 Kernel `8c614e5` (physical PASS).  
+**Status:** architecture accepted; M0 Kernel implemented and physically accepted on `m0/0-kernel`. Not merged to `machi`.
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
@@ -23,6 +23,7 @@ contracts. It does not own deployment truth.
 | [TELEMETRY.md](TELEMETRY.md) | Events, metrics, provenance, privacy, local storage, vendor export. |
 | [ROADMAP.md](ROADMAP.md) | Sequential milestones, empirical tests, cumulative gates. |
 | [M0.md](M0.md) | First implementation notes (reuse vs rewrite). |
+| [M0-PHYSICAL.md](M0-PHYSICAL.md) | M0 physical acceptance evidence for `8c614e5`. |
 | [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,
