@@ -7,10 +7,11 @@ Does not close Stage 1.6L. Does not start 1.6M. Does not add runtimes.
 
 Later bounded closures on this branch: Minimum Feasibility + guided
 report + vLLM vertical physically passed on `4f3ad61` /
-`drun_29e57bbf3054423e`. Product reclaim was inventoried and not executed
-because realize-time SAFE already covered the peak (K-115). This
-follow-up treats cleanup-eligible owned state as lifecycle hygiene
-independent of that capacity gate.
+`drun_29e57bbf3054423e`. Product reclaim of genuine sibling leftovers
+then ran on `host_4abec3f2e600e339` / `drun_c84d8a065b69bbf9` at
+`b12ce09` (19.5 GiB CLEANUP ELIGIBLE deleted by the product; occupancy-
+conditional Sonar; guided report). Trigger on that host was capacity,
+not lifecycle-only. Do not merge to `kultrun`.
 
 Predecessor source: runtime-breadth exoskeleton
 `36820d78e5c76da12e6cf904db8f8365ca4aed3f`.

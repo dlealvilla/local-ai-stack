@@ -2018,25 +2018,38 @@ Owner stage:  1.6L bounded pre-llama.cpp closure
 Subsystem:    storage / platform / vendor
 Authorizes:   NO
 What:         Lifecycle cleanup of cleanup-eligible dual-owned state is
-              now the product rule even when current SAFE already covers
-              the peak (`cleanup_required_by_lifecycle` vs
+              the product rule even when current SAFE already covers the
+              peak (`cleanup_required_by_lifecycle` vs
               `cleanup_required_for_capacity`). Realize no longer copies
-              `foundations[0]` into selected runtime. Remaining physical
-              proof is the always-clean path on a real host that still
-              holds inactive sibling Kultrun roots, plus occupancy-
-              conditional Sonar when SAFE still blocks after delete.
+              `foundations[0]` into selected runtime. `unique_occupancy`
+              must not let a weaker UNKNOWN ancestor hide stronger
+              descendant artifacts. After actual reclaim, occupancy-
+              conditional Sonar may re-run when SAFE still blocks.
               Customer-facing simplified deployment UX is not built.
               llama.cpp / MLX remain FUTURE (K-112). Do not merge to
               authoritative `kultrun` from this closure.
 Why now:      The previous closure inventoried 5.9 GiB reclaimable
               sibling models and skipped delete because SAFE fitted.
-To make real: physical always-clean of genuine prior Kultrun-owned
-              inactive state, even when SAFE >= peak. Do not `rm` prior
-              installs or fabricate occupancy to force the path.
-Retire when:  product-owned always-clean reclaim is physically proven and
-              the guided DeploymentReport answers the stack journey
-              without logs.
-Status:       OPEN
+Physical:     host_4abec3f2e600e339 / drun_c84d8a065b69bbf9.
+              Product classified 19.5 GiB sibling models/runtimes as
+              CLEANUP ELIGIBLE and deleted them (no operator `rm`).
+              Trigger on this host was `cleanup_required_for_capacity`
+              (authorizing 16 GiB < 24 GiB peak), not lifecycle-only.
+              After delete, min still failed until occupancy-conditional
+              Sonar raised authorizing to 32 GiB. Guided report at
+              `b12ce09` answers the journey: Layer 2 19.5 GiB reclaimed;
+              Layer 3 realize PASS vs post-install remaining; Layer 5
+              selected `vllm/native-process` FEASIBLE not FILTERED.
+To make real: a host where SAFE already covers peak and reclaimable
+              siblings still exist, if lifecycle-only always-clean
+              must be proven separately from the blocking-host path.
+Retire when:  product-owned reclaim + recharacterization are accepted
+              for this host class, and any remaining lifecycle-only
+              proof is either captured or explicitly deferred.
+Status:       PHYSICALLY CLOSED for blocking-host reclaim,
+              occupancy-conditional Sonar, and guided report.
+              Lifecycle-only (SAFE already covers peak) not exercised
+              on this host.
 
 Stop of a serving process continues to release the GPU process while
 leaving `ResourceReservation` ACTIVE for restart. That is the product
