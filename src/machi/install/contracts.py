@@ -123,10 +123,12 @@ class LocalOwnershipEstablishment(Contract):
         "local_marker_present; never ownership_verified or install_owned"
     )
     dual_ownership: bool = meaning(
-        "whether local marker and registry currently agree; 1.3.1 is always false"
+        "whether local marker and registry currently agree; 1.3.1 is always false; "
+        "1.3.2 still does not evaluate dual proof"
     )
     destructive_authorization: bool = meaning(
-        "whether this result may authorize delete/reclaim; 1.3.1 is always false"
+        "whether this result may authorize delete/reclaim; 1.3.1 and 1.3.2 "
+        "are always false"
     )
     existed: bool = meaning("whether the marker file already existed before this call")
     created: bool = meaning("whether this invocation wrote the marker file")
@@ -144,4 +146,93 @@ class LocalOwnershipEstablishment(Contract):
         if self.destructive_authorization:
             raise ValidationError(
                 "1.3.1 must not authorize destruction",
+            )
+
+
+class RegistrySeedStatus(StrEnum):
+    """What a seeded registry row means. It is not dual-proof evaluation."""
+
+    REGISTRY_SEED_PRESENT = "registry_seed_present"
+
+
+@contract(kind="local_ownership_registry_record", version=1)
+@dataclass(frozen=True, slots=True)
+class LocalOwnershipRegistryRecord(Contract):
+    """Control-plane registry half of local ownership evidence.
+
+    This record lives in an injected Store, not in the claimed state
+    root. Presence of this document plus a local marker is not dual
+    ownership and does not authorize destruction. Steward evaluates
+    both authorities later.
+    """
+
+    marker_id: LocalOwnershipId = meaning(
+        "the same local marker identity this registry row cites; Store key"
+    )
+    product: str = meaning("product namespace; always machi")
+    root_fingerprint: str = meaning(
+        "SHA-256 hex digest of the UTF-8 normalized absolute root; "
+        "must match the local marker; the path itself is omitted"
+    )
+    created_at: dt.datetime = meaning(
+        "when this registry row was first written; timezone-aware UTC; never rewritten"
+    )
+    created_by_build_id: str | None = meaning(
+        "build id of the artifact that first seeded the row; None in a checkout",
+        default=None,
+    )
+    created_by_origin: str | None = meaning(
+        "artifact or source origin of the writer; not a host path",
+        default=None,
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "created_at", require_utc(self.created_at, what="created_at")
+        )
+        if self.product != "machi":
+            raise ValidationError(
+                "ownership registry product must be machi",
+                product=self.product,
+            )
+        if not _ROOT_FINGERPRINT.match(self.root_fingerprint):
+            raise ValidationError(
+                "root_fingerprint must be a SHA-256 hex digest",
+                root_fingerprint=self.root_fingerprint,
+            )
+
+
+@contract(kind="local_ownership_registry_establishment", version=1)
+@dataclass(frozen=True, slots=True)
+class LocalOwnershipRegistryEstablishment(Contract):
+    """Result of 1.3.2. Registry evidence only; never destructive authority."""
+
+    record: LocalOwnershipRegistryRecord = meaning(
+        "the validated or newly written control-plane registry row"
+    )
+    status: RegistrySeedStatus = meaning(
+        "registry_seed_present; never ownership_verified or dual_ownership_verified"
+    )
+    dual_ownership: bool = meaning(
+        "whether Steward has evaluated both authorities; 1.3.2 is always false"
+    )
+    destructive_authorization: bool = meaning(
+        "whether this result may authorize delete/reclaim; 1.3.2 is always false"
+    )
+    existed: bool = meaning("whether the registry row already existed before this call")
+    created: bool = meaning("whether this invocation published a new registry row")
+
+    def __post_init__(self) -> None:
+        if self.status is not RegistrySeedStatus.REGISTRY_SEED_PRESENT:
+            raise ValidationError(
+                "1.3.2 status must be registry_seed_present",
+                status=self.status.value,
+            )
+        if self.dual_ownership:
+            raise ValidationError(
+                "1.3.2 must not claim dual ownership",
+            )
+        if self.destructive_authorization:
+            raise ValidationError(
+                "1.3.2 must not authorize destruction",
             )

@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove M0 through 0.4.1.
+"""Install a Machi wheel into a throwaway environment and prove M0 through 1.3.2.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """
@@ -52,6 +52,16 @@ def load_marker(root: Path) -> dict[str, object]:
     payload: object = json.loads(raw)
     if not isinstance(payload, dict):
         raise SystemExit("marker is not a JSON object")
+    return {str(key): value for key, value in payload.items()}
+
+
+def load_registry(store: Path, marker_id: str) -> dict[str, object]:
+    raw = (store / "local_ownership_registry_record" / f"{marker_id}.json").read_text(
+        encoding="utf-8"
+    )
+    payload: object = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise SystemExit("registry record is not a JSON object")
     return {str(key): value for key, value in payload.items()}
 
 
@@ -476,6 +486,155 @@ def main() -> int:
     print(unsafe.stderr, end="")
     if "record key" not in unsafe.stderr:
         raise SystemExit("unsafe store key was not refused")
+
+    control_registry = root / "control-registry"
+    root_c = root / "root-c"
+    seed_a = run(
+        [
+            str(machi),
+            "install",
+            "seed-registry",
+            "--state-root",
+            str(root_a),
+            "--registry-store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(seed_a.stdout, end="")
+    if '"kind": "local_ownership_registry_record"' not in seed_a.stdout:
+        raise SystemExit("seed-registry did not persist a registry record")
+    if '"event_type": "install.ownership.registry_seeded"' not in seed_a.stdout:
+        raise SystemExit("seed-registry did not emit install.ownership.registry_seeded")
+    if '"privacy": "restricted"' not in seed_a.stdout:
+        raise SystemExit("registry-seeded event was not restricted")
+    if '"status": "registry_seed_present"' not in seed_a.stdout:
+        raise SystemExit("seed-registry did not report registry_seed_present")
+    if '"dual_ownership": true' in seed_a.stdout:
+        raise SystemExit("1.3.2 claimed dual ownership")
+    if '"destructive_authorization": true' in seed_a.stdout:
+        raise SystemExit("1.3.2 claimed destructive authorization")
+    seed_event_at = seed_a.stdout.find('"kind": "event_record"')
+    if seed_event_at < 0:
+        raise SystemExit("seed-registry did not print an EventRecord")
+    if str(root_a) in seed_a.stdout[seed_event_at:]:
+        raise SystemExit("absolute state root leaked into the registry event")
+    if str(control_registry) in seed_a.stdout[seed_event_at:]:
+        raise SystemExit("registry Store path leaked into the registry event")
+    if (root_a / "local_ownership_registry_record").exists():
+        raise SystemExit("registry record was written inside the claimed state root")
+    marker_a = load_marker(root_a)
+    record_a = load_registry(control_registry, str(marker_a["marker_id"]))
+    if record_a["marker_id"] != marker_a["marker_id"]:
+        raise SystemExit("registry marker_id did not cite the local marker")
+    if record_a["root_fingerprint"] != marker_a["root_fingerprint"]:
+        raise SystemExit("registry fingerprint did not match the local marker")
+
+    seed_a_again = run(
+        [
+            str(machi),
+            "install",
+            "seed-registry",
+            "--state-root",
+            str(root_a),
+            "--registry-store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(seed_a_again.stdout, end="")
+    if "created  false" not in seed_a_again.stdout:
+        raise SystemExit("registry re-entry did not report created=false")
+    if (
+        load_registry(control_registry, str(marker_a["marker_id"]))["created_at"]
+        != record_a["created_at"]
+    ):
+        raise SystemExit("registry re-entry rewrote created_at")
+
+    seed_b = run(
+        [
+            str(machi),
+            "install",
+            "seed-registry",
+            "--state-root",
+            str(root_b),
+            "--registry-store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(seed_b.stdout, end="")
+    marker_b = load_marker(root_b)
+    record_b = load_registry(control_registry, str(marker_b["marker_id"]))
+    if marker_a["marker_id"] == marker_b["marker_id"]:
+        raise SystemExit("two roots shared a marker identity after registry seed")
+    if record_a["marker_id"] == record_b["marker_id"]:
+        raise SystemExit("two registry rows shared a marker identity")
+    if record_a["root_fingerprint"] == record_b["root_fingerprint"]:
+        raise SystemExit("two registry rows shared a root fingerprint")
+
+    seed_c = run(
+        [
+            str(machi),
+            "install",
+            "seed-registry",
+            "--state-root",
+            str(root_c),
+            "--registry-store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(seed_c.stdout, end="")
+    marker_c = load_marker(root_c)
+    kind_dir = control_registry / "local_ownership_registry_record"
+    (kind_dir / f"{marker_b['marker_id']}.json").write_text(
+        "{broken\n", encoding="utf-8"
+    )
+    registry_a_after = load_registry(control_registry, str(marker_a["marker_id"]))
+    if registry_a_after["marker_id"] != marker_a["marker_id"]:
+        raise SystemExit("corruption of registry B broke reading A")
+    broken_b = run_expect_fail(
+        [
+            str(machi),
+            "install",
+            "seed-registry",
+            "--state-root",
+            str(root_b),
+            "--registry-store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(broken_b.stderr, end="")
+    if "malformed JSON" not in broken_b.stderr:
+        raise SystemExit("malformed registry record did not fail closed")
+    registry_c_after = load_registry(control_registry, str(marker_c["marker_id"]))
+    if registry_c_after["marker_id"] != marker_c["marker_id"]:
+        raise SystemExit("corruption of registry B broke reading C")
+
+    copied = root / "copied-root"
+    shutil.copytree(root_a, copied)
+    copied_fail = run_expect_fail(
+        [
+            str(machi),
+            "install",
+            "seed-registry",
+            "--state-root",
+            str(copied),
+            "--registry-store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(copied_fail.stderr, end="")
+    if "copied marker" not in copied_fail.stderr:
+        raise SystemExit("copied state root was seeded as owned")
+    if (
+        load_registry(control_registry, str(marker_a["marker_id"]))["root_fingerprint"]
+        != record_a["root_fingerprint"]
+    ):
+        raise SystemExit("copied-root attempt mutated registry A")
 
     print("verify_ok")
     return 0

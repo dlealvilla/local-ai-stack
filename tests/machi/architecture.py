@@ -246,3 +246,49 @@ def store_boundary_violations(root: Path) -> list[str]:
     if "FileStore" in journal or "validate_record_key" in journal:
         found.append("journal.py must not depend on Store")
     return found
+
+
+REGISTRY_FORBIDDEN_TOKENS = (
+    "FileStore",
+    "MACHI_STATE_ROOT",
+    "os.environ",
+    "shutil.rmtree",
+    "rglob",
+    "OwnershipRecord",
+    "InstallId",
+    "InstallRunId",
+    "HostId",
+    "delete_owned",
+    "reclaim",
+    "steward",
+    "kernel.store.proved",
+    "StateRootBinder",
+    "SelfOwnershipMarker",
+    ".machi-owner.json",
+)
+
+
+def registry_boundary_violations(root: Path) -> list[str]:
+    """1.3.2 consumes binding + local evidence and an injected Store port."""
+    path = root / "install" / "registry.py"
+    text = path.read_text(encoding="utf-8")
+    found: list[str] = []
+    for token in REGISTRY_FORBIDDEN_TOKENS:
+        if token in text:
+            found.append(f"{path.name} must not contain {token!r}")
+    if "def seed(" not in text:
+        found.append("RegistrySeed.seed must be defined")
+    if "binding: StateRootBinding" not in text:
+        found.append("RegistrySeed.seed must consume StateRootBinding")
+    if "establishment: LocalOwnershipEstablishment" not in text:
+        found.append("RegistrySeed.seed must consume LocalOwnershipEstablishment")
+    if "store: Store" not in text:
+        found.append("RegistrySeed.seed must consume the Store port")
+    if "from machi.kernel.store import Store" not in text:
+        found.append("RegistrySeed must consume the Kernel Store port")
+    if "from machi.adapters" in text:
+        found.append("RegistrySeed must not import adapters")
+    store_port = (root / "kernel" / "store.py").read_text(encoding="utf-8")
+    if "RegistrySeed" in store_port:
+        found.append("kernel Store must not import RegistrySeed")
+    return found

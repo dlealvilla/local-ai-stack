@@ -19,6 +19,7 @@ from machi.adapters.persistence.file_store import FileStore
 from machi.install.binder import StateRootBinder
 from machi.install.contracts import (
     LocalOwnershipEstablishment,
+    LocalOwnershipRegistryEstablishment,
     SelectionSource,
     StateRootBinding,
 )
@@ -27,8 +28,13 @@ from machi.install.defaults import (
     STATE_ROOT_VARIABLE,
     journal_dir,
 )
-from machi.install.events import local_ownership_marked, state_root_bound
+from machi.install.events import (
+    local_ownership_marked,
+    ownership_registry_seeded,
+    state_root_bound,
+)
 from machi.install.marker import SelfOwnershipMarker
+from machi.install.registry import RegistrySeed
 from machi.kernel.alive import kernel_alive
 from machi.kernel.build import identity as build_identity
 from machi.kernel.errors import MachiError, PersistenceError, ValidationError
@@ -120,6 +126,41 @@ def mark_local_ownership(
     bind_event = journal.append(state_root_bound(binding))
     mark_event = journal.append(local_ownership_marked(establishment))
     return binding, bind_event, establishment, mark_event, target
+
+
+def seed_local_registry(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    registry_store_dir: Path,
+    journal_dir_path: Path | None,
+) -> tuple[
+    StateRootBinding,
+    LocalOwnershipEstablishment,
+    LocalOwnershipRegistryEstablishment,
+    EventRecord,
+    Path,
+    Path,
+]:
+    """Bind, mark, then seed the control-plane registry via an injected Store.
+
+    RegistrySeed does not choose the Store root. Composition supplies it.
+    """
+    validate_registry(module_prefix="machi.")
+    binding = StateRootBinder().bind(explicit=explicit, environment=environment)
+    establishment = SelfOwnershipMarker().establish(binding)
+    store = FileStore(registry_store_dir)
+    seeded = RegistrySeed().seed(binding, establishment, store)
+    target = (
+        journal_dir_path
+        if journal_dir_path is not None
+        else journal_dir(Path(binding.root))
+    )
+    journal = JsonlJournal(target)
+    journal.append(state_root_bound(binding))
+    journal.append(local_ownership_marked(establishment))
+    seed_event = journal.append(ownership_registry_seeded(seeded))
+    return binding, establishment, seeded, seed_event, target, store.root
 
 
 def show_version() -> int:
@@ -247,6 +288,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="Kernel journal directory; defaults to <state-root>/journal",
     )
+    seed = install_sub.add_parser(
+        "seed-registry",
+        help="bind, mark locally, then seed the control-plane ownership registry",
+    )
+    seed.add_argument(
+        "--state-root",
+        default=None,
+        help="explicit state root consumed via 1.2.1 and 1.3.1",
+    )
+    seed.add_argument(
+        "--registry-store-dir",
+        required=True,
+        help="injected control-plane Store root; not chosen from the state root",
+    )
+    seed.add_argument(
+        "--journal-dir",
+        default=None,
+        help="Kernel journal directory; defaults to <state-root>/journal",
+    )
 
     ns = parser.parse_args(list(argv) if argv is not None else None)
     try:
@@ -318,6 +378,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"journal  {JsonlJournal(target).path}")
             _print_document(establishment)
             _print_document(mark_event)
+            return 0
+        if ns.command == "install" and ns.install_command == "seed-registry":
+            binding, establishment, seeded, seed_event, target, registry_root = (
+                seed_local_registry(
+                    explicit=ns.state_root,
+                    environment=_environment_override(),
+                    registry_store_dir=Path(ns.registry_store_dir),
+                    journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+                )
+            )
+            _warn_if_defaulted(binding)
+            print(f"root     {binding.root}")
+            print(f"marker   {Path(binding.root) / MACHI_OWNER_FILENAME}")
+            print(f"registry {registry_root}")
+            print(f"status   {seeded.status.value}")
+            print(f"dual     {str(seeded.dual_ownership).lower()}")
+            print(f"destroy  {str(seeded.destructive_authorization).lower()}")
+            print(f"created  {str(seeded.created).lower()}")
+            print(f"existed  {str(seeded.existed).lower()}")
+            print(f"journal  {JsonlJournal(target).path}")
+            _print_document(establishment)
+            _print_document(seeded)
+            _print_document(seed_event)
             return 0
     except PersistenceError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from machi.install.contracts import (
     LocalOwnershipEstablishment,
+    LocalOwnershipRegistryEstablishment,
     SelectionSource,
     StateRootBinding,
 )
@@ -27,6 +28,8 @@ STATE_ROOT_BINDER_COMPONENT = "1.2.1"
 STATE_ROOT_BOUND_TYPE = "install.state_root.bound"
 SELF_OWNERSHIP_COMPONENT = "1.3.1"
 LOCAL_MARKED_TYPE = "install.ownership.local_marked"
+REGISTRY_SEED_COMPONENT = "1.3.2"
+REGISTRY_SEEDED_TYPE = "install.ownership.registry_seeded"
 
 
 @contract(kind="install.state_root.bound", version=1)
@@ -84,7 +87,7 @@ class LocalOwnershipMarkedPayload(Contract):
         "SHA-256 of the bound root; the absolute path is omitted"
     )
     status: str = meaning("always local_marker_present; never ownership_verified")
-    dual_ownership: bool = meaning("always false until 1.3.2 agrees")
+    dual_ownership: bool = meaning("always false; Steward evaluates dual proof later")
     destructive_authorization: bool = meaning("always false for 1.3.1")
     existed: bool = meaning("whether the marker file already existed")
     created: bool = meaning("whether this invocation wrote the marker file")
@@ -103,6 +106,47 @@ def local_ownership_marked(
         payload=LocalOwnershipMarkedPayload(
             marker_id=establishment.marker.marker_id,
             root_fingerprint=establishment.marker.root_fingerprint,
+            status=establishment.status.value,
+            dual_ownership=establishment.dual_ownership,
+            destructive_authorization=establishment.destructive_authorization,
+            existed=establishment.existed,
+            created=establishment.created,
+        ),
+        clock=clock,
+    )
+
+
+@contract(kind="install.ownership.registry_seeded", version=1)
+@dataclass(frozen=True, slots=True)
+class OwnershipRegistrySeededPayload(Contract):
+    """Safe operational body for a registry seed. Not dual proof."""
+
+    marker_id: LocalOwnershipId = meaning(
+        "stable identity cited by the registry row; not an install identity"
+    )
+    root_fingerprint: str = meaning(
+        "SHA-256 of the bound root; the absolute path is omitted"
+    )
+    status: str = meaning("always registry_seed_present; never ownership_verified")
+    dual_ownership: bool = meaning("always false; Steward evaluates dual proof later")
+    destructive_authorization: bool = meaning("always false for 1.3.2")
+    existed: bool = meaning("whether the registry row already existed")
+    created: bool = meaning("whether this invocation published a new registry row")
+
+
+def ownership_registry_seeded(
+    establishment: LocalOwnershipRegistryEstablishment, *, clock: Clock | None = None
+) -> EventRecord:
+    """Mint the registry-seed event. Does not persist it."""
+    return EventRecord.create(
+        event_type=REGISTRY_SEEDED_TYPE,
+        block_id=INSTALL_BLOCK,
+        component_id=REGISTRY_SEED_COMPONENT,
+        outcome=EventOutcome.PASS,
+        privacy=PrivacyClass.RESTRICTED,
+        payload=OwnershipRegistrySeededPayload(
+            marker_id=establishment.record.marker_id,
+            root_fingerprint=establishment.record.root_fingerprint,
             status=establishment.status.value,
             dual_ownership=establishment.dual_ownership,
             destructive_authorization=establishment.destructive_authorization,

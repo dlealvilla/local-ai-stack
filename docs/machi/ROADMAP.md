@@ -129,19 +129,24 @@ Kernel event `install.ownership.local_marked`. Status is
 `local_marker_present`. Dual ownership and destructive authorization are
 always false.
 
-**0.4.1 (this increment):** Kernel Store port and `FileStore` adapter.
+**0.4.1 (accepted):** Kernel Store port and `FileStore` adapter.
 Injected root; exclusive create + get; not the journal; not RegistrySeed.
 
-**1.3.2 (next recommended; not this increment):** central registry record
-citing the same `marker_id` and root fingerprint. Requires Kernel
-`0.4.1` Store. Do not treat InstallRecord as the second ownership half.
+**1.3.2 (this increment):** local control-plane registry record citing the
+same `marker_id` and root fingerprint. Uses Kernel `0.4.1` Store with an
+injected registry Store root. Does not evaluate dual proof. Do not treat
+InstallRecord as the second ownership half.
+
+**1.1.1 (next recommended after physical 1.3.2; not this increment):**
+install-scoped identity. Not started.
 
 **Full M1 outputs:** `InstallRecord`, `InstallRun`, local marker, and
 later the registry half. Steward `OwnershipRecord` remains Block 3.
 
-**Telemetry:** `install.state_root.bound` at 1.2.1 and
-`install.ownership.local_marked` at 1.3.1 (`restricted`; absolute path
-omitted). Never `ownership.verified` from 1.3.1. `install.bound` and
+**Telemetry:** `install.state_root.bound` at 1.2.1,
+`install.ownership.local_marked` at 1.3.1, and
+`install.ownership.registry_seeded` at 1.3.2 (`restricted`; absolute path
+omitted). Never `ownership.verified`. `install.bound` and
 InstallRun correlation wait for 1.4.1.
 
 **Local tests (1.3.1):** marker create; re-entry; two-root isolation;
@@ -160,13 +165,15 @@ M0/1.2.1/1.3.1 regression.
 **Physical (0.4.1):** T3 filesystem host; no GPU. Fresh process read;
 two store roots; cumulative M0 → 1.2.1 → 1.3.1 → 0.4.1.
 
-**Cumulative:** M0 → 1.2.1 → 1.3.1 → 0.4.1, then M0 → M1.
+**Cumulative:** M0 → 1.2.1 → 1.3.1 → 0.4.1 → 1.3.2, then M0 → M1.
 
 **Acceptance (full M1):** `machi version` + persisted InstallRun; events
 correlated. **1.3.1 gate:** local marker + restricted event + no
 destructive authorization + M0/1.2.1 green. **0.4.1 gate:** durable
 entity round-trip on an injected root + restricted proof event +
-predecessors green.
+predecessors green. **1.3.2 local gate:** registry seed + restricted
+event + no destructive authorization + predecessors green. Physical
+1.3.2 is a later instruction.
 
 **Non-goals (1.3.1):** central registry, dual-proof evaluator, Steward
 cleanup, reclaim, sibling scan, InstallRecord, InstallRun.

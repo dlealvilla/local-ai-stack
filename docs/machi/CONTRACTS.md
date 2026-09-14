@@ -38,7 +38,7 @@ Recommendation never authorizes. Reservation never launches.
 ```text
 StateRootBinding
     → LocalOwnershipEstablishment   (1.3.1 local marker only; not dual proof)
-    → (1.3.2 registry record; not implemented)
+    → LocalOwnershipRegistryRecord   (1.3.2 local control-plane registry; not dual proof)
     → InstallRecord
     → HostProfile
     → OccupancyMap
@@ -68,9 +68,11 @@ rewrite them in place.
 |---|---|---|---|---|---|
 | `EventRecord` | every block | journal, Witness, export | Event | append-only | emitter Block ID + payload version |
 | `StoreProof` | 0.4.1 proof CLI | Kernel Store proof only | Proof / test | `<store>/<kind>/<key>.json` | opaque token; not RegistrySeed |
-| `StateRootBinding` | 1.2.1 StateRootBinder | 1.3.1, 1.1.1, 1.4.1, composition | Profile / location | directory exists; contract is returned, not an entity file yet | selection source |
+| `StateRootBinding` | 1.2.1 StateRootBinder | 1.3.1, 1.3.2, 1.1.1, 1.4.1, composition | Profile / location | directory exists; contract is returned, not an entity file yet | selection source |
 | `LocalOwnershipMarker` | 1.3.1 SelfOwnershipMarker | 1.3.2, composition, later Steward | Evidence (local only) | `.machi-owner.json` | schema, product `machi`, `marker_id`, root fingerprint |
-| `LocalOwnershipEstablishment` | 1.3.1 SelfOwnershipMarker | composition; never Steward delete | Evidence (local only) | no; result of establish | `dual_ownership=false`, `destructive_authorization=false` |
+| `LocalOwnershipEstablishment` | 1.3.1 SelfOwnershipMarker | 1.3.2, composition; never Steward delete | Evidence (local only) | no; result of establish | `dual_ownership=false`, `destructive_authorization=false` |
+| `LocalOwnershipRegistryRecord` | 1.3.2 RegistrySeed | composition; later Steward evaluator | Evidence (control-plane registry) | injected Store `<kind>/<marker_id>.json` | same `marker_id` + root fingerprint as 1.3.1; not `OwnershipRecord` |
+| `LocalOwnershipRegistryEstablishment` | 1.3.2 RegistrySeed | composition; never Steward delete | Evidence (control-plane registry) | no; result of seed | `registry_seed_present`; `dual_ownership=false`; `destructive_authorization=false` |
 | `InstallRecord` | 1.1.1 InstallRecord | all | Profile | yes | artifact SHA, build id, bound root |
 | `InstallRun` | 1.4.1 InstallRunStore | EventRecord.correlation | Profile | yes | state root |
 | `HostObservation` | 2 adapters | Discover | Observation | optional raw | adapter name, tool version |
@@ -108,8 +110,12 @@ A change of meaning keeps a new version. Name reuse with a new
 meaning is a human-reviewed event (Kultrun K-05).
 
 `LocalOwnershipMarker` is not `OwnershipRecord`. Steward 3.1 keeps that
-name for dual-proof inventory. 1.3.1 status is `local_marker_present`,
-never `ownership_verified`.
+name for dual-proof inventory. 1.3.1 status is `local_marker_present`.
+1.3.2 status is `registry_seed_present`. Neither is `ownership.verified`.
+
+The 1.3.2 registry is the local customer Machi control plane. It is not
+a vendor cloud service. The registry Store is injected; it is not the
+same authority as `.machi-owner.json`.
 
 The Kernel `Store` port is not a domain contract. Callers persist their
 own versioned contracts under caller-owned keys. `StoreProof` exists
