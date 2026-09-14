@@ -47,6 +47,7 @@ dist/
 # removed afterwards. Ignored so an interrupted build cannot commit a stale
 # build identity, which would make an artifact claim a commit it is not from.
 src/kultrun/BUILD.json
+src/machi/BUILD.json
 
 # Node/frontend generated dependencies
 node_modules/

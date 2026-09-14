@@ -1,8 +1,8 @@
 # Machi
 
 **Work token:** `MACHI-0.0.1-ARCHITECTURE`  
-**Chain:** `MACHI-ROOT-000` → this package  
-**Status:** architecture and roadmap proposal. No Machi runtime code.
+**Chain:** `MACHI-ROOT-000` → architecture `df1c21e` → M0 Kernel on `m0/0-kernel`  
+**Status:** architecture accepted; Kernel M0 implementation is on `m0/0-kernel` (`src/machi/`).
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
@@ -22,6 +22,8 @@ contracts. It does not own deployment truth.
 | [CONTRACTS.md](CONTRACTS.md) | Named contract chain, producers, consumers, invalidation. |
 | [TELEMETRY.md](TELEMETRY.md) | Events, metrics, provenance, privacy, local storage, vendor export. |
 | [ROADMAP.md](ROADMAP.md) | Sequential milestones, empirical tests, cumulative gates. |
+| [M0.md](M0.md) | First implementation notes (reuse vs rewrite). |
+| [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,
 `docs/ROADMAP.md`, `docs/DEBT.md`) are **not** replaced. They describe
@@ -45,8 +47,10 @@ Block 9 Serve            instance, readiness, request inference
 
 Levels: **Block** `N` → **Capability** `N.M` → **Component** `N.M.P`.
 
-## First implementation target (do not start it here)
+## First implementation target
 
-**MACHI 0.1** Kernel contracts, unresolved semantic, event envelope,
-append journal, privacy class. See [ROADMAP.md](ROADMAP.md) milestone
-`M0`.
+**M0 Kernel vertical:** `0.1.1` + `0.1.2` + `0.2.1` + `0.3.1` + `0.3.2`
++ `0.5.1`. See [ROADMAP.md](ROADMAP.md) milestone `M0` and
+[M0.md](M0.md).
+
+Lead Developer agent: [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md).

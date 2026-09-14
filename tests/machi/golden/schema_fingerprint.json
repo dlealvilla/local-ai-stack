@@ -1,0 +1,171 @@
+{
+  "event_record@1": {
+    "fields": {
+      "block_id": {
+        "may_be_unresolved": false,
+        "meaning": "emitting Block, for example 0",
+        "nullable": false,
+        "optional": false,
+        "type": "HierarchyId"
+      },
+      "component_id": {
+        "may_be_unresolved": false,
+        "meaning": "emitting Component when known, for example 0.3.1",
+        "nullable": false,
+        "optional": false,
+        "type": "HierarchyId"
+      },
+      "event_id": {
+        "may_be_unresolved": false,
+        "meaning": "opaque identity of this event",
+        "nullable": false,
+        "optional": false,
+        "type": "EventId"
+      },
+      "event_type": {
+        "may_be_unresolved": false,
+        "meaning": "what happened, as a stable dotted name such as kernel.alive",
+        "nullable": false,
+        "optional": false,
+        "type": "Name"
+      },
+      "host_id": {
+        "may_be_unresolved": true,
+        "meaning": "stable non-sensitive host id; Unresolved until Block 2 Discover",
+        "nullable": false,
+        "optional": false,
+        "type": "HostId | Unresolved"
+      },
+      "install_id": {
+        "may_be_unresolved": true,
+        "meaning": "this Machi installation; Unresolved until Block 1 binds a state root",
+        "nullable": false,
+        "optional": false,
+        "type": "InstallId | Unresolved"
+      },
+      "install_run_id": {
+        "may_be_unresolved": true,
+        "meaning": "deployment-journey correlation; Unresolved until Block 1 mints InstallRun",
+        "nullable": false,
+        "optional": false,
+        "type": "InstallRunId | Unresolved"
+      },
+      "occurred_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the fact happened, timezone-aware UTC; never persist time",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "outcome": {
+        "may_be_unresolved": false,
+        "meaning": "pass, fail, blocked, info, or unresolved",
+        "nullable": false,
+        "optional": false,
+        "type": "EventOutcome"
+      },
+      "payload": {
+        "may_be_unresolved": false,
+        "meaning": "versioned domain body; Kernel does not own future payload meaning",
+        "nullable": false,
+        "optional": false,
+        "type": "Contract"
+      },
+      "privacy": {
+        "may_be_unresolved": false,
+        "meaning": "explicit privacy posture for this record",
+        "nullable": false,
+        "optional": false,
+        "type": "PrivacyClass"
+      },
+      "recorded_at": {
+        "may_be_unresolved": false,
+        "meaning": "when the journal persisted the event; None until append",
+        "nullable": true,
+        "optional": true,
+        "type": "datetime | None"
+      }
+    },
+    "python": "EventRecord"
+  },
+  "journal_defect@1": {
+    "fields": {
+      "line_number": {
+        "may_be_unresolved": false,
+        "meaning": "1-based line number in the journal file",
+        "nullable": false,
+        "optional": false,
+        "type": "int"
+      },
+      "problem": {
+        "may_be_unresolved": false,
+        "meaning": "why the line could not be loaded",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "record_kind": {
+        "may_be_unresolved": false,
+        "meaning": "the kind it claimed to be, when that much was readable",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      }
+    },
+    "python": "JournalDefect"
+  },
+  "kernel.alive@1": {
+    "fields": {
+      "build_id": {
+        "may_be_unresolved": false,
+        "meaning": "traceable build identifier",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "built_at": {
+        "may_be_unresolved": false,
+        "meaning": "UTC timestamp the artifact was built",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "clean_source": {
+        "may_be_unresolved": false,
+        "meaning": "whether the source tree was clean at build time",
+        "nullable": true,
+        "optional": true,
+        "type": "bool | None"
+      },
+      "distribution": {
+        "may_be_unresolved": false,
+        "meaning": "distribution name; always machi",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "origin": {
+        "may_be_unresolved": false,
+        "meaning": "artifact or source",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "source_commit": {
+        "may_be_unresolved": false,
+        "meaning": "git commit the artifact was built from; None in a checkout",
+        "nullable": true,
+        "optional": true,
+        "type": "str | None"
+      },
+      "version": {
+        "may_be_unresolved": false,
+        "meaning": "installed or declared package version",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      }
+    },
+    "python": "KernelAlivePayload"
+  }
+}

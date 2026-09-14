@@ -1,0 +1,32 @@
+---
+description: Machi implementation rules (clean-slate Kernel through Serve)
+globs: src/machi/**,tests/machi/**,docs/machi/**,tools/build_machi.py,tools/verify_machi.py,pyproject.machi.toml
+alwaysApply: false
+---
+
+# Machi
+
+Machi is a clean-slate product. Kultrun in this repository is evidence, not a runtime dependency.
+
+Canonical docs: `docs/machi/ARCHITECTURE.md`, `docs/machi/ROADMAP.md`, `docs/machi/CONTRACTS.md`, `docs/machi/TELEMETRY.md`, `docs/machi/KULTRUN.md`.
+
+Full standing instructions: `docs/machi/MACHI_LEAD_DEVELOPER.md`.
+
+## Must
+
+- Use exact hierarchy IDs (`0.3.1`, not only `0.3`).
+- Inspect Kultrun before designing an equivalent capability; copy only proven, uncluttered units.
+- Keep production code free of `import kultrun`.
+- Kernel must not import adapters or future Blocks. Composition root (`machi.main`) wires adapters.
+- Events are append-only facts, not operational state. Do not event-source Install/Plan/Admit.
+- Inject journal/storage roots. Kernel does not own Install state-root policy.
+- Privacy classification is required on every EventRecord.
+- Build `python tools/build_machi.py` before server tests. Never edit source on the server.
+- One bounded Component increment at a time. Design for the next Blocks; do not build them.
+
+## Must not
+
+- Merge Machi into `kultrun` or Kultrun into `machi`.
+- Implement Block 1+ during M0.
+- Fabricate DeploymentWitness from live re-resolution.
+- Encode a vLLM-only architecture or implement extra runtime adapters to prove a port.

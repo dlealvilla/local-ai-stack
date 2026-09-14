@@ -316,8 +316,10 @@ persistence port, privacy, witness projection, health aggregation.
 **Persistence:** journal + store port.  
 **Side effects:** files under state root after Install exists.  
 **Downstream:** every Block.  
-**Re-entry:** idempotent `kernel.alive`.  
-**Idempotence:** event IDs unique; composing Witness is pure.  
+**Re-entry:** `kernel.alive` may be invoked again; each invocation
+appends a **new** EventRecord with a new `event_id`. That is journal
+append, not a singleton and not operational state.  
+**Idempotence:** event IDs unique; composing Witness (later) is pure.  
 **Invalidated by:** nothing domain-level.  
 **Recompute:** Witness always derived.  
 **Analytics / Telemetry:** owns the envelope.  

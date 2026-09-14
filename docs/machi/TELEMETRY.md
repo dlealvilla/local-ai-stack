@@ -230,7 +230,11 @@ flowchart TB
 
 # 12. What M0 must actually persist
 
-One `EventRecord` written when the artifact starts, with
-`install.started`, privacy `public_ops`, and build identity in the
-payload. That is the empirical proof that observability is not a
-log statement.
+One `EventRecord` written by `machi kernel prove`, event type
+`kernel.alive`, privacy `public_ops`, and build identity in the
+payload. `install.started` / `install.bound` wait for Block 1, when
+an `InstallRun` actually exists. Until then `install_id`,
+`install_run_id`, and `host_id` are `Unresolved(NOT_PROVIDED)`.
+
+That is the empirical proof that observability is not a log
+statement.

@@ -57,22 +57,31 @@ storage, or a runtime.
 ## M0 — Kernel
 
 **Milestone ID:** `M0`  
-**Architecture IDs:** `0`, `0.1`, `0.2`, `0.3`, `0.4`, `0.5`
+**Architecture IDs (first vertical):** `0.1.1` Registry, `0.1.2`
+Unresolved, `0.2.1` Typed IDs, `0.3.1` EventRecord, `0.3.2` Journal,
+`0.5.1` Privacy classification.
+
+**Deferred inside Kernel (not required to persist `kernel.alive`):**
+`0.3.3` Observers, `0.4.1` entity Store port, `0.6.1`
+DeploymentWitness, `0.7.1` Health aggregator.
 
 **Objective:** Machi can exist as an artifact that persists one
 versioned event without owning any domain decision.
 
 **Architecture units:** contracts, Unresolved, EventRecord, journal
-port, privacy class, file store port.
+port, privacy class. The entity file-store port (`0.4.1`) waits until
+a Block needs operational entity persistence; M0 injects a journal
+directory and does not choose the Install state root.
 
 **Inputs:** none (bootstrap).
 
-**Outputs:** `EventRecord` schema; empty InstallRun not yet minted;
-architecture tests forbidding domain imports of adapters.
+**Outputs:** `EventRecord` schema; InstallRun fields present and
+`Unresolved(NOT_PROVIDED)` until M1; architecture tests forbidding
+Kultrun imports and Kernel imports of adapters / future Blocks.
 
 **Telemetry / analytics added:** envelope fields listed in
 [TELEMETRY.md](TELEMETRY.md) §2 “from the first milestone”;
-`install.started` may wait for M1; M0 proves `kernel.alive`.
+`install.started` waits for M1; M0 proves `kernel.alive`.
 
 **Local tests:** T0 serialize/round-trip; Unresolved has no truth
 value; privacy enum present.

@@ -1,0 +1,21 @@
+# Machi distribution metadata. Isolated from the Kultrun pyproject.
+# Build with: python tools/build_machi.py
+# Do not use the root pyproject.toml — that produces a Kultrun wheel.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "machi"
+version = "0.1.0"
+description = "Machi — governed local model deployment"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+machi = "machi.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/machi"]
+artifacts = ["src/machi/BUILD.json"]
