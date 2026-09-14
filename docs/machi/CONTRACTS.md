@@ -36,7 +36,8 @@ Recommendation never authorizes. Reservation never launches.
 # 2. Main contract chain
 
 ```text
-InstallRecord
+StateRootBinding
+    → InstallRecord
     → HostProfile
     → OccupancyMap
     → CapacityEnvelope
@@ -64,8 +65,9 @@ rewrite them in place.
 | Name | Producer | Consumers | Category | Persist | Provenance required |
 |---|---|---|---|---|---|
 | `EventRecord` | every block | journal, Witness, export | Event | append-only | emitter Block ID + payload version |
-| `InstallRecord` | 1 Install | all | Profile | yes | artifact SHA, build id |
-| `InstallRun` | 1.4 | EventRecord.correlation | Profile | yes | state root |
+| `StateRootBinding` | 1.2.1 StateRootBinder | 1.3.1, 1.1.1, 1.4.1, composition | Profile / location | directory exists; contract is returned, not an entity file yet | selection source |
+| `InstallRecord` | 1.1.1 InstallRecord | all | Profile | yes | artifact SHA, build id, bound root |
+| `InstallRun` | 1.4.1 InstallRunStore | EventRecord.correlation | Profile | yes | state root |
 | `HostObservation` | 2 adapters | Discover | Observation | optional raw | adapter name, tool version |
 | `HostProfile` | 2 Discover | Capacity, Foundation, Admit | Profile | yes | observation IDs |
 | `MountObservation` | 2.4 | Capacity | Observation | yes | path, fs type, reported free flagged |

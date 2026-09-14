@@ -105,31 +105,44 @@ and reports identity. No host probing.
 ## M1 — Install
 
 **Milestone ID:** `M1`  
-**Architecture IDs:** `1`, `1.1`, `1.2`, `1.3`, `1.4`
+**Architecture IDs:** `1`, `1.1.1` InstallRecord, `1.2.1` StateRootBinder,
+`1.3.1` SelfOwnershipMarker, `1.4.1` InstallRunStore
+
+**Working Component order:** `1.2.1` → `1.3.1` → `1.1.1` → `1.4.1`.
+Do not implement later Components in an earlier increment.
 
 **Objective:** this copy of Machi knows where it lives and who it is.
 
-**Inputs:** artifact, optional `MACHI_STATE_ROOT`.
+**1.2.1 (first increment) inputs:** artifact, optional `--state-root`,
+optional `MACHI_STATE_ROOT`.
 
-**Outputs:** `InstallRecord`, `InstallRun`, self `OwnershipRecord`,
-state root created with local owner marker.
+**1.2.1 outputs:** `StateRootBinding`; directory established; Kernel
+event `install.state_root.bound`.
 
-**Telemetry:** `install.bound`; correlation id = InstallRun.
+**Full M1 outputs:** `InstallRecord`, `InstallRun`, self
+`OwnershipRecord`, state root with local owner marker.
 
-**Local tests:** T0 binding; default-root warning; marker+registry dual
-proof of *self*.
+**Telemetry:** `install.state_root.bound` at 1.2.1 (`restricted`;
+absolute path omitted from the event). `install.bound` and InstallRun
+correlation wait for 1.4.1.
 
-**Physical:** T3; two isolated state roots on one host do not share
-InstallRun.
+**Local tests (1.2.1):** T0 binding; precedence; default is not
+cwd-relative; file-at-path; re-entry; two-root isolation; Kernel
+`kernel.alive` regression.
 
-**Cumulative:** M0 → M1.
+**Physical (1.2.1):** T3 filesystem host; no GPU. Two isolated state
+roots. Same-root re-entry. `kernel.alive` still works.
 
-**Acceptance:** `machi version` + persisted InstallRun; events
-correlated.
+**Cumulative:** M0 → 1.2.1, then M0 → M1.
 
-**Non-goals:** scanning siblings, host inventory.
+**Acceptance (full M1):** `machi version` + persisted InstallRun; events
+correlated. **1.2.1 gate:** bound root + restricted event + M0 green.
 
-**Unlocks:** Discover has a place to persist.
+**Non-goals (1.2.1):** ownership marker, InstallRecord, InstallRun,
+scanning siblings, host inventory, capacity, reclaim.
+
+**Unlocks:** 1.3.1 can mark the bound tree. Discover still waits for
+full M1 identity.
 
 ---
 

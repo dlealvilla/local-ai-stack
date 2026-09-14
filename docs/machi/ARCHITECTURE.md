@@ -178,10 +178,14 @@ Recompute (not a second pipeline) is Diagram E.
   0.7 Health
       0.7.1 Aggregator
 1 Install
-  1.1 Artifact identity
+  1.1 Install identity
+      1.1.1 InstallRecord
   1.2 State root
+      1.2.1 StateRootBinder
   1.3 Self-ownership
+      1.3.1 SelfOwnershipMarker
   1.4 InstallRun
+      1.4.1 InstallRunStore
 2 Discover
   2.1 Environment
   2.2 CPU / RAM
@@ -235,7 +239,7 @@ Recompute (not a second pipeline) is Diagram E.
 | ID | Block | Purpose | Capabilities | Adapters | Primary input | Primary output | Primary telemetry |
 |---|---|---|---|---|---|---|---|
 | 0 | Kernel | Mechanisms, events, witness | 0.1–0.7 | store, disabled export | none | EventRecord, Witness | `kernel.alive` |
-| 1 | Install | This copy on this disk | 1.1–1.4 | none at v0 | artifact | InstallRecord, InstallRun | `install.bound` |
+| 1 | Install | This copy on this disk | 1.1–1.4 | none at v0 | artifact | `StateRootBinding` (1.2.1); later InstallRecord, InstallRun, self OwnershipRecord | `install.state_root.bound` (1.2.1); `install.bound` (1.4.1) |
 | 2 | Discover | Observe the machine | 2.1–2.4 | OS, NVIDIA, fixture | InstallRecord | HostProfile | `discover.completed` |
 | 3 | Steward | Own, classify, reclaim | 3.1–3.3 | filesystem markers | HostProfile | OccupancyMap, ReclaimResult | `steward.*` |
 | 4 | Capacity | What may be consumed | 4.1–4.6 | posix, fuse, quota, sonar writer | OccupancyMap | CapacityEnvelope, HostMinimumVerdict | `capacity.*` |
@@ -337,30 +341,40 @@ identity.
 **Short Description:** Artifact identity, state root, self ownership,
 InstallRun.
 
-**Components:** 1.1 Build identity, 1.2 StateRootBinder, 1.3
-self-ownership, 1.4 InstallRun store.
+**Approved Components (M1):**
+
+| ID | Name | Role | Status |
+|---|---|---|---|
+| `1.2.1` | StateRootBinder | Resolve, normalize, establish the filesystem root | first M1 increment |
+| `1.3.1` | SelfOwnershipMarker | Durable ownership evidence for this tree | not started |
+| `1.1.1` | InstallRecord | Bind Kernel build identity into an install-scoped persistent contract | not started |
+| `1.4.1` | InstallRunStore | Mint/reuse InstallRun; complete Install correlation | not started |
+
+Working implementation order: `1.2.1` → `1.3.1` → `1.1.1` → `1.4.1`.
+Location before ownership before install identity before correlation.
+Wheel `BUILD.json` remains Kernel (M0); `1.1.1` is not “identity in the
+wheel”.
 
 **Adapters:** none v0 (later: OS package helper is Foundation, not
 this).
 
-**Inputs:** invocation, optional state-root override.  
-**Outputs:** InstallRecord, InstallRun, self OwnershipRecord.  
-**Preconditions:** Kernel store port.  
-**Success:** dual-owned state root; events correlated.  
-**Blocked:** cannot create root or marker.  
-**State owned:** InstallRecord, InstallRun.  
-**Persistence:** yes.  
-**Side effects:** directories, `.machi-owner.json` (name TBD).  
-**Downstream:** all.  
-**Re-entry:** reuse InstallRun for the same root.  
-**Idempotence:** second invoke does not mint a new run.  
-**Invalidated by:** moving the tree without markers (conflict).  
+**Inputs:** invocation, optional `--state-root`, optional `MACHI_STATE_ROOT`.  
+**Outputs:** `StateRootBinding` (1.2.1). Later: InstallRecord, InstallRun, self OwnershipRecord.  
+**Preconditions:** Kernel journal port (directory injected; Kernel does not choose the root).  
+**Success (1.2.1):** directory exists; `StateRootBinding` returned; `install.state_root.bound` journaled. Full M1 still requires ownership + InstallRun.  
+**Blocked:** cannot create or write the root; file at path; Kultrun-owned tree.  
+**State owned (1.2.1):** none beyond the directory itself. Binding is not ownership.  
+**Persistence:** directory create; event via Kernel journal under `<root>/journal` unless injected.  
+**Side effects (1.2.1):** create the bound directory only. No owner marker, no models/runtimes, no sibling scan.  
+**Downstream:** 1.3.1, then 1.1.1, then 1.4.1, then all later Blocks.  
+**Re-entry (1.2.1):** bind the same valid root again; `existed=true`, `created=false`; append another event.  
+**Idempotence:** second bind does not recreate structure. InstallRun reuse is 1.4.1.  
+**Invalidated by:** moving the tree without markers (conflict; later).  
 **Recompute:** none.  
-**Telemetry:** `install.bound`.  
-**Independent test:** two roots, two runs.  
-**Cumulative:** M0→M1.  
-**Lessons:** Kultrun `DeploymentRun` reuse; default state-root warning;
-install≠apt.
+**Telemetry:** `install.state_root.bound` (privacy `restricted`; path omitted from payload). `install.bound` waits for 1.4.1.  
+**Independent test:** two roots isolated; same-root re-entry.  
+**Cumulative:** M0→1.2.1, then M0→M1.  
+**Lessons:** Kultrun K-20 (cwd-relative default, blank env ≠ `/`); default-root warning on artifacts; install≠apt; do not claim `.kultrun-owner.json` trees.
 
 ## 2 Discover
 
@@ -656,15 +670,15 @@ cleanup on stop.
   0.7 Health
     0.7.1 Aggregator
 1 Install
-  1.1 Artifact identity
-    1.1.1 Build identity in the wheel
+  1.1 Install identity
+    1.1.1 InstallRecord (binds Kernel build identity into install-scoped state)
   1.2 State root
-    1.2.1 Binder + default warning
+    1.2.1 StateRootBinder
   1.3 Self-ownership
-    1.3.1 Local marker
-    1.3.2 Registry seed
+    1.3.1 SelfOwnershipMarker
+    1.3.2 Registry seed (later; not in the first M1 Component set)
   1.4 InstallRun
-    1.4.1 Run store (reuse across processes)
+    1.4.1 InstallRunStore (reuse across processes)
 2 Discover
   2.1 Environment
     2.1.1 OS/arch adapter

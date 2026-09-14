@@ -88,6 +88,39 @@
     },
     "python": "EventRecord"
   },
+  "install.state_root.bound@1": {
+    "fields": {
+      "created": {
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation created the directory",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "existed": {
+        "may_be_unresolved": false,
+        "meaning": "whether the directory already existed before this bind invocation",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "root_fingerprint": {
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 hex digest of the UTF-8 normalized absolute root; correlates binds without putting the path on the event",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "selection_source": {
+        "may_be_unresolved": false,
+        "meaning": "which single authority supplied the path",
+        "nullable": false,
+        "optional": false,
+        "type": "SelectionSource"
+      }
+    },
+    "python": "StateRootBoundPayload"
+  },
   "journal_defect@1": {
     "fields": {
       "line_number": {
@@ -167,5 +200,45 @@
       }
     },
     "python": "KernelAlivePayload"
+  },
+  "state_root_binding@1": {
+    "fields": {
+      "bound_at": {
+        "may_be_unresolved": false,
+        "meaning": "when this bind resolved; timezone-aware UTC",
+        "nullable": false,
+        "optional": false,
+        "type": "datetime"
+      },
+      "created": {
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation created the directory; false on re-entry",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "existed": {
+        "may_be_unresolved": false,
+        "meaning": "whether the directory already existed before this bind invocation",
+        "nullable": false,
+        "optional": false,
+        "type": "bool"
+      },
+      "root": {
+        "may_be_unresolved": false,
+        "meaning": "absolute, normalized filesystem path of the bound state root; local operator data, not a public_ops field",
+        "nullable": false,
+        "optional": false,
+        "type": "str"
+      },
+      "selection_source": {
+        "may_be_unresolved": false,
+        "meaning": "which single authority supplied the path: explicit invocation, MACHI_STATE_ROOT, or the platform default",
+        "nullable": false,
+        "optional": false,
+        "type": "SelectionSource"
+      }
+    },
+    "python": "StateRootBinding"
   }
 }

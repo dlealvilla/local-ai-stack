@@ -1,8 +1,8 @@
-"""Machine-readable Machi M0 dependency law.
+"""Machine-readable Machi dependency law.
 
 Machi production code must not import Kultrun. Kernel must not import
-adapters or the composition root. Future Blocks do not exist yet and
-must not be imported if they appear.
+adapters, Install, or the composition root. Install may import Kernel
+and must not import adapters or later Blocks.
 """
 
 from __future__ import annotations
@@ -14,15 +14,15 @@ from pathlib import Path
 
 TIERS: dict[str, int] = {
     "kernel": 0,
-    "adapters": 1,
-    "main": 2,
+    "install": 1,
+    "adapters": 2,
+    "main": 3,
 }
 
 FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
 FUTURE_PACKAGES = frozenset(
     {
-        "install",
         "discover",
         "steward",
         "capacity",
@@ -32,6 +32,13 @@ FUTURE_PACKAGES = frozenset(
         "admit",
         "serve",
     }
+)
+
+KERNEL_POLICY_TOKENS = (
+    "MACHI_STATE_ROOT",
+    ".local/state/machi",
+    "StateRootBinder",
+    "KULTRUN_STATE_ROOT",
 )
 
 
@@ -113,13 +120,13 @@ def violations(edges: Iterable[ImportEdge]) -> list[str]:
             continue
         parts = edge.target_module.split(".")
         if len(parts) >= 2 and parts[1] in FUTURE_PACKAGES:
-            found.append(f"{edge.describe()} (Block 1+ is not in M0)")
+            found.append(f"{edge.describe()} (future Block is not implemented)")
             continue
         target_package = _package_of(edge.target_module)
         if target_package is None:
             continue
         if edge.source_package not in TIERS:
-            found.append(f"{edge.source_module} is in no Machi M0 tier")
+            found.append(f"{edge.source_module} is in no Machi tier")
             continue
         if target_package not in TIERS:
             found.append(f"{edge.describe()} targets an unassigned Machi package")
@@ -143,3 +150,15 @@ def unassigned_packages(root: Path) -> list[str]:
     }
     assigned = set(TIERS) - {"main"}
     return sorted(found - assigned)
+
+
+def kernel_policy_violations(root: Path) -> list[str]:
+    """Kernel must not encode Install state-root policy."""
+    kernel = root / "kernel"
+    found: list[str] = []
+    for path in sorted(kernel.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for token in KERNEL_POLICY_TOKENS:
+            if token in text:
+                found.append(f"{path.name} contains Install policy token {token!r}")
+    return found

@@ -79,7 +79,8 @@ versioned document form (the Kultrun `to_dict` lesson).
 
 Names are examples; the catalogue is owned by Kernel 0.3.
 
-- `install.started` / `install.bound`
+- `install.state_root.bound` (1.2.1; path omitted from payload; privacy `restricted`)
+- `install.started` / `install.bound` (1.4.1; InstallRun exists)
 - `discover.completed`
 - `steward.classified` / `steward.reclaim.planned` / `steward.reclaim.completed`
 - `capacity.characterized` / `capacity.minimum.completed`
@@ -232,9 +233,13 @@ flowchart TB
 
 One `EventRecord` written by `machi kernel prove`, event type
 `kernel.alive`, privacy `public_ops`, and build identity in the
-payload. `install.started` / `install.bound` wait for Block 1, when
-an `InstallRun` actually exists. Until then `install_id`,
-`install_run_id`, and `host_id` are `Unresolved(NOT_PROVIDED)`.
+payload. Until InstallRun exists, `install_id`, `install_run_id`,
+and `host_id` are `Unresolved(NOT_PROVIDED)`.
+
+**1.2.1:** `install.state_root.bound` is a Block 1 payload inside the
+same Kernel envelope. Privacy is `restricted`. The absolute path is
+operator-local (`StateRootBinding`) and is not placed on the event.
+`install.bound` still waits for 1.4.1.
 
 That is the empirical proof that observability is not a log
 statement.

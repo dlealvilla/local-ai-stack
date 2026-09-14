@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove kernel.alive.
+"""Install a Machi wheel into a throwaway environment and prove M0 plus 1.2.1.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """
@@ -18,6 +18,8 @@ def isolated_env() -> dict[str, str]:
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
+    env.pop("MACHI_STATE_ROOT", None)
+    env.pop("KULTRUN_STATE_ROOT", None)
     return env
 
 
@@ -41,7 +43,10 @@ def main() -> int:
 
     root = Path(tempfile.mkdtemp(prefix="machi-verify-"))
     venv_dir = root / "venv"
-    journal = root / "journal"
+    kernel_journal = root / "kernel-journal"
+    root_a = root / "root-a"
+    root_b = root / "root-b"
+    env_root = root / "root-env"
     venv.create(venv_dir, with_pip=True, symlinks=True)
     python = venv_dir / "bin/python"
     machi = venv_dir / "bin/machi"
@@ -60,19 +65,64 @@ def main() -> int:
     )
     print(check.stdout, end="")
     print(run([str(machi), "version"], env=env).stdout, end="")
-    prove = run([str(machi), "kernel", "prove", "--journal-dir", str(journal)], env=env)
+    prove = run(
+        [str(machi), "kernel", "prove", "--journal-dir", str(kernel_journal)],
+        env=env,
+    )
     print(prove.stdout, end="")
     if '"event_type": "kernel.alive"' not in prove.stdout:
         raise SystemExit("first prove did not emit kernel.alive")
     if '"privacy": "public_ops"' not in prove.stdout:
         raise SystemExit("kernel.alive was not public_ops")
-    run([str(machi), "kernel", "prove", "--journal-dir", str(journal)], env=env)
+    run([str(machi), "kernel", "prove", "--journal-dir", str(kernel_journal)], env=env)
     listed = run(
-        [str(machi), "kernel", "events", "--journal-dir", str(journal)], env=env
+        [str(machi), "kernel", "events", "--journal-dir", str(kernel_journal)], env=env
     )
     print(listed.stdout, end="")
     if "records  2" not in listed.stdout:
         raise SystemExit("expected two kernel.alive records after a second prove")
+
+    bind_a = run(
+        [str(machi), "install", "bind-root", "--state-root", str(root_a)], env=env
+    )
+    print(bind_a.stdout, end="")
+    if '"event_type": "install.state_root.bound"' not in bind_a.stdout:
+        raise SystemExit("bind-root did not emit install.state_root.bound")
+    if '"privacy": "restricted"' not in bind_a.stdout:
+        raise SystemExit("state-root event was not restricted")
+    event_at = bind_a.stdout.find('"kind": "event_record"')
+    if event_at < 0:
+        raise SystemExit("bind-root did not print an EventRecord")
+    if str(root_a) in bind_a.stdout[event_at:]:
+        raise SystemExit("absolute state root leaked into the event document")
+    if not (root_a / "journal" / "events.jsonl").is_file():
+        raise SystemExit("bound root did not persist a Kernel journal")
+
+    reentry = run(
+        [str(machi), "install", "bind-root", "--state-root", str(root_a)], env=env
+    )
+    print(reentry.stdout, end="")
+    if '"existed": true' not in reentry.stdout:
+        raise SystemExit("same-root re-entry did not report existed=true")
+    if '"created": false' not in reentry.stdout:
+        raise SystemExit("same-root re-entry did not report created=false")
+
+    bind_b = run(
+        [str(machi), "install", "bind-root", "--state-root", str(root_b)], env=env
+    )
+    print(bind_b.stdout, end="")
+    if not root_b.is_dir():
+        raise SystemExit("second root was not created")
+    env_bind = env.copy()
+    env_bind["MACHI_STATE_ROOT"] = str(env_root)
+    env_bind.pop("KULTRUN_STATE_ROOT", None)
+    bound_env = run([str(machi), "install", "bind-root"], env=env_bind)
+    print(bound_env.stdout, end="")
+    if '"selection_source": "environment"' not in bound_env.stdout:
+        raise SystemExit("MACHI_STATE_ROOT did not win as environment source")
+    if not env_root.is_dir():
+        raise SystemExit("environment override did not create its root")
+
     print("verify_ok")
     return 0
 
