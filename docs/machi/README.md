@@ -25,6 +25,7 @@ contracts. It does not own deployment truth.
 | [M0.md](M0.md) | First implementation notes (reuse vs rewrite). |
 | [M0-PHYSICAL.md](M0-PHYSICAL.md) | M0 physical acceptance evidence for `8c614e5`. |
 | [M1.md](M1.md) | 1.2.1 StateRootBinder implementation notes. |
+| [M1-PHYSICAL.md](M1-PHYSICAL.md) | 1.2.1 physical acceptance evidence for `86639aa`. |
 | [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,
