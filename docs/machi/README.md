@@ -46,6 +46,7 @@ contracts. It does not own deployment truth.
 | [M2-2.2.1-LOCAL.md](M2-2.2.1-LOCAL.md) | 2.2.1 local acceptance of the `b341819` wheel. |
 | [M2-2.2.1-PHYSICAL.md](M2-2.2.1-PHYSICAL.md) | 2.2.1 physical acceptance evidence for `b341819`. |
 | [M2-2.3.md](M2-2.3.md) | 2.3 Accelerator Discovery implementation notes (NVIDIA + Apple local). |
+| [M2-2.3-LOCAL.md](M2-2.3-LOCAL.md) | 2.3 local acceptance of the `1c774a0` combined NVIDIA+Apple wheel. |
 | [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md) | 2.3 provider selection gate (NVIDIA + Apple selected). |
 | [PROVIDER-AGNOSTIC-AUDIT.md](PROVIDER-AGNOSTIC-AUDIT.md) | First (partial) Discover/Memory audit; historical. |
 | [FULL-BUILT-SYSTEM-AUDIT.md](FULL-BUILT-SYSTEM-AUDIT.md) | Consolidated Kernel+Install+Discover provider/portability audit through 2.2.1 (promoted). |
