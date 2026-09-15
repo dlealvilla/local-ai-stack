@@ -1,8 +1,8 @@
 # Machi
 
-**Work token:** `MACHI-2.3-PREPARATION-PROVIDER-SELECTION`  
-**Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` → **2.2.1 last forward feature** `66e8ee0` (`checkpoint/machi-2.2.1-closed-66e8ee0`, implementation `b341819`) → temporary provider audit `cd4b786` → consolidated audit promoted `e88cc39` (`checkpoint/machi-provider-agnostic-foundation-closed-e88cc39`) → **next:** `2.3` Accelerator Discovery (Provider Selection Gate; no implementation yet).  
-**Status:** Canonical `machi` includes accepted `2.2.1` plus the promoted portability audit. Forward feature work resumes at `2.3`, stopped at the provider gate.
+**Work token:** `MACHI-2.3-ACCELERATOR-NVIDIA-APPLE`  
+**Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` → **2.2.1 last accepted forward feature** `66e8ee0` (`checkpoint/machi-2.2.1-closed-66e8ee0`, implementation `b341819`) → temporary provider audit `cd4b786` → consolidated audit promoted `e88cc39` (`checkpoint/machi-provider-agnostic-foundation-closed-e88cc39`) → provider gate `1db7646` → **next physical:** 2.3 NVIDIA+Apple on the combined local candidate (remote NVIDIA not started).  
+**Status:** Feature branch implements 2.3 locally (generic + NVIDIA + Apple). Canonical `machi` remains at the provider-gate docs commit until Lead Developer promotion after physical proof.
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
@@ -45,9 +45,10 @@ contracts. It does not own deployment truth.
 | [M2-2.2.1.md](M2-2.2.1.md) | 2.2.1 Memory observer implementation notes. |
 | [M2-2.2.1-LOCAL.md](M2-2.2.1-LOCAL.md) | 2.2.1 local acceptance of the `b341819` wheel. |
 | [M2-2.2.1-PHYSICAL.md](M2-2.2.1-PHYSICAL.md) | 2.2.1 physical acceptance evidence for `b341819`. |
+| [M2-2.3.md](M2-2.3.md) | 2.3 Accelerator Discovery implementation notes (NVIDIA + Apple local). |
+| [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md) | 2.3 provider selection gate (NVIDIA + Apple selected). |
 | [PROVIDER-AGNOSTIC-AUDIT.md](PROVIDER-AGNOSTIC-AUDIT.md) | First (partial) Discover/Memory audit; historical. |
 | [FULL-BUILT-SYSTEM-AUDIT.md](FULL-BUILT-SYSTEM-AUDIT.md) | Consolidated Kernel+Install+Discover provider/portability audit through 2.2.1 (promoted). |
-| [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md) | 2.3 Accelerator Discovery Provider Selection Gate (design only). |
 | [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,

@@ -188,10 +188,9 @@ predecessors green. Physical 1.4.1 accepted on `99b96bf`.
 **Architecture IDs:** `2`, `2.1`–`2.4`
 
 **Working Component order:** `2.1.1` → `2.2.1` → `2.3` (generic
-Accelerator Discovery + provider(s) chosen at the Provider Selection
-Gate) → `2.4.1`. Do not treat a historical `2.3.1 NVIDIA` label as
-the capability. Do not implement later Components in an earlier
-increment.
+Accelerator Discovery + NVIDIA and Apple providers) → `2.4.1`. Do
+not treat NVIDIA as the capability. Do not implement later Components
+in an earlier increment.
 
 **Objective:** normalized host observations from adapters; unknown
 preserved. HostProfile is the milestone output, not this increment.
@@ -228,17 +227,52 @@ the packaged observer after empty-state M1 + 2.1.1 reconstruction.
 **Non-goals (2.2.1):** HostId, HostProfile, NVIDIA, mounts,
 available/swap/cgroup, capacity, remediation, Windows native reader.
 
-**Unlocks:** `2.3` Accelerator Discovery. Concrete provider IDs are
-assigned after the Provider Selection Gate; NVIDIA is a candidate,
-not the generic model. Cgroup/execution memory limit remains
-deferred until HostProfile or Capacity needs a distinct execution
-ceiling.
+**Unlocks:** `2.3` Accelerator Discovery.
 
-**Chronology (do not flatten):** last completed forward feature is
-`2.2.1` (`66e8ee0` / `b341819`). The provider/portability audit
-(`e88cc39`) is a correction on that foundation, not a restart.
-`2.3` is next and is stopped at the provider gate until Daniel
-selects coverage. See [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md).
+**2.3 (local NVIDIA+Apple; remote NVIDIA pending):** generic
+accelerator observation through a replaceable observer. Native
+orchestration selects applicable NVIDIA (`nvidia-smi` CSV) and Apple
+(`system_profiler` JSON) providers. Event
+`discover.accelerator.observed` (`public_ops`). No HostId. No
+HostProfile. No safe-VRAM arithmetic. Unavailable tooling is not a
+measured zero-device result. Apple unified memory is Unresolved, not
+system RAM copied as VRAM.
+
+**Inputs (2.3):** current host; 2.1.1 OS family for applicability;
+optional M1 InstallId/InstallRunId from composition. Does not consume
+`MemoryObservation`.
+
+**Outputs (2.3):** `AcceleratorObservation`; Discover event with
+`host_id` unresolved.
+
+**Telemetry:** `discover.accelerator.observed`. Block-complete
+`discover.completed` remains later.
+
+**Local tests:** generic orchestration; NVIDIA CSV fixtures
+(single/multi/malformed/missing tool); Apple JSON fixtures and real
+Apple Silicon host; NVIDIA negative path on a non-NVIDIA Mac; M0 →
+2.2.1 regression.
+
+**Physical:** not in this local increment. Planned Checkpoint A uses
+the same combined candidate on Apple Silicon and Linux NVIDIA.
+
+**Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 local.
+
+**Non-goals (2.3):** AMD, Intel, HostId, HostProfile, Capacity, driver
+install, MIG mutation, mounts.
+
+**Unlocks:** `2.4.1` Mount enumerator after 2.3 physical acceptance.
+AMD/Intel providers remain deferred. Cgroup/execution memory limit
+remains deferred until HostProfile or Capacity needs a distinct
+execution ceiling.
+
+**Chronology (do not flatten):** last completed forward feature before
+this increment was `2.2.1` (`66e8ee0` / `b341819`). The
+provider/portability audit (`e88cc39`) is a correction on that
+foundation. `2.3` NVIDIA+Apple is implemented locally; remote NVIDIA
+physical acceptance is a later phase on the same combined candidate.
+See [M2-2.3.md](M2-2.3.md) and
+[M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md).
 
 ---
 

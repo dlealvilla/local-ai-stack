@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove M0 through 2.2.1.
+"""Install a Machi wheel into a throwaway environment and prove M0 through 2.3.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """
@@ -1105,6 +1105,81 @@ def main() -> int:
         raise SystemExit("journaled memory event lost InstallRunId")
     if "$unresolved" not in json.dumps(memory_events[-1]["host_id"]):
         raise SystemExit("memory event resolved host_id")
+
+    memory_snapshot = memory_events[-1]
+    accelerator = run(
+        [
+            str(machi),
+            "discover",
+            "accelerator",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(accelerator.stdout, end="")
+    if '"event_type": "discover.accelerator.observed"' not in accelerator.stdout:
+        raise SystemExit(
+            "discover accelerator did not emit discover.accelerator.observed"
+        )
+    if '"privacy": "public_ops"' not in accelerator.stdout:
+        raise SystemExit("discover.accelerator.observed was not public_ops")
+    if f"install  {install_a['install_id']}" not in accelerator.stdout:
+        raise SystemExit("accelerator event lost InstallId correlation")
+    if f"run      {persisted_run_a['install_run_id']}" not in accelerator.stdout:
+        raise SystemExit("accelerator event lost InstallRunId correlation")
+    if "host     unresolved(not_provided)" not in accelerator.stdout:
+        raise SystemExit("discover accelerator minted or omitted host_id")
+    accelerator_event_at = accelerator.stdout.find('"kind": "event_record"')
+    if accelerator_event_at < 0:
+        raise SystemExit("discover accelerator did not print an EventRecord")
+    if str(root_a) in accelerator.stdout[accelerator_event_at:]:
+        raise SystemExit("absolute state root leaked into accelerator event")
+    if str(control_registry) in accelerator.stdout[accelerator_event_at:]:
+        raise SystemExit("Store path leaked into accelerator event")
+    if (control_registry / "accelerator_observation").exists():
+        raise SystemExit("accelerator observation was persisted as Store state")
+    journal_after_accelerator = [
+        json.loads(line)
+        for line in (root_a / "journal" / "events.jsonl").read_text().splitlines()
+        if line
+    ]
+    still_memory = next(
+        item
+        for item in journal_after_accelerator
+        if item["event_id"] == memory_snapshot["event_id"]
+    )
+    if still_memory != memory_snapshot:
+        raise SystemExit("accelerator observation rewrote discover.memory.observed")
+    still_os_arch_acc = next(
+        item
+        for item in journal_after_accelerator
+        if item["event_id"] == os_arch_snapshot["event_id"]
+    )
+    if still_os_arch_acc != os_arch_snapshot:
+        raise SystemExit("accelerator observation rewrote discover.os_arch.observed")
+    still_bound_acc = next(
+        item
+        for item in journal_after_accelerator
+        if item["event_id"] == bound_after_os["event_id"]
+    )
+    if still_bound_acc != bound_after_os:
+        raise SystemExit("accelerator observation rewrote install.bound")
+    accelerator_events = [
+        item
+        for item in journal_after_accelerator
+        if item.get("event_type") == "discover.accelerator.observed"
+    ]
+    if not accelerator_events:
+        raise SystemExit("journal is missing discover.accelerator.observed")
+    if accelerator_events[-1]["install_id"] != install_a["install_id"]:
+        raise SystemExit("journaled accelerator event lost InstallId")
+    if accelerator_events[-1]["install_run_id"] != persisted_run_a["install_run_id"]:
+        raise SystemExit("journaled accelerator event lost InstallRunId")
+    if "$unresolved" not in json.dumps(accelerator_events[-1]["host_id"]):
+        raise SystemExit("accelerator event resolved host_id")
 
     print("verify_ok")
     return 0

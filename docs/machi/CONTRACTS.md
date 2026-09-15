@@ -84,6 +84,9 @@ entity.
 | `InstallRunEstablishment` | 1.4.1 InstallRunStore | composition | Profile | no; result of establish | `install_run_present`; `dual_ownership=false`; `destructive_authorization=false` |
 | `OSArchitectureObservation` | 2.1.1 OS/arch adapter | Discover events; later HostProfile | Observation | no | adapter id; raw + normalized OS/arch; unobserved vs unrecognized |
 | `MemoryObservation` | 2.2.1 Memory observer | Discover events; later HostProfile / Capacity | Observation | no | physical_total_bytes; source; not safe allocatable |
+| `AcceleratorObservation` | 2.3 Native accelerator observer | Discover events; later HostProfile / Capacity | Observation | no | devices + provider reports; topology; not safe VRAM |
+| `AcceleratorDevice` | 2.3 providers via native observer | `AcceleratorObservation` | Observation | no | per-device identity/model/topology/memory; never aggregated |
+| `AcceleratorProviderReport` | 2.3 native observer | `AcceleratorObservation` | Observation | no | observed / not_applicable / unavailable / failed; not a device count synonym |
 | `HostObservation` | 2 adapters | Discover | Observation | optional raw | adapter name, tool version |
 | `HostProfile` | 2 Discover | Capacity, Foundation, Admit | Profile | yes | observation IDs |
 | `MountObservation` | 2.4 | Capacity | Observation | yes | path, fs type, reported free flagged |

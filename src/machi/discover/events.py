@@ -1,9 +1,9 @@
-"""Discover events for OS/architecture and memory observation.
+"""Discover events for OS/architecture, memory, and accelerator observation.
 
-OS family, CPU architecture, and reported memory size are non-identifying
-machine facts. Privacy is ``public_ops``. Hostname, paths, and customer
-content stay out. HostId stays unresolved. Composition supplies Install
-correlation.
+OS family, CPU architecture, reported memory size, and accelerator
+identity are non-identifying machine facts. Privacy is ``public_ops``.
+Hostname, paths, and customer content stay out. HostId stays unresolved.
+Composition supplies Install correlation.
 """
 
 from __future__ import annotations
@@ -11,6 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from machi.discover.contracts import (
+    AcceleratorDevice,
+    AcceleratorObservation,
+    AcceleratorProviderReport,
     CpuArchitecture,
     MemoryObservation,
     MemorySource,
@@ -31,6 +34,8 @@ OS_ARCH_COMPONENT = "2.1.1"
 OS_ARCH_OBSERVED_TYPE = "discover.os_arch.observed"
 MEMORY_COMPONENT = "2.2.1"
 MEMORY_OBSERVED_TYPE = "discover.memory.observed"
+ACCELERATOR_COMPONENT = "2.3.1"
+ACCELERATOR_OBSERVED_TYPE = "discover.accelerator.observed"
 
 
 @contract(kind="discover.os_arch.observed", version=1)
@@ -132,6 +137,55 @@ def memory_observed(
     if event.privacy is not PrivacyClass.PUBLIC_OPS:
         raise ValidationError(
             "discover.memory.observed must be public_ops",
+            privacy=event.privacy.value,
+        )
+    return event
+
+
+@contract(kind="discover.accelerator.observed", version=1)
+@dataclass(frozen=True, slots=True)
+class AcceleratorObservedPayload(Contract):
+    """Safe public operational body for a generic accelerator observation."""
+
+    devices: tuple[AcceleratorDevice, ...] = meaning(
+        "observed devices in ordinal order; empty when none were successfully listed"
+    )
+    providers: tuple[AcceleratorProviderReport, ...] = meaning(
+        "every implemented provider's inspection outcome for this invocation"
+    )
+    status: ObservationStatus = meaning(
+        "normalized when at least one provider observed; unobserved otherwise"
+    )
+    observer: str = meaning("adapter identifier, for example native")
+
+
+def accelerator_observed(
+    observation: AcceleratorObservation,
+    *,
+    install_id: Maybe[InstallId] | None = None,
+    install_run_id: Maybe[InstallRunId] | None = None,
+    clock: Clock | None = None,
+) -> EventRecord:
+    """Mint the accelerator event. Does not persist it. Does not mint HostId."""
+    event = EventRecord.create(
+        event_type=ACCELERATOR_OBSERVED_TYPE,
+        block_id=DISCOVER_BLOCK,
+        component_id=ACCELERATOR_COMPONENT,
+        outcome=EventOutcome.PASS,
+        privacy=PrivacyClass.PUBLIC_OPS,
+        payload=AcceleratorObservedPayload(
+            devices=observation.devices,
+            providers=observation.providers,
+            status=observation.status,
+            observer=observation.observer,
+        ),
+        install_id=install_id,
+        install_run_id=install_run_id,
+        clock=clock or FixedClock(observation.observed_at),
+    )
+    if event.privacy is not PrivacyClass.PUBLIC_OPS:
+        raise ValidationError(
+            "discover.accelerator.observed must be public_ops",
             privacy=event.privacy.value,
         )
     return event

@@ -482,17 +482,17 @@ provenance.
 |---|---|---|---|
 | `2.1.1` | OS/arch adapter | Observe OS family and CPU architecture through a replaceable adapter | accepted |
 | `2.2.1` | Memory observer | Observe reported physical/system memory in bytes | accepted |
-| `2.3` | Accelerator Discovery | Generic accelerator observation capability | next (Provider Selection Gate) |
-| `2.3.x` | Concrete providers | Assigned after the gate; NVIDIA/AMD/Intel/Apple are candidates | pending |
+| `2.3` | Accelerator Discovery | Generic accelerator observation capability | local (NVIDIA+Apple); remote NVIDIA pending |
+| `2.3.1` | Native accelerator observer | Generic port + provider orchestration | local |
 | `2.4.1` | Mount enumerator | Filesystem mounts | later |
 
 Working implementation order: `2.1.1` → `2.2.1` → `2.3` (generic +
-selected providers) → `2.4.1`. OS/arch before memory before
-accelerators before mounts. HostProfile aggregation waits until
+selected NVIDIA and Apple providers) → `2.4.1`. OS/arch before memory
+before accelerators before mounts. HostProfile aggregation waits until
 enough observations exist. `2.3` is the generic accelerator
-capability. A numbered provider such as a future `2.3.1` is one
-implementation under it, not the capability model. Do not pre-assign
-`2.3.1` to NVIDIA before the gate.
+capability. `2.3.1` is the native observer (orchestration), matching
+`2.2.1`. NVIDIA and Apple are providers under it, not the capability
+model. AMD and Intel remain unimplemented providers.
 
 - `2.1.1` (accepted) observes OS family and CPU architecture. Core owns
   `OSArchitectureObservation`. The native adapter owns `platform.system`
@@ -501,42 +501,49 @@ implementation under it, not the capability model. Do not pre-assign
   integer bytes. Core owns `MemoryObservation`. The native observer
   selects a Linux or macOS memory provider. Windows is unsupported, not
   zero. This is not safe allocatable memory.
-- `2.1.1` / `2.2.1` do **not** mint HostId, persist HostProfile,
-  enumerate mounts, detect NVIDIA, or decide support/capacity.
+- `2.3` / `2.3.1` (local) observes accelerator devices through a
+  vendor-neutral contract. Core owns `AcceleratorObservation`. The
+  native observer selects applicable NVIDIA and Apple providers.
+  AMD/Intel are unimplemented. This is not safe GPU memory.
+- `2.1.1` / `2.2.1` / `2.3` do **not** mint HostId, persist HostProfile,
+  enumerate mounts, or decide support/capacity.
 - Unknown is not defaulted. Missing measurements stay unobserved.
-  Unknown is never emitted as `0`.
+  Unknown is never emitted as `0`. Unavailable tooling is not a
+  measured empty device list.
 - Discover events may carry resolved `install_id` and `install_run_id`
   from composition after M1. `host_id` stays unresolved.
 - Observation is not mutation. Adapters must not write `/etc`, change
-  swap, tune cgroups, allocate probe buffers, or install packages.
+  swap, tune cgroups, allocate probe buffers, install packages, or
+  change GPU persistence/MIG/power.
 
 **Adapters:** native OS/arch (accepted); native memory observer with
-Linux and macOS providers (accepted); later NVIDIA/AMD/Intel/Apple
-accelerator providers and fixture replay. Adapters observe; they do
-not decide models.
+Linux and macOS providers (accepted); native accelerator observer with
+NVIDIA and Apple providers (local). AMD/Intel later. Adapters observe;
+they do not decide models.
 
 **Inputs:** optional InstallRecord / InstallRun correlation from
-composition; Memory composes OS family from 2.1.1 rather than
-re-aliasing platform strings.  
-**Outputs (2.2.1):** `MemoryObservation`; event
-`discover.memory.observed`. HostProfile remains later.  
+composition; Memory and Accelerator compose OS family from 2.1.1 for
+applicability. Accelerator does not consume `MemoryObservation`.  
+**Outputs (2.3 local):** `AcceleratorObservation`; event
+`discover.accelerator.observed`. HostProfile remains later.  
 **Preconditions:** Kernel. OS family from 2.1.1. Install correlation is
 required only when composition asks to attach M1 identities.  
-**Success (2.2.1):** typed memory observation returned; total bytes
-integer when measured; `discover.memory.observed` journaled when a
-journal is supplied; `host_id` unresolved.  
-**Blocked (2.2.1):** platform APIs fail unexpectedly. Unsupported
-Windows is a successful non-measurement, not a capacity decision.  
-**State owned (2.2.1):** none. The observation is not durable entity
+**Success (2.3 local):** typed accelerator observation returned;
+provider failures retained; Apple unified topology without fake VRAM;
+NVIDIA discrete devices without primary-GPU reduction.  
+**Blocked (2.3 local):** remote NVIDIA physical proof is a later
+acceptance phase on the same combined candidate.  
+**State owned (2.3):** none. The observation is not durable entity
 state.  
-**Persistence (2.2.1):** event only. No Store record.  
+**Persistence (2.3):** event only. No Store record.  
 **Side effects:** none on the host. Journal append only.  
 **Downstream:** later Discover components; Capacity still requires
-HostProfile and must not treat these bytes as SAFE.  
+HostProfile and must not treat accelerator memory as SAFE.  
 **Re-entry:** observe again; new observation and event; do not mutate
 the previous event.  
-**Idempotence:** same host yields the same physical total.  
-**Telemetry:** `discover.memory.observed` (privacy `public_ops`).
+**Idempotence:** same host yields the same device identities, topology,
+and reported dedicated totals when sources are stable.  
+**Telemetry:** `discover.accelerator.observed` (privacy `public_ops`).
 Block-complete `discover.completed` remains later.  
 **Independent test:** Linux table fixtures; native current-host
 observation; M1 + 2.1.1 regression.  
@@ -824,8 +831,8 @@ cleanup on stop.
   2.2 CPU / RAM
     2.2.1 Memory observer (accepted)
   2.3 Accelerator Discovery
-    providers assigned after the Provider Selection Gate
-    (NVIDIA / AMD / Intel / Apple / fixture are candidates)
+    2.3.1 Native accelerator observer (local)
+    NVIDIA and Apple providers under 2.3.1; AMD/Intel later
   2.4 Mounts
     2.4.1 Mount enumerator
 3 Steward
@@ -978,20 +985,19 @@ Intended accelerator seam, before any vendor module:
 ```text
 AcceleratorObserver
   → NativeAcceleratorObserver (orchestration)
-    → applicable implemented providers (0..N)
+    → applicable implemented providers (NVIDIA, Apple today; 0..N)
     → AcceleratorObservation
 ```
 
 Providers may run together on one host. The domain contract is vendor
-neutral. A numbered Component such as a future `2.3.1` is one
-provider under `2.3`, assigned after the Provider Selection Gate. Do
-not assume discrete VRAM, one device, or one vendor.
+neutral. `2.3.1` is the native observer under `2.3`, not an NVIDIA
+component. Do not assume discrete VRAM, one device, or one vendor.
 
 Adapters exist only where the **technology varies**.
 
 | Port owner | Adapter examples | Must not |
 |---|---|---|
-| Discover | Linux/macOS memory providers, later NVIDIA/AMD/Intel/Apple, fixture | Decide SAFE, models, or admission |
+| Discover | Linux/macOS memory providers, NVIDIA/Apple accelerators, later AMD/Intel, fixture | Decide SAFE, models, or admission |
 | Capacity | posix, FUSE, quota, ZFS, sonar writer | Know model IDs |
 | Foundation | native process, Docker engine, vLLM pip | Admit resources |
 | Model | Hub, fixture | Authorize compatibility by existing on disk |

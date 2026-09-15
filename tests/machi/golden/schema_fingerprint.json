@@ -1,1139 +1,1348 @@
 {
-  "discover.memory.observed@1": {
+  "accelerator_device@1": {
+    "python": "AcceleratorDevice",
     "fields": {
-      "observer": {
-        "may_be_unresolved": false,
-        "meaning": "adapter identifier, for example native",
-        "nullable": false,
+      "ordinal": {
+        "type": "int",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "0-based position in this observation; not a vendor runtime index"
       },
-      "physical_total_bytes": {
+      "vendor": {
+        "type": "AcceleratorVendor | Unresolved",
+        "optional": false,
+        "nullable": false,
         "may_be_unresolved": true,
-        "meaning": "reported physical/system memory in integer bytes; Unresolved when unobserved",
-        "nullable": false,
-        "optional": false,
-        "type": "int | Unresolved"
+        "meaning": "normalized vendor when known; Unresolved otherwise"
       },
-      "physical_total_status": {
-        "may_be_unresolved": false,
-        "meaning": "how physical/system memory was measured",
-        "nullable": false,
+      "vendor_status": {
+        "type": "ObservationStatus",
         "optional": false,
-        "type": "ObservationStatus"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized, unrecognized, or unobserved for vendor"
       },
-      "raw_total": {
-        "may_be_unresolved": false,
-        "meaning": "compact source evidence; not a path",
-        "nullable": false,
+      "model_name": {
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "device model as reported; empty when unobserved; never a path"
+      },
+      "model_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the model name was observed"
+      },
+      "device_type": {
+        "type": "AcceleratorDeviceType | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "discrete or integrated when known; Unresolved otherwise"
+      },
+      "device_type_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how device type was observed"
+      },
+      "memory_topology": {
+        "type": "AcceleratorMemoryTopology | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "discrete dedicated memory or unified/shared with system; Unresolved if unknown"
+      },
+      "memory_topology_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how memory topology was observed"
+      },
+      "memory_total_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "dedicated accelerator memory in integer bytes when the source reported it; Unresolved for unified/unknown topology; never system RAM"
+      },
+      "memory_total_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized only for a reported dedicated total; unobserved otherwise"
+      },
+      "identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded provider-local identity; not a PCI requirement and not a HostId"
       },
       "source": {
-        "may_be_unresolved": false,
-        "meaning": "measured source or explicit non-measurement",
-        "nullable": false,
+        "type": "AcceleratorSource",
         "optional": false,
-        "type": "MemorySource"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "which provider source produced this device; never a filesystem path"
+      },
+      "raw": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compact source evidence; empty when nothing was retained"
       }
-    },
-    "python": "MemoryObservedPayload"
+    }
+  },
+  "accelerator_observation@1": {
+    "python": "AcceleratorObservation",
+    "fields": {
+      "devices": {
+        "type": "tuple[AcceleratorDevice, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "observed devices in ordinal order; empty when none were successfully listed"
+      },
+      "providers": {
+        "type": "tuple[AcceleratorProviderReport, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "every implemented provider's inspection outcome for this invocation"
+      },
+      "status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized when at least one provider observed; unobserved otherwise"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this observation was taken; timezone-aware UTC; never rewritten"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier that produced the observation, for example native"
+      }
+    }
+  },
+  "accelerator_provider_report@1": {
+    "python": "AcceleratorProviderReport",
+    "fields": {
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider identifier, for example nvidia or apple"
+      },
+      "status": {
+        "type": "ProviderInspectionStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "observed, not_applicable, unavailable, unsupported, or failed"
+      },
+      "detail": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded reason or empty; not a filesystem path"
+      },
+      "device_count": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "devices this provider emitted when status is observed; Unresolved otherwise"
+      }
+    }
+  },
+  "discover.accelerator.observed@1": {
+    "python": "AcceleratorObservedPayload",
+    "fields": {
+      "devices": {
+        "type": "tuple[AcceleratorDevice, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "observed devices in ordinal order; empty when none were successfully listed"
+      },
+      "providers": {
+        "type": "tuple[AcceleratorProviderReport, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "every implemented provider's inspection outcome for this invocation"
+      },
+      "status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized when at least one provider observed; unobserved otherwise"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier, for example native"
+      }
+    }
+  },
+  "discover.memory.observed@1": {
+    "python": "MemoryObservedPayload",
+    "fields": {
+      "physical_total_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "reported physical/system memory in integer bytes; Unresolved when unobserved"
+      },
+      "physical_total_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how physical/system memory was measured"
+      },
+      "source": {
+        "type": "MemorySource",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "measured source or explicit non-measurement"
+      },
+      "raw_total": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compact source evidence; not a path"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier, for example native"
+      }
+    }
   },
   "discover.os_arch.observed@1": {
+    "python": "OSArchObservedPayload",
     "fields": {
-      "architecture": {
-        "may_be_unresolved": true,
-        "meaning": "normalized CPU architecture; Unresolved when unobserved or unrecognized",
-        "nullable": false,
-        "optional": false,
-        "type": "CpuArchitecture | Unresolved"
-      },
-      "architecture_status": {
-        "may_be_unresolved": false,
-        "meaning": "how the CPU architecture was normalized",
-        "nullable": false,
-        "optional": false,
-        "type": "ObservationStatus"
-      },
-      "observer": {
-        "may_be_unresolved": false,
-        "meaning": "adapter identifier, for example native",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
       "os_family": {
-        "may_be_unresolved": true,
-        "meaning": "normalized OS family; Unresolved when unobserved or unrecognized",
-        "nullable": false,
+        "type": "OSFamily | Unresolved",
         "optional": false,
-        "type": "OSFamily | Unresolved"
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "normalized OS family; Unresolved when unobserved or unrecognized"
+      },
+      "architecture": {
+        "type": "CpuArchitecture | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "normalized CPU architecture; Unresolved when unobserved or unrecognized"
       },
       "os_status": {
-        "may_be_unresolved": false,
-        "meaning": "how the OS family was normalized",
-        "nullable": false,
+        "type": "ObservationStatus",
         "optional": false,
-        "type": "ObservationStatus"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the OS family was normalized"
       },
-      "raw_architecture": {
-        "may_be_unresolved": false,
-        "meaning": "narrow raw architecture string",
-        "nullable": false,
+      "architecture_status": {
+        "type": "ObservationStatus",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the CPU architecture was normalized"
       },
       "raw_os": {
-        "may_be_unresolved": false,
-        "meaning": "narrow raw OS string; not a hostname or path",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "narrow raw OS string; not a hostname or path"
+      },
+      "raw_architecture": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "narrow raw architecture string"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier, for example native"
       }
-    },
-    "python": "OSArchObservedPayload"
+    }
   },
   "event_record@1": {
+    "python": "EventRecord",
     "fields": {
-      "block_id": {
-        "may_be_unresolved": false,
-        "meaning": "emitting Block, for example 0",
-        "nullable": false,
-        "optional": false,
-        "type": "HierarchyId"
-      },
-      "component_id": {
-        "may_be_unresolved": false,
-        "meaning": "emitting Component when known, for example 0.3.1",
-        "nullable": false,
-        "optional": false,
-        "type": "HierarchyId"
-      },
       "event_id": {
-        "may_be_unresolved": false,
-        "meaning": "opaque identity of this event",
-        "nullable": false,
+        "type": "EventId",
         "optional": false,
-        "type": "EventId"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque identity of this event"
       },
       "event_type": {
+        "type": "Name",
+        "optional": false,
+        "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "what happened, as a stable dotted name such as kernel.alive",
-        "nullable": false,
-        "optional": false,
-        "type": "Name"
-      },
-      "host_id": {
-        "may_be_unresolved": true,
-        "meaning": "stable non-sensitive host id; Unresolved until Block 2 Discover",
-        "nullable": false,
-        "optional": false,
-        "type": "HostId | Unresolved"
-      },
-      "install_id": {
-        "may_be_unresolved": true,
-        "meaning": "this Machi installation; Unresolved until 1.1.1 persists InstallRecord",
-        "nullable": false,
-        "optional": false,
-        "type": "InstallId | Unresolved"
-      },
-      "install_run_id": {
-        "may_be_unresolved": true,
-        "meaning": "deployment-journey correlation; Unresolved until Block 1 mints InstallRun",
-        "nullable": false,
-        "optional": false,
-        "type": "InstallRunId | Unresolved"
+        "meaning": "what happened, as a stable dotted name such as kernel.alive"
       },
       "occurred_at": {
-        "may_be_unresolved": false,
-        "meaning": "when the fact happened, timezone-aware UTC; never persist time",
-        "nullable": false,
+        "type": "datetime",
         "optional": false,
-        "type": "datetime"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the fact happened, timezone-aware UTC; never persist time"
+      },
+      "install_id": {
+        "type": "InstallId | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "this Machi installation; Unresolved until 1.1.1 persists InstallRecord"
+      },
+      "install_run_id": {
+        "type": "InstallRunId | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "deployment-journey correlation; Unresolved until Block 1 mints InstallRun"
+      },
+      "host_id": {
+        "type": "HostId | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "stable non-sensitive host id; Unresolved until Block 2 Discover"
+      },
+      "block_id": {
+        "type": "HierarchyId",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "emitting Block, for example 0"
+      },
+      "component_id": {
+        "type": "HierarchyId",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "emitting Component when known, for example 0.3.1"
       },
       "outcome": {
-        "may_be_unresolved": false,
-        "meaning": "pass, fail, blocked, info, or unresolved",
-        "nullable": false,
+        "type": "EventOutcome",
         "optional": false,
-        "type": "EventOutcome"
-      },
-      "payload": {
-        "may_be_unresolved": false,
-        "meaning": "versioned domain body; Kernel does not own future payload meaning",
         "nullable": false,
-        "optional": false,
-        "type": "Contract"
+        "may_be_unresolved": false,
+        "meaning": "pass, fail, blocked, info, or unresolved"
       },
       "privacy": {
-        "may_be_unresolved": false,
-        "meaning": "explicit privacy posture for this record",
-        "nullable": false,
+        "type": "PrivacyClass",
         "optional": false,
-        "type": "PrivacyClass"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "explicit privacy posture for this record"
+      },
+      "payload": {
+        "type": "Contract",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "versioned domain body; Kernel does not own future payload meaning"
       },
       "recorded_at": {
-        "may_be_unresolved": false,
-        "meaning": "when the journal persisted the event; None until append",
-        "nullable": true,
+        "type": "datetime | None",
         "optional": true,
-        "type": "datetime | None"
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "when the journal persisted the event; None until append"
       }
-    },
-    "python": "EventRecord"
+    }
   },
   "install.bound@1": {
+    "python": "InstallBoundPayload",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation published a new InstallRunRecord",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "destructive_authorization": {
-        "may_be_unresolved": false,
-        "meaning": "always false for 1.4.1",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the InstallRunRecord already existed",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
       "install_id": {
-        "may_be_unresolved": false,
-        "meaning": "stable installation identity established by 1.1.1",
-        "nullable": false,
+        "type": "InstallId",
         "optional": false,
-        "type": "InstallId"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable installation identity established by 1.1.1"
       },
       "install_run_id": {
-        "may_be_unresolved": false,
-        "meaning": "durable install-run identity minted or reused by 1.4.1",
-        "nullable": false,
+        "type": "InstallRunId",
         "optional": false,
-        "type": "InstallRunId"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "durable install-run identity minted or reused by 1.4.1"
       },
       "marker_id": {
-        "may_be_unresolved": false,
-        "meaning": "local ownership identity already bound to the InstallRecord",
-        "nullable": false,
+        "type": "LocalOwnershipId",
         "optional": false,
-        "type": "LocalOwnershipId"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "local ownership identity already bound to the InstallRecord"
       },
       "root_fingerprint": {
-        "may_be_unresolved": false,
-        "meaning": "SHA-256 of the bound root; the absolute path is omitted",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 of the bound root; the absolute path is omitted"
       },
       "status": {
-        "may_be_unresolved": false,
-        "meaning": "always install_bound; never install.completed",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always install_bound; never install.completed"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false for 1.4.1"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the InstallRunRecord already existed"
+      },
+      "created": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation published a new InstallRunRecord"
       }
-    },
-    "python": "InstallBoundPayload"
+    }
   },
   "install.ownership.local_marked@1": {
+    "python": "LocalOwnershipMarkedPayload",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation wrote the marker file",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "destructive_authorization": {
-        "may_be_unresolved": false,
-        "meaning": "always false for 1.3.1",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "dual_ownership": {
-        "may_be_unresolved": false,
-        "meaning": "always false; Steward evaluates dual proof later",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the marker file already existed",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
       "marker_id": {
-        "may_be_unresolved": false,
-        "meaning": "stable identity of the local marker; not an InstallId",
-        "nullable": false,
+        "type": "LocalOwnershipId",
         "optional": false,
-        "type": "LocalOwnershipId"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable identity of the local marker; not an InstallId"
       },
       "root_fingerprint": {
-        "may_be_unresolved": false,
-        "meaning": "SHA-256 of the bound root; the absolute path is omitted",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 of the bound root; the absolute path is omitted"
       },
       "status": {
-        "may_be_unresolved": false,
-        "meaning": "always local_marker_present; never ownership_verified",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always local_marker_present; never ownership_verified"
+      },
+      "dual_ownership": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false; Steward evaluates dual proof later"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false for 1.3.1"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the marker file already existed"
+      },
+      "created": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation wrote the marker file"
       }
-    },
-    "python": "LocalOwnershipMarkedPayload"
+    }
   },
   "install.ownership.registry_seeded@1": {
+    "python": "OwnershipRegistrySeededPayload",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation published a new registry row",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "destructive_authorization": {
-        "may_be_unresolved": false,
-        "meaning": "always false for 1.3.2",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "dual_ownership": {
-        "may_be_unresolved": false,
-        "meaning": "always false; Steward evaluates dual proof later",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the registry row already existed",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
       "marker_id": {
-        "may_be_unresolved": false,
-        "meaning": "stable identity cited by the registry row; not an install identity",
-        "nullable": false,
+        "type": "LocalOwnershipId",
         "optional": false,
-        "type": "LocalOwnershipId"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable identity cited by the registry row; not an install identity"
       },
       "root_fingerprint": {
-        "may_be_unresolved": false,
-        "meaning": "SHA-256 of the bound root; the absolute path is omitted",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 of the bound root; the absolute path is omitted"
       },
       "status": {
-        "may_be_unresolved": false,
-        "meaning": "always registry_seed_present; never ownership_verified",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always registry_seed_present; never ownership_verified"
+      },
+      "dual_ownership": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false; Steward evaluates dual proof later"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false for 1.3.2"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the registry row already existed"
+      },
+      "created": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation published a new registry row"
       }
-    },
-    "python": "OwnershipRegistrySeededPayload"
+    }
   },
   "install.record.established@1": {
+    "python": "InstallRecordEstablishedPayload",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation published a new InstallRecord",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "destructive_authorization": {
-        "may_be_unresolved": false,
-        "meaning": "always false for 1.1.1",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the InstallRecord already existed",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
       "install_id": {
-        "may_be_unresolved": false,
-        "meaning": "stable installation identity minted or reused by 1.1.1",
-        "nullable": false,
+        "type": "InstallId",
         "optional": false,
-        "type": "InstallId"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable installation identity minted or reused by 1.1.1"
       },
       "marker_id": {
-        "may_be_unresolved": false,
-        "meaning": "local ownership identity the InstallRecord is bound to",
-        "nullable": false,
+        "type": "LocalOwnershipId",
         "optional": false,
-        "type": "LocalOwnershipId"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "local ownership identity the InstallRecord is bound to"
       },
       "root_fingerprint": {
-        "may_be_unresolved": false,
-        "meaning": "SHA-256 of the bound root; the absolute path is omitted",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 of the bound root; the absolute path is omitted"
       },
       "status": {
-        "may_be_unresolved": false,
-        "meaning": "always install_record_present; never install.completed",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always install_record_present; never install.completed"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false for 1.1.1"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the InstallRecord already existed"
+      },
+      "created": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation published a new InstallRecord"
       }
-    },
-    "python": "InstallRecordEstablishedPayload"
+    }
   },
   "install.state_root.bound@1": {
+    "python": "StateRootBoundPayload",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation created the directory",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the directory already existed before this bind invocation",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
       "root_fingerprint": {
-        "may_be_unresolved": false,
-        "meaning": "SHA-256 hex digest of the UTF-8 normalized absolute root; correlates binds without putting the path on the event",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 hex digest of the UTF-8 normalized absolute root; correlates binds without putting the path on the event"
       },
       "selection_source": {
-        "may_be_unresolved": false,
-        "meaning": "which single authority supplied the path",
-        "nullable": false,
+        "type": "SelectionSource",
         "optional": false,
-        "type": "SelectionSource"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "which single authority supplied the path"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the directory already existed before this bind invocation"
+      },
+      "created": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation created the directory"
       }
-    },
-    "python": "StateRootBoundPayload"
+    }
   },
   "install_record@1": {
+    "python": "InstallRecord",
     "fields": {
-      "created_at": {
-        "may_be_unresolved": false,
-        "meaning": "when this InstallRecord was first written; timezone-aware UTC; never rewritten",
-        "nullable": false,
-        "optional": false,
-        "type": "datetime"
-      },
-      "created_by_build_id": {
-        "may_be_unresolved": false,
-        "meaning": "build id of the artifact that first created the record; None in a checkout",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
-      },
-      "created_by_clean_source": {
-        "may_be_unresolved": false,
-        "meaning": "whether the creating build was a clean artifact; None when unknown",
-        "nullable": true,
-        "optional": true,
-        "type": "bool | None"
-      },
-      "created_by_origin": {
-        "may_be_unresolved": false,
-        "meaning": "artifact or source origin of the creating build; not a host path",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
-      "created_by_source_commit": {
-        "may_be_unresolved": false,
-        "meaning": "source commit of the creating build when known; not current software",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
-      },
-      "created_by_version": {
-        "may_be_unresolved": false,
-        "meaning": "Machi version that first created this installation identity",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
       "install_id": {
-        "may_be_unresolved": false,
-        "meaning": "stable identity of this installation; minted once; not an InstallRunId",
-        "nullable": false,
+        "type": "InstallId",
         "optional": false,
-        "type": "InstallId"
-      },
-      "marker_id": {
-        "may_be_unresolved": false,
-        "meaning": "local ownership identity this installation is bound to; Store lookup key",
         "nullable": false,
-        "optional": false,
-        "type": "LocalOwnershipId"
+        "may_be_unresolved": false,
+        "meaning": "stable identity of this installation; minted once; not an InstallRunId"
       },
       "product": {
-        "may_be_unresolved": false,
-        "meaning": "product namespace; always machi",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "product namespace; always machi"
+      },
+      "marker_id": {
+        "type": "LocalOwnershipId",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "local ownership identity this installation is bound to; Store lookup key"
       },
       "root_fingerprint": {
-        "may_be_unresolved": false,
-        "meaning": "SHA-256 hex digest of the bound state root; must match marker and registry",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 hex digest of the bound state root; must match marker and registry"
+      },
+      "created_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this InstallRecord was first written; timezone-aware UTC; never rewritten"
+      },
+      "created_by_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "Machi version that first created this installation identity"
+      },
+      "created_by_origin": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "artifact or source origin of the creating build; not a host path"
+      },
+      "created_by_build_id": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "build id of the artifact that first created the record; None in a checkout"
+      },
+      "created_by_source_commit": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "source commit of the creating build when known; not current software"
+      },
+      "created_by_clean_source": {
+        "type": "bool | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "whether the creating build was a clean artifact; None when unknown"
       }
-    },
-    "python": "InstallRecord"
+    }
   },
   "install_record_establishment@1": {
+    "python": "InstallRecordEstablishment",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation published a new InstallRecord",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "destructive_authorization": {
-        "may_be_unresolved": false,
-        "meaning": "whether this result may authorize delete/reclaim; 1.1.1 is always false",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "dual_ownership": {
-        "may_be_unresolved": false,
-        "meaning": "whether Steward has evaluated both ownership authorities; 1.1.1 is always false",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the InstallRecord already existed before this call",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
       "record": {
-        "may_be_unresolved": false,
-        "meaning": "the validated or newly written InstallRecord",
-        "nullable": false,
+        "type": "InstallRecord",
         "optional": false,
-        "type": "InstallRecord"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "the validated or newly written InstallRecord"
       },
       "status": {
-        "may_be_unresolved": false,
-        "meaning": "install_record_present; never install.completed or ownership_verified",
-        "nullable": false,
+        "type": "InstallRecordStatus",
         "optional": false,
-        "type": "InstallRecordStatus"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "install_record_present; never install.completed or ownership_verified"
+      },
+      "dual_ownership": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether Steward has evaluated both ownership authorities; 1.1.1 is always false"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this result may authorize delete/reclaim; 1.1.1 is always false"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the InstallRecord already existed before this call"
+      },
+      "created": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation published a new InstallRecord"
       }
-    },
-    "python": "InstallRecordEstablishment"
+    }
   },
   "install_run@1": {
+    "python": "InstallRunRecord",
     "fields": {
-      "created_at": {
-        "may_be_unresolved": false,
-        "meaning": "when this InstallRun was first written; timezone-aware UTC; never rewritten",
-        "nullable": false,
+      "install_run_id": {
+        "type": "InstallRunId",
         "optional": false,
-        "type": "datetime"
-      },
-      "created_by_build_id": {
-        "may_be_unresolved": false,
-        "meaning": "build id of the artifact that first created the record; None in a checkout",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
-      },
-      "created_by_clean_source": {
-        "may_be_unresolved": false,
-        "meaning": "whether the creating build was a clean artifact; None when unknown",
-        "nullable": true,
-        "optional": true,
-        "type": "bool | None"
-      },
-      "created_by_origin": {
-        "may_be_unresolved": false,
-        "meaning": "artifact or source origin of the creating build; not a host path",
         "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
-      "created_by_source_commit": {
         "may_be_unresolved": false,
-        "meaning": "source commit of the creating build when known; not current software",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
-      },
-      "created_by_version": {
-        "may_be_unresolved": false,
-        "meaning": "Machi version that first created this install-run identity",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
+        "meaning": "durable journey identity of this installation; minted once; not a process"
       },
       "install_id": {
-        "may_be_unresolved": false,
-        "meaning": "stable installation this journey belongs to; Store lookup key",
-        "nullable": false,
+        "type": "InstallId",
         "optional": false,
-        "type": "InstallId"
-      },
-      "install_run_id": {
-        "may_be_unresolved": false,
-        "meaning": "durable journey identity of this installation; minted once; not a process",
         "nullable": false,
-        "optional": false,
-        "type": "InstallRunId"
+        "may_be_unresolved": false,
+        "meaning": "stable installation this journey belongs to; Store lookup key"
       },
       "product": {
-        "may_be_unresolved": false,
-        "meaning": "product namespace; always machi",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "product namespace; always machi"
+      },
+      "created_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this InstallRun was first written; timezone-aware UTC; never rewritten"
+      },
+      "created_by_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "Machi version that first created this install-run identity"
+      },
+      "created_by_origin": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "artifact or source origin of the creating build; not a host path"
+      },
+      "created_by_build_id": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "build id of the artifact that first created the record; None in a checkout"
+      },
+      "created_by_source_commit": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "source commit of the creating build when known; not current software"
+      },
+      "created_by_clean_source": {
+        "type": "bool | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "whether the creating build was a clean artifact; None when unknown"
       }
-    },
-    "python": "InstallRunRecord"
+    }
   },
   "install_run_establishment@1": {
+    "python": "InstallRunEstablishment",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation published a new InstallRunRecord",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "destructive_authorization": {
-        "may_be_unresolved": false,
-        "meaning": "whether this result may authorize delete/reclaim; 1.4.1 is always false",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "dual_ownership": {
-        "may_be_unresolved": false,
-        "meaning": "whether Steward has evaluated both ownership authorities; 1.4.1 is always false",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the InstallRunRecord already existed before this call",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
       "record": {
-        "may_be_unresolved": false,
-        "meaning": "the validated or newly written InstallRunRecord",
-        "nullable": false,
+        "type": "InstallRunRecord",
         "optional": false,
-        "type": "InstallRunRecord"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "the validated or newly written InstallRunRecord"
       },
       "status": {
-        "may_be_unresolved": false,
-        "meaning": "install_run_present; never install.completed or ownership_verified",
-        "nullable": false,
+        "type": "InstallRunStatus",
         "optional": false,
-        "type": "InstallRunStatus"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "install_run_present; never install.completed or ownership_verified"
+      },
+      "dual_ownership": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether Steward has evaluated both ownership authorities; 1.4.1 is always false"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this result may authorize delete/reclaim; 1.4.1 is always false"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the InstallRunRecord already existed before this call"
+      },
+      "created": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation published a new InstallRunRecord"
       }
-    },
-    "python": "InstallRunEstablishment"
+    }
   },
   "journal_defect@1": {
+    "python": "JournalDefect",
     "fields": {
       "line_number": {
-        "may_be_unresolved": false,
-        "meaning": "1-based line number in the journal file",
-        "nullable": false,
+        "type": "int",
         "optional": false,
-        "type": "int"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "1-based line number in the journal file"
       },
       "problem": {
-        "may_be_unresolved": false,
-        "meaning": "why the line could not be loaded",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why the line could not be loaded"
       },
       "record_kind": {
-        "may_be_unresolved": false,
-        "meaning": "the kind it claimed to be, when that much was readable",
-        "nullable": true,
+        "type": "str | None",
         "optional": true,
-        "type": "str | None"
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "the kind it claimed to be, when that much was readable"
       }
-    },
-    "python": "JournalDefect"
+    }
   },
   "kernel.alive@1": {
+    "python": "KernelAlivePayload",
     "fields": {
-      "build_id": {
-        "may_be_unresolved": false,
-        "meaning": "traceable build identifier",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
-      },
-      "built_at": {
-        "may_be_unresolved": false,
-        "meaning": "UTC timestamp the artifact was built",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
-      },
-      "clean_source": {
-        "may_be_unresolved": false,
-        "meaning": "whether the source tree was clean at build time",
-        "nullable": true,
-        "optional": true,
-        "type": "bool | None"
-      },
       "distribution": {
-        "may_be_unresolved": false,
-        "meaning": "distribution name; always machi",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
-      },
-      "origin": {
-        "may_be_unresolved": false,
-        "meaning": "artifact or source",
         "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
-      "source_commit": {
         "may_be_unresolved": false,
-        "meaning": "git commit the artifact was built from; None in a checkout",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
+        "meaning": "distribution name; always machi"
       },
       "version": {
-        "may_be_unresolved": false,
-        "meaning": "installed or declared package version",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "installed or declared package version"
+      },
+      "origin": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "artifact or source"
+      },
+      "source_commit": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "git commit the artifact was built from; None in a checkout"
+      },
+      "build_id": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "traceable build identifier"
+      },
+      "built_at": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "UTC timestamp the artifact was built"
+      },
+      "clean_source": {
+        "type": "bool | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "whether the source tree was clean at build time"
       }
-    },
-    "python": "KernelAlivePayload"
+    }
   },
   "kernel.store.proof@1": {
+    "python": "StoreProof",
     "fields": {
       "token": {
-        "may_be_unresolved": false,
-        "meaning": "opaque proof token; not a domain identity and not customer content",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque proof token; not a domain identity and not customer content"
       }
-    },
-    "python": "StoreProof"
+    }
   },
   "kernel.store.proved@1": {
+    "python": "StoreProvedPayload",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation created a new record",
-        "nullable": false,
+      "record_kind": {
+        "type": "str",
         "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether a record already existed at this key",
         "nullable": false,
-        "optional": false,
-        "type": "bool"
+        "may_be_unresolved": false,
+        "meaning": "kind of the persisted proof contract"
       },
       "key_fingerprint": {
-        "may_be_unresolved": false,
-        "meaning": "SHA-256 hex digest of the UTF-8 logical key; the key itself is omitted",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 hex digest of the UTF-8 logical key; the key itself is omitted"
       },
-      "record_kind": {
-        "may_be_unresolved": false,
-        "meaning": "kind of the persisted proof contract",
-        "nullable": false,
+      "created": {
+        "type": "bool",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation created a new record"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether a record already existed at this key"
       }
-    },
-    "python": "StoreProvedPayload"
+    }
   },
   "local_ownership_establishment@1": {
+    "python": "LocalOwnershipEstablishment",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation wrote the marker file",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "destructive_authorization": {
-        "may_be_unresolved": false,
-        "meaning": "whether this result may authorize delete/reclaim; 1.3.1 and 1.3.2 are always false",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "dual_ownership": {
-        "may_be_unresolved": false,
-        "meaning": "whether local marker and registry currently agree; 1.3.1 is always false; 1.3.2 still does not evaluate dual proof",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the marker file already existed before this call",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
       "marker": {
-        "may_be_unresolved": false,
-        "meaning": "the validated or newly written local marker",
-        "nullable": false,
+        "type": "LocalOwnershipMarker",
         "optional": false,
-        "type": "LocalOwnershipMarker"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "the validated or newly written local marker"
       },
       "status": {
-        "may_be_unresolved": false,
-        "meaning": "local_marker_present; never ownership_verified or install_owned",
-        "nullable": false,
+        "type": "LocalOwnershipStatus",
         "optional": false,
-        "type": "LocalOwnershipStatus"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "local_marker_present; never ownership_verified or install_owned"
+      },
+      "dual_ownership": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether local marker and registry currently agree; 1.3.1 is always false; 1.3.2 still does not evaluate dual proof"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this result may authorize delete/reclaim; 1.3.1 and 1.3.2 are always false"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the marker file already existed before this call"
+      },
+      "created": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation wrote the marker file"
       }
-    },
-    "python": "LocalOwnershipEstablishment"
+    }
   },
   "local_ownership_marker@1": {
+    "python": "LocalOwnershipMarker",
     "fields": {
-      "created_at": {
-        "may_be_unresolved": false,
-        "meaning": "when this marker was first written; timezone-aware UTC; never rewritten",
-        "nullable": false,
-        "optional": false,
-        "type": "datetime"
-      },
-      "created_by_build_id": {
-        "may_be_unresolved": false,
-        "meaning": "build id of the artifact that first wrote the marker; None in a checkout",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
-      },
-      "created_by_origin": {
-        "may_be_unresolved": false,
-        "meaning": "artifact or source origin of the writer; not a host path",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
-      },
       "marker_id": {
-        "may_be_unresolved": false,
-        "meaning": "stable identity of this local marker; 1.3.2 may cite the same value",
-        "nullable": false,
+        "type": "LocalOwnershipId",
         "optional": false,
-        "type": "LocalOwnershipId"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable identity of this local marker; 1.3.2 may cite the same value"
       },
       "product": {
-        "may_be_unresolved": false,
-        "meaning": "product namespace; always machi",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "product namespace; always machi"
       },
       "root_fingerprint": {
-        "may_be_unresolved": false,
-        "meaning": "SHA-256 hex digest of the UTF-8 normalized absolute root this marker was created for; a copied file is invalid on any other root",
-        "nullable": false,
+        "type": "str",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 hex digest of the UTF-8 normalized absolute root this marker was created for; a copied file is invalid on any other root"
+      },
+      "created_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this marker was first written; timezone-aware UTC; never rewritten"
+      },
+      "created_by_build_id": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "build id of the artifact that first wrote the marker; None in a checkout"
+      },
+      "created_by_origin": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "artifact or source origin of the writer; not a host path"
       }
-    },
-    "python": "LocalOwnershipMarker"
+    }
   },
   "local_ownership_registry_establishment@1": {
+    "python": "LocalOwnershipRegistryEstablishment",
     "fields": {
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation published a new registry row",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "destructive_authorization": {
-        "may_be_unresolved": false,
-        "meaning": "whether this result may authorize delete/reclaim; 1.3.2 is always false",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "dual_ownership": {
-        "may_be_unresolved": false,
-        "meaning": "whether Steward has evaluated both authorities; 1.3.2 is always false",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
-      "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the registry row already existed before this call",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
-      },
       "record": {
-        "may_be_unresolved": false,
-        "meaning": "the validated or newly written control-plane registry row",
-        "nullable": false,
+        "type": "LocalOwnershipRegistryRecord",
         "optional": false,
-        "type": "LocalOwnershipRegistryRecord"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "the validated or newly written control-plane registry row"
       },
       "status": {
-        "may_be_unresolved": false,
-        "meaning": "registry_seed_present; never ownership_verified or dual_ownership_verified",
-        "nullable": false,
+        "type": "RegistrySeedStatus",
         "optional": false,
-        "type": "RegistrySeedStatus"
-      }
-    },
-    "python": "LocalOwnershipRegistryEstablishment"
-  },
-  "local_ownership_registry_record@1": {
-    "fields": {
-      "created_at": {
-        "may_be_unresolved": false,
-        "meaning": "when this registry row was first written; timezone-aware UTC; never rewritten",
         "nullable": false,
-        "optional": false,
-        "type": "datetime"
+        "may_be_unresolved": false,
+        "meaning": "registry_seed_present; never ownership_verified or dual_ownership_verified"
       },
-      "created_by_build_id": {
+      "dual_ownership": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "build id of the artifact that first seeded the row; None in a checkout",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
+        "meaning": "whether Steward has evaluated both authorities; 1.3.2 is always false"
       },
-      "created_by_origin": {
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "artifact or source origin of the writer; not a host path",
-        "nullable": true,
-        "optional": true,
-        "type": "str | None"
-      },
-      "marker_id": {
-        "may_be_unresolved": false,
-        "meaning": "the same local marker identity this registry row cites; Store key",
-        "nullable": false,
-        "optional": false,
-        "type": "LocalOwnershipId"
-      },
-      "product": {
-        "may_be_unresolved": false,
-        "meaning": "product namespace; always machi",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
-      "root_fingerprint": {
-        "may_be_unresolved": false,
-        "meaning": "SHA-256 hex digest of the UTF-8 normalized absolute root; must match the local marker; the path itself is omitted",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      }
-    },
-    "python": "LocalOwnershipRegistryRecord"
-  },
-  "memory_observation@1": {
-    "fields": {
-      "observed_at": {
-        "may_be_unresolved": false,
-        "meaning": "when this observation was taken; timezone-aware UTC; never rewritten",
-        "nullable": false,
-        "optional": false,
-        "type": "datetime"
-      },
-      "observer": {
-        "may_be_unresolved": false,
-        "meaning": "adapter identifier that produced the reading, for example native",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
-      "physical_total_bytes": {
-        "may_be_unresolved": true,
-        "meaning": "reported physical/system memory in integer bytes; Unresolved when unobserved",
-        "nullable": false,
-        "optional": false,
-        "type": "int | Unresolved"
-      },
-      "physical_total_status": {
-        "may_be_unresolved": false,
-        "meaning": "normalized when bytes were measured; unobserved when not measured",
-        "nullable": false,
-        "optional": false,
-        "type": "ObservationStatus"
-      },
-      "raw_total": {
-        "may_be_unresolved": false,
-        "meaning": "compact source evidence such as MemTotal kB or sysconf page counts; empty when unobserved",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
-      "source": {
-        "may_be_unresolved": false,
-        "meaning": "linux_proc, sysconf, unobserved, or unsupported; never a filesystem path",
-        "nullable": false,
-        "optional": false,
-        "type": "MemorySource"
-      }
-    },
-    "python": "MemoryObservation"
-  },
-  "os_architecture_observation@1": {
-    "fields": {
-      "architecture": {
-        "may_be_unresolved": true,
-        "meaning": "normalized CPU architecture when an alias matched; Unresolved otherwise",
-        "nullable": false,
-        "optional": false,
-        "type": "CpuArchitecture | Unresolved"
-      },
-      "architecture_status": {
-        "may_be_unresolved": false,
-        "meaning": "normalized, unrecognized (raw present, no alias), or unobserved",
-        "nullable": false,
-        "optional": false,
-        "type": "ObservationStatus"
-      },
-      "observed_at": {
-        "may_be_unresolved": false,
-        "meaning": "when this observation was taken; timezone-aware UTC; never rewritten",
-        "nullable": false,
-        "optional": false,
-        "type": "datetime"
-      },
-      "observer": {
-        "may_be_unresolved": false,
-        "meaning": "adapter identifier that produced the raw values, for example native",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
-      "os_family": {
-        "may_be_unresolved": true,
-        "meaning": "normalized OS family when an alias matched; Unresolved otherwise",
-        "nullable": false,
-        "optional": false,
-        "type": "OSFamily | Unresolved"
-      },
-      "os_status": {
-        "may_be_unresolved": false,
-        "meaning": "normalized, unrecognized (raw present, no alias), or unobserved",
-        "nullable": false,
-        "optional": false,
-        "type": "ObservationStatus"
-      },
-      "raw_architecture": {
-        "may_be_unresolved": false,
-        "meaning": "narrow platform architecture string as observed; empty when unobserved",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      },
-      "raw_os": {
-        "may_be_unresolved": false,
-        "meaning": "narrow platform OS string as observed; empty when unobserved",
-        "nullable": false,
-        "optional": false,
-        "type": "str"
-      }
-    },
-    "python": "OSArchitectureObservation"
-  },
-  "state_root_binding@1": {
-    "fields": {
-      "bound_at": {
-        "may_be_unresolved": false,
-        "meaning": "when this bind resolved; timezone-aware UTC",
-        "nullable": false,
-        "optional": false,
-        "type": "datetime"
-      },
-      "created": {
-        "may_be_unresolved": false,
-        "meaning": "whether this invocation created the directory; false on re-entry",
-        "nullable": false,
-        "optional": false,
-        "type": "bool"
+        "meaning": "whether this result may authorize delete/reclaim; 1.3.2 is always false"
       },
       "existed": {
-        "may_be_unresolved": false,
-        "meaning": "whether the directory already existed before this bind invocation",
-        "nullable": false,
+        "type": "bool",
         "optional": false,
-        "type": "bool"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the registry row already existed before this call"
       },
-      "root": {
-        "may_be_unresolved": false,
-        "meaning": "absolute, normalized filesystem path of the bound state root; local operator data, not a public_ops field",
-        "nullable": false,
+      "created": {
+        "type": "bool",
         "optional": false,
-        "type": "str"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation published a new registry row"
+      }
+    }
+  },
+  "local_ownership_registry_record@1": {
+    "python": "LocalOwnershipRegistryRecord",
+    "fields": {
+      "marker_id": {
+        "type": "LocalOwnershipId",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "the same local marker identity this registry row cites; Store key"
+      },
+      "product": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "product namespace; always machi"
+      },
+      "root_fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SHA-256 hex digest of the UTF-8 normalized absolute root; must match the local marker; the path itself is omitted"
+      },
+      "created_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this registry row was first written; timezone-aware UTC; never rewritten"
+      },
+      "created_by_build_id": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "build id of the artifact that first seeded the row; None in a checkout"
+      },
+      "created_by_origin": {
+        "type": "str | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "artifact or source origin of the writer; not a host path"
+      }
+    }
+  },
+  "memory_observation@1": {
+    "python": "MemoryObservation",
+    "fields": {
+      "physical_total_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "reported physical/system memory in integer bytes; Unresolved when unobserved"
+      },
+      "physical_total_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized when bytes were measured; unobserved when not measured"
+      },
+      "source": {
+        "type": "MemorySource",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "linux_proc, sysconf, unobserved, or unsupported; never a filesystem path"
+      },
+      "raw_total": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compact source evidence such as MemTotal kB or sysconf page counts; empty when unobserved"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this observation was taken; timezone-aware UTC; never rewritten"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier that produced the reading, for example native"
+      }
+    }
+  },
+  "os_architecture_observation@1": {
+    "python": "OSArchitectureObservation",
+    "fields": {
+      "os_family": {
+        "type": "OSFamily | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "normalized OS family when an alias matched; Unresolved otherwise"
+      },
+      "architecture": {
+        "type": "CpuArchitecture | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "normalized CPU architecture when an alias matched; Unresolved otherwise"
+      },
+      "os_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized, unrecognized (raw present, no alias), or unobserved"
+      },
+      "architecture_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized, unrecognized (raw present, no alias), or unobserved"
+      },
+      "raw_os": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "narrow platform OS string as observed; empty when unobserved"
+      },
+      "raw_architecture": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "narrow platform architecture string as observed; empty when unobserved"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this observation was taken; timezone-aware UTC; never rewritten"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier that produced the raw values, for example native"
+      }
+    }
+  },
+  "state_root_binding@1": {
+    "python": "StateRootBinding",
+    "fields": {
+      "root": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "absolute, normalized filesystem path of the bound state root; local operator data, not a public_ops field"
       },
       "selection_source": {
-        "may_be_unresolved": false,
-        "meaning": "which single authority supplied the path: explicit invocation, MACHI_STATE_ROOT, or the platform default",
-        "nullable": false,
+        "type": "SelectionSource",
         "optional": false,
-        "type": "SelectionSource"
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "which single authority supplied the path: explicit invocation, MACHI_STATE_ROOT, or the platform default"
+      },
+      "existed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the directory already existed before this bind invocation"
+      },
+      "created": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this invocation created the directory; false on re-entry"
+      },
+      "bound_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this bind resolved; timezone-aware UTC"
       }
-    },
-    "python": "StateRootBinding"
+    }
   }
 }

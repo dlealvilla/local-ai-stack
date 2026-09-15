@@ -88,6 +88,7 @@ Names are examples; the catalogue is owned by Kernel 0.3.
 - `install.bound` (1.4.1; InstallId + InstallRunId; privacy `restricted`; resolved `install_id` and `install_run_id`; `host_id` unresolved; not `install.started`)
 - `discover.os_arch.observed` (2.1.1; OS family + CPU architecture; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not `discover.completed`)
 - `discover.memory.observed` (2.2.1; physical/system memory bytes; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not safe capacity; not `discover.completed`)
+- `discover.accelerator.observed` (2.3.1; generic accelerator devices + provider reports; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not capacity; not `discover.completed`)
 - `discover.completed`
 - `steward.classified` / `steward.reclaim.planned` / `steward.reclaim.completed`
 - `capacity.characterized` / `capacity.minimum.completed`
@@ -269,6 +270,12 @@ physical/system memory size is the same class of non-identifying
 machine fact as OS family (see §9 byte bands). Canonical values are
 integer bytes, not a safe-capacity result. `host_id` remains
 unresolved. Hostname and paths are omitted.
+
+**2.3:** `discover.accelerator.observed` is `public_ops`. Device
+vendor, model, topology, and reported dedicated memory (when the
+source actually reported it) are machine hardware facts. GPU UUID is
+device identity, not HostId. `host_id` remains unresolved. Hostname,
+paths, and customer content are omitted.
 
 That is the empirical proof that observability is not a log
 statement.

@@ -14,13 +14,26 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from machi.adapters.discover.native_accelerator import NativeAcceleratorObserver
 from machi.adapters.discover.native_memory import NativeMemoryObserver
 from machi.adapters.discover.native_os_arch import NativeOSArchitectureObserver
 from machi.adapters.journal.jsonl import JsonlJournal
 from machi.adapters.persistence.file_store import FileStore
-from machi.discover.contracts import MemoryObservation, OSArchitectureObservation
-from machi.discover.events import memory_observed, os_arch_observed
-from machi.discover.ports import MemoryObserver, OSArchitectureObserver
+from machi.discover.contracts import (
+    AcceleratorObservation,
+    MemoryObservation,
+    OSArchitectureObservation,
+)
+from machi.discover.events import (
+    accelerator_observed,
+    memory_observed,
+    os_arch_observed,
+)
+from machi.discover.ports import (
+    AcceleratorObserver,
+    MemoryObserver,
+    OSArchitectureObserver,
+)
 from machi.install.binder import StateRootBinder
 from machi.install.contracts import (
     InstallRecordEstablishment,
@@ -395,6 +408,63 @@ def observe_memory(
     return observation, event, event.install_id, event.install_run_id, target
 
 
+def observe_accelerator(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    store_dir: Path | None,
+    journal_dir_path: Path | None,
+    observer: AcceleratorObserver | None = None,
+) -> tuple[
+    AcceleratorObservation,
+    EventRecord,
+    Maybe[InstallId],
+    Maybe[InstallRunId],
+    Path | None,
+]:
+    """Observe accelerators. Re-enter M1 when a Store is supplied.
+
+    Does not mint HostId, does not persist a HostProfile, does not rewrite
+    predecessor events, and does not compute capacity.
+    """
+    validate_registry(module_prefix="machi.")
+    if store_dir is not None and explicit is None and environment is None:
+        raise ValidationError(
+            "discover accelerator needs --state-root or MACHI_STATE_ROOT when "
+            "a control-plane Store is supplied",
+        )
+    install_id: Maybe[InstallId] | None = None
+    install_run_id: Maybe[InstallRunId] | None = None
+    binding_root: Path | None = None
+    if store_dir is not None:
+        binding = StateRootBinder().bind(explicit=explicit, environment=environment)
+        establishment = SelfOwnershipMarker().establish(binding)
+        store = FileStore(store_dir)
+        seeded = RegistrySeed().seed(binding, establishment, store)
+        established = InstallIdentity().establish(
+            binding, establishment, seeded, store, build_identity()
+        )
+        run = InstallRunStore().establish(established.record, store, build_identity())
+        install_id = established.record.install_id
+        install_run_id = run.record.install_run_id
+        binding_root = Path(binding.root)
+        _warn_if_defaulted(binding)
+    observation = (observer or NativeAcceleratorObserver()).observe()
+    event = accelerator_observed(
+        observation,
+        install_id=install_id,
+        install_run_id=install_run_id,
+    )
+    target: Path | None = None
+    if journal_dir_path is not None:
+        target = journal_dir_path
+    elif binding_root is not None:
+        target = journal_dir(binding_root)
+    if target is not None:
+        event = JsonlJournal(target).append(event)
+    return observation, event, event.install_id, event.install_run_id, target
+
+
 def show_version() -> int:
     identity = build_identity()
     print(identity.describe())
@@ -643,6 +713,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="journal directory; defaults to <state-root>/journal when Store is set",
     )
+    accelerator = discover_sub.add_parser(
+        "accelerator",
+        help="observe accelerator devices; not capacity or a primary-GPU view",
+    )
+    accelerator.add_argument(
+        "--state-root",
+        default=None,
+        help="explicit state root used only to re-enter M1 correlation",
+    )
+    accelerator.add_argument(
+        "--store-dir",
+        default=None,
+        help="injected control-plane Store; required to resolve InstallId/InstallRunId",
+    )
+    accelerator.add_argument(
+        "--journal-dir",
+        default=None,
+        help="journal directory; defaults to <state-root>/journal when Store is set",
+    )
 
     ns = parser.parse_args(list(argv) if argv is not None else None)
     try:
@@ -854,6 +943,56 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(f"journal  {journal_shown}")
             _print_document(memory_observation)
+            _print_document(event)
+            return 0
+        if ns.command == "discover" and ns.discover_command == "accelerator":
+            (
+                accelerator_observation,
+                event,
+                install_id,
+                install_run_id,
+                journal_target,
+            ) = observe_accelerator(
+                explicit=ns.state_root,
+                environment=_environment_override(),
+                store_dir=Path(ns.store_dir) if ns.store_dir else None,
+                journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+            )
+            print(f"devices  {len(accelerator_observation.devices)}")
+            print(f"status   {accelerator_observation.status.value}")
+            print(f"observer {accelerator_observation.observer}")
+            for report in accelerator_observation.providers:
+                count = (
+                    f" devices={report.device_count}"
+                    if is_resolved(report.device_count)
+                    else ""
+                )
+                detail = f" {report.detail}" if report.detail else ""
+                print(
+                    f"provider {report.provider} {report.status.value}{count}{detail}"
+                )
+            for device in accelerator_observation.devices:
+                print(
+                    "device   "
+                    f"{device.ordinal} "
+                    f"{_format_maybe(device.vendor)} "
+                    f"{device.model_name or '-'} "
+                    f"{_format_maybe(device.device_type)} "
+                    f"{_format_maybe(device.memory_topology)} "
+                    f"{_format_maybe(device.memory_total_bytes)} "
+                    f"{device.identity} "
+                    f"{device.source.value}"
+                )
+            print(f"install  {_format_maybe(install_id)}")
+            print(f"run      {_format_maybe(install_run_id)}")
+            print(f"host     {_format_maybe(event.host_id)}")
+            journal_shown = (
+                str(JsonlJournal(journal_target).path)
+                if journal_target is not None
+                else "-"
+            )
+            print(f"journal  {journal_shown}")
+            _print_document(accelerator_observation)
             _print_document(event)
             return 0
     except PersistenceError as exc:

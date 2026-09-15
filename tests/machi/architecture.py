@@ -438,8 +438,12 @@ DISCOVER_DOMAIN_FORBIDDEN = (
     "shutil.rmtree",
     "from machi.install",
     "from machi.adapters",
-    "nvidia",
     "cuda",
+    "nvml",
+    "pynvml",
+    "system_profiler",
+    "SPDisplaysDataType",
+    "ioreg",
     "psutil",
     "cgroup",
     "safe_bytes",
@@ -449,6 +453,10 @@ DISCOVER_DOMAIN_FORBIDDEN = (
     "SC_PHYS_PAGES",
     "linux_proc_memory",
     "macos_sysconf_memory",
+    "nvidia_accelerator",
+    "apple_accelerator",
+    "parse_nvidia_smi_csv",
+    "parse_apple_displays_json",
 )
 
 NATIVE_OS_ARCH_FORBIDDEN = (
@@ -496,6 +504,63 @@ MEMORY_PROVIDER_FORBIDDEN = (
     "cuda",
     "docker",
     "runpod",
+)
+
+NATIVE_ACCELERATOR_FORBIDDEN = (
+    "subprocess",
+    "nvidia-smi",
+    "system_profiler",
+    "HostId.generate",
+    "FileStore",
+    "from machi.install",
+    "psutil",
+    "safe_bytes",
+    "safe_memory",
+    "pynvml",
+    "torch",
+    "cuda",
+    "MemoryObservation",
+    "physical_total_bytes",
+)
+
+NVIDIA_PROVIDER_FORBIDDEN = (
+    "system_profiler",
+    "SPDisplaysDataType",
+    "ioreg",
+    "HostId.generate",
+    "FileStore",
+    "from machi.install",
+    "psutil",
+    "safe_bytes",
+    "safe_memory",
+    "pynvml",
+    "torch",
+    "cuda",
+    "docker",
+    "runpod",
+    "shell=True",
+    "physical_memory",
+    "hw.memsize",
+)
+
+APPLE_PROVIDER_FORBIDDEN = (
+    "nvidia-smi",
+    "query-gpu",
+    "HostId.generate",
+    "FileStore",
+    "from machi.install",
+    "psutil",
+    "safe_bytes",
+    "safe_memory",
+    "pynvml",
+    "torch",
+    "cuda",
+    "docker",
+    "runpod",
+    "shell=True",
+    "physical_memory",
+    "hw.memsize",
+    "SC_PHYS_PAGES",
 )
 
 
@@ -548,6 +613,45 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append("macOS memory provider must use os.sysconf")
     if "/proc/meminfo" in macos_text:
         found.append("macOS memory provider must not read /proc/meminfo")
+    accelerator_adapter = root / "adapters" / "discover" / "native_accelerator.py"
+    accelerator_text = accelerator_adapter.read_text(encoding="utf-8")
+    for token in NATIVE_ACCELERATOR_FORBIDDEN:
+        if token in accelerator_text:
+            found.append(f"{accelerator_adapter.name} must not contain {token!r}")
+    if "NvidiaAcceleratorProvider" not in accelerator_text:
+        found.append(
+            "native accelerator observer must compose NvidiaAcceleratorProvider"
+        )
+    if "AppleAcceleratorProvider" not in accelerator_text:
+        found.append(
+            "native accelerator observer must compose AppleAcceleratorProvider"
+        )
+    nvidia_provider = root / "adapters" / "discover" / "nvidia_accelerator.py"
+    nvidia_text = nvidia_provider.read_text(encoding="utf-8")
+    for token in NVIDIA_PROVIDER_FORBIDDEN:
+        if token in nvidia_text:
+            found.append(f"{nvidia_provider.name} must not contain {token!r}")
+    if "nvidia-smi" not in nvidia_text:
+        found.append("NVIDIA provider must use nvidia-smi")
+    if "--query-gpu=" not in nvidia_text:
+        found.append("NVIDIA provider must use machine-readable query mode")
+    if "csv,noheader,nounits" not in nvidia_text:
+        found.append("NVIDIA provider must request csv,noheader,nounits")
+    if "parse_nvidia_smi_csv" not in nvidia_text:
+        found.append("NVIDIA provider must own CSV parsing")
+    apple_provider = root / "adapters" / "discover" / "apple_accelerator.py"
+    apple_text = apple_provider.read_text(encoding="utf-8")
+    for token in APPLE_PROVIDER_FORBIDDEN:
+        if token in apple_text:
+            found.append(f"{apple_provider.name} must not contain {token!r}")
+    if "system_profiler" not in apple_text:
+        found.append("Apple provider must use system_profiler")
+    if "SPDisplaysDataType" not in apple_text:
+        found.append("Apple provider must read SPDisplaysDataType")
+    if "parse_apple_displays_json" not in apple_text:
+        found.append("Apple provider must own JSON parsing")
+    if "UNIFIED" not in apple_text:
+        found.append("Apple provider must represent unified memory topology")
     kernel_text = "\n".join(
         p.read_text(encoding="utf-8") for p in (root / "kernel").rglob("*.py")
     )
@@ -555,6 +659,8 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append("Kernel must not import Discover")
     if "MemoryObservation" in kernel_text:
         found.append("Kernel must not import MemoryObservation")
+    if "AcceleratorObservation" in kernel_text:
+        found.append("Kernel must not import AcceleratorObservation")
     install_text = "\n".join(
         p.read_text(encoding="utf-8") for p in (root / "install").rglob("*.py")
     )
@@ -569,11 +675,29 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append(
             "composition must wire NativeMemoryObserver, not MacOSSysconfMemoryProvider"
         )
-    for token in ("nvidia", "cuda", "nvml", "runpod", "docker"):
+    if "NativeAcceleratorObserver" not in main_text:
+        found.append("composition must wire NativeAcceleratorObserver")
+    if "NvidiaAcceleratorProvider" in main_text:
+        found.append(
+            "composition must wire NativeAcceleratorObserver, "
+            "not NvidiaAcceleratorProvider"
+        )
+    if "AppleAcceleratorProvider" in main_text:
+        found.append(
+            "composition must wire NativeAcceleratorObserver, "
+            "not AppleAcceleratorProvider"
+        )
+    for token in (
+        "nvidia-smi",
+        "cuda",
+        "nvml",
+        "pynvml",
+        "system_profiler",
+        "runpod",
+        "docker",
+    ):
         if token in main_text.lower():
-            found.append(
-                f"composition root must not name {token} before that provider exists"
-            )
+            found.append(f"composition root must not name {token}")
     store_port = (root / "kernel" / "store.py").read_text(encoding="utf-8")
     file_store = (root / "adapters" / "persistence" / "file_store.py").read_text(
         encoding="utf-8"
