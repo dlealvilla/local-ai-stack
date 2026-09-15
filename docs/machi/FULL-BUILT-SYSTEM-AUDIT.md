@@ -2,11 +2,12 @@
 
 **Work token:** `MACHI-FULL-BUILT-SYSTEM-AGNOSTIC-AUDIT`  
 **Scope:** M0 → M1 → `2.1.1` → `2.2.1`  
-**Forward development:** BLOCKED (`2.3` not started)  
+**Forward development after this audit:** resumes at `2.3` (Provider Selection Gate)  
 **Physical tests this task:** none (`SERVER_NEEDED_NOW=NO`)  
-**Canonical accepted `2.2.1`:** `66e8ee0` (`checkpoint/machi-2.2.1-closed-66e8ee0`)  
-**Audit branch:** `architecture/provider-agnostic-audit`  
-**Partial audit (do not promote alone):** `cd4b786`
+**Last forward feature:** `2.2.1` `66e8ee0` (`checkpoint/machi-2.2.1-closed-66e8ee0`, implementation `b341819`)  
+**Promoted audit:** `e88cc39` (`checkpoint/machi-provider-agnostic-foundation-closed-e88cc39`)  
+**Audit branch (traceable):** `architecture/provider-agnostic-audit`  
+**Partial audit (historical):** `cd4b786`
 
 This document is the authoritative architecture baseline for
 everything Machi has actually built through Memory Discovery. The

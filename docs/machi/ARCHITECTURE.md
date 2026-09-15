@@ -482,16 +482,17 @@ provenance.
 |---|---|---|---|
 | `2.1.1` | OS/arch adapter | Observe OS family and CPU architecture through a replaceable adapter | accepted |
 | `2.2.1` | Memory observer | Observe reported physical/system memory in bytes | accepted |
-| `2.3` | Accelerator Discovery | Generic accelerator observation capability | later |
-| `2.3.1` | NVIDIA provider | First concrete accelerator provider under 2.3 | later |
-| `2.3.2` | Fixture provider | Replay captured host facts | later |
+| `2.3` | Accelerator Discovery | Generic accelerator observation capability | next (Provider Selection Gate) |
+| `2.3.x` | Concrete providers | Assigned after the gate; NVIDIA/AMD/Intel/Apple are candidates | pending |
 | `2.4.1` | Mount enumerator | Filesystem mounts | later |
 
-Working implementation order: `2.1.1` → `2.2.1` → `2.3.1` / `2.3.2` → `2.4.1`.
-OS/arch before memory before accelerators before mounts. HostProfile
-aggregation waits until enough observations exist. `2.3` is the generic
-accelerator capability; `2.3.1` is one provider under it, not the
-capability model.
+Working implementation order: `2.1.1` → `2.2.1` → `2.3` (generic +
+selected providers) → `2.4.1`. OS/arch before memory before
+accelerators before mounts. HostProfile aggregation waits until
+enough observations exist. `2.3` is the generic accelerator
+capability. A numbered provider such as a future `2.3.1` is one
+implementation under it, not the capability model. Do not pre-assign
+`2.3.1` to NVIDIA before the gate.
 
 - `2.1.1` (accepted) observes OS family and CPU architecture. Core owns
   `OSArchitectureObservation`. The native adapter owns `platform.system`
@@ -823,9 +824,8 @@ cleanup on stop.
   2.2 CPU / RAM
     2.2.1 Memory observer (accepted)
   2.3 Accelerator Discovery
-    2.3.1 NVIDIA provider
-    2.3.2 Fixture provider
-    later AMD / Intel / Apple providers
+    providers assigned after the Provider Selection Gate
+    (NVIDIA / AMD / Intel / Apple / fixture are candidates)
   2.4 Mounts
     2.4.1 Mount enumerator
 3 Steward
@@ -973,18 +973,19 @@ one vendor, OS, filesystem, or runtime. Do not implement a new
 concrete provider during an architecture audit. Composition may name
 chosen adapters; generic domains must not.
 
-Intended accelerator seam, before any NVIDIA code:
+Intended accelerator seam, before any vendor module:
 
 ```text
-AcceleratorObserver → NativeAcceleratorObserver
-  → NVIDIA | AMD | Intel | Apple providers
-  → AcceleratorObservation (devices, vendor, memory, topology)
+AcceleratorObserver
+  → NativeAcceleratorObserver (orchestration)
+    → applicable implemented providers (0..N)
+    → AcceleratorObservation
 ```
 
-`2.3.1` may stay named NVIDIA provider because it is the first
-concrete positive implementation. The rest of Machi consumes generic
-accelerator output. Do not assume discrete VRAM, one device, or one
-vendor.
+Providers may run together on one host. The domain contract is vendor
+neutral. A numbered Component such as a future `2.3.1` is one
+provider under `2.3`, assigned after the Provider Selection Gate. Do
+not assume discrete VRAM, one device, or one vendor.
 
 Adapters exist only where the **technology varies**.
 

@@ -187,8 +187,11 @@ predecessors green. Physical 1.4.1 accepted on `99b96bf`.
 **Milestone ID:** `M2`  
 **Architecture IDs:** `2`, `2.1`–`2.4`
 
-**Working Component order:** `2.1.1` → `2.2.1` → `2.3.1` → `2.4.1`.
-Do not implement later Components in an earlier increment.
+**Working Component order:** `2.1.1` → `2.2.1` → `2.3` (generic
+Accelerator Discovery + provider(s) chosen at the Provider Selection
+Gate) → `2.4.1`. Do not treat a historical `2.3.1 NVIDIA` label as
+the capability. Do not implement later Components in an earlier
+increment.
 
 **Objective:** normalized host observations from adapters; unknown
 preserved. HostProfile is the milestone output, not this increment.
@@ -225,10 +228,17 @@ the packaged observer after empty-state M1 + 2.1.1 reconstruction.
 **Non-goals (2.2.1):** HostId, HostProfile, NVIDIA, mounts,
 available/swap/cgroup, capacity, remediation, Windows native reader.
 
-**Unlocks:** `2.3` Accelerator Discovery. First concrete provider is
-`2.3.1` NVIDIA provider. Cgroup/execution memory limit remains
+**Unlocks:** `2.3` Accelerator Discovery. Concrete provider IDs are
+assigned after the Provider Selection Gate; NVIDIA is a candidate,
+not the generic model. Cgroup/execution memory limit remains
 deferred until HostProfile or Capacity needs a distinct execution
 ceiling.
+
+**Chronology (do not flatten):** last completed forward feature is
+`2.2.1` (`66e8ee0` / `b341819`). The provider/portability audit
+(`e88cc39`) is a correction on that foundation, not a restart.
+`2.3` is next and is stopped at the provider gate until Daniel
+selects coverage. See [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md).
 
 ---
 

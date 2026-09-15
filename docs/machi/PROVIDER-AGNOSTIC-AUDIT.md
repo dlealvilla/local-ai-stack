@@ -12,5 +12,6 @@ through `2.2.1`) is:
 
 [FULL-BUILT-SYSTEM-AUDIT.md](FULL-BUILT-SYSTEM-AUDIT.md)
 
-Do not promote `cd4b786` alone. Promote only after the Lead Developer
-reviews the consolidated audit.
+Promoted onto canonical `machi` as `e88cc39`
+(`checkpoint/machi-provider-agnostic-foundation-closed-e88cc39`).
+`cd4b786` remains historical, not a promotion boundary by itself.
