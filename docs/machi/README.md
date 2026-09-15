@@ -2,7 +2,7 @@
 
 **Work token:** `MACHI-1.4.1-INSTALL-RUN-STORE`  
 **Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` (promoted to `machi`, tag `checkpoint/machi-1.1.1-closed-700447d`) → 1.4.1 on `m1/1.4.1-install-run-store`.  
-**Status:** Canonical `machi` is accepted 1.1.1. 1.4.1 is implemented on a feature branch and is **not** merged to `machi` until physical acceptance.
+**Status:** Canonical `machi` is accepted 1.1.1. 1.4.1 is implemented on a feature branch, locally qualified, and is **not** merged to `machi` until physical acceptance.
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
