@@ -2,7 +2,7 @@
 
 **Work token:** `MACHI-2.2.1-MEMORY-OBSERVER`  
 **Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` (promoted to `machi`, tag `checkpoint/machi-2.1.1-closed-b9d869b`) → 2.2.1 on `m2/2.2.1-memory-observer`.  
-**Status:** Canonical `machi` is accepted `2.1.1` (`b9d869b`). 2.2.1 is implemented on a feature branch and is **not** merged to `machi` until physical acceptance.
+**Status:** Canonical `machi` is accepted `2.1.1` (`b9d869b`). 2.2.1 is implemented on a feature branch, locally qualified, and is **not** merged to `machi` until physical acceptance.
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
@@ -43,6 +43,7 @@ contracts. It does not own deployment truth.
 | [M2-2.1.1-LOCAL.md](M2-2.1.1-LOCAL.md) | 2.1.1 local acceptance of the `6191416` wheel. |
 | [M2-2.1.1-PHYSICAL.md](M2-2.1.1-PHYSICAL.md) | 2.1.1 physical acceptance evidence for `6191416`. |
 | [M2-2.2.1.md](M2-2.2.1.md) | 2.2.1 Memory observer implementation notes. |
+| [M2-2.2.1-LOCAL.md](M2-2.2.1-LOCAL.md) | 2.2.1 local acceptance; physical pending for `b341819`. |
 | [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,
