@@ -37,6 +37,7 @@ contracts. It does not own deployment truth.
 | [M1-1.1.1-LOCAL.md](M1-1.1.1-LOCAL.md) | 1.1.1 local acceptance of the `a64463e` wheel. |
 | [M1-1.1.1-PHYSICAL.md](M1-1.1.1-PHYSICAL.md) | 1.1.1 physical acceptance evidence for `a64463e`. |
 | [M1-1.4.1.md](M1-1.4.1.md) | 1.4.1 InstallRunStore implementation notes. |
+| [M1-1.4.1-LOCAL.md](M1-1.4.1-LOCAL.md) | 1.4.1 local acceptance; physical pending for `673eaf9`. |
 | [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,
