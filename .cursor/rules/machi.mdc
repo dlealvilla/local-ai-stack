@@ -18,7 +18,7 @@ Full standing instructions: `docs/machi/MACHI_LEAD_DEVELOPER.md`.
 - Inspect Kultrun before designing an equivalent capability; copy only proven, uncluttered units.
 - Keep production code free of `import kultrun`.
 - Kernel must not import adapters or future Blocks. Composition root (`machi.main`) wires adapters.
-- Install (1.2.1 / 1.3.1 / 1.3.2 / 1.1.1) may import Kernel. It must not import adapters, Steward, Capacity, or later Blocks.
+- Install (1.2.1 / 1.3.1 / 1.3.2 / 1.1.1 / 1.4.1) may import Kernel. It must not import adapters, Steward, Capacity, or later Blocks.
 - Kernel does not own Install state-root or ownership-marker policy.
 - Events are append-only facts, not operational state. Do not event-source Install/Plan/Admit.
 - Inject journal/storage roots. Kernel does not choose the Install state root.
@@ -27,7 +27,9 @@ Full standing instructions: `docs/machi/MACHI_LEAD_DEVELOPER.md`.
 - Binding a path is not ownership. 1.3.1 writes local evidence only
   (`LOCAL_MARKER_PRESENT`). 1.3.2 writes the local control-plane
   registry half (`REGISTRY_SEED_PRESENT`). 1.1.1 writes a create-once
-  `InstallRecord` / `InstallId`. Do not implement 1.4.1 during 1.1.1.
+  `InstallRecord` / `InstallId`. 1.4.1 writes a create-once
+  `InstallRunRecord` / `InstallRunId` keyed by `InstallId` and emits
+  `install.bound`. Do not mint HostId or implement Discover during 1.4.1.
 - Local marker presence plus a registry row is not dual ownership and
   must not authorize destruction. Do not emit `ownership.verified`.
 - Privacy classification is required on every EventRecord. Filesystem paths are not `public_ops`.
@@ -37,7 +39,7 @@ Full standing instructions: `docs/machi/MACHI_LEAD_DEVELOPER.md`.
 ## Must not
 
 - Merge Machi into `kultrun` or Kultrun into `machi`.
-- Implement 1.4.1 or Blocks 2–9 during a 1.1.1 increment.
+- Implement Discover or Blocks 3–9 during a 1.4.1 increment.
 - Treat `.machi-owner.json` as a delete permit.
 - Fabricate DeploymentWitness from live re-resolution.
 - Encode a vLLM-only architecture or implement extra runtime adapters to prove a port.

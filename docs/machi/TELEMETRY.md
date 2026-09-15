@@ -85,7 +85,7 @@ Names are examples; the catalogue is owned by Kernel 0.3.
 - `install.ownership.local_marked` (1.3.1; marker id + root fingerprint; privacy `restricted`; not dual proof; never `ownership.verified`)
 - `install.ownership.registry_seeded` (1.3.2; marker id + root fingerprint; privacy `restricted`; `registry_seed_present`; never `ownership.verified`)
 - `install.record.established` (1.1.1; InstallId + marker id + root fingerprint; privacy `restricted`; resolved `install_id`; `install_run_id`/`host_id` unresolved)
-- `install.started` / `install.bound` (1.4.1; InstallRun exists)
+- `install.bound` (1.4.1; InstallId + InstallRunId; privacy `restricted`; resolved `install_id` and `install_run_id`; `host_id` unresolved; not `install.started`)
 - `discover.completed`
 - `steward.classified` / `steward.reclaim.planned` / `steward.reclaim.completed`
 - `capacity.characterized` / `capacity.minimum.completed`
@@ -138,7 +138,8 @@ Block 0.
 # 7. Correlation and identity
 
 - **InstallRun** is minted at Install and reused across CLI processes
-  (Kultrun `DeploymentRun` lesson).
+  (Kultrun `DeploymentRun` lesson). Lookup is by `InstallId`, not by a
+  singleton `"current"` key and not by process.
 - Every EventRecord carries `install_run_id`.
 - Inference requests carry the same ID plus a request ID.
 - `host_id` is a hash of hardware fingerprint, not a customer name.
@@ -251,7 +252,10 @@ and `host_id` are `Unresolved(NOT_PROVIDED)`.
 **1.2.1:** `install.state_root.bound` is a Block 1 payload inside the
 same Kernel envelope. Privacy is `restricted`. The absolute path is
 operator-local (`StateRootBinding`) and is not placed on the event.
-`install.bound` still waits for 1.4.1.
+
+**1.4.1:** `install.bound` resolves `install_id` and `install_run_id`.
+`host_id` remains `Unresolved(NOT_PROVIDED)`. Predecessor events keep
+the unresolved values that were true when they were written.
 
 That is the empirical proof that observability is not a log
 statement.

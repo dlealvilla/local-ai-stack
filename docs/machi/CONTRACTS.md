@@ -75,7 +75,8 @@ rewrite them in place.
 | `LocalOwnershipRegistryEstablishment` | 1.3.2 RegistrySeed | composition; never Steward delete | Evidence (control-plane registry) | no; result of seed | `registry_seed_present`; `dual_ownership=false`; `destructive_authorization=false` |
 | `InstallRecord` | 1.1.1 InstallIdentity | 1.4.1, later Blocks | Profile | injected Store `<kind>/<marker_id>.json` | `InstallId`; marker/root correlation; creation-build provenance (not current version) |
 | `InstallRecordEstablishment` | 1.1.1 InstallIdentity | composition | Profile | no; result of establish | `install_record_present`; `dual_ownership=false`; `destructive_authorization=false` |
-| `InstallRun` | 1.4.1 InstallRunStore | EventRecord.correlation | Profile | yes | state root |
+| `InstallRunRecord` | 1.4.1 InstallRunStore | EventRecord.correlation | Profile | injected Store `<kind>/<install_id>.json` | `InstallRunId`; InstallId correlation; creation-build provenance (not current version) |
+| `InstallRunEstablishment` | 1.4.1 InstallRunStore | composition | Profile | no; result of establish | `install_run_present`; `dual_ownership=false`; `destructive_authorization=false` |
 | `HostObservation` | 2 adapters | Discover | Observation | optional raw | adapter name, tool version |
 | `HostProfile` | 2 Discover | Capacity, Foundation, Admit | Profile | yes | observation IDs |
 | `MountObservation` | 2.4 | Capacity | Observation | yes | path, fs type, reported free flagged |

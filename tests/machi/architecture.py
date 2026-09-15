@@ -210,6 +210,7 @@ STORE_PORT_FORBIDDEN = (
     ".machi-owner.json",
     "RegistrySeed",
     "InstallIdentity",
+    "InstallRunStore",
     "EventRecord",
     "JsonlJournal",
     "FileStore",
@@ -223,6 +224,7 @@ STORE_ADAPTER_FORBIDDEN = (
     ".machi-owner.json",
     "RegistrySeed",
     "InstallIdentity",
+    "InstallRunStore",
     "EventRecord",
     "JsonlJournal",
     "os.environ",
@@ -348,4 +350,59 @@ def identity_boundary_violations(root: Path) -> list[str]:
     store_port = (root / "kernel" / "store.py").read_text(encoding="utf-8")
     if "InstallIdentity" in store_port:
         found.append("kernel Store must not import InstallIdentity")
+    return found
+
+
+RUN_FORBIDDEN_TOKENS = (
+    "FileStore",
+    "MACHI_STATE_ROOT",
+    "os.environ",
+    "shutil.rmtree",
+    "rglob",
+    "OwnershipRecord",
+    "HostId",
+    "delete_owned",
+    "reclaim",
+    "steward",
+    "discover",
+    "kernel.store.proved",
+    "StateRootBinder",
+    "SelfOwnershipMarker",
+    "from machi.install.registry",
+    "from machi.install.identity",
+    ".machi-owner.json",
+    "identity()",
+)
+
+
+def run_boundary_violations(root: Path) -> list[str]:
+    """1.4.1 consumes InstallRecord and an injected Store; it does not re-own."""
+    path = root / "install" / "run.py"
+    text = path.read_text(encoding="utf-8")
+    found: list[str] = []
+    for token in RUN_FORBIDDEN_TOKENS:
+        if token in text:
+            found.append(f"{path.name} must not contain {token!r}")
+    if "def establish(" not in text:
+        found.append("InstallRunStore.establish must be defined")
+    if "record: InstallRecord" not in text:
+        found.append("InstallRunStore.establish must consume InstallRecord")
+    if "store: Store" not in text:
+        found.append("InstallRunStore.establish must consume the Store port")
+    if "build: BuildIdentity" not in text:
+        found.append("InstallRunStore.establish must consume BuildIdentity")
+    if "from machi.kernel.store import Store" not in text:
+        found.append("InstallRunStore must consume the Kernel Store port")
+    if "from machi.adapters" in text:
+        found.append("InstallRunStore must not import adapters")
+    if "InstallId.generate" in text:
+        found.append("InstallRunStore must not mint InstallId")
+    store_port = (root / "kernel" / "store.py").read_text(encoding="utf-8")
+    if "InstallRunStore" in store_port:
+        found.append("kernel Store must not import InstallRunStore")
+    kernel_text = "\n".join(
+        p.read_text(encoding="utf-8") for p in (root / "kernel").rglob("*.py")
+    )
+    if "InstallRunStore" in kernel_text:
+        found.append("Kernel must not import InstallRunStore")
     return found

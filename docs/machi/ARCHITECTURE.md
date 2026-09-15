@@ -360,8 +360,8 @@ InstallRun.
 | `1.2.1` | StateRootBinder | Resolve, normalize, establish the filesystem root | accepted |
 | `1.3.1` | SelfOwnershipMarker | Local ownership evidence for this bound root (`LOCAL_MARKER_PRESENT`) | accepted |
 | `1.3.2` | RegistrySeed | Local control-plane registry half; cites 1.3.1; not dual-proof evaluation | accepted |
-| `1.1.1` | InstallRecord | Stable installation identity; create-once InstallId; creation-build provenance | this increment |
-| `1.4.1` | InstallRunStore | Mint/reuse InstallRun; complete Install correlation | not started |
+| `1.1.1` | InstallRecord | Stable installation identity; create-once InstallId; creation-build provenance | accepted |
+| `1.4.1` | InstallRunStore | Mint/reuse InstallRun; complete Install correlation | this increment |
 
 Working implementation order: `1.2.1` → `1.3.1` → `1.3.2` → `1.1.1` → `1.4.1`.
 Location before local evidence before central registry before install identity
@@ -390,6 +390,10 @@ for local resources.
   same InstallId. `install_run_id` and `host_id` stay unresolved.
 - `1.1.1` still does **not** evaluate dual proof and does **not** authorize
   destruction. It does not mint InstallRun.
+- `1.4.1` persists a create-once `InstallRunRecord` keyed by `InstallId`,
+  minting one `InstallRunId` per installation. A later process or compatible
+  build re-enters the same run. `host_id` stays unresolved. This is not a
+  process, CLI invocation, or host identity, and it is not run history.
 - `1.3.2` consumes Kernel `0.4.1` entity Store (Kernel increment; not an Install port).
 
 **Adapters:** none v0 (later: OS package helper is Foundation, not
@@ -398,7 +402,8 @@ this).
 **Inputs:** invocation, optional `--state-root`, optional `MACHI_STATE_ROOT`.
 `1.3.1` consumes `StateRootBinding`; it does not re-resolve the root.
 **Outputs:** `StateRootBinding` (1.2.1); `LocalOwnershipEstablishment` (1.3.1);
-`LocalOwnershipRegistryRecord` (1.3.2); `InstallRecord` (1.1.1). Later: InstallRun.
+`LocalOwnershipRegistryRecord` (1.3.2); `InstallRecord` (1.1.1);
+`InstallRunRecord` (1.4.1).
 Not `OwnershipRecord`.
 **Preconditions:** Kernel journal port (directory injected; Kernel does not choose the root).
 **Success (1.2.1):** directory exists; `StateRootBinding` returned; `install.state_root.bound` journaled.
@@ -408,18 +413,22 @@ status `local_marker_present`; `dual_ownership=false`; `destructive_authorizatio
 **Success (1.3.2):** injected Store holds a `LocalOwnershipRegistryRecord` citing
 the same `marker_id` and root fingerprint; status `registry_seed_present`;
 `dual_ownership=false`; `destructive_authorization=false`;
-`install.ownership.registry_seeded` journaled. Full M1 still requires InstallRun.
+`install.ownership.registry_seeded` journaled.
 **Success (1.1.1):** injected Store holds an `InstallRecord` for the same
 `marker_id` and root fingerprint; one `InstallId`; status `install_record_present`;
 `dual_ownership=false`; `destructive_authorization=false`;
 `install.record.established` journaled with resolved `install_id`.
-Full M1 still requires InstallRun.
+**Success (1.4.1):** injected Store holds an `InstallRunRecord` keyed by
+`InstallId`; one `InstallRunId`; status `install_run_present`;
+`dual_ownership=false`; `destructive_authorization=false`;
+`install.bound` journaled with resolved `install_id` and `install_run_id`;
+`host_id` remains unresolved.
 **Blocked:** cannot create or write the root; file at path; Kultrun-owned tree;
 malformed or conflicting Machi marker; unknown pre-existing content (1.3.1).
 **Blocked (1.3.2):** binding and marker disagree; malformed or conflicting registry
 row; Store unwritable.
-**Blocked (1.1.1):** binding, marker, and registry disagree; malformed or
-conflicting InstallRecord; Store unwritable.
+**Blocked (1.4.1):** missing/invalid InstallRecord; malformed or conflicting
+InstallRun; Store unwritable. Copied roots never reach 1.4.1.
 **State owned (1.2.1):** none beyond the directory itself. Binding is not ownership.
 **State owned (1.3.1):** local marker file only. Not the tree as dual-owned property.
 **Persistence:** directory create; `.machi-owner.json`; event via Kernel journal under `<root>/journal` unless injected.
@@ -430,26 +439,33 @@ Store. Never overwrite, reclaim, or write into the claimed state root.
 **Side effects (1.1.1):** exclusive create or validate an InstallRecord in the
 injected Store (typically the same control-plane Store as 1.3.2, different
 kind). Never overwrite, mint InstallRun, or couple identity to a host.
+**Side effects (1.4.1):** exclusive create or validate an InstallRunRecord in
+the injected Store (same control-plane Store, different kind). Never
+overwrite, mint HostId, or rotate a new run per CLI process.
 **Downstream:** 1.4.1, then all later Blocks.
 **Re-entry (1.2.1):** bind the same valid root again; `existed=true`, `created=false`; append another event.
 **Re-entry (1.3.1):** return the same `marker_id` and `created_at`; do not rewrite the file.
 **Re-entry (1.3.2):** return the same `marker_id` and `created_at`; do not rewrite the row.
 **Re-entry (1.1.1):** return the same `InstallId` and `created_at`; do not rewrite
 the row; a different invoking build is not a conflict.
-**Idempotence:** second bind does not recreate structure. Marker, registry, and
-InstallId are stable. InstallRun reuse is 1.4.1.
+**Re-entry (1.4.1):** return the same `InstallRunId` and `created_at`; do not
+rewrite the row; a different invoking build is not a conflict.
+**Idempotence:** second bind does not recreate structure. Marker, registry,
+InstallId, and InstallRunId are stable.
 **Invalidated by:** moving the tree without markers (conflict; copied marker fails closed).
 **Recompute:** none.
 **Telemetry:** `install.state_root.bound`, `install.ownership.local_marked`,
-`install.ownership.registry_seeded`, and `install.record.established`
-(privacy `restricted`; path omitted). The 1.1.1 event carries a resolved
-`InstallId`; earlier events in the same invocation remain unresolved.
-`install.bound` waits for 1.4.1. Never emit `ownership.verified` from 1.3.1,
-1.3.2, or 1.1.1.
-**Independent test:** two roots isolated in one registry and one InstallId
-each; copied root refused; mismatch fail-closed; later build re-enters the
-same InstallId; injected Store not inside the claimed root.
-**Cumulative:** M0→1.2.1→1.3.1→0.4.1→1.3.2→1.1.1, then M0→M1.
+`install.ownership.registry_seeded`, `install.record.established`, and
+`install.bound` (privacy `restricted`; path omitted). The 1.1.1 event carries
+a resolved `InstallId` and leaves `install_run_id` unresolved. The 1.4.1
+event resolves both `InstallId` and `InstallRunId`; `host_id` stays
+unresolved. Earlier events are not rewritten.
+Never emit `ownership.verified` from 1.3.1, 1.3.2, 1.1.1, or 1.4.1.
+**Independent test:** two roots isolated in one registry, one InstallId and
+one InstallRunId each; copied root refused; mismatch fail-closed; later
+build re-enters the same InstallId and InstallRunId; concurrent first
+create converges on one run; injected Store not inside the claimed root.
+**Cumulative:** M0→1.2.1→1.3.1→0.4.1→1.3.2→1.1.1→1.4.1.
 **Lessons:** Kultrun K-20 (cwd-relative default, blank env ≠ `/`); default-root warning on artifacts; install≠apt; do not claim `.kultrun-owner.json` trees; do not treat malformed marker JSON as absence; do not store absolute paths on the marker.
 
 ## 2 Discover
@@ -752,9 +768,9 @@ cleanup on stop.
     1.2.1 StateRootBinder
   1.3 Self-ownership
     1.3.1 SelfOwnershipMarker
-    1.3.2 RegistrySeed (local control-plane registry half; this increment)
+    1.3.2 RegistrySeed (local control-plane registry half)
   1.4 InstallRun
-    1.4.1 InstallRunStore (reuse across processes)
+    1.4.1 InstallRunStore (reuse across processes; this increment)
 2 Discover
   2.1 Environment
     2.1.1 OS/arch adapter

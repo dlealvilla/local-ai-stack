@@ -1,9 +1,8 @@
-"""Block 1 event payloads for state-root bind and local ownership marking.
+"""Block 1 event payloads for state-root bind, ownership, identity, and run.
 
 Operator-facing contracts may carry an absolute path. Event payloads do
 not. A filesystem path can contain a username, organisation, or mount
-name and is not ``public_ops``. Local-mark events are ``restricted``:
-they name a marker identity, not dual ownership.
+name and is not ``public_ops``. Install events are ``restricted``.
 """
 
 from __future__ import annotations
@@ -12,7 +11,9 @@ import hashlib
 from dataclasses import dataclass
 
 from machi.install.contracts import (
+    InstallRecord,
     InstallRecordEstablishment,
+    InstallRunEstablishment,
     LocalOwnershipEstablishment,
     LocalOwnershipRegistryEstablishment,
     SelectionSource,
@@ -20,7 +21,7 @@ from machi.install.contracts import (
 )
 from machi.kernel.clock import Clock
 from machi.kernel.events import EventOutcome, EventRecord
-from machi.kernel.ids import InstallId, LocalOwnershipId
+from machi.kernel.ids import InstallId, InstallRunId, LocalOwnershipId
 from machi.kernel.privacy import PrivacyClass
 from machi.kernel.schema import Contract, contract, meaning
 
@@ -33,6 +34,8 @@ REGISTRY_SEED_COMPONENT = "1.3.2"
 REGISTRY_SEEDED_TYPE = "install.ownership.registry_seeded"
 INSTALL_RECORD_COMPONENT = "1.1.1"
 INSTALL_RECORD_ESTABLISHED_TYPE = "install.record.established"
+INSTALL_RUN_COMPONENT = "1.4.1"
+INSTALL_BOUND_TYPE = "install.bound"
 
 
 @contract(kind="install.state_root.bound", version=1)
@@ -203,5 +206,58 @@ def install_record_established(
             created=establishment.created,
         ),
         install_id=establishment.record.install_id,
+        clock=clock,
+    )
+
+
+@contract(kind="install.bound", version=1)
+@dataclass(frozen=True, slots=True)
+class InstallBoundPayload(Contract):
+    """Safe operational body for final M1 install.bound correlation."""
+
+    install_id: InstallId = meaning("stable installation identity established by 1.1.1")
+    install_run_id: InstallRunId = meaning(
+        "durable install-run identity minted or reused by 1.4.1"
+    )
+    marker_id: LocalOwnershipId = meaning(
+        "local ownership identity already bound to the InstallRecord"
+    )
+    root_fingerprint: str = meaning(
+        "SHA-256 of the bound root; the absolute path is omitted"
+    )
+    status: str = meaning("always install_bound; never install.completed")
+    destructive_authorization: bool = meaning("always false for 1.4.1")
+    existed: bool = meaning("whether the InstallRunRecord already existed")
+    created: bool = meaning("whether this invocation published a new InstallRunRecord")
+
+
+def install_bound(
+    establishment: InstallRunEstablishment,
+    record: InstallRecord,
+    *,
+    clock: Clock | None = None,
+) -> EventRecord:
+    """Mint the M1 bind event with resolved InstallId and InstallRunId.
+
+    Host stays Unresolved. Earlier events are not rewritten.
+    """
+    return EventRecord.create(
+        event_type=INSTALL_BOUND_TYPE,
+        block_id=INSTALL_BLOCK,
+        component_id=INSTALL_RUN_COMPONENT,
+        outcome=EventOutcome.PASS,
+        privacy=PrivacyClass.RESTRICTED,
+        payload=InstallBoundPayload(
+            install_id=record.install_id,
+            install_run_id=establishment.record.install_run_id,
+            marker_id=record.marker_id,
+            root_fingerprint=record.root_fingerprint,
+            status="install_bound",
+            destructive_authorization=establishment.destructive_authorization,
+            existed=establishment.existed,
+            created=establishment.created,
+        ),
+        install_id=record.install_id,
+        install_run_id=establishment.record.install_run_id,
         clock=clock,
     )

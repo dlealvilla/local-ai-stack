@@ -136,22 +136,25 @@ Injected root; exclusive create + get; not the journal; not RegistrySeed.
 same `marker_id` and root fingerprint. Uses Kernel `0.4.1` Store with an
 injected registry Store root. Does not evaluate dual proof.
 
-**1.1.1 (this increment):** install-scoped identity. One stable `InstallId`
+**1.1.1 (accepted):** install-scoped identity. One stable `InstallId`
 per local ownership identity. Build fields are creation provenance.
 Not InstallRun. Not host identity.
 
-**1.4.1 (not this increment):** InstallRun correlation. Not started.
+**1.4.1 (this increment):** durable InstallRun correlation. One current
+`InstallRunId` per `InstallId`, reused across CLI processes. Lookup by
+InstallId. Not a process, host, or run-history engine.
 
-**Full M1 outputs:** `InstallRecord`, `InstallRun`, local marker, and
-later the registry half. Steward `OwnershipRecord` remains Block 3.
+**Full M1 outputs:** `InstallRecord`, `InstallRunRecord`, local marker,
+and registry half. Steward `OwnershipRecord` remains Block 3.
 
 **Telemetry:** `install.state_root.bound` at 1.2.1,
 `install.ownership.local_marked` at 1.3.1, and
 `install.ownership.registry_seeded` at 1.3.2 (`restricted`; absolute path
 omitted). `install.record.established` at 1.1.1 (`restricted`; resolved
 `install_id`; `install_run_id` and `host_id` unresolved). Never
-`ownership.verified`. `install.bound` and InstallRun correlation wait for
-1.4.1.
+`ownership.verified`. `install.bound` at 1.4.1 (`restricted`; resolved
+`install_id` and `install_run_id`; `host_id` unresolved). Historical
+events are not rewritten.
 
 **Local tests (1.3.1):** marker create; re-entry; two-root isolation;
 copied marker fail-closed; unknown content refused; Kultrun collision;
@@ -169,18 +172,14 @@ M0/1.2.1/1.3.1 regression.
 **Physical (0.4.1):** T3 filesystem host; no GPU. Fresh process read;
 two store roots; cumulative M0 → 1.2.1 → 1.3.1 → 0.4.1.
 
-**Cumulative:** M0 → 1.2.1 → 1.3.1 → 0.4.1 → 1.3.2, then M0 → M1.
+**Cumulative:** M0 → 1.2.1 → 1.3.1 → 0.4.1 → 1.3.2 → 1.1.1 → 1.4.1.
 
-**Acceptance (full M1):** `machi version` + persisted InstallRun; events
-correlated. **1.1.1 local gate:** stable InstallId + restricted event with
-resolved `install_id` + no InstallRun + predecessors green. Physical
-1.1.1 is a later instruction.
+**Acceptance (full M1 local):** `machi version` + persisted InstallRun;
+`install.bound` with resolved install and run ids; host unresolved;
+predecessors green. Physical 1.4.1 is a later instruction.
 
-**Non-goals (1.3.1):** central registry, dual-proof evaluator, Steward
-cleanup, reclaim, sibling scan, InstallRecord, InstallRun.
-
-**Unlocks:** 1.4.1 can correlate an InstallRun to a stable InstallId.
-Discover still waits for InstallRun.
+**Unlocks:** Discover after 1.4.1 physical acceptance. Discover still
+must not begin in this increment.
 
 ---
 

@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove M0 through 1.1.1.
+"""Install a Machi wheel into a throwaway environment and prove M0 through 1.4.1.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """
@@ -70,6 +70,14 @@ def load_install(store: Path, marker_id: str) -> dict[str, object]:
     payload: object = json.loads(raw)
     if not isinstance(payload, dict):
         raise SystemExit("install record is not a JSON object")
+    return {str(key): value for key, value in payload.items()}
+
+
+def load_run(store: Path, install_id: str) -> dict[str, object]:
+    raw = (store / "install_run" / f"{install_id}.json").read_text(encoding="utf-8")
+    payload: object = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise SystemExit("install run is not a JSON object")
     return {str(key): value for key, value in payload.items()}
 
 
@@ -697,6 +705,155 @@ def main() -> int:
     if install_c["install_id"] in {install_a["install_id"], install_b["install_id"]}:
         raise SystemExit("root C collided with an existing InstallId")
 
+    run_a = run(
+        [
+            str(machi),
+            "install",
+            "establish-run",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(run_a.stdout, end="")
+    if '"kind": "install_run"' not in run_a.stdout:
+        raise SystemExit("establish-run did not persist an InstallRun")
+    if '"event_type": "install.bound"' not in run_a.stdout:
+        raise SystemExit("establish-run did not emit install.bound")
+    if '"privacy": "restricted"' not in run_a.stdout:
+        raise SystemExit("install.bound was not restricted")
+    if '"status": "install_run_present"' not in run_a.stdout:
+        raise SystemExit("establish-run did not report install_run_present")
+    if '"dual_ownership": true' in run_a.stdout:
+        raise SystemExit("1.4.1 claimed dual ownership")
+    if '"destructive_authorization": true' in run_a.stdout:
+        raise SystemExit("1.4.1 claimed destructive authorization")
+    run_event_at = run_a.stdout.find('"kind": "event_record"')
+    if run_event_at < 0:
+        raise SystemExit("establish-run did not print an EventRecord")
+    if str(root_a) in run_a.stdout[run_event_at:]:
+        raise SystemExit("absolute state root leaked into install.bound")
+    if str(control_registry) in run_a.stdout[run_event_at:]:
+        raise SystemExit("Store path leaked into install.bound")
+    if (root_a / "install_run").exists():
+        raise SystemExit("InstallRun was written inside the claimed state root")
+    persisted_run_a = load_run(control_registry, str(install_a["install_id"]))
+    if persisted_run_a["install_id"] != install_a["install_id"]:
+        raise SystemExit("InstallRun did not cite InstallId A")
+    if not str(persisted_run_a["install_run_id"]).startswith("irun_"):
+        raise SystemExit("InstallRun did not mint an InstallRunId")
+    journal_a = (root_a / "journal" / "events.jsonl").read_text(encoding="utf-8")
+    journal_events = [json.loads(line) for line in journal_a.splitlines() if line]
+    bound_events = [
+        item for item in journal_events if item.get("event_type") == "install.bound"
+    ]
+    if not bound_events:
+        raise SystemExit("journal is missing install.bound")
+    first_bound = bound_events[0]
+    if not str(first_bound["install_id"]).startswith("inst_"):
+        raise SystemExit("install.bound did not resolve install_id")
+    if not str(first_bound["install_run_id"]).startswith("irun_"):
+        raise SystemExit("install.bound did not resolve install_run_id")
+    if "$unresolved" not in json.dumps(first_bound["host_id"]):
+        raise SystemExit("install.bound resolved host_id")
+    established_events = [
+        item
+        for item in journal_events
+        if item.get("event_type") == "install.record.established"
+    ]
+    if "$unresolved" not in json.dumps(established_events[0]["install_run_id"]):
+        raise SystemExit("install.record.established was rewritten with a run id")
+
+    run_a_again = run(
+        [
+            str(machi),
+            "install",
+            "establish-run",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(run_a_again.stdout, end="")
+    if "created  false" not in run_a_again.stdout:
+        raise SystemExit("InstallRun re-entry did not report created=false")
+    if (
+        load_run(control_registry, str(install_a["install_id"]))["created_at"]
+        != persisted_run_a["created_at"]
+    ):
+        raise SystemExit("InstallRun re-entry rewrote created_at")
+    if (
+        load_run(control_registry, str(install_a["install_id"]))["install_run_id"]
+        != persisted_run_a["install_run_id"]
+    ):
+        raise SystemExit("InstallRun re-entry minted a new InstallRunId")
+
+    run_b = run(
+        [
+            str(machi),
+            "install",
+            "establish-run",
+            "--state-root",
+            str(root_b),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(run_b.stdout, end="")
+    persisted_run_b = load_run(control_registry, str(install_b["install_id"]))
+    if persisted_run_a["install_run_id"] == persisted_run_b["install_run_id"]:
+        raise SystemExit("two roots shared an InstallRunId")
+    run_c = run(
+        [
+            str(machi),
+            "install",
+            "establish-run",
+            "--state-root",
+            str(root_c),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(run_c.stdout, end="")
+    persisted_run_c = load_run(control_registry, str(install_c["install_id"]))
+    if persisted_run_c["install_run_id"] in {
+        persisted_run_a["install_run_id"],
+        persisted_run_b["install_run_id"],
+    }:
+        raise SystemExit("root C collided with an existing InstallRunId")
+
+    run_kind = control_registry / "install_run"
+    (run_kind / f"{install_b['install_id']}.json").write_text(
+        "{broken\n", encoding="utf-8"
+    )
+    run_a_after = load_run(control_registry, str(install_a["install_id"]))
+    if run_a_after["install_run_id"] != persisted_run_a["install_run_id"]:
+        raise SystemExit("corruption of InstallRun B broke reading A")
+    broken_run_b = run_expect_fail(
+        [
+            str(machi),
+            "install",
+            "establish-run",
+            "--state-root",
+            str(root_b),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(broken_run_b.stderr, end="")
+    if "malformed JSON" not in broken_run_b.stderr:
+        raise SystemExit("malformed InstallRun did not fail closed")
+    run_c_after = load_run(control_registry, str(install_c["install_id"]))
+    if run_c_after["install_run_id"] != persisted_run_c["install_run_id"]:
+        raise SystemExit("corruption of InstallRun B broke reading C")
+
     install_kind = control_registry / "install_record"
     (install_kind / f"{marker_b['marker_id']}.json").write_text(
         "{broken\n", encoding="utf-8"
@@ -792,6 +949,27 @@ def main() -> int:
         != install_a["install_id"]
     ):
         raise SystemExit("copied-root attempt mutated InstallRecord A")
+
+    copied_run = run_expect_fail(
+        [
+            str(machi),
+            "install",
+            "establish-run",
+            "--state-root",
+            str(copied),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(copied_run.stderr, end="")
+    if "copied marker" not in copied_run.stderr:
+        raise SystemExit("copied state root obtained an InstallRun")
+    if (
+        load_run(control_registry, str(install_a["install_id"]))["install_run_id"]
+        != persisted_run_a["install_run_id"]
+    ):
+        raise SystemExit("copied-root attempt mutated InstallRun A")
 
     print("verify_ok")
     return 0

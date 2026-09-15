@@ -14,7 +14,7 @@ from enum import StrEnum
 
 from machi.kernel.clock import require_utc
 from machi.kernel.errors import ValidationError
-from machi.kernel.ids import InstallId, LocalOwnershipId
+from machi.kernel.ids import InstallId, InstallRunId, LocalOwnershipId
 from machi.kernel.schema import Contract, contract, meaning
 
 _ROOT_FINGERPRINT = re.compile(r"^[0-9a-f]{64}$")
@@ -336,4 +336,99 @@ class InstallRecordEstablishment(Contract):
         if self.destructive_authorization:
             raise ValidationError(
                 "1.1.1 must not authorize destruction",
+            )
+
+
+class InstallRunStatus(StrEnum):
+    """What a persisted InstallRun means. It is not a host or a process."""
+
+    INSTALL_RUN_PRESENT = "install_run_present"
+
+
+@contract(kind="install_run", version=1)
+@dataclass(frozen=True, slots=True)
+class InstallRunRecord(Contract):
+    """Durable installation-journey identity for one InstallRecord.
+
+    Minted once per InstallId. Reused across CLI processes. Build fields
+    are creation provenance, not the currently running software version.
+    This is not a process id, not a HostId, and not delete authority.
+    """
+
+    install_run_id: InstallRunId = meaning(
+        "durable journey identity of this installation; minted once; not a process"
+    )
+    install_id: InstallId = meaning(
+        "stable installation this journey belongs to; Store lookup key"
+    )
+    product: str = meaning("product namespace; always machi")
+    created_at: dt.datetime = meaning(
+        "when this InstallRun was first written; timezone-aware UTC; never rewritten"
+    )
+    created_by_version: str = meaning(
+        "Machi version that first created this install-run identity"
+    )
+    created_by_origin: str = meaning(
+        "artifact or source origin of the creating build; not a host path"
+    )
+    created_by_build_id: str | None = meaning(
+        "build id of the artifact that first created the record; None in a checkout",
+        default=None,
+    )
+    created_by_source_commit: str | None = meaning(
+        "source commit of the creating build when known; not current software",
+        default=None,
+    )
+    created_by_clean_source: bool | None = meaning(
+        "whether the creating build was a clean artifact; None when unknown",
+        default=None,
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "created_at", require_utc(self.created_at, what="created_at")
+        )
+        if self.product != "machi":
+            raise ValidationError(
+                "install run product must be machi",
+                product=self.product,
+            )
+
+
+@contract(kind="install_run_establishment", version=1)
+@dataclass(frozen=True, slots=True)
+class InstallRunEstablishment(Contract):
+    """Result of 1.4.1. Journey identity only; never a host or delete permit."""
+
+    record: InstallRunRecord = meaning(
+        "the validated or newly written InstallRunRecord"
+    )
+    status: InstallRunStatus = meaning(
+        "install_run_present; never install.completed or ownership_verified"
+    )
+    dual_ownership: bool = meaning(
+        "whether Steward has evaluated both ownership authorities; "
+        "1.4.1 is always false"
+    )
+    destructive_authorization: bool = meaning(
+        "whether this result may authorize delete/reclaim; 1.4.1 is always false"
+    )
+    existed: bool = meaning(
+        "whether the InstallRunRecord already existed before this call"
+    )
+    created: bool = meaning("whether this invocation published a new InstallRunRecord")
+
+    def __post_init__(self) -> None:
+        if self.status is not InstallRunStatus.INSTALL_RUN_PRESENT:
+            raise ValidationError(
+                "1.4.1 status must be install_run_present",
+                status=self.status.value,
+            )
+        if self.dual_ownership:
+            raise ValidationError(
+                "1.4.1 must not claim dual ownership",
+            )
+        if self.destructive_authorization:
+            raise ValidationError(
+                "1.4.1 must not authorize destruction",
             )
