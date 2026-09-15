@@ -771,7 +771,7 @@
     "fields": {
       "created": {
         "may_be_unresolved": false,
-        "meaning": "whether this invocation published a new file",
+        "meaning": "whether this invocation created a new record",
         "nullable": false,
         "optional": false,
         "type": "bool"

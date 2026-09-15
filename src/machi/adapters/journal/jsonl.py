@@ -1,10 +1,13 @@
 """JSON Lines EventRecord journal.
 
-Deterministic serialization (sorted keys, compact separators). One document
-per line. A later append failure must not rewrite earlier lines.
-
-This is not an entity store and not a warehouse. The directory is
-injected; Kernel does not choose the host installation root.
+This is one Journal adapter, not the Journal port. Deterministic
+serialization (sorted keys, compact separators). One UTF-8 document per
+line, terminated with LF because that is JSONL, not because the host OS
+prefers that newline. ``splitlines()`` on read accepts CRLF. The file is
+fsync'd after each append; this adapter does not flock and does not fsync
+the parent directory. Filesystem failures become ``PersistenceError``.
+The directory is injected; Kernel does not choose the host installation
+root.
 """
 
 from __future__ import annotations

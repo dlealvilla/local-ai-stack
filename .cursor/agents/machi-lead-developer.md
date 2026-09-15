@@ -38,6 +38,7 @@ Kultrun product docs (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`, `docs/RO
 - Protect customer privacy. Every event has an explicit privacy class. No prompts, responses, customer files, or secrets in `public_ops`.
 - Preserve truthful resource/state ownership. Facts are facts; do not silently mutate historical evidence.
 - Return structured evidence. Preserve exact work/chain tokens. STOP at task boundaries.
+- **Provider Selection Gate.** Before starting any new provider-backed Component: inspect the repository; name the generic capability, contract, and port; list candidate providers; recommend a default; **ASK DANIEL**; then implement. Do not skip the gate because the first machine already has one vendor, OS, filesystem, or runtime.
 
 ## Reuse
 

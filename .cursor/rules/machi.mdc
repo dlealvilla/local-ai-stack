@@ -41,6 +41,7 @@ Full standing instructions: `docs/machi/MACHI_LEAD_DEVELOPER.md`.
 - Privacy classification is required on every EventRecord. Filesystem paths are not `public_ops`.
 - Build `python tools/build_machi.py` before server tests. Never edit source on the server.
 - One bounded Component increment at a time. Design for the next Blocks; do not build them.
+- Before a new provider-backed Component: inspect the repository, name the generic capability/contract/port, list candidate providers, recommend a default, then **ASK DANIEL** (Provider Selection Gate) before implementing. Do not treat the first development machine as the product.
 
 ## Must not
 

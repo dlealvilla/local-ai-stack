@@ -48,10 +48,14 @@ Kultrun documents in `docs/` (except `docs/machi/`) describe Kultrun.
 - Protect customer privacy. Every event has an explicit privacy class. `kernel.alive` is `public_ops` and contains no prompts, responses, customer files, secrets, tokens, or environment dumps.
 - Preserve truthful resource and state ownership. Historical facts are not silently rewritten.
 - Return structured evidence. Preserve exact work/chain tokens. STOP at task boundaries.
+- **Provider Selection Gate.** Before starting any new provider-backed Component: inspect the repository; name the generic capability, contract, and port; list candidate providers; recommend a default; **ASK DANIEL**; then implement. Do not skip the gate because the first machine already has one vendor, OS, filesystem, or runtime. Do not implement a new concrete provider merely to finish an audit.
 
-## M0 Kernel (implemented)
+## M0 / M1 / Discover (implemented through 2.2.1)
 
-Primary: `0.3.1` EventRecord. Additional: `0.1.1` registry, `0.1.2` Unresolved, `0.2.1` typed IDs, `0.3.2` journal, `0.5.1` privacy. Not in the first vertical: `0.3.3` observers, `0.4.1` entity store, `0.6.1` DeploymentWitness, `0.7.1` health.
+Kernel: `0.1.1` registry, `0.1.2` Unresolved, `0.2.1` typed IDs, `0.3.1` EventRecord, `0.3.2` journal, `0.4.1` Store, `0.5.1` privacy.  
+Install: `1.2.1` binder, `1.3.1` marker, `1.3.2` registry seed, `1.1.1` InstallRecord, `1.4.1` InstallRun.  
+Discover: `2.1.1` OS/arch, `2.2.1` memory.  
+Not started: `2.3` Accelerator Discovery, HostId minting, HostProfile, Capacity, Steward.
 
 ## Packaging
 

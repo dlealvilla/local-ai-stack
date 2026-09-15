@@ -6,8 +6,11 @@ from tests.machi.architecture import (
     binder_ownership_violations,
     discover_boundary_violations,
     identity_boundary_violations,
+    journal_port_violations,
     kernel_policy_violations,
+    kernel_technology_violations,
     marker_boundary_violations,
+    package_import_violations,
     registry_boundary_violations,
     run_boundary_violations,
     scan,
@@ -65,3 +68,15 @@ def test_os_arch_adapter_stays_inside_observation() -> None:
 
 def test_memory_observer_stays_inside_observation() -> None:
     assert discover_boundary_violations(source_root()) == []
+
+
+def test_kernel_does_not_name_platform_or_vendor_primitives() -> None:
+    assert kernel_technology_violations(source_root()) == []
+
+
+def test_journal_port_is_not_the_jsonl_adapter() -> None:
+    assert journal_port_violations(source_root()) == []
+
+
+def test_base_package_import_does_not_load_providers() -> None:
+    assert package_import_violations(source_root()) == []

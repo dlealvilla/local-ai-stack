@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove M0 through 2.1.1.
+"""Install a Machi wheel into a throwaway environment and prove M0 through 2.2.1.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """

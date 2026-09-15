@@ -3,6 +3,13 @@
 Establish and validate the local Machi ownership evidence for one
 bound state root. This is not dual ownership and does not authorize
 destruction. Component 1.3.2 owns the registry half.
+
+The marker contract is a local-evidence document. Exclusive publication
+currently uses POSIX ``os.link`` inside this writer so a crash cannot
+replace an existing marker. That primitive is this component's
+filesystem mechanic, not a Kernel Store rule and not an ownership
+semantic. Filesystems that cannot link fail closed. A non-link publisher
+is a future provider selection, not a silent overwrite.
 """
 
 from __future__ import annotations

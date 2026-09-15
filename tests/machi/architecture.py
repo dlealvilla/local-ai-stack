@@ -258,6 +258,7 @@ REGISTRY_FORBIDDEN_TOKENS = (
     "FileStore",
     "MACHI_STATE_ROOT",
     "os.environ",
+    "os.link",
     "shutil.rmtree",
     "rglob",
     "OwnershipRecord",
@@ -271,6 +272,10 @@ REGISTRY_FORBIDDEN_TOKENS = (
     "StateRootBinder",
     "SelfOwnershipMarker",
     ".machi-owner.json",
+    "/proc/",
+    "nvidia",
+    "docker",
+    "runpod",
 )
 
 
@@ -304,6 +309,7 @@ IDENTITY_FORBIDDEN_TOKENS = (
     "FileStore",
     "MACHI_STATE_ROOT",
     "os.environ",
+    "os.link",
     "shutil.rmtree",
     "rglob",
     "OwnershipRecord",
@@ -318,6 +324,10 @@ IDENTITY_FORBIDDEN_TOKENS = (
     "from machi.install.registry",
     ".machi-owner.json",
     "identity()",
+    "/proc/",
+    "nvidia",
+    "docker",
+    "runpod",
 )
 
 
@@ -359,6 +369,7 @@ RUN_FORBIDDEN_TOKENS = (
     "FileStore",
     "MACHI_STATE_ROOT",
     "os.environ",
+    "os.link",
     "shutil.rmtree",
     "rglob",
     "OwnershipRecord",
@@ -374,6 +385,10 @@ RUN_FORBIDDEN_TOKENS = (
     "from machi.install.identity",
     ".machi-owner.json",
     "identity()",
+    "/proc/",
+    "nvidia",
+    "docker",
+    "runpod",
 )
 
 
@@ -567,4 +582,67 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append("FileStore must own the exclusive-publish primitive")
     if "os.link" in store_port:
         found.append("Store port must not require os.link")
+    return found
+
+
+KERNEL_TECHNOLOGY_TOKENS = (
+    "os.link",
+    "/proc/",
+    "/proc/meminfo",
+    "nvidia",
+    "cuda",
+    "nvml",
+    "docker",
+    "runpod",
+    "platform.system",
+    "platform.machine",
+)
+
+JOURNAL_PORT_FORBIDDEN = (
+    "os.link",
+    "os.fsync",
+    "FileStore",
+    "/proc",
+    "nvidia",
+    "docker",
+    "runpod",
+)
+
+
+def kernel_technology_violations(root: Path) -> list[str]:
+    """Kernel must not name OS, vendor, or filesystem publication primitives."""
+    kernel = root / "kernel"
+    found: list[str] = []
+    for path in sorted(kernel.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for token in KERNEL_TECHNOLOGY_TOKENS:
+            if token in text:
+                found.append(f"{path.name} contains platform token {token!r}")
+    return found
+
+
+def journal_port_violations(root: Path) -> list[str]:
+    """Journal port is generic; JSONL and fsync belong to the adapter."""
+    found: list[str] = []
+    port = root / "kernel" / "journal.py"
+    text = port.read_text(encoding="utf-8")
+    for token in JOURNAL_PORT_FORBIDDEN:
+        if token in text:
+            found.append(f"{port.name} must not contain {token!r}")
+    adapter = root / "adapters" / "journal" / "jsonl.py"
+    adapter_text = adapter.read_text(encoding="utf-8")
+    if "class JsonlJournal" not in adapter_text:
+        found.append("JsonlJournal adapter must exist")
+    if "os.fsync" not in adapter_text:
+        found.append("JsonlJournal adapter must own fsync")
+    return found
+
+
+def package_import_violations(root: Path) -> list[str]:
+    """Importing machi must not load concrete providers."""
+    text = (root / "__init__.py").read_text(encoding="utf-8")
+    found: list[str] = []
+    for token in ("machi.adapters", "from machi.adapters", "LinuxProc", "nvidia"):
+        if token in text:
+            found.append(f"machi/__init__.py must not contain {token!r}")
     return found

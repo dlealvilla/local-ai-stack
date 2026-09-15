@@ -55,7 +55,7 @@ class StoreProvedPayload(Contract):
     key_fingerprint: str = meaning(
         "SHA-256 hex digest of the UTF-8 logical key; the key itself is omitted"
     )
-    created: bool = meaning("whether this invocation published a new file")
+    created: bool = meaning("whether this invocation created a new record")
     existed: bool = meaning("whether a record already existed at this key")
 
 

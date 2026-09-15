@@ -64,6 +64,11 @@ rewrite them in place.
 
 # 3. Contract catalogue (core)
 
+Persist paths in this table describe the **current FileStore / JSONL
+adapters**, not a rule that Kernel Store or Journal must be a
+filesystem. `.machi-owner.json` is 1.3.1 local evidence, not a Store
+entity.
+
 | Name | Producer | Consumers | Category | Persist | Provenance required |
 |---|---|---|---|---|---|
 | `EventRecord` | every block | journal, Witness, export | Event | append-only | emitter Block ID + payload version |

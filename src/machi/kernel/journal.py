@@ -3,6 +3,11 @@
 The journal records what happened. It is not the entity store (0.4.1)
 and it is not the Install state-root policy (Block 1). Callers inject
 a directory. Implementations live in ``machi.adapters``.
+
+JSON Lines is one adapter format (``JsonlJournal``), not the definition
+of Journal. ``JournalDefect.line_number`` is an adapter-filled locator:
+the JSONL adapter uses 1-based file lines. A future non-file journal
+may use the same field as an ordered-record index.
 """
 
 from __future__ import annotations
@@ -17,11 +22,11 @@ from machi.kernel.schema import Contract, contract, meaning
 @contract(kind="journal_defect", version=1)
 @dataclass(frozen=True, slots=True)
 class JournalDefect(Contract):
-    """A journal line the adapter could not load.
+    """A journal record the adapter could not load.
 
     Reported as a fact. Prior valid records remain readable. Policy decides
     whether a defect fails a later milestone; M0 readback never pretends
-    a corrupt line was a successful event.
+    a corrupt record was a successful event.
     """
 
     line_number: int = meaning("1-based line number in the journal file")
@@ -47,5 +52,5 @@ class Journal(Protocol):
         ...
 
     def defects(self) -> tuple[JournalDefect, ...]:
-        """Lines that could not be decoded. Empty when the file is clean."""
+        """Records the adapter could not decode. Empty when the log is clean."""
         ...

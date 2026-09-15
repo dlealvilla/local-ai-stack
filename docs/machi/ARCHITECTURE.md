@@ -955,6 +955,24 @@ MemoryObserver → NativeMemoryObserver
 
 Windows memory remains an explicit unsupported non-measurement.
 
+### Provider Selection Gate
+
+Before starting any new provider-backed Component:
+
+```text
+repository inspection
+  → generic capability, contract, and port
+  → candidate providers
+  → recommended default
+  → ASK DANIEL (Provider Selection Gate)
+  → implementation
+```
+
+Do not skip the gate because the first machine at hand already has
+one vendor, OS, filesystem, or runtime. Do not implement a new
+concrete provider during an architecture audit. Composition may name
+chosen adapters; generic domains must not.
+
 Intended accelerator seam, before any NVIDIA code:
 
 ```text

@@ -34,10 +34,11 @@ _KEY_PATTERN: Final = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$"
 def validate_record_key(key: str) -> str:
     """Return the key, or refuse it.
 
-    A record key reaches the filesystem in the reference adapter, so a
-    key containing a separator or a parent reference is rejected, not
-    sanitized. Silently rewriting a key would store the record somewhere
-    other than where the caller believes it is.
+    Logical keys are opaque identifiers. Separators and parent
+    references are rejected, not sanitized, so a caller cannot be
+    surprised by a rewritten identity. The reference filesystem
+    adapter uses the key in a filename; that is an adapter choice,
+    not a Store rule that every backend must be a filesystem.
     """
     if not isinstance(key, str):
         raise ValidationError(
