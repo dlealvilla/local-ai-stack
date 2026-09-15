@@ -482,8 +482,8 @@ provenance.
 |---|---|---|---|
 | `2.1.1` | OS/arch adapter | Observe OS family and CPU architecture through a replaceable adapter | accepted |
 | `2.2.1` | Memory observer | Observe reported physical/system memory in bytes | accepted |
-| `2.3` | Accelerator Discovery | Generic accelerator observation capability | local (NVIDIA+Apple); remote NVIDIA pending |
-| `2.3.1` | Native accelerator observer | Generic port + provider orchestration | local |
+| `2.3` | Accelerator Discovery | Generic accelerator observation capability | NVIDIA physical PASS; Apple physical pending |
+| `2.3.1` | Native accelerator observer | Generic port + provider orchestration | NVIDIA physical PASS; Apple physical pending |
 | `2.4.1` | Mount enumerator | Filesystem mounts | later |
 
 Working implementation order: `2.1.1` → `2.2.1` → `2.3` (generic +
@@ -501,9 +501,10 @@ model. AMD and Intel remain unimplemented providers.
   integer bytes. Core owns `MemoryObservation`. The native observer
   selects a Linux or macOS memory provider. Windows is unsupported, not
   zero. This is not safe allocatable memory.
-- `2.3` / `2.3.1` (local) observes accelerator devices through a
-  vendor-neutral contract. Core owns `AcceleratorObservation`. The
-  native observer selects applicable NVIDIA and Apple providers.
+- `2.3` / `2.3.1` observes accelerator devices through a vendor-neutral
+  contract. Core owns `AcceleratorObservation`. The native observer
+  selects applicable NVIDIA and Apple providers. NVIDIA is physically
+  proven on Linux with the combined candidate; Apple physical remains.
   AMD/Intel are unimplemented. This is not safe GPU memory.
 - `2.1.1` / `2.2.1` / `2.3` do **not** mint HostId, persist HostProfile,
   enumerate mounts, or decide support/capacity.
@@ -518,21 +519,22 @@ model. AMD and Intel remain unimplemented providers.
 
 **Adapters:** native OS/arch (accepted); native memory observer with
 Linux and macOS providers (accepted); native accelerator observer with
-NVIDIA and Apple providers (local). AMD/Intel later. Adapters observe;
-they do not decide models.
+NVIDIA and Apple providers (NVIDIA physical PASS; Apple pending).
+AMD/Intel later. Adapters observe; they do not decide models.
 
 **Inputs:** optional InstallRecord / InstallRun correlation from
 composition; Memory and Accelerator compose OS family from 2.1.1 for
 applicability. Accelerator does not consume `MemoryObservation`.  
-**Outputs (2.3 local):** `AcceleratorObservation`; event
+**Outputs (2.3):** `AcceleratorObservation`; event
 `discover.accelerator.observed`. HostProfile remains later.  
 **Preconditions:** Kernel. OS family from 2.1.1. Install correlation is
 required only when composition asks to attach M1 identities.  
-**Success (2.3 local):** typed accelerator observation returned;
-provider failures retained; Apple unified topology without fake VRAM;
-NVIDIA discrete devices without primary-GPU reduction.  
-**Blocked (2.3 local):** remote NVIDIA physical proof is a later
-acceptance phase on the same combined candidate.  
+**Success (2.3):** typed accelerator observation returned; provider
+failures retained; Apple unified topology without fake VRAM; NVIDIA
+discrete devices without primary-GPU reduction. NVIDIA physical PASS
+on the combined candidate.  
+**Blocked (2.3):** Apple Silicon physical proof and Checkpoint A remain
+on that same candidate.  
 **State owned (2.3):** none. The observation is not durable entity
 state.  
 **Persistence (2.3):** event only. No Store record.  

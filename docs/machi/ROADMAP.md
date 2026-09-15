@@ -229,7 +229,7 @@ available/swap/cgroup, capacity, remediation, Windows native reader.
 
 **Unlocks:** `2.3` Accelerator Discovery.
 
-**2.3 (local NVIDIA+Apple; remote NVIDIA pending):** generic
+**2.3 (NVIDIA physical PASS; Apple physical pending):** generic
 accelerator observation through a replaceable observer. Native
 orchestration selects applicable NVIDIA (`nvidia-smi` CSV) and Apple
 (`system_profiler` JSON) providers. Event
@@ -253,10 +253,11 @@ optional M1 InstallId/InstallRunId from composition. Does not consume
 Apple Silicon host; NVIDIA negative path on a non-NVIDIA Mac; M0 →
 2.2.1 regression.
 
-**Physical:** not in this local increment. Planned Checkpoint A uses
-the same combined candidate on Apple Silicon and Linux NVIDIA.
+**Physical:** NVIDIA Linux PASS on the exact combined candidate
+(`1c774a0` / SHA `351cee81…`). Apple Silicon physical and Checkpoint A
+remain later on that same SHA.
 
-**Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 local.
+**Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 local → 2.3 NVIDIA physical.
 
 **Non-goals (2.3):** AMD, Intel, HostId, HostProfile, Capacity, driver
 install, MIG mutation, mounts.
@@ -269,9 +270,10 @@ execution ceiling.
 **Chronology (do not flatten):** last completed forward feature before
 this increment was `2.2.1` (`66e8ee0` / `b341819`). The
 provider/portability audit (`e88cc39`) is a correction on that
-foundation. `2.3` NVIDIA+Apple is implemented locally; remote NVIDIA
-physical acceptance is a later phase on the same combined candidate.
-See [M2-2.3.md](M2-2.3.md) and
+foundation. `2.3` NVIDIA+Apple is implemented locally; NVIDIA physical
+acceptance passed on the same combined candidate; Apple physical and
+Checkpoint A remain. See [M2-2.3.md](M2-2.3.md),
+[M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md), and
 [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md).
 
 ---
