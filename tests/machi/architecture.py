@@ -216,6 +216,7 @@ STORE_PORT_FORBIDDEN = (
     "JsonlJournal",
     "FileStore",
     "os.environ",
+    "os.link",
 )
 
 STORE_ADAPTER_FORBIDDEN = (
@@ -429,6 +430,10 @@ DISCOVER_DOMAIN_FORBIDDEN = (
     "safe_bytes",
     "safe_memory",
     "/proc/",
+    "parse_linux_memory_table",
+    "SC_PHYS_PAGES",
+    "linux_proc_memory",
+    "macos_sysconf_memory",
 )
 
 NATIVE_OS_ARCH_FORBIDDEN = (
@@ -457,6 +462,25 @@ NATIVE_MEMORY_FORBIDDEN = (
     "safe_memory",
     "ctypes",
     "cgroup",
+    "/proc/meminfo",
+    "os.sysconf",
+)
+
+MEMORY_PROVIDER_FORBIDDEN = (
+    "subprocess",
+    "nvidia",
+    "HostId.generate",
+    "FileStore",
+    "shutil",
+    "os.system",
+    "from machi.install",
+    "psutil",
+    "safe_bytes",
+    "safe_memory",
+    "cgroup",
+    "cuda",
+    "docker",
+    "runpod",
 )
 
 
@@ -487,12 +511,28 @@ def discover_boundary_violations(root: Path) -> list[str]:
     for token in NATIVE_MEMORY_FORBIDDEN:
         if token in memory_text:
             found.append(f"{memory_adapter.name} must not contain {token!r}")
-    if "/proc/meminfo" not in memory_text:
-        found.append("native memory adapter must read /proc/meminfo on Linux")
-    if "os.sysconf" not in memory_text:
-        found.append("native memory adapter must use os.sysconf on macOS")
-    if "parse_linux_memory_table" not in memory_text:
-        found.append("native memory adapter must call pure Linux table parsing")
+    if "LinuxProcMemoryProvider" not in memory_text:
+        found.append("native memory observer must compose LinuxProcMemoryProvider")
+    if "MacOSSysconfMemoryProvider" not in memory_text:
+        found.append("native memory observer must compose MacOSSysconfMemoryProvider")
+    linux_provider = root / "adapters" / "discover" / "linux_proc_memory.py"
+    linux_text = linux_provider.read_text(encoding="utf-8")
+    for token in MEMORY_PROVIDER_FORBIDDEN:
+        if token in linux_text:
+            found.append(f"{linux_provider.name} must not contain {token!r}")
+    if "/proc/meminfo" not in linux_text:
+        found.append("Linux memory provider must read /proc/meminfo")
+    if "parse_linux_memory_table" not in linux_text:
+        found.append("Linux memory provider must own Linux table parsing")
+    macos_provider = root / "adapters" / "discover" / "macos_sysconf_memory.py"
+    macos_text = macos_provider.read_text(encoding="utf-8")
+    for token in MEMORY_PROVIDER_FORBIDDEN:
+        if token in macos_text:
+            found.append(f"{macos_provider.name} must not contain {token!r}")
+    if "os.sysconf" not in macos_text:
+        found.append("macOS memory provider must use os.sysconf")
+    if "/proc/meminfo" in macos_text:
+        found.append("macOS memory provider must not read /proc/meminfo")
     kernel_text = "\n".join(
         p.read_text(encoding="utf-8") for p in (root / "kernel").rglob("*.py")
     )
@@ -505,4 +545,26 @@ def discover_boundary_violations(root: Path) -> list[str]:
     )
     if "machi.discover" in install_text:
         found.append("Install must not import Discover")
+    main_text = (root / "main.py").read_text(encoding="utf-8")
+    if "LinuxProcMemoryProvider" in main_text:
+        found.append(
+            "composition must wire NativeMemoryObserver, not LinuxProcMemoryProvider"
+        )
+    if "MacOSSysconfMemoryProvider" in main_text:
+        found.append(
+            "composition must wire NativeMemoryObserver, not MacOSSysconfMemoryProvider"
+        )
+    for token in ("nvidia", "cuda", "nvml", "runpod", "docker"):
+        if token in main_text.lower():
+            found.append(
+                f"composition root must not name {token} before that provider exists"
+            )
+    store_port = (root / "kernel" / "store.py").read_text(encoding="utf-8")
+    file_store = (root / "adapters" / "persistence" / "file_store.py").read_text(
+        encoding="utf-8"
+    )
+    if "os.link" not in file_store:
+        found.append("FileStore must own the exclusive-publish primitive")
+    if "os.link" in store_port:
+        found.append("Store port must not require os.link")
     return found

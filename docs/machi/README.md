@@ -1,8 +1,8 @@
 # Machi
 
-**Work token:** `MACHI-2.2.1-PHYSICAL-ACCEPTANCE`  
-**Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` (promoted to `machi`, tag `checkpoint/machi-2.1.1-closed-b9d869b`) → 2.2.1 on `m2/2.2.1-memory-observer`.  
-**Status:** Canonical `machi` is accepted `2.1.1` (`b9d869b`). 2.2.1 is physically qualified on a feature branch and is **not** merged to `machi` until a separate promotion instruction.
+**Work token:** `MACHI-PROVIDER-AGNOSTIC-AUDIT`  
+**Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` → 2.2.1 `66e8ee0` (promoted to `machi`, tag `checkpoint/machi-2.2.1-closed-66e8ee0`) → provider-agnostic audit on `architecture/provider-agnostic-audit`.  
+**Status:** Canonical `machi` is accepted `2.2.1` (`66e8ee0`). This branch strengthens port/adapter/provider boundaries. `2.3.1` NVIDIA provider has not started.
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
@@ -45,6 +45,7 @@ contracts. It does not own deployment truth.
 | [M2-2.2.1.md](M2-2.2.1.md) | 2.2.1 Memory observer implementation notes. |
 | [M2-2.2.1-LOCAL.md](M2-2.2.1-LOCAL.md) | 2.2.1 local acceptance of the `b341819` wheel. |
 | [M2-2.2.1-PHYSICAL.md](M2-2.2.1-PHYSICAL.md) | 2.2.1 physical acceptance evidence for `b341819`. |
+| [PROVIDER-AGNOSTIC-AUDIT.md](PROVIDER-AGNOSTIC-AUDIT.md) | Cross-cutting provider/adapter audit before 2.3.1. |
 | [MACHI_LEAD_DEVELOPER.md](MACHI_LEAD_DEVELOPER.md) | Ready-to-register Lead Developer agent. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,

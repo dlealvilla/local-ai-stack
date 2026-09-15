@@ -173,6 +173,8 @@ class SelfOwnershipMarker:
                 handle.flush()
                 os.fsync(handle.fileno())
             try:
+                # Exclusive publish currently uses POSIX link, as FileStore
+                # does. That is this marker writer, not a Store port rule.
                 os.link(tmp, dest)
             except FileExistsError as exc:
                 raise ConflictError(

@@ -11,6 +11,9 @@ it from the journal.
 
 The storage root is injected. Kernel does not choose a host
 installation root and does not read process environment configuration.
+Exclusive create is the port contract. How a concrete adapter
+publishes a new record (for example a filesystem link) is an
+adapter choice, not a Store requirement.
 """
 
 from __future__ import annotations

@@ -190,7 +190,7 @@ Recompute (not a second pipeline) is Diagram E.
 2 Discover
   2.1 Environment
   2.2 CPU / RAM
-  2.3 Accelerators
+  2.3 Accelerator Discovery
   2.4 Mounts
 3 Steward
   3.1 Ownership
@@ -241,7 +241,7 @@ Recompute (not a second pipeline) is Diagram E.
 |---|---|---|---|---|---|---|---|
 | 0 | Kernel | Mechanisms, events, witness | 0.1–0.7 | store, disabled export | none | EventRecord, Witness | `kernel.alive` |
 | 1 | Install | This copy on this disk | 1.1–1.4 | none at v0 | artifact | `StateRootBinding` (1.2.1); `LocalOwnershipEstablishment` (1.3.1; not dual proof); later InstallRecord, InstallRun, registry (1.3.2) | `install.state_root.bound` (1.2.1); `install.ownership.local_marked` (1.3.1); `install.bound` (1.4.1) |
-| 2 | Discover | Observe the machine | 2.1–2.4 | OS, NVIDIA, fixture | InstallRecord | HostProfile | `discover.completed` |
+| 2 | Discover | Observe the machine | 2.1–2.4 | OS/arch, memory providers, later accelerators/fixture | InstallRecord | HostProfile | `discover.completed` |
 | 3 | Steward | Own, classify, reclaim | 3.1–3.3 | filesystem markers | HostProfile | OccupancyMap, ReclaimResult | `steward.*` |
 | 4 | Capacity | What may be consumed | 4.1–4.6 | posix, fuse, quota, sonar writer | OccupancyMap | CapacityEnvelope, HostMinimumVerdict | `capacity.*` |
 | 5 | Foundation | How software will run | 5.1–5.6 | native process, container, vLLM provision | Envelope | FoundationSelection, RuntimeCapability | `foundation.*` |
@@ -481,21 +481,24 @@ provenance.
 | ID | Name | Role | Status |
 |---|---|---|---|
 | `2.1.1` | OS/arch adapter | Observe OS family and CPU architecture through a replaceable adapter | accepted |
-| `2.2.1` | Memory observer | Observe reported physical/system memory in bytes | this increment |
-| `2.3.1` | NVIDIA adapter | Accelerator inventory | later |
+| `2.2.1` | Memory observer | Observe reported physical/system memory in bytes | accepted |
+| `2.3` | Accelerator Discovery | Generic accelerator observation capability | later |
+| `2.3.1` | NVIDIA provider | First concrete accelerator provider under 2.3 | later |
 | `2.3.2` | Fixture provider | Replay captured host facts | later |
 | `2.4.1` | Mount enumerator | Filesystem mounts | later |
 
 Working implementation order: `2.1.1` → `2.2.1` → `2.3.1` / `2.3.2` → `2.4.1`.
 OS/arch before memory before accelerators before mounts. HostProfile
-aggregation waits until enough observations exist.
+aggregation waits until enough observations exist. `2.3` is the generic
+accelerator capability; `2.3.1` is one provider under it, not the
+capability model.
 
 - `2.1.1` (accepted) observes OS family and CPU architecture. Core owns
   `OSArchitectureObservation`. The native adapter owns `platform.system`
   / `platform.machine`.
-- `2.2.1` (this increment) observes reported physical/system memory in
-  integer bytes. Core owns `MemoryObservation`. Linux reads the kernel
-  memory table; macOS uses `os.sysconf`. Windows is unsupported, not
+- `2.2.1` (accepted) observes reported physical/system memory in
+  integer bytes. Core owns `MemoryObservation`. The native observer
+  selects a Linux or macOS memory provider. Windows is unsupported, not
   zero. This is not safe allocatable memory.
 - `2.1.1` / `2.2.1` do **not** mint HostId, persist HostProfile,
   enumerate mounts, detect NVIDIA, or decide support/capacity.
@@ -506,9 +509,10 @@ aggregation waits until enough observations exist.
 - Observation is not mutation. Adapters must not write `/etc`, change
   swap, tune cgroups, allocate probe buffers, or install packages.
 
-**Adapters:** native OS/arch (accepted); native memory (this increment);
-later NVIDIA, fixture; future hwloc/AMD/Apple. Adapters observe; they
-do not decide models.
+**Adapters:** native OS/arch (accepted); native memory observer with
+Linux and macOS providers (accepted); later NVIDIA/AMD/Intel/Apple
+accelerator providers and fixture replay. Adapters observe; they do
+not decide models.
 
 **Inputs:** optional InstallRecord / InstallRun correlation from
 composition; Memory composes OS family from 2.1.1 rather than
@@ -817,10 +821,11 @@ cleanup on stop.
   2.1 Environment
     2.1.1 OS/arch adapter (accepted)
   2.2 CPU / RAM
-    2.2.1 Memory observer (this increment)
-  2.3 Accelerators
-    2.3.1 NVIDIA adapter
+    2.2.1 Memory observer (accepted)
+  2.3 Accelerator Discovery
+    2.3.1 NVIDIA provider
     2.3.2 Fixture provider
+    later AMD / Intel / Apple providers
   2.4 Mounts
     2.4.1 Mount enumerator
 3 Steward
@@ -906,19 +911,78 @@ cleanup on stop.
 
 # 13. Adapter architecture
 
+Machi capabilities are vendor- and platform-agnostic at domain
+boundaries. Concrete operating-system, hardware, runtime, filesystem,
+and infrastructure implementations are provided through replaceable
+adapters/providers. Unsupported or unavailable providers are
+represented explicitly; no provider-specific implementation may define
+the generic capability model.
+
+A product may ship initially with only a subset of providers. Provider
+coverage and physical acceptance are separate from architectural
+portability. RunPod, `/workspace`, Docker, sudo, and NVIDIA are
+acceptance environments or later providers — not product-wide
+requirements.
+
+Layers, smallest useful seam per capability (not one universal
+framework):
+
+```text
+DOMAIN          generic concept, contract, port
+ADAPTER         orchestrates provider selection
+PROVIDERS       one external technology each
+```
+
+| Term | Owns | Must not |
+|---|---|---|
+| Port | the generic capability (`MemoryObserver`) | Linux, NVIDIA, Docker, RunPod |
+| Adapter | wiring to the outside world (`NativeMemoryObserver`) | become the domain contract |
+| Provider | one platform/vendor (`LinuxProcMemoryProvider`) | leak into Kernel or unrelated domains |
+
+Composition (`machi.main`) is the only production module that names
+concrete adapters next to domain types. Domain services receive ports.
+
+Provenance such as `source=linux_proc` is data on an observation. It
+is not a license for Capacity or Model to branch on provider identity.
+
+Current memory seam:
+
+```text
+MemoryObserver → NativeMemoryObserver
+  → LinuxProcMemoryProvider | MacOSSysconfMemoryProvider
+  → MemoryObservation
+```
+
+Windows memory remains an explicit unsupported non-measurement.
+
+Intended accelerator seam, before any NVIDIA code:
+
+```text
+AcceleratorObserver → NativeAcceleratorObserver
+  → NVIDIA | AMD | Intel | Apple providers
+  → AcceleratorObservation (devices, vendor, memory, topology)
+```
+
+`2.3.1` may stay named NVIDIA provider because it is the first
+concrete positive implementation. The rest of Machi consumes generic
+accelerator output. Do not assume discrete VRAM, one device, or one
+vendor.
+
 Adapters exist only where the **technology varies**.
 
 | Port owner | Adapter examples | Must not |
 |---|---|---|
-| Discover | Linux, NVIDIA, fixture | Decide SAFE, models, or admission |
+| Discover | Linux/macOS memory providers, later NVIDIA/AMD/Intel/Apple, fixture | Decide SAFE, models, or admission |
 | Capacity | posix, FUSE, quota, ZFS, sonar writer | Know model IDs |
 | Foundation | native process, Docker engine, vLLM pip | Admit resources |
 | Model | Hub, fixture | Authorize compatibility by existing on disk |
 | Serve | vLLM HTTP/readiness | Persist prompts |
-| Kernel | disabled export | Block inference on export fail |
+| Kernel | FileStore, JSONL journal, disabled export | Require `os.link`; block inference on export fail |
 
 An adapter inherits the import budget of the Block whose port it
-implements (Kultrun Law 5). Native process is first-class.
+implements (Kultrun Law 5). Native process is first-class. FileStore
+may use POSIX link as *its* exclusive-publish primitive; the Store
+port requires only exclusive create.
 
 ---
 
@@ -1050,6 +1114,9 @@ the development workspace.
 
 - Core owns concepts; adapters own implementations.
 - One concept, one Capability.
+- Domain contracts describe capabilities, not the first vendor.
+- Unsupported providers fail explicitly; they do not emit fake zeros.
+- Optional vendor dependencies stay inside the relevant provider.
 - Composition root sequences; it does not re-decide.
 - Fail conservatively; Unresolved is valid.
 - Facts immutable; new generation on change.

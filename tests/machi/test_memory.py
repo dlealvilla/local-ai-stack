@@ -11,6 +11,13 @@ from pathlib import Path
 
 import pytest
 
+from machi.adapters.discover.linux_proc_memory import (
+    LinuxProcMemoryProvider,
+    parse_linux_memory_table,
+)
+from machi.adapters.discover.macos_sysconf_memory import (
+    physical_total_from_page_counts,
+)
 from machi.adapters.discover.native_memory import NativeMemoryObserver
 from machi.discover.contracts import (
     MemoryObservation,
@@ -19,10 +26,6 @@ from machi.discover.contracts import (
     OSArchitectureObservation,
 )
 from machi.discover.events import MEMORY_OBSERVED_TYPE, memory_observed
-from machi.discover.memory import (
-    parse_linux_memory_table,
-    physical_total_from_page_counts,
-)
 from machi.discover.normalize import normalize_os_architecture
 from machi.discover.ports import MemoryObserver
 from machi.kernel.clock import FixedClock
@@ -116,6 +119,16 @@ def test_linux_memtotal_converts_kib_to_bytes(clock: FixedClock) -> None:
     assert observed.source is MemorySource.LINUX_PROC
     assert observed.physical_total_status is ObservationStatus.NORMALIZED
     assert observed.raw_total == raw
+
+
+def test_linux_provider_is_callable_without_the_orchestrator(clock: FixedClock) -> None:
+    observed = LinuxProcMemoryProvider(
+        memory_text=LINUX_TABLE,
+        clock=clock,
+    ).observe(FIXED)
+    assert observed.physical_total_bytes == 16384000 * 1024
+    assert observed.source is MemorySource.LINUX_PROC
+    assert observed.observer == "native"
 
 
 def test_linux_one_kib_is_1024_bytes() -> None:

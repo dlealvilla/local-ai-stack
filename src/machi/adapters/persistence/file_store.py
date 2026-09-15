@@ -6,9 +6,11 @@ as in its path, so a record recovered by hand is self-describing.
 
 Creates are exclusive. The record is written to a uniquely named
 temporary file in the same directory, flushed, then published with
-``os.link`` so an existing entity is never replaced. Identical
-re-entry returns the stored record. Conflicting or malformed existing
-records fail closed.
+``os.link`` so an existing entity is never replaced. That link is
+this adapter's publication primitive, not a Store port requirement.
+Filesystems that cannot link must fail closed here or be served by a
+different Store adapter. Identical re-entry returns the stored
+record. Conflicting or malformed existing records fail closed.
 
 This adapter does not read environment variables, does not choose a
 state root, does not talk to the journal, and does not implement

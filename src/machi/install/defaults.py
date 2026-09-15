@@ -6,6 +6,12 @@ The default is a user-local XDG-shaped directory. It does not require
 root, does not assume Docker, and is not Kultrun's cwd-relative
 ``./.state`` or ``/var/lib/kultrun``.
 
+This path shape is the current Unix default, not a claim that every
+OS uses XDG. ``StateRootBinder`` already accepts an injected
+``default_root`` so a later platform path provider can replace this
+function without changing bind precedence. Windows path policy is
+deferred.
+
 ``XDG_STATE_HOME`` is not a competing override. The only environment
 override is ``MACHI_STATE_ROOT``. Honouring a second variable would
 create two equal authorities.

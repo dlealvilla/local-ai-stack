@@ -196,13 +196,13 @@ preserved. HostProfile is the milestone output, not this increment.
 **2.1.1 (accepted):** OS family and CPU architecture through a
 replaceable adapter. Physical evidence `b9d869b`.
 
-**2.2.1 (this increment):** reported physical/system memory in integer
+**2.2.1 (accepted):** reported physical/system memory in integer
 bytes through a replaceable adapter. Source-agnostic
-`MemoryObservation`. Linux kernel memory table (`MemTotal` as KiB);
-macOS `os.sysconf`; Windows unsupported (not zero). Event
+`MemoryObservation`. Native observer selects Linux `/proc` or macOS
+`sysconf` providers. Windows unsupported (not zero). Event
 `discover.memory.observed` (`public_ops`). No HostId. No HostProfile.
 No safe-capacity arithmetic. No available/swap/cgroup in this
-increment.
+Component.
 
 **Inputs (2.2.1):** current host; 2.1.1 OS family for native source
 selection; optional M1 InstallId/InstallRunId from composition.
@@ -217,17 +217,18 @@ unresolved.
 (KiB conversion, missing/malformed/unknown unit/zero); Windows
 unsupported; M1 + 2.1.1 regression.
 
-**Physical:** later instruction on the archived 2.2.1 wheel: Linux
-memory observation after empty-state M1 + 2.1.1 reconstruction.
+**Physical:** accepted on `66e8ee0`. Linux `MemTotal × 1024` matched
+the packaged observer after empty-state M1 + 2.1.1 reconstruction.
 
 **Cumulative:** M0 → M1 → 2.1.1 → 2.2.1.
 
 **Non-goals (2.2.1):** HostId, HostProfile, NVIDIA, mounts,
 available/swap/cgroup, capacity, remediation, Windows native reader.
 
-**Unlocks:** `2.3.1` NVIDIA adapter after 2.2.1 physical acceptance.
-Cgroup/execution memory limit remains deferred until HostProfile or
-Capacity needs a distinct execution ceiling.
+**Unlocks:** `2.3` Accelerator Discovery. First concrete provider is
+`2.3.1` NVIDIA provider. Cgroup/execution memory limit remains
+deferred until HostProfile or Capacity needs a distinct execution
+ceiling.
 
 ---
 
