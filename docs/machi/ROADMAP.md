@@ -275,6 +275,7 @@ foundation. Historical NVIDIA+Apple implementation is `1c774a0` on
 implementation continues on
 `m2/2.3-accelerator-discovery-core-providers`. See
 [M2-2.3.md](M2-2.3.md),
+[M2-2.3-FOUR-PROVIDER-LOCAL.md](M2-2.3-FOUR-PROVIDER-LOCAL.md),
 [M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md), and
 [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md).
 

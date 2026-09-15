@@ -1,8 +1,8 @@
 # Machi
 
-**Work token:** `MACHI-2.3-NVIDIA-PHYSICAL-ACCEPTANCE`  
-**Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` → **2.2.1 last accepted forward feature** `66e8ee0` (`checkpoint/machi-2.2.1-closed-66e8ee0`, implementation `b341819`) → temporary provider audit `cd4b786` → consolidated audit promoted `e88cc39` (`checkpoint/machi-provider-agnostic-foundation-closed-e88cc39`) → provider gate `1db7646` → 2.3 implementation `1c774a0` → 2.3 local `56bd66b` → **2.3 NVIDIA physical PASS** on this branch (same SHA `351cee81…`). **Next:** Apple Silicon physical on that exact candidate. Checkpoint A is not created.  
-**Status:** Combined candidate NVIDIA physical PASS; Apple physical PENDING. Canonical `machi` remains at the provider-gate docs commit until Lead Developer promotion after dual-provider Checkpoint A.
+**Work token:** `MACHI-2.3-FOUR-PROVIDER-IMPLEMENTATION`  
+**Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` → **2.2.1 last accepted forward feature** `66e8ee0` (`checkpoint/machi-2.2.1-closed-66e8ee0`, implementation `b341819`) → temporary provider audit `cd4b786` → consolidated audit promoted `e88cc39` (`checkpoint/machi-provider-agnostic-foundation-closed-e88cc39`) → provider gate `1db7646` → historical 2.3 NVIDIA+Apple implementation `1c774a0` / local `56bd66b` / NVIDIA physical `636dfa0` (SHA `351cee81…`, historical only) → **2.3 four-provider implementation** `7c6eaea` → **2.3 four-provider local** on this evidence commit (wheel SHA `b038b6c9…`). **Next:** physical NVIDIA → AMD → Intel on that exact four-provider candidate. Apple physical remains deferred. Checkpoint A is not created.  
+**Status:** Four-provider local PASS; NVIDIA/AMD/Intel physical PENDING; Apple physical DEFERRED. Canonical `machi` remains at the provider-gate docs commit until Lead Developer promotion after later physical checkpoints.
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
@@ -46,8 +46,9 @@ contracts. It does not own deployment truth.
 | [M2-2.2.1-LOCAL.md](M2-2.2.1-LOCAL.md) | 2.2.1 local acceptance of the `b341819` wheel. |
 | [M2-2.2.1-PHYSICAL.md](M2-2.2.1-PHYSICAL.md) | 2.2.1 physical acceptance evidence for `b341819`. |
 | [M2-2.3.md](M2-2.3.md) | 2.3 Accelerator Discovery implementation notes (four-provider local; physical pending). |
-| [M2-2.3-LOCAL.md](M2-2.3-LOCAL.md) | 2.3 local acceptance of the `1c774a0` combined NVIDIA+Apple wheel. |
-| [M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md) | 2.3 NVIDIA physical acceptance of the `1c774a0` combined wheel. |
+| [M2-2.3-LOCAL.md](M2-2.3-LOCAL.md) | Historical 2.3 local acceptance of the `1c774a0` NVIDIA+Apple wheel. |
+| [M2-2.3-FOUR-PROVIDER-LOCAL.md](M2-2.3-FOUR-PROVIDER-LOCAL.md) | 2.3 local acceptance of the `7c6eaea` four-provider wheel. |
+| [M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md) | Historical 2.3 NVIDIA physical acceptance of the `1c774a0` wheel. |
 | [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md) | 2.3 provider selection gate (NVIDIA + Apple selected). |
 | [PROVIDER-AGNOSTIC-AUDIT.md](PROVIDER-AGNOSTIC-AUDIT.md) | First (partial) Discover/Memory audit; historical. |
 | [FULL-BUILT-SYSTEM-AUDIT.md](FULL-BUILT-SYSTEM-AUDIT.md) | Consolidated Kernel+Install+Discover provider/portability audit through 2.2.1 (promoted). |
