@@ -457,6 +457,14 @@ DISCOVER_DOMAIN_FORBIDDEN = (
     "apple_accelerator",
     "parse_nvidia_smi_csv",
     "parse_apple_displays_json",
+    "parse_amd_smi_json",
+    "parse_intel_discovery_json",
+    "amd-smi",
+    "rocm-smi",
+    "xpu-smi",
+    "xpumcli",
+    "amd_accelerator",
+    "intel_accelerator",
 )
 
 NATIVE_OS_ARCH_FORBIDDEN = (
@@ -510,6 +518,10 @@ NATIVE_ACCELERATOR_FORBIDDEN = (
     "subprocess",
     "nvidia-smi",
     "system_profiler",
+    "amd-smi",
+    "rocm-smi",
+    "xpu-smi",
+    "xpumcli",
     "HostId.generate",
     "FileStore",
     "from machi.install",
@@ -527,6 +539,10 @@ NVIDIA_PROVIDER_FORBIDDEN = (
     "system_profiler",
     "SPDisplaysDataType",
     "ioreg",
+    "amd-smi",
+    "rocm-smi",
+    "xpu-smi",
+    "xpumcli",
     "HostId.generate",
     "FileStore",
     "from machi.install",
@@ -546,6 +562,10 @@ NVIDIA_PROVIDER_FORBIDDEN = (
 APPLE_PROVIDER_FORBIDDEN = (
     "nvidia-smi",
     "query-gpu",
+    "amd-smi",
+    "rocm-smi",
+    "xpu-smi",
+    "xpumcli",
     "HostId.generate",
     "FileStore",
     "from machi.install",
@@ -561,6 +581,56 @@ APPLE_PROVIDER_FORBIDDEN = (
     "physical_memory",
     "hw.memsize",
     "SC_PHYS_PAGES",
+)
+
+AMD_PROVIDER_FORBIDDEN = (
+    "nvidia-smi",
+    "query-gpu",
+    "system_profiler",
+    "SPDisplaysDataType",
+    "xpu-smi",
+    "xpumcli",
+    "HostId.generate",
+    "FileStore",
+    "from machi.install",
+    "psutil",
+    "safe_bytes",
+    "safe_memory",
+    "pynvml",
+    "torch",
+    "cuda",
+    "docker",
+    "runpod",
+    "shell=True",
+    "import amdsmi",
+    "from amdsmi",
+    "/sys/class/drm",
+    "rocm-smi",
+)
+
+INTEL_PROVIDER_FORBIDDEN = (
+    "nvidia-smi",
+    "query-gpu",
+    "system_profiler",
+    "SPDisplaysDataType",
+    "amd-smi",
+    "rocm-smi",
+    "HostId.generate",
+    "FileStore",
+    "from machi.install",
+    "psutil",
+    "safe_bytes",
+    "safe_memory",
+    "pynvml",
+    "torch",
+    "cuda",
+    "docker",
+    "runpod",
+    "shell=True",
+    "sycl-ls",
+    "level_zero",
+    "/sys/class/drm",
+    "import ze",
 )
 
 
@@ -626,6 +696,12 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append(
             "native accelerator observer must compose AppleAcceleratorProvider"
         )
+    if "AmdAcceleratorProvider" not in accelerator_text:
+        found.append("native accelerator observer must compose AmdAcceleratorProvider")
+    if "IntelAcceleratorProvider" not in accelerator_text:
+        found.append(
+            "native accelerator observer must compose IntelAcceleratorProvider"
+        )
     nvidia_provider = root / "adapters" / "discover" / "nvidia_accelerator.py"
     nvidia_text = nvidia_provider.read_text(encoding="utf-8")
     for token in NVIDIA_PROVIDER_FORBIDDEN:
@@ -652,6 +728,32 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append("Apple provider must own JSON parsing")
     if "UNIFIED" not in apple_text:
         found.append("Apple provider must represent unified memory topology")
+    amd_provider = root / "adapters" / "discover" / "amd_accelerator.py"
+    amd_text = amd_provider.read_text(encoding="utf-8")
+    for token in AMD_PROVIDER_FORBIDDEN:
+        if token in amd_text:
+            found.append(f"{amd_provider.name} must not contain {token!r}")
+    if "amd-smi" not in amd_text:
+        found.append("AMD provider must use amd-smi")
+    if "--json" not in amd_text:
+        found.append("AMD provider must request JSON")
+    if "parse_amd_smi_json" not in amd_text:
+        found.append("AMD provider must own JSON parsing")
+    if "LIST_ARGV" not in amd_text or "STATIC_ARGV" not in amd_text:
+        found.append("AMD provider must declare read-only argv constants")
+    intel_provider = root / "adapters" / "discover" / "intel_accelerator.py"
+    intel_text = intel_provider.read_text(encoding="utf-8")
+    for token in INTEL_PROVIDER_FORBIDDEN:
+        if token in intel_text:
+            found.append(f"{intel_provider.name} must not contain {token!r}")
+    if "xpu-smi" not in intel_text:
+        found.append("Intel provider must use xpu-smi")
+    if "xpumcli" not in intel_text:
+        found.append("Intel provider must allow xpumcli as alternate executable")
+    if "parse_intel_discovery_json" not in intel_text:
+        found.append("Intel provider must own JSON parsing")
+    if "max_mem" not in intel_text:
+        found.append("Intel provider must name Max Mem Alloc Size so it can ignore it")
     kernel_text = "\n".join(
         p.read_text(encoding="utf-8") for p in (root / "kernel").rglob("*.py")
     )
@@ -687,12 +789,26 @@ def discover_boundary_violations(root: Path) -> list[str]:
             "composition must wire NativeAcceleratorObserver, "
             "not AppleAcceleratorProvider"
         )
+    if "AmdAcceleratorProvider" in main_text:
+        found.append(
+            "composition must wire NativeAcceleratorObserver, "
+            "not AmdAcceleratorProvider"
+        )
+    if "IntelAcceleratorProvider" in main_text:
+        found.append(
+            "composition must wire NativeAcceleratorObserver, "
+            "not IntelAcceleratorProvider"
+        )
     for token in (
         "nvidia-smi",
         "cuda",
         "nvml",
         "pynvml",
         "system_profiler",
+        "amd-smi",
+        "rocm-smi",
+        "xpu-smi",
+        "xpumcli",
         "runpod",
         "docker",
     ):

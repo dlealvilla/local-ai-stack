@@ -274,8 +274,9 @@ unresolved. Hostname and paths are omitted.
 **2.3:** `discover.accelerator.observed` is `public_ops`. Device
 vendor, model, topology, and reported dedicated memory (when the
 source actually reported it) are machine hardware facts. GPU UUID is
-device identity, not HostId. `host_id` remains unresolved. Hostname,
-paths, and customer content are omitted.
+device identity, not HostId. One generic event carries NVIDIA, AMD,
+Intel, and Apple provider reports. `host_id` remains unresolved.
+Hostname, paths, and customer content are omitted.
 
 That is the empirical proof that observability is not a log
 statement.

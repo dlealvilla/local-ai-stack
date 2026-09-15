@@ -90,6 +90,8 @@ class AcceleratorSource(StrEnum):
 
     NVIDIA_SMI = "nvidia_smi"
     APPLE_DISPLAYS = "apple_displays"
+    AMD_SMI = "amd_smi"
+    XPU_SMI = "xpu_smi"
 
 
 class ProviderInspectionStatus(StrEnum):

@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from machi.kernel.errors import ValidationError
 
 CommandRunner = Callable[[Sequence[str], float], "CommandOutcome"]
+MAX_COMMAND_OUTPUT_CHARS = 1_048_576
+_OVERSIZED = "command output exceeded the observation bound"
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +56,9 @@ def run_command(argv: Sequence[str], timeout: float) -> CommandOutcome:
     except subprocess.TimeoutExpired as exc:
         stdout = _command_text(exc.stdout)
         stderr = _command_text(exc.stderr)
+        oversized = _oversized_outcome(stdout, stderr)
+        if oversized is not None:
+            return oversized
         return CommandOutcome(
             found=True,
             timed_out=True,
@@ -69,12 +74,32 @@ def run_command(argv: Sequence[str], timeout: float) -> CommandOutcome:
             stdout="",
             stderr="",
         )
+    stdout = completed.stdout or ""
+    stderr = completed.stderr or ""
+    oversized = _oversized_outcome(stdout, stderr)
+    if oversized is not None:
+        return oversized
     return CommandOutcome(
         found=True,
         timed_out=False,
         returncode=completed.returncode,
-        stdout=completed.stdout or "",
-        stderr=completed.stderr or "",
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def _oversized_outcome(stdout: str, stderr: str) -> CommandOutcome | None:
+    if (
+        len(stdout) <= MAX_COMMAND_OUTPUT_CHARS
+        and len(stderr) <= MAX_COMMAND_OUTPUT_CHARS
+    ):
+        return None
+    return CommandOutcome(
+        found=True,
+        timed_out=False,
+        returncode=1,
+        stdout="",
+        stderr=_OVERSIZED,
     )
 
 

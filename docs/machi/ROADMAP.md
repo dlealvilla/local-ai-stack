@@ -188,7 +188,8 @@ predecessors green. Physical 1.4.1 accepted on `99b96bf`.
 **Architecture IDs:** `2`, `2.1`–`2.4`
 
 **Working Component order:** `2.1.1` → `2.2.1` → `2.3` (generic
-Accelerator Discovery + NVIDIA and Apple providers) → `2.4.1`. Do
+Accelerator Discovery + NVIDIA, AMD, Intel, and Apple providers) →
+`2.4.1`. Do
 not treat NVIDIA as the capability. Do not implement later Components
 in an earlier increment.
 
@@ -229,14 +230,15 @@ available/swap/cgroup, capacity, remediation, Windows native reader.
 
 **Unlocks:** `2.3` Accelerator Discovery.
 
-**2.3 (NVIDIA physical PASS; Apple physical pending):** generic
+**2.3 (four-provider local; physical pending):** generic
 accelerator observation through a replaceable observer. Native
-orchestration selects applicable NVIDIA (`nvidia-smi` CSV) and Apple
-(`system_profiler` JSON) providers. Event
+orchestration selects applicable NVIDIA (`nvidia-smi` CSV), AMD
+(`amd-smi` JSON), Intel (`xpu-smi` / `xpumcli` discovery JSON), and
+Apple (`system_profiler` JSON) providers. Event
 `discover.accelerator.observed` (`public_ops`). No HostId. No
 HostProfile. No safe-VRAM arithmetic. Unavailable tooling is not a
-measured zero-device result. Apple unified memory is Unresolved, not
-system RAM copied as VRAM.
+measured zero-device result. Unified memory is Unresolved, not
+system RAM or HBM copied as VRAM.
 
 **Inputs (2.3):** current host; 2.1.1 OS family for applicability;
 optional M1 InstallId/InstallRunId from composition. Does not consume
@@ -248,31 +250,31 @@ optional M1 InstallId/InstallRunId from composition. Does not consume
 **Telemetry:** `discover.accelerator.observed`. Block-complete
 `discover.completed` remains later.
 
-**Local tests:** generic orchestration; NVIDIA CSV fixtures
-(single/multi/malformed/missing tool); Apple JSON fixtures and real
-Apple Silicon host; NVIDIA negative path on a non-NVIDIA Mac; M0 →
-2.2.1 regression.
+**Local tests:** generic orchestration; NVIDIA CSV fixtures; AMD JSON
+fixtures; Intel discovery JSON fixtures; Apple JSON fixtures and real
+Apple Silicon host; cross-provider cases A–E; M0 → 2.2.1 regression.
 
-**Physical:** NVIDIA Linux PASS on the exact combined candidate
-(`1c774a0` / SHA `351cee81…`). Apple Silicon physical and Checkpoint A
-remain later on that same SHA.
+**Physical:** historical NVIDIA Linux PASS on the earlier `1c774a0` /
+SHA `351cee81…` candidate. That SHA does not qualify a four-provider
+wheel. Fresh NVIDIA → AMD → Intel physical proof of the new combined
+candidate remains. Apple Silicon physical and Checkpoint A remain.
 
-**Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 local → 2.3 NVIDIA physical.
+**Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 four-provider local.
 
-**Non-goals (2.3):** AMD, Intel, HostId, HostProfile, Capacity, driver
-install, MIG mutation, mounts.
+**Non-goals (2.3):** HostId, HostProfile, Capacity, driver
+install, MIG/partition mutation, mounts, sysfs/DRM fallbacks.
 
-**Unlocks:** `2.4.1` Mount enumerator after 2.3 physical acceptance.
-AMD/Intel providers remain deferred. Cgroup/execution memory limit
-remains deferred until HostProfile or Capacity needs a distinct
-execution ceiling.
+**Unlocks:** `2.4.1` Mount enumerator after 2.3 physical acceptance of
+the four-provider candidate.
 
 **Chronology (do not flatten):** last completed forward feature before
-this increment was `2.2.1` (`66e8ee0` / `b341819`). The
+the original 2.3 increment was `2.2.1` (`66e8ee0` / `b341819`). The
 provider/portability audit (`e88cc39`) is a correction on that
-foundation. `2.3` NVIDIA+Apple is implemented locally; NVIDIA physical
-acceptance passed on the same combined candidate; Apple physical and
-Checkpoint A remain. See [M2-2.3.md](M2-2.3.md),
+foundation. Historical NVIDIA+Apple implementation is `1c774a0` on
+`m2/2.3-accelerator-discovery-nvidia-apple`. Four-provider
+implementation continues on
+`m2/2.3-accelerator-discovery-core-providers`. See
+[M2-2.3.md](M2-2.3.md),
 [M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md), and
 [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md).
 

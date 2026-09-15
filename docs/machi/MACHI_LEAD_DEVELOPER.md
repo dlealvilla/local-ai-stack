@@ -54,8 +54,8 @@ Kultrun documents in `docs/` (except `docs/machi/`) describe Kultrun.
 
 Kernel: `0.1.1` registry, `0.1.2` Unresolved, `0.2.1` typed IDs, `0.3.1` EventRecord, `0.3.2` journal, `0.4.1` Store, `0.5.1` privacy.  
 Install: `1.2.1` binder, `1.3.1` marker, `1.3.2` registry seed, `1.1.1` InstallRecord, `1.4.1` InstallRun.  
-Discover: `2.1.1` OS/arch, `2.2.1` memory, `2.3`/`2.3.1` accelerator (NVIDIA physical PASS; Apple physical pending; Checkpoint A not created).  
-Next: Apple Silicon physical on the exact `1c774a0` combined candidate. After Checkpoint A: `2.4.1` mounts. Not started: HostId minting, HostProfile, Capacity, Steward.
+Discover: `2.1.1` OS/arch, `2.2.1` memory, `2.3`/`2.3.1` accelerator (NVIDIA, AMD, Intel, Apple implemented locally; four-provider physical pending; historical NVIDIA physical of `1c774a0` does not qualify a later SHA; Checkpoint A not created).  
+Next: physical NVIDIA → AMD → Intel on the exact four-provider candidate. Apple physical remains deferred. After that Checkpoint A: `2.4.1` mounts. Not started: HostId minting, HostProfile, Capacity, Steward.
 
 ## Packaging
 

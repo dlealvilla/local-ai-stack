@@ -10,7 +10,10 @@ from pathlib import Path
 import pytest
 
 from machi.adapters.discover.accelerator_provider import ProviderInspectResult
+from machi.adapters.discover.amd_accelerator import AmdAcceleratorProvider
 from machi.adapters.discover.apple_accelerator import AppleAcceleratorProvider
+from machi.adapters.discover.command import CommandOutcome
+from machi.adapters.discover.intel_accelerator import IntelAcceleratorProvider
 from machi.adapters.discover.native_accelerator import NativeAcceleratorObserver
 from machi.adapters.discover.nvidia_accelerator import NvidiaAcceleratorProvider
 from machi.discover.accelerator import (
@@ -94,6 +97,12 @@ class _FakeProvider:
         return self._result
 
 
+def _missing_command(_argv: object, _timeout: float) -> CommandOutcome:
+    return CommandOutcome(
+        found=False, timed_out=False, returncode=None, stdout="", stderr=""
+    )
+
+
 @pytest.fixture
 def clock() -> FixedClock:
     return FixedClock(FIXED)
@@ -164,6 +173,8 @@ def test_empty_successful_nvidia_inspection_is_observed_zero(
     observed = NativeAcceleratorObserver(
         os_observer=_FixedOS("Linux", "x86_64"),
         nvidia_provider=NvidiaAcceleratorProvider(csv_text=""),
+        amd_provider=AmdAcceleratorProvider(runner=_missing_command),
+        intel_provider=IntelAcceleratorProvider(runner=_missing_command),
         apple_provider=AppleAcceleratorProvider(displays_json=APPLE_M1),
         clock=clock,
     ).observe()
@@ -184,6 +195,8 @@ def test_multi_device_nvidia_is_not_reduced_to_primary(
     observed = NativeAcceleratorObserver(
         os_observer=_FixedOS("Linux", "x86_64"),
         nvidia_provider=NvidiaAcceleratorProvider(csv_text=NVIDIA_TWO),
+        amd_provider=AmdAcceleratorProvider(runner=_missing_command),
+        intel_provider=IntelAcceleratorProvider(runner=_missing_command),
         apple_provider=AppleAcceleratorProvider(),
         clock=clock,
     ).observe()
@@ -274,17 +287,23 @@ def test_provider_failure_is_not_swallowed_as_zero_devices(
     assert observed.status is ObservationStatus.NORMALIZED
 
 
-def test_amd_and_intel_vendors_exist_for_future_providers() -> None:
+def test_amd_and_intel_vendors_and_sources_exist() -> None:
     assert AcceleratorVendor.AMD.value == "amd"
     assert AcceleratorVendor.INTEL.value == "intel"
     assert AcceleratorVendor.NVIDIA.value == "nvidia"
     assert AcceleratorVendor.APPLE.value == "apple"
+    assert AcceleratorSource.AMD_SMI.value == "amd_smi"
+    assert AcceleratorSource.XPU_SMI.value == "xpu_smi"
+    assert AcceleratorSource.NVIDIA_SMI.value == "nvidia_smi"
+    assert AcceleratorSource.APPLE_DISPLAYS.value == "apple_displays"
 
 
 def test_event_is_generic_and_unresolved_host(clock: FixedClock) -> None:
     observation = NativeAcceleratorObserver(
         os_observer=_FixedOS("Linux", "x86_64"),
         nvidia_provider=NvidiaAcceleratorProvider(csv_text=NVIDIA_TWO),
+        amd_provider=AmdAcceleratorProvider(runner=_missing_command),
+        intel_provider=IntelAcceleratorProvider(runner=_missing_command),
         apple_provider=AppleAcceleratorProvider(),
         clock=clock,
     ).observe()
@@ -447,3 +466,306 @@ def test_cli_without_install_context_does_not_mint_host_id(
         if json.loads(line).get("event_type") == "discover.accelerator.observed"
     )
     assert "$unresolved" in json.dumps(event["host_id"])
+
+
+AMD_ONE_LIST = json.dumps(
+    [
+        {
+            "gpu": 0,
+            "bdf": "0000:05:00.0",
+            "uuid": "afff74a1-0000-1000-8054-e92b0a5d57c8",
+        }
+    ]
+)
+AMD_ONE_STATIC = json.dumps(
+    [
+        {
+            "gpu": 0,
+            "asic": {"market_name": "MI300X-O"},
+            "vram": {"type": "HBM", "size": {"value": 196592, "unit": "MB"}},
+        }
+    ]
+)
+AMD_TWO_LIST = json.dumps(
+    [
+        {
+            "gpu": 0,
+            "bdf": "0000:05:00.0",
+            "uuid": "afff74a1-0000-1000-8054-e92b0a5d57c8",
+        },
+        {
+            "gpu": 1,
+            "bdf": "0000:26:00.0",
+            "uuid": "0aff74a1-0000-1000-805b-ce698de95724",
+        },
+    ]
+)
+AMD_TWO_STATIC = json.dumps(
+    [
+        {
+            "gpu": 0,
+            "asic": {"market_name": "MI300X-O"},
+            "vram": {"type": "HBM", "size": {"value": 196592, "unit": "MB"}},
+        },
+        {
+            "gpu": 1,
+            "asic": {"market_name": "MI300X-O"},
+            "vram": {"type": "HBM", "size": {"value": 196592, "unit": "MB"}},
+        },
+    ]
+)
+INTEL_ONE = json.dumps(
+    {
+        "device_list": [
+            {
+                "device_id": 0,
+                "device_name": "Intel(R) Data Center GPU Max 1550",
+                "device_type": "GPU",
+                "uuid": "01000000-0000-004d-0000-000856c08086",
+                "memory_physical_size": 32768,
+            }
+        ]
+    }
+)
+INTEL_TWO = json.dumps(
+    {
+        "device_list": [
+            {
+                "device_id": 0,
+                "device_name": "Intel(R) Data Center GPU Flex Series 170",
+                "device_type": "GPU",
+                "uuid": "01000000-0000-004d-0000-000856c08086",
+                "memory_physical_size": 16384,
+            },
+            {
+                "device_id": 1,
+                "device_name": "Intel(R) Data Center GPU Flex Series 170",
+                "device_type": "GPU",
+                "uuid": "02000000-0000-004e-0000-000856c08086",
+                "memory_physical_size": 16384,
+            },
+        ]
+    }
+)
+INTEL_EMPTY = json.dumps({"device_list": []})
+
+
+class _BoomProvider:
+    provider_id = "amd"
+
+    def applicable(self, os_observation: OSArchitectureObservation) -> bool:
+        del os_observation
+        return True
+
+    def inspect(self) -> ProviderInspectResult:
+        raise RuntimeError("parser exploded /tmp/secret")
+
+
+def _statuses(observed: AcceleratorObservation) -> dict[str, str]:
+    return {report.provider: report.status.value for report in observed.providers}
+
+
+def test_case_a_all_linux_providers_and_apple_not_applicable(
+    clock: FixedClock,
+) -> None:
+    observed = NativeAcceleratorObserver(
+        os_observer=_FixedOS("Linux", "x86_64"),
+        nvidia_provider=NvidiaAcceleratorProvider(csv_text=NVIDIA_TWO),
+        amd_provider=AmdAcceleratorProvider(
+            list_json=AMD_ONE_LIST, static_json=AMD_ONE_STATIC
+        ),
+        intel_provider=IntelAcceleratorProvider(discovery_json=INTEL_ONE),
+        apple_provider=AppleAcceleratorProvider(displays_json=APPLE_M1),
+        clock=clock,
+    ).observe()
+    assert [report.provider for report in observed.providers] == [
+        "nvidia",
+        "amd",
+        "intel",
+        "apple",
+    ]
+    assert _statuses(observed) == {
+        "nvidia": "observed",
+        "amd": "observed",
+        "intel": "observed",
+        "apple": "not_applicable",
+    }
+    assert len(observed.devices) == 4
+    assert [device.ordinal for device in observed.devices] == [0, 1, 2, 3]
+    vendors = [device.vendor for device in observed.devices]
+    assert vendors == [
+        AcceleratorVendor.NVIDIA,
+        AcceleratorVendor.NVIDIA,
+        AcceleratorVendor.AMD,
+        AcceleratorVendor.INTEL,
+    ]
+    totals = [
+        device.memory_total_bytes
+        for device in observed.devices
+        if isinstance(device.memory_total_bytes, int)
+    ]
+    assert sum(totals) != totals[0]
+    blob = json.dumps(to_dict(observed))
+    assert "primary" not in blob.lower()
+
+
+def test_case_b_amd_unavailable_intel_zero(clock: FixedClock) -> None:
+    observed = NativeAcceleratorObserver(
+        os_observer=_FixedOS("Linux", "x86_64"),
+        nvidia_provider=NvidiaAcceleratorProvider(csv_text=NVIDIA_ONE),
+        amd_provider=AmdAcceleratorProvider(runner=_missing_command),
+        intel_provider=IntelAcceleratorProvider(discovery_json=INTEL_EMPTY),
+        apple_provider=AppleAcceleratorProvider(),
+        clock=clock,
+    ).observe()
+    assert _statuses(observed) == {
+        "nvidia": "observed",
+        "amd": "unavailable",
+        "intel": "observed",
+        "apple": "not_applicable",
+    }
+    assert len(observed.devices) == 1
+    intel = next(report for report in observed.providers if report.provider == "intel")
+    assert intel.device_count == 0
+
+
+def test_case_c_nvidia_failed_does_not_erase_amd_intel(clock: FixedClock) -> None:
+    observed = NativeAcceleratorObserver(
+        os_observer=_FixedOS("Linux", "x86_64"),
+        nvidia_provider=NvidiaAcceleratorProvider(csv_text="0, bad\n"),
+        amd_provider=AmdAcceleratorProvider(
+            list_json=AMD_ONE_LIST, static_json=AMD_ONE_STATIC
+        ),
+        intel_provider=IntelAcceleratorProvider(discovery_json=INTEL_ONE),
+        apple_provider=AppleAcceleratorProvider(),
+        clock=clock,
+    ).observe()
+    assert _statuses(observed)["nvidia"] == "failed"
+    assert _statuses(observed)["amd"] == "observed"
+    assert _statuses(observed)["intel"] == "observed"
+    assert len(observed.devices) == 2
+    assert observed.devices[0].vendor is AcceleratorVendor.AMD
+    assert observed.devices[1].vendor is AcceleratorVendor.INTEL
+
+
+def test_case_d_macos_apple_observed_amd_intel_not_applicable(
+    clock: FixedClock,
+) -> None:
+    observed = NativeAcceleratorObserver(
+        os_observer=_FixedOS("Darwin", "arm64"),
+        nvidia_provider=NvidiaAcceleratorProvider(runner=_missing_command),
+        amd_provider=AmdAcceleratorProvider(
+            list_json=AMD_ONE_LIST, static_json=AMD_ONE_STATIC
+        ),
+        intel_provider=IntelAcceleratorProvider(discovery_json=INTEL_ONE),
+        apple_provider=AppleAcceleratorProvider(displays_json=APPLE_M1),
+        clock=clock,
+    ).observe()
+    assert _statuses(observed) == {
+        "nvidia": "unavailable",
+        "amd": "not_applicable",
+        "intel": "not_applicable",
+        "apple": "observed",
+    }
+    assert len(observed.devices) == 1
+    assert observed.devices[0].vendor is AcceleratorVendor.APPLE
+    assert not is_resolved(observed.devices[0].memory_total_bytes)
+
+
+def test_case_e_multi_vendor_multi_device_ordinals(clock: FixedClock) -> None:
+    observed = NativeAcceleratorObserver(
+        os_observer=_FixedOS("Linux", "x86_64"),
+        nvidia_provider=NvidiaAcceleratorProvider(csv_text=NVIDIA_TWO),
+        amd_provider=AmdAcceleratorProvider(
+            list_json=AMD_TWO_LIST, static_json=AMD_TWO_STATIC
+        ),
+        intel_provider=IntelAcceleratorProvider(discovery_json=INTEL_TWO),
+        apple_provider=AppleAcceleratorProvider(),
+        clock=clock,
+    ).observe()
+    assert len(observed.devices) == 6
+    assert [device.ordinal for device in observed.devices] == [0, 1, 2, 3, 4, 5]
+    assert [device.source.value for device in observed.devices] == [
+        "nvidia_smi",
+        "nvidia_smi",
+        "amd_smi",
+        "amd_smi",
+        "xpu_smi",
+        "xpu_smi",
+    ]
+    nvidia_bytes = observed.devices[0].memory_total_bytes
+    amd_bytes = observed.devices[2].memory_total_bytes
+    intel_bytes = observed.devices[4].memory_total_bytes
+    assert nvidia_bytes != amd_bytes
+    assert amd_bytes != intel_bytes
+
+
+def test_provider_exception_is_isolated(clock: FixedClock) -> None:
+    nvidia_devices = NvidiaAcceleratorProvider(csv_text=NVIDIA_TWO).inspect().devices
+    intel_devices = IntelAcceleratorProvider(discovery_json=INTEL_ONE).inspect().devices
+    observed = NativeAcceleratorObserver(
+        os_observer=_FixedOS("Linux", "x86_64"),
+        providers=(
+            _FakeProvider(
+                "nvidia",
+                applicable=True,
+                result=ProviderInspectResult(
+                    observed_provider_report("nvidia", len(nvidia_devices)),
+                    nvidia_devices,
+                ),
+            ),
+            _BoomProvider(),
+            _FakeProvider(
+                "intel",
+                applicable=True,
+                result=ProviderInspectResult(
+                    observed_provider_report("intel", len(intel_devices)),
+                    intel_devices,
+                ),
+            ),
+            _FakeProvider(
+                "apple",
+                applicable=False,
+                result=ProviderInspectResult(
+                    non_observed_provider_report(
+                        "apple", ProviderInspectionStatus.NOT_APPLICABLE
+                    )
+                ),
+            ),
+        ),
+        clock=clock,
+    ).observe()
+    assert _statuses(observed)["nvidia"] == "observed"
+    assert _statuses(observed)["amd"] == "failed"
+    assert _statuses(observed)["intel"] == "observed"
+    assert _statuses(observed)["apple"] == "not_applicable"
+    assert len(observed.devices) == 3
+    amd = next(report for report in observed.providers if report.provider == "amd")
+    assert "/" not in amd.detail
+    assert "\\" not in amd.detail
+
+
+def test_four_provider_event_stays_generic(clock: FixedClock) -> None:
+    observation = NativeAcceleratorObserver(
+        os_observer=_FixedOS("Linux", "x86_64"),
+        nvidia_provider=NvidiaAcceleratorProvider(csv_text=NVIDIA_ONE),
+        amd_provider=AmdAcceleratorProvider(
+            list_json=AMD_ONE_LIST, static_json=AMD_ONE_STATIC
+        ),
+        intel_provider=IntelAcceleratorProvider(discovery_json=INTEL_ONE),
+        apple_provider=AppleAcceleratorProvider(),
+        clock=clock,
+    ).observe()
+    event = accelerator_observed(
+        observation,
+        install_id=InstallId.generate(),
+        install_run_id=InstallRunId.generate(),
+    )
+    payload = to_dict(event)["payload"]
+    assert payload["kind"] == "discover.accelerator.observed"
+    assert event.component_id.value == "2.3.1"
+    providers = [item["provider"] for item in payload["providers"]]
+    assert providers == ["nvidia", "amd", "intel", "apple"]
+    blob = json.dumps(to_dict(event))
+    assert "hostname" not in blob
+    assert "/" not in json.dumps(payload)

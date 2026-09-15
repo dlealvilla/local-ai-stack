@@ -45,7 +45,7 @@ contracts. It does not own deployment truth.
 | [M2-2.2.1.md](M2-2.2.1.md) | 2.2.1 Memory observer implementation notes. |
 | [M2-2.2.1-LOCAL.md](M2-2.2.1-LOCAL.md) | 2.2.1 local acceptance of the `b341819` wheel. |
 | [M2-2.2.1-PHYSICAL.md](M2-2.2.1-PHYSICAL.md) | 2.2.1 physical acceptance evidence for `b341819`. |
-| [M2-2.3.md](M2-2.3.md) | 2.3 Accelerator Discovery implementation notes (NVIDIA physical PASS; Apple physical pending). |
+| [M2-2.3.md](M2-2.3.md) | 2.3 Accelerator Discovery implementation notes (four-provider local; physical pending). |
 | [M2-2.3-LOCAL.md](M2-2.3-LOCAL.md) | 2.3 local acceptance of the `1c774a0` combined NVIDIA+Apple wheel. |
 | [M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md) | 2.3 NVIDIA physical acceptance of the `1c774a0` combined wheel. |
 | [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md) | 2.3 provider selection gate (NVIDIA + Apple selected). |

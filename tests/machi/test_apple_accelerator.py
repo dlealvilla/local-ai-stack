@@ -185,5 +185,15 @@ def test_real_host_apple_observation_matches_system_profiler() -> None:
             item.vendor is not AcceleratorVendor.NVIDIA for item in observed.devices
         )
         assert not is_resolved(nvidia.device_count)
+    amd = next(report for report in observed.providers if report.provider == "amd")
+    intel = next(report for report in observed.providers if report.provider == "intel")
+    assert amd.status is ProviderInspectionStatus.NOT_APPLICABLE
+    assert intel.status is ProviderInspectionStatus.NOT_APPLICABLE
+    assert [report.provider for report in observed.providers] == [
+        "nvidia",
+        "amd",
+        "intel",
+        "apple",
+    ]
     assert observed.status is ObservationStatus.NORMALIZED
     assert observed.observer == "native"

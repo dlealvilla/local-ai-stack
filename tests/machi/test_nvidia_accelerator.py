@@ -221,6 +221,12 @@ def test_local_negative_path_is_not_measured_zero_nvidia_gpus() -> None:
     nvidia = next(
         report for report in observed.providers if report.provider == "nvidia"
     )
+    assert [report.provider for report in observed.providers] == [
+        "nvidia",
+        "amd",
+        "intel",
+        "apple",
+    ]
     nvidia_devices = [
         device
         for device in observed.devices
