@@ -1,8 +1,9 @@
 """Machine-readable Machi dependency law.
 
 Machi production code must not import Kultrun. Kernel must not import
-adapters, Install, or the composition root. Install may import Kernel
-and must not import adapters or later Blocks.
+adapters, Install, Discover, or the composition root. Install may import
+Kernel and must not import adapters, Discover, or later Blocks. Discover
+may import Kernel and must not import adapters, Install, or later Blocks.
 """
 
 from __future__ import annotations
@@ -15,15 +16,15 @@ from pathlib import Path
 TIERS: dict[str, int] = {
     "kernel": 0,
     "install": 1,
-    "adapters": 2,
-    "main": 3,
+    "discover": 2,
+    "adapters": 3,
+    "main": 4,
 }
 
 FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
 FUTURE_PACKAGES = frozenset(
     {
-        "discover",
         "steward",
         "capacity",
         "foundation",
@@ -405,4 +406,70 @@ def run_boundary_violations(root: Path) -> list[str]:
     )
     if "InstallRunStore" in kernel_text:
         found.append("Kernel must not import InstallRunStore")
+    return found
+
+
+DISCOVER_DOMAIN_FORBIDDEN = (
+    "platform.system",
+    "platform.machine",
+    "/etc/os-release",
+    "subprocess",
+    "nvidia-smi",
+    "HostId.generate",
+    "FileStore",
+    "MACHI_STATE_ROOT",
+    "meminfo",
+    "shutil.rmtree",
+    "from machi.install",
+    "from machi.adapters",
+    "nvidia",
+    "cuda",
+)
+
+NATIVE_OS_ARCH_FORBIDDEN = (
+    "subprocess",
+    "nvidia",
+    "HostId.generate",
+    "FileStore",
+    "meminfo",
+    "/proc/",
+    "shutil",
+    "os.system",
+    "from machi.install",
+    "os-release",
+)
+
+
+def discover_boundary_violations(root: Path) -> list[str]:
+    """2.1.1 domain observes contracts; the native adapter owns host APIs."""
+    found: list[str] = []
+    domain = root / "discover"
+    for path in sorted(domain.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for token in DISCOVER_DOMAIN_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    adapter = root / "adapters" / "discover" / "native_os_arch.py"
+    adapter_text = adapter.read_text(encoding="utf-8")
+    for token in NATIVE_OS_ARCH_FORBIDDEN:
+        if token in adapter_text:
+            found.append(f"{adapter.name} must not contain {token!r}")
+    if "import platform" not in adapter_text:
+        found.append("native OS/arch adapter must import platform")
+    if "platform.system()" not in adapter_text:
+        found.append("native OS/arch adapter must call platform.system()")
+    if "platform.machine()" not in adapter_text:
+        found.append("native OS/arch adapter must call platform.machine()")
+    if "normalize_os_architecture" not in adapter_text:
+        found.append("native OS/arch adapter must call pure normalization")
+    kernel_text = "\n".join(
+        p.read_text(encoding="utf-8") for p in (root / "kernel").rglob("*.py")
+    )
+    if "machi.discover" in kernel_text or "OSArchitectureObservation" in kernel_text:
+        found.append("Kernel must not import Discover")
+    install_text = "\n".join(
+        p.read_text(encoding="utf-8") for p in (root / "install").rglob("*.py")
+    )
+    if "machi.discover" in install_text:
+        found.append("Install must not import Discover")
     return found

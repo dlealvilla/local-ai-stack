@@ -77,6 +77,7 @@ rewrite them in place.
 | `InstallRecordEstablishment` | 1.1.1 InstallIdentity | composition | Profile | no; result of establish | `install_record_present`; `dual_ownership=false`; `destructive_authorization=false` |
 | `InstallRunRecord` | 1.4.1 InstallRunStore | EventRecord.correlation | Profile | injected Store `<kind>/<install_id>.json` | `InstallRunId`; InstallId correlation; creation-build provenance (not current version) |
 | `InstallRunEstablishment` | 1.4.1 InstallRunStore | composition | Profile | no; result of establish | `install_run_present`; `dual_ownership=false`; `destructive_authorization=false` |
+| `OSArchitectureObservation` | 2.1.1 OS/arch adapter | Discover events; later HostProfile | Observation | no | adapter id; raw + normalized OS/arch; unobserved vs unrecognized |
 | `HostObservation` | 2 adapters | Discover | Observation | optional raw | adapter name, tool version |
 | `HostProfile` | 2 Discover | Capacity, Foundation, Admit | Profile | yes | observation IDs |
 | `MountObservation` | 2.4 | Capacity | Observation | yes | path, fs type, reported free flagged |

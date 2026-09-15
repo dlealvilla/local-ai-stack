@@ -361,7 +361,7 @@ InstallRun.
 | `1.3.1` | SelfOwnershipMarker | Local ownership evidence for this bound root (`LOCAL_MARKER_PRESENT`) | accepted |
 | `1.3.2` | RegistrySeed | Local control-plane registry half; cites 1.3.1; not dual-proof evaluation | accepted |
 | `1.1.1` | InstallRecord | Stable installation identity; create-once InstallId; creation-build provenance | accepted |
-| `1.4.1` | InstallRunStore | Mint/reuse InstallRun; complete Install correlation | this increment |
+| `1.4.1` | InstallRunStore | Mint/reuse InstallRun; complete Install correlation | accepted |
 
 Working implementation order: `1.2.1` → `1.3.1` → `1.3.2` → `1.1.1` → `1.4.1`.
 Location before local evidence before central registry before install identity
@@ -476,30 +476,61 @@ create converges on one run; injected Store not inside the claimed root.
 **Short Description:** OS, CPU, RAM, accelerators, mounts, with
 provenance.
 
-**Components:** 2.1 environment, 2.2 CPU/RAM, 2.3 accelerators, 2.4
-mounts.
+**Approved Components (M2 start):**
 
-**Adapters:** native Linux, NVIDIA, fixture; future hwloc/AMD/Apple.
-Adapters observe; they do not decide models.
+| ID | Name | Role | Status |
+|---|---|---|---|
+| `2.1.1` | OS/arch adapter | Observe OS family and CPU architecture through a replaceable adapter | this increment |
+| `2.2.1` | Memory observer | RAM/swap observation | later |
+| `2.3.1` | NVIDIA adapter | Accelerator inventory | later |
+| `2.3.2` | Fixture provider | Replay captured host facts | later |
+| `2.4.1` | Mount enumerator | Filesystem mounts | later |
 
-**Inputs:** InstallRecord.  
-**Outputs:** HostProfile, MountObservation[].  
-**Preconditions:** Install.  
-**Success:** profile persisted; unknowns explicit.  
-**Blocked:** unsupported OS/arch may still produce a profile that later
-fails 4.5.  
-**State owned:** HostProfile.  
-**Persistence:** yes.  
-**Side effects:** none beyond records (component apt is Foundation).  
-**Downstream:** Steward, Capacity, Foundation.  
-**Re-entry:** rediscover; new generation.  
-**Idempotence:** same fingerprint → new generation if facts changed.  
-**Invalidated by:** hardware change (detect on rediscover).  
-**Recompute:** invalidates Capacity onward.  
-**Telemetry:** `discover.completed`.  
-**Independent test:** T1 fixtures.  
-**Cumulative:** M0→M2.  
-**Lessons:** providers ≠ policy; reported free is observation.
+Working implementation order: `2.1.1` → `2.2.1` → `2.3.1` / `2.3.2` → `2.4.1`.
+OS/arch before memory before accelerators before mounts. HostProfile
+aggregation waits until enough observations exist.
+
+- `2.1.1` observes OS family and CPU architecture. Core owns
+  `OSArchitectureObservation`. The native adapter owns `platform.system`
+  / `platform.machine`. Normalization is a pure alias map.
+- `2.1.1` does **not** mint HostId, persist HostProfile, enumerate
+  mounts, read memory, detect NVIDIA, or decide support.
+- Unknown raw values stay unrecognized. Empty reads stay unobserved.
+  Neither is defaulted to Linux or x86_64.
+- Discover events may carry resolved `install_id` and `install_run_id`
+  from composition after M1. `host_id` stays unresolved.
+- Observation is not mutation. The adapter must not write `/etc`,
+  install packages, or change kernel state.
+
+**Adapters:** native OS/arch (this increment); later NVIDIA, fixture;
+future hwloc/AMD/Apple. Adapters observe; they do not decide models.
+
+**Inputs:** optional InstallRecord / InstallRun correlation from
+composition.  
+**Outputs (2.1.1):** `OSArchitectureObservation`; event
+`discover.os_arch.observed`. HostProfile remains later.  
+**Preconditions:** Kernel. Install correlation is required only when
+composition asks to attach M1 identities.  
+**Success (2.1.1):** typed observation returned; unknowns explicit;
+`discover.os_arch.observed` journaled when a journal is supplied;
+`host_id` unresolved.  
+**Blocked (2.1.1):** platform APIs fail unexpectedly. Unrecognized
+OS/arch is still a successful observation, not a support decision.  
+**State owned (2.1.1):** none. The observation is not durable entity
+state.  
+**Persistence (2.1.1):** event only. No Store record.  
+**Side effects:** none on the host. Journal append only.  
+**Downstream:** later Discover components; Capacity still requires
+HostProfile.  
+**Re-entry:** observe again; new observation and event; do not mutate
+the previous event.  
+**Idempotence:** same host yields the same normalized OS/arch facts.  
+**Telemetry:** `discover.os_arch.observed` (privacy `public_ops`).
+Block-complete `discover.completed` remains later.  
+**Independent test:** alias matrix plus native current-host observation.  
+**Cumulative:** M0→M1→2.1.1.  
+**Lessons:** providers ≠ policy; unknown ≠ default; raw aliases are
+evidence; HostId is not OS+arch.
 
 ## 3 Steward
 
@@ -770,10 +801,10 @@ cleanup on stop.
     1.3.1 SelfOwnershipMarker
     1.3.2 RegistrySeed (local control-plane registry half)
   1.4 InstallRun
-    1.4.1 InstallRunStore (reuse across processes; this increment)
+    1.4.1 InstallRunStore (reuse across processes; accepted)
 2 Discover
   2.1 Environment
-    2.1.1 OS/arch adapter
+    2.1.1 OS/arch adapter (this increment)
   2.2 CPU / RAM
     2.2.1 Memory observer
   2.3 Accelerators

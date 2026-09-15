@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove M0 through 1.4.1.
+"""Install a Machi wheel into a throwaway environment and prove M0 through 2.1.1.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """
@@ -970,6 +970,70 @@ def main() -> int:
         != persisted_run_a["install_run_id"]
     ):
         raise SystemExit("copied-root attempt mutated InstallRun A")
+
+    journal_before_discover = (root_a / "journal" / "events.jsonl").read_text(
+        encoding="utf-8"
+    )
+    bound_snapshot = next(
+        json.loads(line)
+        for line in journal_before_discover.splitlines()
+        if json.loads(line).get("event_type") == "install.bound"
+    )
+    discover = run(
+        [
+            str(machi),
+            "discover",
+            "os-arch",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(discover.stdout, end="")
+    if '"event_type": "discover.os_arch.observed"' not in discover.stdout:
+        raise SystemExit("discover os-arch did not emit discover.os_arch.observed")
+    if '"privacy": "public_ops"' not in discover.stdout:
+        raise SystemExit("discover.os_arch.observed was not public_ops")
+    if f"install  {install_a['install_id']}" not in discover.stdout:
+        raise SystemExit("discover event lost InstallId correlation")
+    if f"run      {persisted_run_a['install_run_id']}" not in discover.stdout:
+        raise SystemExit("discover event lost InstallRunId correlation")
+    if "host     unresolved(not_provided)" not in discover.stdout:
+        raise SystemExit("discover os-arch minted or omitted host_id")
+    discover_event_at = discover.stdout.find('"kind": "event_record"')
+    if discover_event_at < 0:
+        raise SystemExit("discover os-arch did not print an EventRecord")
+    if str(root_a) in discover.stdout[discover_event_at:]:
+        raise SystemExit("absolute state root leaked into discover event")
+    if str(control_registry) in discover.stdout[discover_event_at:]:
+        raise SystemExit("Store path leaked into discover event")
+    if (control_registry / "os_architecture_observation").exists():
+        raise SystemExit("OS/arch observation was persisted as Store state")
+    journal_after = [
+        json.loads(line)
+        for line in (root_a / "journal" / "events.jsonl").read_text().splitlines()
+        if line
+    ]
+    still_bound = next(
+        item for item in journal_after if item["event_id"] == bound_snapshot["event_id"]
+    )
+    if still_bound != bound_snapshot:
+        raise SystemExit("discover rewrote install.bound")
+    observed_events = [
+        item
+        for item in journal_after
+        if item.get("event_type") == "discover.os_arch.observed"
+    ]
+    if not observed_events:
+        raise SystemExit("journal is missing discover.os_arch.observed")
+    if observed_events[-1]["install_id"] != install_a["install_id"]:
+        raise SystemExit("journaled discover event lost InstallId")
+    if observed_events[-1]["install_run_id"] != persisted_run_a["install_run_id"]:
+        raise SystemExit("journaled discover event lost InstallRunId")
+    if "$unresolved" not in json.dumps(observed_events[-1]["host_id"]):
+        raise SystemExit("discover event resolved host_id")
 
     print("verify_ok")
     return 0

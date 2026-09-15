@@ -1,8 +1,8 @@
 """Composition root and CLI.
 
-The only module that names a concrete adapter alongside Kernel and
-Install types. Kernel never imports adapters. Install never imports
-adapters. Kernel never owns state-root policy.
+The only module that names a concrete adapter alongside Kernel, Install,
+and Discover types. Kernel never imports adapters. Domain modules never
+import adapters. Kernel never owns state-root policy.
 """
 
 from __future__ import annotations
@@ -14,8 +14,12 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from machi.adapters.discover.native_os_arch import NativeOSArchitectureObserver
 from machi.adapters.journal.jsonl import JsonlJournal
 from machi.adapters.persistence.file_store import FileStore
+from machi.discover.contracts import OSArchitectureObservation
+from machi.discover.events import os_arch_observed
+from machi.discover.ports import OSArchitectureObserver
 from machi.install.binder import StateRootBinder
 from machi.install.contracts import (
     InstallRecordEstablishment,
@@ -45,9 +49,11 @@ from machi.kernel.alive import kernel_alive
 from machi.kernel.build import identity as build_identity
 from machi.kernel.errors import MachiError, PersistenceError, ValidationError
 from machi.kernel.events import EventRecord
+from machi.kernel.ids import InstallId, InstallRunId
 from machi.kernel.journal import JournalDefect
 from machi.kernel.schema import Contract, to_dict, validate_registry
 from machi.kernel.store_proof import StoreProof, store_proved
+from machi.kernel.unresolved import Maybe, is_resolved
 
 
 def prove_alive(journal_dir_path: Path) -> EventRecord:
@@ -274,6 +280,63 @@ def establish_install_run(
     )
 
 
+def observe_os_architecture(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    store_dir: Path | None,
+    journal_dir_path: Path | None,
+    observer: OSArchitectureObserver | None = None,
+) -> tuple[
+    OSArchitectureObservation,
+    EventRecord,
+    Maybe[InstallId],
+    Maybe[InstallRunId],
+    Path | None,
+]:
+    """Observe OS/arch. Re-enter M1 for correlation when a Store is supplied.
+
+    Does not mint HostId, does not persist a HostProfile, and does not
+    rewrite install.bound. Install events are not journaled here.
+    """
+    validate_registry(module_prefix="machi.")
+    if store_dir is not None and explicit is None and environment is None:
+        raise ValidationError(
+            "discover os-arch needs --state-root or MACHI_STATE_ROOT when "
+            "a control-plane Store is supplied",
+        )
+    install_id: Maybe[InstallId] | None = None
+    install_run_id: Maybe[InstallRunId] | None = None
+    binding_root: Path | None = None
+    if store_dir is not None:
+        binding = StateRootBinder().bind(explicit=explicit, environment=environment)
+        establishment = SelfOwnershipMarker().establish(binding)
+        store = FileStore(store_dir)
+        seeded = RegistrySeed().seed(binding, establishment, store)
+        established = InstallIdentity().establish(
+            binding, establishment, seeded, store, build_identity()
+        )
+        run = InstallRunStore().establish(established.record, store, build_identity())
+        install_id = established.record.install_id
+        install_run_id = run.record.install_run_id
+        binding_root = Path(binding.root)
+        _warn_if_defaulted(binding)
+    observation = (observer or NativeOSArchitectureObserver()).observe()
+    event = os_arch_observed(
+        observation,
+        install_id=install_id,
+        install_run_id=install_run_id,
+    )
+    target: Path | None = None
+    if journal_dir_path is not None:
+        target = journal_dir_path
+    elif binding_root is not None:
+        target = journal_dir(binding_root)
+    if target is not None:
+        event = JsonlJournal(target).append(event)
+    return observation, event, event.install_id, event.install_run_id, target
+
+
 def show_version() -> int:
     identity = build_identity()
     print(identity.describe())
@@ -289,6 +352,16 @@ def show_version() -> int:
 
 def _print_document(record: Contract) -> None:
     print(json.dumps(to_dict(record), indent=2, sort_keys=True))
+
+
+def _format_maybe(value: object) -> str:
+    if is_resolved(value):
+        rendered = getattr(value, "value", value)
+        return str(rendered)
+    reason = getattr(value, "reason", None)
+    if reason is not None:
+        return f"unresolved({reason.value})"
+    return "unresolved"
 
 
 def _require_journal_dir(ns: argparse.Namespace) -> Path:
@@ -457,6 +530,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Kernel journal directory; defaults to <state-root>/journal",
     )
 
+    discover = sub.add_parser("discover", help="Discover (Block 2) commands")
+    discover_sub = discover.add_subparsers(dest="discover_command", required=True)
+    os_arch = discover_sub.add_parser(
+        "os-arch",
+        help="observe OS family and CPU architecture; does not mint HostId",
+    )
+    os_arch.add_argument(
+        "--state-root",
+        default=None,
+        help="explicit state root used only to re-enter M1 correlation",
+    )
+    os_arch.add_argument(
+        "--store-dir",
+        default=None,
+        help="injected control-plane Store; required to resolve InstallId/InstallRunId",
+    )
+    os_arch.add_argument(
+        "--journal-dir",
+        default=None,
+        help="journal directory; defaults to <state-root>/journal when Store is set",
+    )
+
     ns = parser.parse_args(list(argv) if argv is not None else None)
     try:
         if ns.command == "version":
@@ -610,6 +705,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"journal  {JsonlJournal(target).path}")
             _print_document(run)
             _print_document(bound_event)
+            return 0
+        if ns.command == "discover" and ns.discover_command == "os-arch":
+            observation, event, install_id, install_run_id, journal_target = (
+                observe_os_architecture(
+                    explicit=ns.state_root,
+                    environment=_environment_override(),
+                    store_dir=Path(ns.store_dir) if ns.store_dir else None,
+                    journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+                )
+            )
+            print(f"os       {_format_maybe(observation.os_family)}")
+            print(f"arch     {_format_maybe(observation.architecture)}")
+            print(f"os_stat  {observation.os_status.value}")
+            print(f"arch_st  {observation.architecture_status.value}")
+            print(f"raw_os   {observation.raw_os or '-'}")
+            print(f"raw_arch {observation.raw_architecture or '-'}")
+            print(f"observer {observation.observer}")
+            print(f"install  {_format_maybe(install_id)}")
+            print(f"run      {_format_maybe(install_run_id)}")
+            print(f"host     {_format_maybe(event.host_id)}")
+            journal_shown = (
+                str(JsonlJournal(journal_target).path)
+                if journal_target is not None
+                else "-"
+            )
+            print(f"journal  {journal_shown}")
+            _print_document(observation)
+            _print_document(event)
             return 0
     except PersistenceError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

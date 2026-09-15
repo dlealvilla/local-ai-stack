@@ -86,6 +86,7 @@ Names are examples; the catalogue is owned by Kernel 0.3.
 - `install.ownership.registry_seeded` (1.3.2; marker id + root fingerprint; privacy `restricted`; `registry_seed_present`; never `ownership.verified`)
 - `install.record.established` (1.1.1; InstallId + marker id + root fingerprint; privacy `restricted`; resolved `install_id`; `install_run_id`/`host_id` unresolved)
 - `install.bound` (1.4.1; InstallId + InstallRunId; privacy `restricted`; resolved `install_id` and `install_run_id`; `host_id` unresolved; not `install.started`)
+- `discover.os_arch.observed` (2.1.1; OS family + CPU architecture; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not `discover.completed`)
 - `discover.completed`
 - `steward.classified` / `steward.reclaim.planned` / `steward.reclaim.completed`
 - `capacity.characterized` / `capacity.minimum.completed`
@@ -256,6 +257,11 @@ operator-local (`StateRootBinding`) and is not placed on the event.
 **1.4.1:** `install.bound` resolves `install_id` and `install_run_id`.
 `host_id` remains `Unresolved(NOT_PROVIDED)`. Predecessor events keep
 the unresolved values that were true when they were written.
+
+**2.1.1:** `discover.os_arch.observed` is `public_ops`. OS family and
+CPU architecture are non-identifying machine facts (see §9). Raw
+aliases such as `Darwin` / `AMD64` are retained. `host_id` remains
+unresolved. Hostname and paths are omitted.
 
 That is the empirical proof that observability is not a log
 statement.

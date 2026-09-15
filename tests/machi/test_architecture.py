@@ -1,9 +1,10 @@
-"""Machi architecture boundary tests through 1.4.1."""
+"""Machi architecture boundary tests through 2.1.1."""
 
 from __future__ import annotations
 
 from tests.machi.architecture import (
     binder_ownership_violations,
+    discover_boundary_violations,
     identity_boundary_violations,
     kernel_policy_violations,
     marker_boundary_violations,
@@ -56,3 +57,7 @@ def test_install_identity_stays_inside_install_record() -> None:
 
 def test_install_run_store_stays_inside_install_run() -> None:
     assert run_boundary_violations(source_root()) == []
+
+
+def test_os_arch_adapter_stays_inside_observation() -> None:
+    assert discover_boundary_violations(source_root()) == []

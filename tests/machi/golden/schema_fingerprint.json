@@ -1,4 +1,58 @@
 {
+  "discover.os_arch.observed@1": {
+    "python": "OSArchObservedPayload",
+    "fields": {
+      "os_family": {
+        "type": "OSFamily | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "normalized OS family; Unresolved when unobserved or unrecognized"
+      },
+      "architecture": {
+        "type": "CpuArchitecture | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "normalized CPU architecture; Unresolved when unobserved or unrecognized"
+      },
+      "os_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the OS family was normalized"
+      },
+      "architecture_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the CPU architecture was normalized"
+      },
+      "raw_os": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "narrow raw OS string; not a hostname or path"
+      },
+      "raw_architecture": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "narrow raw architecture string"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier, for example native"
+      }
+    }
+  },
   "event_record@1": {
     "python": "EventRecord",
     "fields": {
@@ -891,6 +945,67 @@
         "nullable": true,
         "may_be_unresolved": false,
         "meaning": "artifact or source origin of the writer; not a host path"
+      }
+    }
+  },
+  "os_architecture_observation@1": {
+    "python": "OSArchitectureObservation",
+    "fields": {
+      "os_family": {
+        "type": "OSFamily | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "normalized OS family when an alias matched; Unresolved otherwise"
+      },
+      "architecture": {
+        "type": "CpuArchitecture | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "normalized CPU architecture when an alias matched; Unresolved otherwise"
+      },
+      "os_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized, unrecognized (raw present, no alias), or unobserved"
+      },
+      "architecture_status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized, unrecognized (raw present, no alias), or unobserved"
+      },
+      "raw_os": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "narrow platform OS string as observed; empty when unobserved"
+      },
+      "raw_architecture": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "narrow platform architecture string as observed; empty when unobserved"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this observation was taken; timezone-aware UTC; never rewritten"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier that produced the raw values, for example native"
       }
     }
   },

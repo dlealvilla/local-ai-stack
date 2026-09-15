@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+import machi.discover
 import machi.install
 import machi.kernel.store_proof  # noqa: F401
 from machi.kernel.alive import KernelAlivePayload, kernel_alive

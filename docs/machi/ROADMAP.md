@@ -140,7 +140,7 @@ injected registry Store root. Does not evaluate dual proof.
 per local ownership identity. Build fields are creation provenance.
 Not InstallRun. Not host identity.
 
-**1.4.1 (this increment):** durable InstallRun correlation. One current
+**1.4.1 (accepted):** durable InstallRun correlation. One current
 `InstallRunId` per `InstallId`, reused across CLI processes. Lookup by
 InstallId. Not a process, host, or run-history engine.
 
@@ -174,12 +174,11 @@ two store roots; cumulative M0 → 1.2.1 → 1.3.1 → 0.4.1.
 
 **Cumulative:** M0 → 1.2.1 → 1.3.1 → 0.4.1 → 1.3.2 → 1.1.1 → 1.4.1.
 
-**Acceptance (full M1 local):** `machi version` + persisted InstallRun;
+**Acceptance (full M1):** `machi version` + persisted InstallRun;
 `install.bound` with resolved install and run ids; host unresolved;
-predecessors green. Physical 1.4.1 is a later instruction.
+predecessors green. Physical 1.4.1 accepted on `99b96bf`.
 
-**Unlocks:** Discover after 1.4.1 physical acceptance. Discover still
-must not begin in this increment.
+**Unlocks:** Discover (`2.1.1`).
 
 ---
 
@@ -188,29 +187,40 @@ must not begin in this increment.
 **Milestone ID:** `M2`  
 **Architecture IDs:** `2`, `2.1`–`2.4`
 
-**Objective:** normalized `HostProfile` from adapters; unknown
-preserved.
+**Working Component order:** `2.1.1` → `2.2.1` → `2.3.1` → `2.4.1`.
+Do not implement later Components in an earlier increment.
 
-**Inputs:** InstallRecord.
+**Objective:** normalized host observations from adapters; unknown
+preserved. HostProfile is the milestone output, not this increment.
 
-**Outputs:** `HostProfile`, `MountObservation[]`.
+**2.1.1 (this increment):** OS family and CPU architecture through a
+replaceable adapter. Source-agnostic `OSArchitectureObservation`.
+Native adapter uses `platform.system` / `platform.machine`. Event
+`discover.os_arch.observed` (`public_ops`). No HostId. No HostProfile
+persistence. No memory, NVIDIA, mounts, or provider detection.
 
-**Telemetry:** `discover.completed`; adapter names as provenance, not
-as schema.
+**Inputs (2.1.1):** current host; optional M1 InstallId/InstallRunId
+from composition.
 
-**Local tests:** T1 fixture replay of the known Linux/NVIDIA shape.
+**Outputs (2.1.1):** `OSArchitectureObservation`; Discover event with
+`host_id` unresolved.
 
-**Physical:** T3 `machi host` matches `HostProfile` fields; GPU
-physical vs SAFE distinguished.
+**Telemetry:** `discover.os_arch.observed`. Block-complete
+`discover.completed` remains later.
 
-**Cumulative:** M0 → M2.
+**Local tests:** alias matrix (Linux/Windows/macOS, x86_64/AMD64,
+arm64/aarch64, unknown); native current-host observation; M1
+regression.
 
-**Acceptance:** profile persisted; reported free on FUSE flagged
-untrusted **as observation**, not yet authorizing.
+**Physical:** later instruction on the archived 2.1.1 wheel: Linux
+OS/arch observation after empty-state M1 reconstruction.
 
-**Non-goals:** Sonar, reclaim, runtimes.
+**Cumulative:** M0 → M1 → 2.1.1.
 
-**Unlocks:** Steward and Capacity.
+**Non-goals (2.1.1):** HostId, HostProfile, memory, NVIDIA, mounts,
+compatibility, remediation.
+
+**Unlocks:** `2.2.1` Memory observer after 2.1.1 physical acceptance.
 
 ---
 
