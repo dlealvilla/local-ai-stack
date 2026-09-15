@@ -209,6 +209,7 @@ STORE_PORT_FORBIDDEN = (
     "SelfOwnershipMarker",
     ".machi-owner.json",
     "RegistrySeed",
+    "InstallIdentity",
     "EventRecord",
     "JsonlJournal",
     "FileStore",
@@ -221,6 +222,7 @@ STORE_ADAPTER_FORBIDDEN = (
     "SelfOwnershipMarker",
     ".machi-owner.json",
     "RegistrySeed",
+    "InstallIdentity",
     "EventRecord",
     "JsonlJournal",
     "os.environ",
@@ -291,4 +293,59 @@ def registry_boundary_violations(root: Path) -> list[str]:
     store_port = (root / "kernel" / "store.py").read_text(encoding="utf-8")
     if "RegistrySeed" in store_port:
         found.append("kernel Store must not import RegistrySeed")
+    return found
+
+
+IDENTITY_FORBIDDEN_TOKENS = (
+    "FileStore",
+    "MACHI_STATE_ROOT",
+    "os.environ",
+    "shutil.rmtree",
+    "rglob",
+    "OwnershipRecord",
+    "InstallRunId",
+    "HostId",
+    "delete_owned",
+    "reclaim",
+    "steward",
+    "kernel.store.proved",
+    "StateRootBinder",
+    "SelfOwnershipMarker",
+    "from machi.install.registry",
+    ".machi-owner.json",
+    "identity()",
+)
+
+
+def identity_boundary_violations(root: Path) -> list[str]:
+    """1.1.1 consumes contracts and an injected Store; it does not invent runs."""
+    path = root / "install" / "identity.py"
+    text = path.read_text(encoding="utf-8")
+    found: list[str] = []
+    for token in IDENTITY_FORBIDDEN_TOKENS:
+        if token in text:
+            found.append(f"{path.name} must not contain {token!r}")
+    if "def establish(" not in text:
+        found.append("InstallIdentity.establish must be defined")
+    if "binding: StateRootBinding" not in text:
+        found.append("InstallIdentity.establish must consume StateRootBinding")
+    if "establishment: LocalOwnershipEstablishment" not in text:
+        found.append(
+            "InstallIdentity.establish must consume LocalOwnershipEstablishment"
+        )
+    if "registry: LocalOwnershipRegistryEstablishment" not in text:
+        found.append(
+            "InstallIdentity.establish must consume LocalOwnershipRegistryEstablishment"
+        )
+    if "store: Store" not in text:
+        found.append("InstallIdentity.establish must consume the Store port")
+    if "build: BuildIdentity" not in text:
+        found.append("InstallIdentity.establish must consume BuildIdentity")
+    if "from machi.kernel.store import Store" not in text:
+        found.append("InstallIdentity must consume the Kernel Store port")
+    if "from machi.adapters" in text:
+        found.append("InstallIdentity must not import adapters")
+    store_port = (root / "kernel" / "store.py").read_text(encoding="utf-8")
+    if "InstallIdentity" in store_port:
+        found.append("kernel Store must not import InstallIdentity")
     return found

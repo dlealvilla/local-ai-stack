@@ -132,13 +132,15 @@ always false.
 **0.4.1 (accepted):** Kernel Store port and `FileStore` adapter.
 Injected root; exclusive create + get; not the journal; not RegistrySeed.
 
-**1.3.2 (this increment):** local control-plane registry record citing the
+**1.3.2 (accepted):** local control-plane registry record citing the
 same `marker_id` and root fingerprint. Uses Kernel `0.4.1` Store with an
-injected registry Store root. Does not evaluate dual proof. Do not treat
-InstallRecord as the second ownership half.
+injected registry Store root. Does not evaluate dual proof.
 
-**1.1.1 (next recommended after physical 1.3.2; not this increment):**
-install-scoped identity. Not started.
+**1.1.1 (this increment):** install-scoped identity. One stable `InstallId`
+per local ownership identity. Build fields are creation provenance.
+Not InstallRun. Not host identity.
+
+**1.4.1 (not this increment):** InstallRun correlation. Not started.
 
 **Full M1 outputs:** `InstallRecord`, `InstallRun`, local marker, and
 later the registry half. Steward `OwnershipRecord` remains Block 3.
@@ -146,8 +148,10 @@ later the registry half. Steward `OwnershipRecord` remains Block 3.
 **Telemetry:** `install.state_root.bound` at 1.2.1,
 `install.ownership.local_marked` at 1.3.1, and
 `install.ownership.registry_seeded` at 1.3.2 (`restricted`; absolute path
-omitted). Never `ownership.verified`. `install.bound` and
-InstallRun correlation wait for 1.4.1.
+omitted). `install.record.established` at 1.1.1 (`restricted`; resolved
+`install_id`; `install_run_id` and `host_id` unresolved). Never
+`ownership.verified`. `install.bound` and InstallRun correlation wait for
+1.4.1.
 
 **Local tests (1.3.1):** marker create; re-entry; two-root isolation;
 copied marker fail-closed; unknown content refused; Kultrun collision;
@@ -168,18 +172,15 @@ two store roots; cumulative M0 → 1.2.1 → 1.3.1 → 0.4.1.
 **Cumulative:** M0 → 1.2.1 → 1.3.1 → 0.4.1 → 1.3.2, then M0 → M1.
 
 **Acceptance (full M1):** `machi version` + persisted InstallRun; events
-correlated. **1.3.1 gate:** local marker + restricted event + no
-destructive authorization + M0/1.2.1 green. **0.4.1 gate:** durable
-entity round-trip on an injected root + restricted proof event +
-predecessors green. **1.3.2 local gate:** registry seed + restricted
-event + no destructive authorization + predecessors green. Physical
-1.3.2 is a later instruction.
+correlated. **1.1.1 local gate:** stable InstallId + restricted event with
+resolved `install_id` + no InstallRun + predecessors green. Physical
+1.1.1 is a later instruction.
 
 **Non-goals (1.3.1):** central registry, dual-proof evaluator, Steward
 cleanup, reclaim, sibling scan, InstallRecord, InstallRun.
 
-**Unlocks:** 1.3.2 can cite a stable local evidence identity. Discover
-still waits for full M1 identity.
+**Unlocks:** 1.4.1 can correlate an InstallRun to a stable InstallId.
+Discover still waits for InstallRun.
 
 ---
 

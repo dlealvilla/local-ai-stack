@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove M0 through 1.3.2.
+"""Install a Machi wheel into a throwaway environment and prove M0 through 1.1.1.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """
@@ -62,6 +62,14 @@ def load_registry(store: Path, marker_id: str) -> dict[str, object]:
     payload: object = json.loads(raw)
     if not isinstance(payload, dict):
         raise SystemExit("registry record is not a JSON object")
+    return {str(key): value for key, value in payload.items()}
+
+
+def load_install(store: Path, marker_id: str) -> dict[str, object]:
+    raw = (store / "install_record" / f"{marker_id}.json").read_text(encoding="utf-8")
+    payload: object = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise SystemExit("install record is not a JSON object")
     return {str(key): value for key, value in payload.items()}
 
 
@@ -587,6 +595,134 @@ def main() -> int:
     )
     print(seed_c.stdout, end="")
     marker_c = load_marker(root_c)
+
+    establish_a = run(
+        [
+            str(machi),
+            "install",
+            "establish-record",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(establish_a.stdout, end="")
+    if '"kind": "install_record"' not in establish_a.stdout:
+        raise SystemExit("establish-record did not persist an InstallRecord")
+    if '"event_type": "install.record.established"' not in establish_a.stdout:
+        raise SystemExit("establish-record did not emit install.record.established")
+    if '"privacy": "restricted"' not in establish_a.stdout:
+        raise SystemExit("install-record event was not restricted")
+    if '"status": "install_record_present"' not in establish_a.stdout:
+        raise SystemExit("establish-record did not report install_record_present")
+    if '"dual_ownership": true' in establish_a.stdout:
+        raise SystemExit("1.1.1 claimed dual ownership")
+    if '"destructive_authorization": true' in establish_a.stdout:
+        raise SystemExit("1.1.1 claimed destructive authorization")
+    establish_event_at = establish_a.stdout.find('"kind": "event_record"')
+    if establish_event_at < 0:
+        raise SystemExit("establish-record did not print an EventRecord")
+    if str(root_a) in establish_a.stdout[establish_event_at:]:
+        raise SystemExit("absolute state root leaked into the install-record event")
+    if str(control_registry) in establish_a.stdout[establish_event_at:]:
+        raise SystemExit("Store path leaked into the install-record event")
+    if (root_a / "install_record").exists():
+        raise SystemExit("InstallRecord was written inside the claimed state root")
+    install_a = load_install(control_registry, str(marker_a["marker_id"]))
+    if install_a["marker_id"] != marker_a["marker_id"]:
+        raise SystemExit("InstallRecord marker_id did not cite the local marker")
+    if install_a["root_fingerprint"] != marker_a["root_fingerprint"]:
+        raise SystemExit("InstallRecord fingerprint did not match the local marker")
+    if not str(install_a["install_id"]).startswith("inst_"):
+        raise SystemExit("InstallRecord did not mint an InstallId")
+
+    establish_a_again = run(
+        [
+            str(machi),
+            "install",
+            "establish-record",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(establish_a_again.stdout, end="")
+    if "created  false" not in establish_a_again.stdout:
+        raise SystemExit("InstallRecord re-entry did not report created=false")
+    if (
+        load_install(control_registry, str(marker_a["marker_id"]))["created_at"]
+        != install_a["created_at"]
+    ):
+        raise SystemExit("InstallRecord re-entry rewrote created_at")
+    if (
+        load_install(control_registry, str(marker_a["marker_id"]))["install_id"]
+        != install_a["install_id"]
+    ):
+        raise SystemExit("InstallRecord re-entry minted a new InstallId")
+
+    establish_b = run(
+        [
+            str(machi),
+            "install",
+            "establish-record",
+            "--state-root",
+            str(root_b),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(establish_b.stdout, end="")
+    install_b = load_install(control_registry, str(marker_b["marker_id"]))
+    if install_a["install_id"] == install_b["install_id"]:
+        raise SystemExit("two roots shared an InstallId")
+    establish_c = run(
+        [
+            str(machi),
+            "install",
+            "establish-record",
+            "--state-root",
+            str(root_c),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(establish_c.stdout, end="")
+    install_c = load_install(control_registry, str(marker_c["marker_id"]))
+    if install_c["install_id"] in {install_a["install_id"], install_b["install_id"]}:
+        raise SystemExit("root C collided with an existing InstallId")
+
+    install_kind = control_registry / "install_record"
+    (install_kind / f"{marker_b['marker_id']}.json").write_text(
+        "{broken\n", encoding="utf-8"
+    )
+    install_a_after = load_install(control_registry, str(marker_a["marker_id"]))
+    if install_a_after["install_id"] != install_a["install_id"]:
+        raise SystemExit("corruption of InstallRecord B broke reading A")
+    broken_install_b = run_expect_fail(
+        [
+            str(machi),
+            "install",
+            "establish-record",
+            "--state-root",
+            str(root_b),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(broken_install_b.stderr, end="")
+    if "malformed JSON" not in broken_install_b.stderr:
+        raise SystemExit("malformed InstallRecord did not fail closed")
+    install_c_after = load_install(control_registry, str(marker_c["marker_id"]))
+    if install_c_after["install_id"] != install_c["install_id"]:
+        raise SystemExit("corruption of InstallRecord B broke reading C")
+
     kind_dir = control_registry / "local_ownership_registry_record"
     (kind_dir / f"{marker_b['marker_id']}.json").write_text(
         "{broken\n", encoding="utf-8"
@@ -635,6 +771,27 @@ def main() -> int:
         != record_a["root_fingerprint"]
     ):
         raise SystemExit("copied-root attempt mutated registry A")
+
+    copied_install = run_expect_fail(
+        [
+            str(machi),
+            "install",
+            "establish-record",
+            "--state-root",
+            str(copied),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(copied_install.stderr, end="")
+    if "copied marker" not in copied_install.stderr:
+        raise SystemExit("copied state root obtained an InstallRecord")
+    if (
+        load_install(control_registry, str(marker_a["marker_id"]))["install_id"]
+        != install_a["install_id"]
+    ):
+        raise SystemExit("copied-root attempt mutated InstallRecord A")
 
     print("verify_ok")
     return 0

@@ -14,7 +14,7 @@ from enum import StrEnum
 
 from machi.kernel.clock import require_utc
 from machi.kernel.errors import ValidationError
-from machi.kernel.ids import LocalOwnershipId
+from machi.kernel.ids import InstallId, LocalOwnershipId
 from machi.kernel.schema import Contract, contract, meaning
 
 _ROOT_FINGERPRINT = re.compile(r"^[0-9a-f]{64}$")
@@ -235,4 +235,105 @@ class LocalOwnershipRegistryEstablishment(Contract):
         if self.destructive_authorization:
             raise ValidationError(
                 "1.3.2 must not authorize destruction",
+            )
+
+
+class InstallRecordStatus(StrEnum):
+    """What a persisted InstallRecord means. It is not a run or a host."""
+
+    INSTALL_RECORD_PRESENT = "install_record_present"
+
+
+@contract(kind="install_record", version=1)
+@dataclass(frozen=True, slots=True)
+class InstallRecord(Contract):
+    """Stable identity of one Machi installation.
+
+    Minted once for a coherent ownership identity. Build fields are
+    creation provenance, not the currently running software version.
+    This is not an InstallRun, not a HostId, and not delete authority.
+    """
+
+    install_id: InstallId = meaning(
+        "stable identity of this installation; minted once; not an InstallRunId"
+    )
+    product: str = meaning("product namespace; always machi")
+    marker_id: LocalOwnershipId = meaning(
+        "local ownership identity this installation is bound to; Store lookup key"
+    )
+    root_fingerprint: str = meaning(
+        "SHA-256 hex digest of the bound state root; must match marker and registry"
+    )
+    created_at: dt.datetime = meaning(
+        "when this InstallRecord was first written; timezone-aware UTC; never rewritten"
+    )
+    created_by_version: str = meaning(
+        "Machi version that first created this installation identity"
+    )
+    created_by_origin: str = meaning(
+        "artifact or source origin of the creating build; not a host path"
+    )
+    created_by_build_id: str | None = meaning(
+        "build id of the artifact that first created the record; None in a checkout",
+        default=None,
+    )
+    created_by_source_commit: str | None = meaning(
+        "source commit of the creating build when known; not current software",
+        default=None,
+    )
+    created_by_clean_source: bool | None = meaning(
+        "whether the creating build was a clean artifact; None when unknown",
+        default=None,
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "created_at", require_utc(self.created_at, what="created_at")
+        )
+        if self.product != "machi":
+            raise ValidationError(
+                "install record product must be machi",
+                product=self.product,
+            )
+        if not _ROOT_FINGERPRINT.match(self.root_fingerprint):
+            raise ValidationError(
+                "root_fingerprint must be a SHA-256 hex digest",
+                root_fingerprint=self.root_fingerprint,
+            )
+
+
+@contract(kind="install_record_establishment", version=1)
+@dataclass(frozen=True, slots=True)
+class InstallRecordEstablishment(Contract):
+    """Result of 1.1.1. Installation identity only; never a run or delete permit."""
+
+    record: InstallRecord = meaning("the validated or newly written InstallRecord")
+    status: InstallRecordStatus = meaning(
+        "install_record_present; never install.completed or ownership_verified"
+    )
+    dual_ownership: bool = meaning(
+        "whether Steward has evaluated both ownership authorities; "
+        "1.1.1 is always false"
+    )
+    destructive_authorization: bool = meaning(
+        "whether this result may authorize delete/reclaim; 1.1.1 is always false"
+    )
+    existed: bool = meaning(
+        "whether the InstallRecord already existed before this call"
+    )
+    created: bool = meaning("whether this invocation published a new InstallRecord")
+
+    def __post_init__(self) -> None:
+        if self.status is not InstallRecordStatus.INSTALL_RECORD_PRESENT:
+            raise ValidationError(
+                "1.1.1 status must be install_record_present",
+                status=self.status.value,
+            )
+        if self.dual_ownership:
+            raise ValidationError(
+                "1.1.1 must not claim dual ownership",
+            )
+        if self.destructive_authorization:
+            raise ValidationError(
+                "1.1.1 must not authorize destruction",
             )

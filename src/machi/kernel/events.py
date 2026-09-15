@@ -58,7 +58,7 @@ class EventRecord(Contract):
         "when the fact happened, timezone-aware UTC; never persist time"
     )
     install_id: Maybe[InstallId] = meaning(
-        "this Machi installation; Unresolved until Block 1 binds a state root"
+        "this Machi installation; Unresolved until 1.1.1 persists InstallRecord"
     )
     install_run_id: Maybe[InstallRunId] = meaning(
         "deployment-journey correlation; Unresolved until Block 1 mints InstallRun"

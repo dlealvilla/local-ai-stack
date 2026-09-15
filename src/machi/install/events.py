@@ -12,6 +12,7 @@ import hashlib
 from dataclasses import dataclass
 
 from machi.install.contracts import (
+    InstallRecordEstablishment,
     LocalOwnershipEstablishment,
     LocalOwnershipRegistryEstablishment,
     SelectionSource,
@@ -19,7 +20,7 @@ from machi.install.contracts import (
 )
 from machi.kernel.clock import Clock
 from machi.kernel.events import EventOutcome, EventRecord
-from machi.kernel.ids import LocalOwnershipId
+from machi.kernel.ids import InstallId, LocalOwnershipId
 from machi.kernel.privacy import PrivacyClass
 from machi.kernel.schema import Contract, contract, meaning
 
@@ -30,6 +31,8 @@ SELF_OWNERSHIP_COMPONENT = "1.3.1"
 LOCAL_MARKED_TYPE = "install.ownership.local_marked"
 REGISTRY_SEED_COMPONENT = "1.3.2"
 REGISTRY_SEEDED_TYPE = "install.ownership.registry_seeded"
+INSTALL_RECORD_COMPONENT = "1.1.1"
+INSTALL_RECORD_ESTABLISHED_TYPE = "install.record.established"
 
 
 @contract(kind="install.state_root.bound", version=1)
@@ -153,5 +156,52 @@ def ownership_registry_seeded(
             existed=establishment.existed,
             created=establishment.created,
         ),
+        clock=clock,
+    )
+
+
+@contract(kind="install.record.established", version=1)
+@dataclass(frozen=True, slots=True)
+class InstallRecordEstablishedPayload(Contract):
+    """Safe operational body for InstallRecord establishment. Not a run."""
+
+    install_id: InstallId = meaning(
+        "stable installation identity minted or reused by 1.1.1"
+    )
+    marker_id: LocalOwnershipId = meaning(
+        "local ownership identity the InstallRecord is bound to"
+    )
+    root_fingerprint: str = meaning(
+        "SHA-256 of the bound root; the absolute path is omitted"
+    )
+    status: str = meaning("always install_record_present; never install.completed")
+    destructive_authorization: bool = meaning("always false for 1.1.1")
+    existed: bool = meaning("whether the InstallRecord already existed")
+    created: bool = meaning("whether this invocation published a new InstallRecord")
+
+
+def install_record_established(
+    establishment: InstallRecordEstablishment, *, clock: Clock | None = None
+) -> EventRecord:
+    """Mint the InstallRecord event with a resolved InstallId.
+
+    InstallRun and Host stay Unresolved. Earlier events are not rewritten.
+    """
+    return EventRecord.create(
+        event_type=INSTALL_RECORD_ESTABLISHED_TYPE,
+        block_id=INSTALL_BLOCK,
+        component_id=INSTALL_RECORD_COMPONENT,
+        outcome=EventOutcome.PASS,
+        privacy=PrivacyClass.RESTRICTED,
+        payload=InstallRecordEstablishedPayload(
+            install_id=establishment.record.install_id,
+            marker_id=establishment.record.marker_id,
+            root_fingerprint=establishment.record.root_fingerprint,
+            status=establishment.status.value,
+            destructive_authorization=establishment.destructive_authorization,
+            existed=establishment.existed,
+            created=establishment.created,
+        ),
+        install_id=establishment.record.install_id,
         clock=clock,
     )

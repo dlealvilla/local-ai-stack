@@ -171,7 +171,8 @@ class LocalOwnershipId(EntityId):
     """Identifies one local ownership marker. Minted by 1.3.1.
 
     Not an InstallId, not an InstallRun, and not dual-ownership proof.
-    Component 1.3.2 may later reference the same value in a registry row.
+    Component 1.3.2 cites the same value in a registry row. Component
+    1.1.1 uses it as the InstallRecord Store key.
     """
 
     prefix = "lown"

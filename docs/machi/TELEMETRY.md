@@ -84,6 +84,7 @@ Names are examples; the catalogue is owned by Kernel 0.3.
 - `install.state_root.bound` (1.2.1; path omitted from payload; privacy `restricted`)
 - `install.ownership.local_marked` (1.3.1; marker id + root fingerprint; privacy `restricted`; not dual proof; never `ownership.verified`)
 - `install.ownership.registry_seeded` (1.3.2; marker id + root fingerprint; privacy `restricted`; `registry_seed_present`; never `ownership.verified`)
+- `install.record.established` (1.1.1; InstallId + marker id + root fingerprint; privacy `restricted`; resolved `install_id`; `install_run_id`/`host_id` unresolved)
 - `install.started` / `install.bound` (1.4.1; InstallRun exists)
 - `discover.completed`
 - `steward.classified` / `steward.reclaim.planned` / `steward.reclaim.completed`

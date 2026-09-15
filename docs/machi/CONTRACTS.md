@@ -73,7 +73,8 @@ rewrite them in place.
 | `LocalOwnershipEstablishment` | 1.3.1 SelfOwnershipMarker | 1.3.2, composition; never Steward delete | Evidence (local only) | no; result of establish | `dual_ownership=false`, `destructive_authorization=false` |
 | `LocalOwnershipRegistryRecord` | 1.3.2 RegistrySeed | composition; later Steward evaluator | Evidence (control-plane registry) | injected Store `<kind>/<marker_id>.json` | same `marker_id` + root fingerprint as 1.3.1; not `OwnershipRecord` |
 | `LocalOwnershipRegistryEstablishment` | 1.3.2 RegistrySeed | composition; never Steward delete | Evidence (control-plane registry) | no; result of seed | `registry_seed_present`; `dual_ownership=false`; `destructive_authorization=false` |
-| `InstallRecord` | 1.1.1 InstallRecord | all | Profile | yes | artifact SHA, build id, bound root |
+| `InstallRecord` | 1.1.1 InstallIdentity | 1.4.1, later Blocks | Profile | injected Store `<kind>/<marker_id>.json` | `InstallId`; marker/root correlation; creation-build provenance (not current version) |
+| `InstallRecordEstablishment` | 1.1.1 InstallIdentity | composition | Profile | no; result of establish | `install_record_present`; `dual_ownership=false`; `destructive_authorization=false` |
 | `InstallRun` | 1.4.1 InstallRunStore | EventRecord.correlation | Profile | yes | state root |
 | `HostObservation` | 2 adapters | Discover | Observation | optional raw | adapter name, tool version |
 | `HostProfile` | 2 Discover | Capacity, Foundation, Admit | Profile | yes | observation IDs |
@@ -116,6 +117,11 @@ name for dual-proof inventory. 1.3.1 status is `local_marker_present`.
 The 1.3.2 registry is the local customer Machi control plane. It is not
 a vendor cloud service. The registry Store is injected; it is not the
 same authority as `.machi-owner.json`.
+
+`InstallRecord` is keyed by that same `marker_id`. Build fields on it
+are the creating artifact's provenance. Artifact SHA is omitted: Kernel
+`BuildIdentity` does not carry a wheel hash, and 1.1.1 does not invent
+one.
 
 The Kernel `Store` port is not a domain contract. Callers persist their
 own versioned contracts under caller-owned keys. `StoreProof` exists

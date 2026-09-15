@@ -18,6 +18,7 @@ from machi.adapters.journal.jsonl import JsonlJournal
 from machi.adapters.persistence.file_store import FileStore
 from machi.install.binder import StateRootBinder
 from machi.install.contracts import (
+    InstallRecordEstablishment,
     LocalOwnershipEstablishment,
     LocalOwnershipRegistryEstablishment,
     SelectionSource,
@@ -29,10 +30,12 @@ from machi.install.defaults import (
     journal_dir,
 )
 from machi.install.events import (
+    install_record_established,
     local_ownership_marked,
     ownership_registry_seeded,
     state_root_bound,
 )
+from machi.install.identity import InstallIdentity
 from machi.install.marker import SelfOwnershipMarker
 from machi.install.registry import RegistrySeed
 from machi.kernel.alive import kernel_alive
@@ -161,6 +164,56 @@ def seed_local_registry(
     journal.append(local_ownership_marked(establishment))
     seed_event = journal.append(ownership_registry_seeded(seeded))
     return binding, establishment, seeded, seed_event, target, store.root
+
+
+def establish_install_record(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    store_dir: Path,
+    journal_dir_path: Path | None,
+) -> tuple[
+    StateRootBinding,
+    LocalOwnershipEstablishment,
+    LocalOwnershipRegistryEstablishment,
+    InstallRecordEstablishment,
+    EventRecord,
+    Path,
+    Path,
+]:
+    """Bind, mark, seed registry, then persist InstallRecord via an injected Store.
+
+    InstallIdentity does not choose the Store root. Composition supplies it.
+    Bind/mark/seed events in this invocation stay without InstallId.
+    The InstallRecord event carries the newly established identity.
+    """
+    validate_registry(module_prefix="machi.")
+    binding = StateRootBinder().bind(explicit=explicit, environment=environment)
+    establishment = SelfOwnershipMarker().establish(binding)
+    store = FileStore(store_dir)
+    seeded = RegistrySeed().seed(binding, establishment, store)
+    established = InstallIdentity().establish(
+        binding, establishment, seeded, store, build_identity()
+    )
+    target = (
+        journal_dir_path
+        if journal_dir_path is not None
+        else journal_dir(Path(binding.root))
+    )
+    journal = JsonlJournal(target)
+    journal.append(state_root_bound(binding))
+    journal.append(local_ownership_marked(establishment))
+    journal.append(ownership_registry_seeded(seeded))
+    record_event = journal.append(install_record_established(established))
+    return (
+        binding,
+        establishment,
+        seeded,
+        established,
+        record_event,
+        target,
+        store.root,
+    )
 
 
 def show_version() -> int:
@@ -307,6 +360,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="Kernel journal directory; defaults to <state-root>/journal",
     )
+    establish = install_sub.add_parser(
+        "establish-record",
+        help="bind, mark, seed registry, then persist a stable InstallRecord",
+    )
+    establish.add_argument(
+        "--state-root",
+        default=None,
+        help="explicit state root consumed via 1.2.1, 1.3.1, and 1.3.2",
+    )
+    establish.add_argument(
+        "--store-dir",
+        required=True,
+        help="injected control-plane Store root; same tree as seed-registry",
+    )
+    establish.add_argument(
+        "--journal-dir",
+        default=None,
+        help="Kernel journal directory; defaults to <state-root>/journal",
+    )
 
     ns = parser.parse_args(list(argv) if argv is not None else None)
     try:
@@ -401,6 +473,35 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print_document(establishment)
             _print_document(seeded)
             _print_document(seed_event)
+            return 0
+        if ns.command == "install" and ns.install_command == "establish-record":
+            (
+                binding,
+                _establishment,
+                _seeded,
+                established,
+                record_event,
+                target,
+                store_root,
+            ) = establish_install_record(
+                explicit=ns.state_root,
+                environment=_environment_override(),
+                store_dir=Path(ns.store_dir),
+                journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+            )
+            _warn_if_defaulted(binding)
+            print(f"root     {binding.root}")
+            print(f"marker   {Path(binding.root) / MACHI_OWNER_FILENAME}")
+            print(f"store    {store_root}")
+            print(f"install  {established.record.install_id.value}")
+            print(f"status   {established.status.value}")
+            print(f"dual     {str(established.dual_ownership).lower()}")
+            print(f"destroy  {str(established.destructive_authorization).lower()}")
+            print(f"created  {str(established.created).lower()}")
+            print(f"existed  {str(established.existed).lower()}")
+            print(f"journal  {JsonlJournal(target).path}")
+            _print_document(established)
+            _print_document(record_event)
             return 0
     except PersistenceError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
