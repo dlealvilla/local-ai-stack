@@ -1,4 +1,4 @@
-"""Machi architecture boundary tests through 2.1.1."""
+"""Machi architecture boundary tests through 2.2.1."""
 
 from __future__ import annotations
 
@@ -60,4 +60,8 @@ def test_install_run_store_stays_inside_install_run() -> None:
 
 
 def test_os_arch_adapter_stays_inside_observation() -> None:
+    assert discover_boundary_violations(source_root()) == []
+
+
+def test_memory_observer_stays_inside_observation() -> None:
     assert discover_boundary_violations(source_root()) == []

@@ -193,34 +193,41 @@ Do not implement later Components in an earlier increment.
 **Objective:** normalized host observations from adapters; unknown
 preserved. HostProfile is the milestone output, not this increment.
 
-**2.1.1 (this increment):** OS family and CPU architecture through a
-replaceable adapter. Source-agnostic `OSArchitectureObservation`.
-Native adapter uses `platform.system` / `platform.machine`. Event
-`discover.os_arch.observed` (`public_ops`). No HostId. No HostProfile
-persistence. No memory, NVIDIA, mounts, or provider detection.
+**2.1.1 (accepted):** OS family and CPU architecture through a
+replaceable adapter. Physical evidence `b9d869b`.
 
-**Inputs (2.1.1):** current host; optional M1 InstallId/InstallRunId
-from composition.
+**2.2.1 (this increment):** reported physical/system memory in integer
+bytes through a replaceable adapter. Source-agnostic
+`MemoryObservation`. Linux kernel memory table (`MemTotal` as KiB);
+macOS `os.sysconf`; Windows unsupported (not zero). Event
+`discover.memory.observed` (`public_ops`). No HostId. No HostProfile.
+No safe-capacity arithmetic. No available/swap/cgroup in this
+increment.
 
-**Outputs (2.1.1):** `OSArchitectureObservation`; Discover event with
-`host_id` unresolved.
+**Inputs (2.2.1):** current host; 2.1.1 OS family for native source
+selection; optional M1 InstallId/InstallRunId from composition.
 
-**Telemetry:** `discover.os_arch.observed`. Block-complete
+**Outputs (2.2.1):** `MemoryObservation`; Discover event with `host_id`
+unresolved.
+
+**Telemetry:** `discover.memory.observed`. Block-complete
 `discover.completed` remains later.
 
-**Local tests:** alias matrix (Linux/Windows/macOS, x86_64/AMD64,
-arm64/aarch64, unknown); native current-host observation; M1
-regression.
+**Local tests:** native current-host observation; Linux table fixtures
+(KiB conversion, missing/malformed/unknown unit/zero); Windows
+unsupported; M1 + 2.1.1 regression.
 
-**Physical:** later instruction on the archived 2.1.1 wheel: Linux
-OS/arch observation after empty-state M1 reconstruction.
+**Physical:** later instruction on the archived 2.2.1 wheel: Linux
+memory observation after empty-state M1 + 2.1.1 reconstruction.
 
-**Cumulative:** M0 → M1 → 2.1.1.
+**Cumulative:** M0 → M1 → 2.1.1 → 2.2.1.
 
-**Non-goals (2.1.1):** HostId, HostProfile, memory, NVIDIA, mounts,
-compatibility, remediation.
+**Non-goals (2.2.1):** HostId, HostProfile, NVIDIA, mounts,
+available/swap/cgroup, capacity, remediation, Windows native reader.
 
-**Unlocks:** `2.2.1` Memory observer after 2.1.1 physical acceptance.
+**Unlocks:** `2.3.1` NVIDIA adapter after 2.2.1 physical acceptance.
+Cgroup/execution memory limit remains deferred until HostProfile or
+Capacity needs a distinct execution ceiling.
 
 ---
 

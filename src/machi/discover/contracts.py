@@ -1,8 +1,8 @@
 """Discover observation contracts owned by Block 2.
 
-``OSArchitectureObservation`` is the 2.1.1 output. It records what the
-adapter saw and how Machi normalized it. It is not a HostId, not a
-support certificate, and not a HostProfile.
+``OSArchitectureObservation`` is the 2.1.1 output. ``MemoryObservation``
+is the 2.2.1 output. Neither is a HostId, a support certificate, a
+HostProfile, or a capacity envelope.
 """
 
 from __future__ import annotations
@@ -18,6 +18,8 @@ from machi.kernel.unresolved import Maybe, Unresolved, is_resolved
 
 _OBSERVER_MAX = 64
 _RAW_MAX = 64
+_MEMORY_RAW_MAX = 96
+_MEMORY_TOTAL_MAX = 1 << 50
 
 
 class OSFamily(StrEnum):
@@ -41,6 +43,15 @@ class ObservationStatus(StrEnum):
     NORMALIZED = "normalized"
     UNRECOGNIZED = "unrecognized"
     UNOBSERVED = "unobserved"
+
+
+class MemorySource(StrEnum):
+    """Where physical/system memory bytes were read. Not a capacity method."""
+
+    LINUX_PROC = "linux_proc"
+    SYSCONF = "sysconf"
+    UNOBSERVED = "unobserved"
+    UNSUPPORTED = "unsupported"
 
 
 @contract(kind="os_architecture_observation", version=1)
@@ -100,6 +111,51 @@ class OSArchitectureObservation(Contract):
         )
 
 
+@contract(kind="memory_observation", version=1)
+@dataclass(frozen=True, slots=True)
+class MemoryObservation(Contract):
+    """One physical/system memory observation.
+
+    ``physical_total_bytes`` is what the environment reported as installed
+    system memory. It is not safe allocatable memory, not a reservation,
+    and not a HostId. Available memory, swap, and execution limits are not
+    this contract.
+    """
+
+    physical_total_bytes: Maybe[int] = meaning(
+        "reported physical/system memory in integer bytes; Unresolved when unobserved"
+    )
+    physical_total_status: ObservationStatus = meaning(
+        "normalized when bytes were measured; unobserved when not measured"
+    )
+    source: MemorySource = meaning(
+        "linux_proc, sysconf, unobserved, or unsupported; never a filesystem path"
+    )
+    raw_total: str = meaning(
+        "compact source evidence such as MemTotal kB or sysconf page counts; "
+        "empty when unobserved"
+    )
+    observed_at: dt.datetime = meaning(
+        "when this observation was taken; timezone-aware UTC; never rewritten"
+    )
+    observer: str = meaning(
+        "adapter identifier that produced the reading, for example native"
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "observed_at", require_utc(self.observed_at, what="observed_at")
+        )
+        _require_token(self.observer, what="observer", maximum=_OBSERVER_MAX)
+        _require_raw(self.raw_total, what="raw_total", maximum=_MEMORY_RAW_MAX)
+        _require_memory_total(
+            status=self.physical_total_status,
+            total=self.physical_total_bytes,
+            raw=self.raw_total,
+            source=self.source,
+        )
+
+
 def _require_token(value: str, *, what: str, maximum: int) -> None:
     if not value:
         raise ValidationError(f"{what} is required", what=what)
@@ -117,18 +173,18 @@ def _require_token(value: str, *, what: str, maximum: int) -> None:
         )
 
 
-def _require_raw(value: str, *, what: str) -> None:
+def _require_raw(value: str, *, what: str, maximum: int = _RAW_MAX) -> None:
     if not isinstance(value, str):
         raise ValidationError(
             f"{what} must be a string",
             what=what,
             actual_type=type(value).__name__,
         )
-    if len(value) > _RAW_MAX:
+    if len(value) > maximum:
         raise ValidationError(
             f"{what} exceeds the narrow observation bound",
             what=what,
-            maximum=_RAW_MAX,
+            maximum=maximum,
             length=len(value),
         )
 
@@ -168,4 +224,68 @@ def _require_axis(
         raise ValidationError(
             f"unobserved {what} cannot carry a non-empty raw value",
             what=what,
+        )
+
+
+def _require_memory_total(
+    *,
+    status: ObservationStatus,
+    total: object,
+    raw: str,
+    source: MemorySource,
+) -> None:
+    resolved = is_resolved(total)
+    if status is ObservationStatus.NORMALIZED:
+        if not isinstance(total, int):
+            raise ValidationError(
+                "normalized physical_total_bytes must be an integer",
+                what="physical_total_bytes",
+            )
+        if total <= 0:
+            raise ValidationError(
+                "physical_total_bytes must be greater than zero",
+                what="physical_total_bytes",
+                total=total,
+            )
+        if total > _MEMORY_TOTAL_MAX:
+            raise ValidationError(
+                "physical_total_bytes is implausibly large",
+                what="physical_total_bytes",
+                total=total,
+            )
+        if not raw.strip():
+            raise ValidationError(
+                "normalized physical memory requires compact raw evidence",
+                what="raw_total",
+            )
+        if source not in {MemorySource.LINUX_PROC, MemorySource.SYSCONF}:
+            raise ValidationError(
+                "normalized physical memory requires a measured source",
+                source=source.value,
+            )
+        return
+    if status is not ObservationStatus.UNOBSERVED:
+        raise ValidationError(
+            "physical memory status must be normalized or unobserved",
+            status=status.value,
+        )
+    if resolved:
+        raise ValidationError(
+            "physical_total_bytes must stay unresolved when it is not normalized",
+            what="physical_total_bytes",
+        )
+    if not isinstance(total, Unresolved):
+        raise ValidationError(
+            "unobserved physical_total_bytes must be Unresolved",
+            what="physical_total_bytes",
+        )
+    if raw.strip():
+        raise ValidationError(
+            "unobserved physical memory cannot carry raw evidence",
+            what="raw_total",
+        )
+    if source not in {MemorySource.UNOBSERVED, MemorySource.UNSUPPORTED}:
+        raise ValidationError(
+            "unobserved physical memory requires an unobserved or unsupported source",
+            source=source.value,
         )

@@ -480,8 +480,8 @@ provenance.
 
 | ID | Name | Role | Status |
 |---|---|---|---|
-| `2.1.1` | OS/arch adapter | Observe OS family and CPU architecture through a replaceable adapter | this increment |
-| `2.2.1` | Memory observer | RAM/swap observation | later |
+| `2.1.1` | OS/arch adapter | Observe OS family and CPU architecture through a replaceable adapter | accepted |
+| `2.2.1` | Memory observer | Observe reported physical/system memory in bytes | this increment |
 | `2.3.1` | NVIDIA adapter | Accelerator inventory | later |
 | `2.3.2` | Fixture provider | Replay captured host facts | later |
 | `2.4.1` | Mount enumerator | Filesystem mounts | later |
@@ -490,47 +490,58 @@ Working implementation order: `2.1.1` → `2.2.1` → `2.3.1` / `2.3.2` → `2.4
 OS/arch before memory before accelerators before mounts. HostProfile
 aggregation waits until enough observations exist.
 
-- `2.1.1` observes OS family and CPU architecture. Core owns
+- `2.1.1` (accepted) observes OS family and CPU architecture. Core owns
   `OSArchitectureObservation`. The native adapter owns `platform.system`
-  / `platform.machine`. Normalization is a pure alias map.
-- `2.1.1` does **not** mint HostId, persist HostProfile, enumerate
-  mounts, read memory, detect NVIDIA, or decide support.
-- Unknown raw values stay unrecognized. Empty reads stay unobserved.
-  Neither is defaulted to Linux or x86_64.
+  / `platform.machine`.
+- `2.2.1` (this increment) observes reported physical/system memory in
+  integer bytes. Core owns `MemoryObservation`. Linux reads the kernel
+  memory table; macOS uses `os.sysconf`. Windows is unsupported, not
+  zero. This is not safe allocatable memory.
+- `2.1.1` / `2.2.1` do **not** mint HostId, persist HostProfile,
+  enumerate mounts, detect NVIDIA, or decide support/capacity.
+- Unknown is not defaulted. Missing measurements stay unobserved.
+  Unknown is never emitted as `0`.
 - Discover events may carry resolved `install_id` and `install_run_id`
   from composition after M1. `host_id` stays unresolved.
-- Observation is not mutation. The adapter must not write `/etc`,
-  install packages, or change kernel state.
+- Observation is not mutation. Adapters must not write `/etc`, change
+  swap, tune cgroups, allocate probe buffers, or install packages.
 
-**Adapters:** native OS/arch (this increment); later NVIDIA, fixture;
-future hwloc/AMD/Apple. Adapters observe; they do not decide models.
+**Adapters:** native OS/arch (accepted); native memory (this increment);
+later NVIDIA, fixture; future hwloc/AMD/Apple. Adapters observe; they
+do not decide models.
 
 **Inputs:** optional InstallRecord / InstallRun correlation from
-composition.  
-**Outputs (2.1.1):** `OSArchitectureObservation`; event
-`discover.os_arch.observed`. HostProfile remains later.  
-**Preconditions:** Kernel. Install correlation is required only when
-composition asks to attach M1 identities.  
-**Success (2.1.1):** typed observation returned; unknowns explicit;
-`discover.os_arch.observed` journaled when a journal is supplied;
-`host_id` unresolved.  
-**Blocked (2.1.1):** platform APIs fail unexpectedly. Unrecognized
-OS/arch is still a successful observation, not a support decision.  
-**State owned (2.1.1):** none. The observation is not durable entity
+composition; Memory composes OS family from 2.1.1 rather than
+re-aliasing platform strings.  
+**Outputs (2.2.1):** `MemoryObservation`; event
+`discover.memory.observed`. HostProfile remains later.  
+**Preconditions:** Kernel. OS family from 2.1.1. Install correlation is
+required only when composition asks to attach M1 identities.  
+**Success (2.2.1):** typed memory observation returned; total bytes
+integer when measured; `discover.memory.observed` journaled when a
+journal is supplied; `host_id` unresolved.  
+**Blocked (2.2.1):** platform APIs fail unexpectedly. Unsupported
+Windows is a successful non-measurement, not a capacity decision.  
+**State owned (2.2.1):** none. The observation is not durable entity
 state.  
-**Persistence (2.1.1):** event only. No Store record.  
+**Persistence (2.2.1):** event only. No Store record.  
 **Side effects:** none on the host. Journal append only.  
 **Downstream:** later Discover components; Capacity still requires
-HostProfile.  
+HostProfile and must not treat these bytes as SAFE.  
 **Re-entry:** observe again; new observation and event; do not mutate
 the previous event.  
-**Idempotence:** same host yields the same normalized OS/arch facts.  
-**Telemetry:** `discover.os_arch.observed` (privacy `public_ops`).
+**Idempotence:** same host yields the same physical total.  
+**Telemetry:** `discover.memory.observed` (privacy `public_ops`).
 Block-complete `discover.completed` remains later.  
-**Independent test:** alias matrix plus native current-host observation.  
-**Cumulative:** M0→M1→2.1.1.  
-**Lessons:** providers ≠ policy; unknown ≠ default; raw aliases are
-evidence; HostId is not OS+arch.
+**Independent test:** Linux table fixtures; native current-host
+observation; M1 + 2.1.1 regression.  
+**Cumulative:** M0→M1→2.1.1→2.2.1.  
+**Lessons:** reported memory ≠ safe memory; HostId is not RAM size;
+cgroup/execution limits remain deferred.
+
+**Deferred:** available memory, swap, cgroup/execution memory limit,
+Windows native reader. Reconsider at HostProfile / Capacity, not by
+silently treating `MemTotal` as the admission ceiling.
 
 ## 3 Steward
 
@@ -804,9 +815,9 @@ cleanup on stop.
     1.4.1 InstallRunStore (reuse across processes; accepted)
 2 Discover
   2.1 Environment
-    2.1.1 OS/arch adapter (this increment)
+    2.1.1 OS/arch adapter (accepted)
   2.2 CPU / RAM
-    2.2.1 Memory observer
+    2.2.1 Memory observer (this increment)
   2.3 Accelerators
     2.3.1 NVIDIA adapter
     2.3.2 Fixture provider

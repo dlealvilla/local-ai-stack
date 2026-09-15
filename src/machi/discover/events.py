@@ -1,8 +1,9 @@
-"""Discover events for OS/architecture observation (MACHI 2.1.1).
+"""Discover events for OS/architecture and memory observation.
 
-OS family and CPU architecture are non-identifying machine facts.
-Privacy is ``public_ops``. Hostname, paths, and customer content stay out.
-HostId stays unresolved. Composition supplies Install correlation.
+OS family, CPU architecture, and reported memory size are non-identifying
+machine facts. Privacy is ``public_ops``. Hostname, paths, and customer
+content stay out. HostId stays unresolved. Composition supplies Install
+correlation.
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from dataclasses import dataclass
 
 from machi.discover.contracts import (
     CpuArchitecture,
+    MemoryObservation,
+    MemorySource,
     ObservationStatus,
     OSArchitectureObservation,
     OSFamily,
@@ -26,6 +29,8 @@ from machi.kernel.unresolved import Maybe
 DISCOVER_BLOCK = "2"
 OS_ARCH_COMPONENT = "2.1.1"
 OS_ARCH_OBSERVED_TYPE = "discover.os_arch.observed"
+MEMORY_COMPONENT = "2.2.1"
+MEMORY_OBSERVED_TYPE = "discover.memory.observed"
 
 
 @contract(kind="discover.os_arch.observed", version=1)
@@ -78,6 +83,55 @@ def os_arch_observed(
     if event.privacy is not PrivacyClass.PUBLIC_OPS:
         raise ValidationError(
             "discover.os_arch.observed must be public_ops",
+            privacy=event.privacy.value,
+        )
+    return event
+
+
+@contract(kind="discover.memory.observed", version=1)
+@dataclass(frozen=True, slots=True)
+class MemoryObservedPayload(Contract):
+    """Safe public operational body for a physical/system memory observation."""
+
+    physical_total_bytes: Maybe[int] = meaning(
+        "reported physical/system memory in integer bytes; Unresolved when unobserved"
+    )
+    physical_total_status: ObservationStatus = meaning(
+        "how physical/system memory was measured"
+    )
+    source: MemorySource = meaning("measured source or explicit non-measurement")
+    raw_total: str = meaning("compact source evidence; not a path")
+    observer: str = meaning("adapter identifier, for example native")
+
+
+def memory_observed(
+    observation: MemoryObservation,
+    *,
+    install_id: Maybe[InstallId] | None = None,
+    install_run_id: Maybe[InstallRunId] | None = None,
+    clock: Clock | None = None,
+) -> EventRecord:
+    """Mint the memory event. Does not persist it. Does not mint HostId."""
+    event = EventRecord.create(
+        event_type=MEMORY_OBSERVED_TYPE,
+        block_id=DISCOVER_BLOCK,
+        component_id=MEMORY_COMPONENT,
+        outcome=EventOutcome.PASS,
+        privacy=PrivacyClass.PUBLIC_OPS,
+        payload=MemoryObservedPayload(
+            physical_total_bytes=observation.physical_total_bytes,
+            physical_total_status=observation.physical_total_status,
+            source=observation.source,
+            raw_total=observation.raw_total,
+            observer=observation.observer,
+        ),
+        install_id=install_id,
+        install_run_id=install_run_id,
+        clock=clock or FixedClock(observation.observed_at),
+    )
+    if event.privacy is not PrivacyClass.PUBLIC_OPS:
+        raise ValidationError(
+            "discover.memory.observed must be public_ops",
             privacy=event.privacy.value,
         )
     return event

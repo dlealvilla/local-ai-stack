@@ -1035,6 +1035,77 @@ def main() -> int:
     if "$unresolved" not in json.dumps(observed_events[-1]["host_id"]):
         raise SystemExit("discover event resolved host_id")
 
+    os_arch_snapshot = observed_events[-1]
+    bound_after_os = next(
+        item for item in journal_after if item["event_id"] == bound_snapshot["event_id"]
+    )
+    memory = run(
+        [
+            str(machi),
+            "discover",
+            "memory",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(memory.stdout, end="")
+    if '"event_type": "discover.memory.observed"' not in memory.stdout:
+        raise SystemExit("discover memory did not emit discover.memory.observed")
+    if '"privacy": "public_ops"' not in memory.stdout:
+        raise SystemExit("discover.memory.observed was not public_ops")
+    if f"install  {install_a['install_id']}" not in memory.stdout:
+        raise SystemExit("memory event lost InstallId correlation")
+    if f"run      {persisted_run_a['install_run_id']}" not in memory.stdout:
+        raise SystemExit("memory event lost InstallRunId correlation")
+    if "host     unresolved(not_provided)" not in memory.stdout:
+        raise SystemExit("discover memory minted or omitted host_id")
+    if '"physical_total_status": "normalized"' not in memory.stdout:
+        raise SystemExit("discover memory did not normalize physical total")
+    memory_event_at = memory.stdout.find('"kind": "event_record"')
+    if memory_event_at < 0:
+        raise SystemExit("discover memory did not print an EventRecord")
+    if str(root_a) in memory.stdout[memory_event_at:]:
+        raise SystemExit("absolute state root leaked into memory event")
+    if str(control_registry) in memory.stdout[memory_event_at:]:
+        raise SystemExit("Store path leaked into memory event")
+    if (control_registry / "memory_observation").exists():
+        raise SystemExit("memory observation was persisted as Store state")
+    journal_after_memory = [
+        json.loads(line)
+        for line in (root_a / "journal" / "events.jsonl").read_text().splitlines()
+        if line
+    ]
+    still_os_arch = next(
+        item
+        for item in journal_after_memory
+        if item["event_id"] == os_arch_snapshot["event_id"]
+    )
+    if still_os_arch != os_arch_snapshot:
+        raise SystemExit("memory observation rewrote discover.os_arch.observed")
+    still_bound_memory = next(
+        item
+        for item in journal_after_memory
+        if item["event_id"] == bound_after_os["event_id"]
+    )
+    if still_bound_memory != bound_after_os:
+        raise SystemExit("memory observation rewrote install.bound")
+    memory_events = [
+        item
+        for item in journal_after_memory
+        if item.get("event_type") == "discover.memory.observed"
+    ]
+    if not memory_events:
+        raise SystemExit("journal is missing discover.memory.observed")
+    if memory_events[-1]["install_id"] != install_a["install_id"]:
+        raise SystemExit("journaled memory event lost InstallId")
+    if memory_events[-1]["install_run_id"] != persisted_run_a["install_run_id"]:
+        raise SystemExit("journaled memory event lost InstallRunId")
+    if "$unresolved" not in json.dumps(memory_events[-1]["host_id"]):
+        raise SystemExit("memory event resolved host_id")
+
     print("verify_ok")
     return 0
 

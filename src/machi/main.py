@@ -14,12 +14,13 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from machi.adapters.discover.native_memory import NativeMemoryObserver
 from machi.adapters.discover.native_os_arch import NativeOSArchitectureObserver
 from machi.adapters.journal.jsonl import JsonlJournal
 from machi.adapters.persistence.file_store import FileStore
-from machi.discover.contracts import OSArchitectureObservation
-from machi.discover.events import os_arch_observed
-from machi.discover.ports import OSArchitectureObserver
+from machi.discover.contracts import MemoryObservation, OSArchitectureObservation
+from machi.discover.events import memory_observed, os_arch_observed
+from machi.discover.ports import MemoryObserver, OSArchitectureObserver
 from machi.install.binder import StateRootBinder
 from machi.install.contracts import (
     InstallRecordEstablishment,
@@ -337,6 +338,63 @@ def observe_os_architecture(
     return observation, event, event.install_id, event.install_run_id, target
 
 
+def observe_memory(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    store_dir: Path | None,
+    journal_dir_path: Path | None,
+    observer: MemoryObserver | None = None,
+) -> tuple[
+    MemoryObservation,
+    EventRecord,
+    Maybe[InstallId],
+    Maybe[InstallRunId],
+    Path | None,
+]:
+    """Observe physical/system memory. Re-enter M1 when a Store is supplied.
+
+    Does not mint HostId, does not persist a HostProfile, does not rewrite
+    install.bound or discover.os_arch.observed, and does not compute capacity.
+    """
+    validate_registry(module_prefix="machi.")
+    if store_dir is not None and explicit is None and environment is None:
+        raise ValidationError(
+            "discover memory needs --state-root or MACHI_STATE_ROOT when "
+            "a control-plane Store is supplied",
+        )
+    install_id: Maybe[InstallId] | None = None
+    install_run_id: Maybe[InstallRunId] | None = None
+    binding_root: Path | None = None
+    if store_dir is not None:
+        binding = StateRootBinder().bind(explicit=explicit, environment=environment)
+        establishment = SelfOwnershipMarker().establish(binding)
+        store = FileStore(store_dir)
+        seeded = RegistrySeed().seed(binding, establishment, store)
+        established = InstallIdentity().establish(
+            binding, establishment, seeded, store, build_identity()
+        )
+        run = InstallRunStore().establish(established.record, store, build_identity())
+        install_id = established.record.install_id
+        install_run_id = run.record.install_run_id
+        binding_root = Path(binding.root)
+        _warn_if_defaulted(binding)
+    observation = (observer or NativeMemoryObserver()).observe()
+    event = memory_observed(
+        observation,
+        install_id=install_id,
+        install_run_id=install_run_id,
+    )
+    target: Path | None = None
+    if journal_dir_path is not None:
+        target = journal_dir_path
+    elif binding_root is not None:
+        target = journal_dir(binding_root)
+    if target is not None:
+        event = JsonlJournal(target).append(event)
+    return observation, event, event.install_id, event.install_run_id, target
+
+
 def show_version() -> int:
     identity = build_identity()
     print(identity.describe())
@@ -362,6 +420,21 @@ def _format_maybe(value: object) -> str:
     if reason is not None:
         return f"unresolved({reason.value})"
     return "unresolved"
+
+
+def _format_bytes_human(value: object) -> str:
+    """CLI-only display. Canonical contract values remain integer bytes."""
+    if not is_resolved(value) or not isinstance(value, int):
+        return "-"
+    gib = 1024 * 1024 * 1024
+    whole, remainder = divmod(value, gib)
+    if remainder == 0:
+        return f"{whole} GiB"
+    mib = 1024 * 1024
+    mib_whole, mib_remainder = divmod(value, mib)
+    if mib_remainder == 0:
+        return f"{mib_whole} MiB"
+    return f"{whole} GiB + {remainder} bytes"
 
 
 def _require_journal_dir(ns: argparse.Namespace) -> Path:
@@ -551,6 +624,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="journal directory; defaults to <state-root>/journal when Store is set",
     )
+    memory = discover_sub.add_parser(
+        "memory",
+        help="observe reported physical/system memory; not safe capacity",
+    )
+    memory.add_argument(
+        "--state-root",
+        default=None,
+        help="explicit state root used only to re-enter M1 correlation",
+    )
+    memory.add_argument(
+        "--store-dir",
+        default=None,
+        help="injected control-plane Store; required to resolve InstallId/InstallRunId",
+    )
+    memory.add_argument(
+        "--journal-dir",
+        default=None,
+        help="journal directory; defaults to <state-root>/journal when Store is set",
+    )
 
     ns = parser.parse_args(list(argv) if argv is not None else None)
     try:
@@ -732,6 +824,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(f"journal  {journal_shown}")
             _print_document(observation)
+            _print_document(event)
+            return 0
+        if ns.command == "discover" and ns.discover_command == "memory":
+            memory_observation, event, install_id, install_run_id, journal_target = (
+                observe_memory(
+                    explicit=ns.state_root,
+                    environment=_environment_override(),
+                    store_dir=Path(ns.store_dir) if ns.store_dir else None,
+                    journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+                )
+            )
+            print(f"total    {_format_maybe(memory_observation.physical_total_bytes)}")
+            print(
+                "human    "
+                + _format_bytes_human(memory_observation.physical_total_bytes)
+            )
+            print(f"status   {memory_observation.physical_total_status.value}")
+            print(f"source   {memory_observation.source.value}")
+            print(f"observer {memory_observation.observer}")
+            print(f"raw      {memory_observation.raw_total or '-'}")
+            print(f"install  {_format_maybe(install_id)}")
+            print(f"run      {_format_maybe(install_run_id)}")
+            print(f"host     {_format_maybe(event.host_id)}")
+            journal_shown = (
+                str(JsonlJournal(journal_target).path)
+                if journal_target is not None
+                else "-"
+            )
+            print(f"journal  {journal_shown}")
+            _print_document(memory_observation)
             _print_document(event)
             return 0
     except PersistenceError as exc:

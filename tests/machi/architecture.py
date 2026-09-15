@@ -424,6 +424,11 @@ DISCOVER_DOMAIN_FORBIDDEN = (
     "from machi.adapters",
     "nvidia",
     "cuda",
+    "psutil",
+    "cgroup",
+    "safe_bytes",
+    "safe_memory",
+    "/proc/",
 )
 
 NATIVE_OS_ARCH_FORBIDDEN = (
@@ -439,9 +444,24 @@ NATIVE_OS_ARCH_FORBIDDEN = (
     "os-release",
 )
 
+NATIVE_MEMORY_FORBIDDEN = (
+    "subprocess",
+    "nvidia",
+    "HostId.generate",
+    "FileStore",
+    "shutil",
+    "os.system",
+    "from machi.install",
+    "psutil",
+    "safe_bytes",
+    "safe_memory",
+    "ctypes",
+    "cgroup",
+)
+
 
 def discover_boundary_violations(root: Path) -> list[str]:
-    """2.1.1 domain observes contracts; the native adapter owns host APIs."""
+    """Discover domain owns contracts; native adapters own host I/O."""
     found: list[str] = []
     domain = root / "discover"
     for path in sorted(domain.rglob("*.py")):
@@ -462,11 +482,24 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append("native OS/arch adapter must call platform.machine()")
     if "normalize_os_architecture" not in adapter_text:
         found.append("native OS/arch adapter must call pure normalization")
+    memory_adapter = root / "adapters" / "discover" / "native_memory.py"
+    memory_text = memory_adapter.read_text(encoding="utf-8")
+    for token in NATIVE_MEMORY_FORBIDDEN:
+        if token in memory_text:
+            found.append(f"{memory_adapter.name} must not contain {token!r}")
+    if "/proc/meminfo" not in memory_text:
+        found.append("native memory adapter must read /proc/meminfo on Linux")
+    if "os.sysconf" not in memory_text:
+        found.append("native memory adapter must use os.sysconf on macOS")
+    if "parse_linux_memory_table" not in memory_text:
+        found.append("native memory adapter must call pure Linux table parsing")
     kernel_text = "\n".join(
         p.read_text(encoding="utf-8") for p in (root / "kernel").rglob("*.py")
     )
     if "machi.discover" in kernel_text or "OSArchitectureObservation" in kernel_text:
         found.append("Kernel must not import Discover")
+    if "MemoryObservation" in kernel_text:
+        found.append("Kernel must not import MemoryObservation")
     install_text = "\n".join(
         p.read_text(encoding="utf-8") for p in (root / "install").rglob("*.py")
     )
