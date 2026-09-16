@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "machi-acceptance-lab-v1",
+  "work_token": "MACHI-DEVLAB-SCHEMA-V1",
+  "status": "closed",
+  "semantic_meaning": "Acceptance lab schema v1 is ready. AMD product implementation has not started. No NVIDIA+AMD candidate has been frozen. No RunPod Pod was created or mutated.",
+  "qualification_state": "lab_ready_amd_blocked",
+  "branch": "m2/2.3-accelerator-discovery-nvidia-amd",
+  "base_commit": "636dfa0e3bfe91f5620ce1c4667d9f7026e3e1b7",
+  "historical_nvidia_wheel_sha256": "351cee818c2a41ed84b3c8708e957c950c3676e555e1c32aa1793bfeec1a99f3",
+  "canonical_machi": "1db764607a5806d080cc138932002760bad113ad",
+  "package": "docs/machi/ACCEPTANCE-LAB.md",
+  "deferred": [
+    "AMD provider implementation",
+    "NVIDIA+AMD candidate freeze",
+    "RunPod Pod orchestration",
+    "NVIDIA #1 physical",
+    "AMD #1 physical"
+  ]
+}

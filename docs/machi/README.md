@@ -4,6 +4,8 @@
 **Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` → **2.2.1 last accepted forward feature** `66e8ee0` (`checkpoint/machi-2.2.1-closed-66e8ee0`, implementation `b341819`) → temporary provider audit `cd4b786` → consolidated audit promoted `e88cc39` (`checkpoint/machi-provider-agnostic-foundation-closed-e88cc39`) → provider gate `1db7646` → 2.3 implementation `1c774a0` → 2.3 local `56bd66b` → **2.3 NVIDIA physical PASS** on this branch (same SHA `351cee81…`). **Next:** Apple Silicon physical on that exact candidate. Checkpoint A is not created.  
 **Status:** Combined candidate NVIDIA physical PASS; Apple physical PENDING. Canonical `machi` remains at the provider-gate docs commit until Lead Developer promotion after dual-provider Checkpoint A.
 
+**NVIDIA+AMD development line:** branch `m2/2.3-accelerator-discovery-nvidia-amd` is cut from evidence `636dfa0`. The development acceptance lab (see [ACCEPTANCE-LAB.md](ACCEPTANCE-LAB.md)) is not product state. AMD product implementation has not started on this line; the `351cee81` NVIDIA PASS does not qualify a later NVIDIA+AMD wheel.
+
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,
 implementation evidence, and failure evidence**.
@@ -48,6 +50,7 @@ contracts. It does not own deployment truth.
 | [M2-2.3.md](M2-2.3.md) | 2.3 Accelerator Discovery implementation notes (NVIDIA physical PASS; Apple physical pending). |
 | [M2-2.3-LOCAL.md](M2-2.3-LOCAL.md) | 2.3 local acceptance of the `1c774a0` combined NVIDIA+Apple wheel. |
 | [M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md) | 2.3 NVIDIA physical acceptance of the `1c774a0` combined wheel. |
+| [ACCEPTANCE-LAB.md](ACCEPTANCE-LAB.md) | Development-only SQLite acceptance lab (not product state). |
 | [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md) | 2.3 provider selection gate (NVIDIA + Apple selected). |
 | [PROVIDER-AGNOSTIC-AUDIT.md](PROVIDER-AGNOSTIC-AUDIT.md) | First (partial) Discover/Memory audit; historical. |
 | [FULL-BUILT-SYSTEM-AUDIT.md](FULL-BUILT-SYSTEM-AUDIT.md) | Consolidated Kernel+Install+Discover provider/portability audit through 2.2.1 (promoted). |

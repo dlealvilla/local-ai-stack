@@ -1,0 +1,29 @@
+{
+  "captured_at_utc": "2026-09-16T10:20:00.000Z",
+  "status": "RUNPOD_CONTROL_PLANE_READY",
+  "authentication_mode": "mcp_oauth",
+  "runpodctl_version": "2.14.0-dd55bcf",
+  "mcp_connected": true,
+  "cli_authenticated": false,
+  "balance_exposed": false,
+  "balance_usd": null,
+  "existing_pod_count": 23,
+  "running_pod_count": 0,
+  "ssh_public_key_fingerprint": "SHA256:nJGORrvycr8VeY1UN52YiSh2H89/tAcbUdiUvic7blk",
+  "observed_spend_usd": 1.085648168809712,
+  "observed_gpu_spend_usd": 0.0,
+  "mi300x": {
+    "id": "AMD Instinct MI300X OAM",
+    "cloud": "SECURE",
+    "hourly_usd": 2.39,
+    "availability": "LOW",
+    "datacenter": "EU-RO-1",
+    "community_stock": "NONE"
+  },
+  "notes": [
+    "No Pod created, started, stopped, or terminated.",
+    "No credentials stored.",
+    "Eligible NVIDIA pool under 1.50 USD/hour was non-empty.",
+    "This file is a sanitized summary, not a raw MCP dump."
+  ]
+}

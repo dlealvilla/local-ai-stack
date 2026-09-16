@@ -54,5 +54,10 @@ node_modules/
 
 validation/
 
-.idea/
-.vscode/
+# Machi development acceptance lab: live DB, WAL/SHM/journal, raw artifacts.
+# Scoped to the lab directory so unrelated SQLite fixtures stay visible to git.
+.local/machi-acceptance/
+.local/machi-acceptance/**/*.sqlite3
+.local/machi-acceptance/**/*.sqlite3-wal
+.local/machi-acceptance/**/*.sqlite3-shm
+.local/machi-acceptance/**/*.sqlite3-journal

@@ -49,3 +49,7 @@ burn-down gate checkable rather than remembered.
 
 Checkpoints record platform state and stage results only. They must never
 contain secrets, customer content, prompts, responses or model weights.
+
+Machi development records such as `MACHI-ACCEPTANCE-LAB-V1.json` are not
+Kultrun stage checkpoints. They do not close a roadmap stage and do not
+qualify a product candidate.
