@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "machi-2.3-nvidia-amd-candidate",
+  "work_token": "MACHI-2.3-NVIDIA-AMD-LOCAL-CANDIDATE",
+  "status": "closed",
+  "semantic_meaning": "NVIDIA+AMD candidate is frozen and locally accepted for physical POC. This is not physical PASS. No RunPod Pod was created.",
+  "qualification_state": "local_candidate_ready_nvidia_amd",
+  "branch": "m2/2.3-accelerator-discovery-nvidia-amd",
+  "implementation_commit": "67e9c7ff7493fe557f71a9674cbd6011398d2a67",
+  "artifact_sha256": "eaee5c98e340ed6fbd301919ab59cf18fc213b30ab0715e532340d903f5c651e",
+  "build_id": "0.1.0+67e9c7ff7493",
+  "lab_candidate_id": "cand_ad8c1e3289083f1f",
+  "lab_campaign_id": "camp_1fa67ff35930cdbe",
+  "historical_nvidia_wheel_sha256": "351cee818c2a41ed84b3c8708e957c950c3676e555e1c32aa1793bfeec1a99f3",
+  "canonical_machi": "1db764607a5806d080cc138932002760bad113ad",
+  "git_tag": "checkpoint/machi-2.3-nvidia-amd-candidate-67e9c7f",
+  "package": "docs/machi/M2-2.3-NVIDIA-AMD-CANDIDATE.md",
+  "implemented_providers": ["nvidia", "amd", "apple"],
+  "accepted_provider_target": ["nvidia", "amd"],
+  "deferred": [
+    "NVIDIA #1 physical of this candidate",
+    "AMD MI300X #1 physical of this candidate",
+    "Apple physical qualification",
+    "Intel provider",
+    "XCP/partition topology",
+    "SR-IOV",
+    "rocm-smi/sysfs/DRM fallback",
+    "balance-floor enforcement"
+  ]
+}
