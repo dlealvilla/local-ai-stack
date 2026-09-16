@@ -2138,14 +2138,73 @@ Revisit:         after the first live inference vertical, or when CPU-only servi
                  becomes a product priority
 
 ### DC-03 — AMD / ROCm
-Fixture:         none
+Fixture:         MI300X / MI300A `amd-smi` JSON fixtures in Machi 2.3
 Architecture:    ARCHITECTURE-READY
-Implementation:  ADAPTER-NOT-IMPLEMENTED
-Evidence:        none
-Seam:            `HostDiscoveryProvider` via AMD SMI or equivalent, plus a ROCm runtime adapter
-Unproven:        everything; no AMD hardware has been observed
-Downstream redesign expected: NO
-Revisit:         when AMD enters the validated platform roadmap
+Implementation:  ADAPTER-IMPLEMENTED for Discover (`AmdAcceleratorProvider`);
+                 runtime/ROCm serving not implemented
+Evidence:        local fixtures only; no AMD physical PASS
+Seam:            Machi Discover via `amd-smi` JSON. No `rocm-smi`, sysfs/DRM,
+                 or `amdsmi` SDK. Capacity/runtime remain later
+Unproven:        real MI300X host observation; XCP/partition; SR-IOV;
+                 consumer Radeon/iGPU coverage
+Downstream redesign expected: NO for Discover contract; Capacity must not
+                 treat unified HBM as dedicated VRAM
+Revisit:         after NVIDIA+AMD physical POC of the frozen candidate
+
+### M-2.3-01 — AMD XCP / partition topology
+Label:        DEFERRED
+Owner stage:  2.3
+Subsystem:    discover / amd
+Authorizes:   NO
+What:         Compute-partition / XCP hierarchy is not modeled.
+Why now:      First MI300X POC is one visible GPU per `amd-smi` GPU entry.
+To make real: explicit physical/logical topology contract after empirical
+              partition output exists
+Retire when:  a validated host exposes partitions that Discover must name
+Status:       OPEN
+
+### M-2.3-02 — AMD SR-IOV
+Label:        DEFERRED
+Owner stage:  2.3
+Subsystem:    discover / amd
+Authorizes:   NO
+What:         SR-IOV virtual functions are not enumerated.
+Why now:      Not required for the first physical MI300X server.
+Retire when:  a deployment needs VF-visible identity
+Status:       OPEN
+
+### M-2.3-03 — AMD fallback sources
+Label:        DEFERRED
+Owner stage:  2.3
+Subsystem:    discover / amd
+Authorizes:   NO
+What:         No `rocm-smi`, sysfs/DRM, PCI vendor scan, or Python `amdsmi`.
+Why now:      Missing `amd-smi` must stay `unavailable`, not a guessed zero.
+Retire when:  a supported host has GPUs but no `amd-smi` and product policy
+              accepts a second source
+Status:       OPEN
+
+### M-2.3-04 — Command output size limit
+Label:        DEFERRED
+Owner stage:  2.3
+Subsystem:    discover / command
+Authorizes:   NO
+What:         `run_command` does not bound stdout size.
+Why now:      Ordinary NVIDIA CSV and AMD JSON for ≤64 devices is small.
+              Silent truncation would be worse than the current bound.
+Retire when:  a generic fail-closed output cap is tested against real
+              multi-GPU JSON
+Status:       OPEN
+
+### M-2.3-05 — Broader AMD Radeon / iGPU coverage
+Label:        DEFERRED
+Owner stage:  2.3
+Subsystem:    discover / amd
+Authorizes:   NO
+What:         Consumer Radeon and typical iGPUs are not claimed as covered.
+Why now:      First server target is MI300X; generic devices may still parse.
+Retire when:  a product requirement names those SKUs
+Status:       OPEN
 
 ### DC-04 — Intel accelerators
 Fixture:         none

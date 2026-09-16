@@ -89,6 +89,7 @@ class AcceleratorSource(StrEnum):
     """Where one device observation was read. Provenance data, not policy."""
 
     NVIDIA_SMI = "nvidia_smi"
+    AMD_SMI = "amd_smi"
     APPLE_DISPLAYS = "apple_displays"
 
 

@@ -51,6 +51,10 @@ tools/acceptance_lab/
 python -m tools.acceptance_lab init
 python -m tools.acceptance_lab doctor
 python -m tools.acceptance_lab import-historical
+python -m tools.acceptance_lab campaign-create --name "..." --purpose "..."
+python -m tools.acceptance_lab candidate-register --wheel PATH --implementation-commit SHA --branch NAME --build-id ID
+python -m tools.acceptance_lab record-local-run --campaign ID --candidate ID --scenario NAME --gates-json PATH
+python -m tools.acceptance_lab checkpoint-record --campaign ID --candidate ID --name NAME --git-tag TAG --git-commit SHA --meaning TEXT
 python -m tools.acceptance_lab schema-version
 ```
 

@@ -1,9 +1,9 @@
 """Block 2 Discover — observe the host. Never mutate. Never authorize.
 
 2.1.1 OS/arch, 2.2.1 Memory, and 2.3 Accelerator Discovery are
-implemented. NVIDIA and Apple are providers under the generic
-observer, not the capability model. Fixtures, mounts, HostId, and
-HostProfile remain later.
+implemented. NVIDIA, AMD, and Apple are providers under the generic
+observer, not the capability model. Intel is vocabulary only. Fixtures,
+mounts, HostId, and HostProfile remain later.
 """
 
 from machi.discover.contracts import (

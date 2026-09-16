@@ -16,6 +16,12 @@ from tools.acceptance_lab.import_preflight import import_control_plane_preflight
 from tools.acceptance_lab.paths import default_db_path, repository_root
 from tools.acceptance_lab.policy import CURRENT_POLICY
 from tools.acceptance_lab.recording import record_campaign, record_policy
+from tools.acceptance_lab.register_candidate import (
+    NVIDIA_AMD_SETTINGS,
+    record_checkpoint,
+    record_local_gate_run,
+    register_candidate,
+)
 from tools.acceptance_lab.report import campaign_report, dump_json, render_markdown
 from tools.acceptance_lab.store import fetch_all, fetch_one
 from tools.acceptance_lab.timeutil import UTC, format_utc
@@ -130,6 +136,69 @@ def cmd_policy_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_candidate_register(args: argparse.Namespace) -> int:
+    connection = _db(args)
+    when = dt.datetime.now(UTC)
+    implemented = [item.strip() for item in args.implemented.split(",") if item.strip()]
+    accepted = [item.strip() for item in args.accepted.split(",") if item.strip()]
+    candidate_id = register_candidate(
+        connection,
+        wheel=Path(args.wheel),
+        implementation_commit=args.implementation_commit,
+        evidence_commit=args.evidence_commit,
+        branch=args.branch,
+        package_version=args.package_version,
+        build_id=args.build_id,
+        qualification_state=args.qualification_state,
+        provider_set=implemented,
+        accepted_provider_target=accepted,
+        notes=args.notes,
+        settings=NVIDIA_AMD_SETTINGS,
+        when=when,
+        artifact_path=args.artifact_path,
+    )
+    connection.commit()
+    sys.stdout.write(f"{candidate_id}\n")
+    return 0
+
+
+def cmd_record_local_run(args: argparse.Namespace) -> int:
+    connection = _db(args)
+    gates = json.loads(Path(args.gates_json).read_text(encoding="utf-8"))
+    if not isinstance(gates, list):
+        sys.stderr.write("gates JSON must be an array\n")
+        return 1
+    run_id = record_local_gate_run(
+        connection,
+        campaign_id=args.campaign,
+        candidate_id=args.candidate,
+        scenario_name=args.scenario,
+        status=args.status,
+        gates=gates,
+        notes=args.notes or "",
+    )
+    connection.commit()
+    sys.stdout.write(f"{run_id}\n")
+    return 0
+
+
+def cmd_checkpoint_record(args: argparse.Namespace) -> int:
+    connection = _db(args)
+    checkpoint_id = record_checkpoint(
+        connection,
+        campaign_id=args.campaign,
+        candidate_id=args.candidate,
+        name=args.name,
+        git_tag=args.git_tag,
+        git_commit=args.git_commit,
+        semantic_meaning=args.meaning,
+        notes=args.notes or "",
+    )
+    connection.commit()
+    sys.stdout.write(f"{checkpoint_id}\n")
+    return 0
+
+
 def cmd_candidate_show(args: argparse.Namespace) -> int:
     connection = _db(args)
     if args.sha:
@@ -189,6 +258,35 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--name", required=True)
     create.add_argument("--purpose", required=True)
     create.add_argument("--notes", default="")
+    register = sub.add_parser("candidate-register")
+    register.add_argument("--wheel", required=True)
+    register.add_argument("--implementation-commit", required=True)
+    register.add_argument("--evidence-commit", default=None)
+    register.add_argument("--branch", required=True)
+    register.add_argument("--package-version", default="0.1.0")
+    register.add_argument("--build-id", required=True)
+    register.add_argument(
+        "--qualification-state", default="local_candidate_ready_nvidia_amd"
+    )
+    register.add_argument("--implemented", default="nvidia,amd,apple")
+    register.add_argument("--accepted", default="nvidia,amd")
+    register.add_argument("--artifact-path", default=None)
+    register.add_argument("--notes", default="")
+    local_run = sub.add_parser("record-local-run")
+    local_run.add_argument("--campaign", required=True)
+    local_run.add_argument("--candidate", required=True)
+    local_run.add_argument("--scenario", required=True)
+    local_run.add_argument("--status", default="pass")
+    local_run.add_argument("--gates-json", required=True)
+    local_run.add_argument("--notes", default="")
+    checkpoint = sub.add_parser("checkpoint-record")
+    checkpoint.add_argument("--campaign", required=True)
+    checkpoint.add_argument("--candidate", required=True)
+    checkpoint.add_argument("--name", required=True)
+    checkpoint.add_argument("--git-tag", required=True)
+    checkpoint.add_argument("--git-commit", required=True)
+    checkpoint.add_argument("--meaning", required=True)
+    checkpoint.add_argument("--notes", default="")
     policy = sub.add_parser("policy-show")
     policy.add_argument("--campaign", default=None)
     candidate = sub.add_parser("candidate-show")
@@ -217,6 +315,9 @@ def main(argv: list[str] | None = None) -> int:
         "import-historical": cmd_import_historical,
         "schema-version": cmd_schema_version,
         "campaign-create": cmd_campaign_create,
+        "candidate-register": cmd_candidate_register,
+        "record-local-run": cmd_record_local_run,
+        "checkpoint-record": cmd_checkpoint_record,
         "policy-show": cmd_policy_show,
         "candidate-show": cmd_candidate_show,
         "report": cmd_report,

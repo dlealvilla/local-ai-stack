@@ -1,10 +1,10 @@
 # Machi
 
-**Work token:** `MACHI-2.3-NVIDIA-PHYSICAL-ACCEPTANCE`  
-**Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` → **2.2.1 last accepted forward feature** `66e8ee0` (`checkpoint/machi-2.2.1-closed-66e8ee0`, implementation `b341819`) → temporary provider audit `cd4b786` → consolidated audit promoted `e88cc39` (`checkpoint/machi-provider-agnostic-foundation-closed-e88cc39`) → provider gate `1db7646` → 2.3 implementation `1c774a0` → 2.3 local `56bd66b` → **2.3 NVIDIA physical PASS** on this branch (same SHA `351cee81…`). **Next:** Apple Silicon physical on that exact candidate. Checkpoint A is not created.  
-**Status:** Combined candidate NVIDIA physical PASS; Apple physical PENDING. Canonical `machi` remains at the provider-gate docs commit until Lead Developer promotion after dual-provider Checkpoint A.
+**Work token:** `MACHI-2.3-NVIDIA-AMD-LOCAL-CANDIDATE`  
+**Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` → **2.2.1 last accepted forward feature** `66e8ee0` (`checkpoint/machi-2.2.1-closed-66e8ee0`, implementation `b341819`) → temporary provider audit `cd4b786` → consolidated audit promoted `e88cc39` (`checkpoint/machi-provider-agnostic-foundation-closed-e88cc39`) → provider gate `1db7646` → 2.3 NVIDIA+Apple implementation `1c774a0` → historical NVIDIA physical evidence `636dfa0` → Acceptance Lab v1 `3c5869c`. **This line:** NVIDIA+AMD local candidate freeze. Canonical `machi` remains `1db7646`. Historical NVIDIA PASS on SHA `351cee81…` is not inherited.  
+**Status:** NVIDIA+AMD implemented locally; candidate freeze in progress. Apple implemented / not accepted / physical deferred. Intel out. No RunPod Pod created on this task.
 
-**NVIDIA+AMD development line:** branch `m2/2.3-accelerator-discovery-nvidia-amd` is cut from evidence `636dfa0`. The development acceptance lab (see [ACCEPTANCE-LAB.md](ACCEPTANCE-LAB.md)) is not product state. AMD product implementation has not started on this line; the `351cee81` NVIDIA PASS does not qualify a later NVIDIA+AMD wheel.
+**NVIDIA+AMD development line:** branch `m2/2.3-accelerator-discovery-nvidia-amd`. See [ACCEPTANCE-LAB.md](ACCEPTANCE-LAB.md).
 
 Machi is a clean-slate product architecture. It is not a rename of
 Kultrun. Kultrun remains in this repository as **design evidence,

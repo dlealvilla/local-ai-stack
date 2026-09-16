@@ -187,3 +187,6 @@ def test_real_host_apple_observation_matches_system_profiler() -> None:
         assert not is_resolved(nvidia.device_count)
     assert observed.status is ObservationStatus.NORMALIZED
     assert observed.observer == "native"
+    amd = next(report for report in observed.providers if report.provider == "amd")
+    assert amd.status is ProviderInspectionStatus.NOT_APPLICABLE
+    assert not is_resolved(amd.device_count)

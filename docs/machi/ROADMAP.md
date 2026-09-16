@@ -259,22 +259,24 @@ remain later on that same SHA.
 
 **Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 local → 2.3 NVIDIA physical.
 
-**Non-goals (2.3):** AMD, Intel, HostId, HostProfile, Capacity, driver
-install, MIG mutation, mounts.
+**Non-goals (2.3):** Intel, HostId, HostProfile, Capacity, driver
+install, MIG/XCP mutation, mounts.
 
-**Unlocks:** `2.4.1` Mount enumerator after 2.3 physical acceptance.
-AMD/Intel providers remain deferred. Cgroup/execution memory limit
+**Unlocks:** physical NVIDIA then AMD MI300X proof of the frozen
+NVIDIA+AMD candidate; `2.4.1` Mount enumerator after 2.3 physical
+acceptance. Intel remains deferred. Cgroup/execution memory limit
 remains deferred until HostProfile or Capacity needs a distinct
 execution ceiling.
 
 **Chronology (do not flatten):** last completed forward feature before
 this increment was `2.2.1` (`66e8ee0` / `b341819`). The
 provider/portability audit (`e88cc39`) is a correction on that
-foundation. `2.3` NVIDIA+Apple is implemented locally; NVIDIA physical
-acceptance passed on the same combined candidate; Apple physical and
-Checkpoint A remain. See [M2-2.3.md](M2-2.3.md),
+foundation. `2.3` NVIDIA+Apple remains historically proven on SHA
+`351cee81…`. This NVIDIA+AMD line adds `amd-smi` locally; physical
+proof of the new candidate is later. Apple physical remains deferred.
+Intel is out. See [M2-2.3.md](M2-2.3.md),
 [M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md), and
-[M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md).
+[ACCEPTANCE-LAB.md](ACCEPTANCE-LAB.md).
 
 ---
 

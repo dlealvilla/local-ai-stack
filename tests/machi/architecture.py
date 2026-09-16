@@ -431,6 +431,10 @@ DISCOVER_DOMAIN_FORBIDDEN = (
     "/etc/os-release",
     "subprocess",
     "nvidia-smi",
+    "amd-smi",
+    "rocm-smi",
+    "xpu-smi",
+    "xpumcli",
     "HostId.generate",
     "FileStore",
     "MACHI_STATE_ROOT",
@@ -454,8 +458,11 @@ DISCOVER_DOMAIN_FORBIDDEN = (
     "linux_proc_memory",
     "macos_sysconf_memory",
     "nvidia_accelerator",
+    "amd_accelerator",
     "apple_accelerator",
+    "intel_accelerator",
     "parse_nvidia_smi_csv",
+    "parse_amd_smi_json",
     "parse_apple_displays_json",
 )
 
@@ -509,7 +516,13 @@ MEMORY_PROVIDER_FORBIDDEN = (
 NATIVE_ACCELERATOR_FORBIDDEN = (
     "subprocess",
     "nvidia-smi",
+    "amd-smi",
+    "rocm-smi",
+    "xpu-smi",
+    "xpumcli",
     "system_profiler",
+    "IntelAcceleratorProvider",
+    "intel_accelerator",
     "HostId.generate",
     "FileStore",
     "from machi.install",
@@ -527,6 +540,10 @@ NVIDIA_PROVIDER_FORBIDDEN = (
     "system_profiler",
     "SPDisplaysDataType",
     "ioreg",
+    "amd-smi",
+    "rocm-smi",
+    "xpu-smi",
+    "xpumcli",
     "HostId.generate",
     "FileStore",
     "from machi.install",
@@ -543,9 +560,40 @@ NVIDIA_PROVIDER_FORBIDDEN = (
     "hw.memsize",
 )
 
+AMD_PROVIDER_FORBIDDEN = (
+    "nvidia-smi",
+    "query-gpu",
+    "system_profiler",
+    "SPDisplaysDataType",
+    "ioreg",
+    "xpu-smi",
+    "xpumcli",
+    "from amdsmi",
+    "import amdsmi",
+    "HostId.generate",
+    "FileStore",
+    "from machi.install",
+    "psutil",
+    "safe_bytes",
+    "safe_memory",
+    "pynvml",
+    "torch",
+    "cuda",
+    "docker",
+    "runpod",
+    "shell=True",
+    "physical_memory",
+    "hw.memsize",
+    "rocm-smi",
+)
+
 APPLE_PROVIDER_FORBIDDEN = (
     "nvidia-smi",
     "query-gpu",
+    "amd-smi",
+    "rocm-smi",
+    "xpu-smi",
+    "xpumcli",
     "HostId.generate",
     "FileStore",
     "from machi.install",
@@ -622,10 +670,17 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append(
             "native accelerator observer must compose NvidiaAcceleratorProvider"
         )
+    if "AmdAcceleratorProvider" not in accelerator_text:
+        found.append("native accelerator observer must compose AmdAcceleratorProvider")
     if "AppleAcceleratorProvider" not in accelerator_text:
         found.append(
             "native accelerator observer must compose AppleAcceleratorProvider"
         )
+    if "intel_provider" in accelerator_text:
+        found.append("native accelerator observer must not wire an Intel provider")
+    intel_module = root / "adapters" / "discover" / "intel_accelerator.py"
+    if intel_module.exists():
+        found.append("Intel accelerator provider must not exist in this composition")
     nvidia_provider = root / "adapters" / "discover" / "nvidia_accelerator.py"
     nvidia_text = nvidia_provider.read_text(encoding="utf-8")
     for token in NVIDIA_PROVIDER_FORBIDDEN:
@@ -639,6 +694,17 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append("NVIDIA provider must request csv,noheader,nounits")
     if "parse_nvidia_smi_csv" not in nvidia_text:
         found.append("NVIDIA provider must own CSV parsing")
+    amd_provider = root / "adapters" / "discover" / "amd_accelerator.py"
+    amd_text = amd_provider.read_text(encoding="utf-8")
+    for token in AMD_PROVIDER_FORBIDDEN:
+        if token in amd_text:
+            found.append(f"{amd_provider.name} must not contain {token!r}")
+    if "amd-smi" not in amd_text:
+        found.append("AMD provider must use amd-smi")
+    if "parse_amd_smi_json" not in amd_text:
+        found.append("AMD provider must own JSON parsing")
+    if "--json" not in amd_text:
+        found.append("AMD provider must request structured JSON")
     apple_provider = root / "adapters" / "discover" / "apple_accelerator.py"
     apple_text = apple_provider.read_text(encoding="utf-8")
     for token in APPLE_PROVIDER_FORBIDDEN:
@@ -687,8 +753,19 @@ def discover_boundary_violations(root: Path) -> list[str]:
             "composition must wire NativeAcceleratorObserver, "
             "not AppleAcceleratorProvider"
         )
+    if "AmdAcceleratorProvider" in main_text:
+        found.append(
+            "composition must wire NativeAcceleratorObserver, "
+            "not AmdAcceleratorProvider"
+        )
+    if "IntelAcceleratorProvider" in main_text:
+        found.append("composition must not wire IntelAcceleratorProvider")
     for token in (
         "nvidia-smi",
+        "amd-smi",
+        "rocm-smi",
+        "xpu-smi",
+        "xpumcli",
         "cuda",
         "nvml",
         "pynvml",
@@ -714,6 +791,8 @@ KERNEL_TECHNOLOGY_TOKENS = (
     "/proc/",
     "/proc/meminfo",
     "nvidia",
+    "amd-smi",
+    "rocm-smi",
     "cuda",
     "nvml",
     "docker",

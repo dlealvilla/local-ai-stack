@@ -1,9 +1,8 @@
 """Pure accelerator observation helpers (MACHI 2.3).
 
 Domain owns generic ``AcceleratorObservation`` factories. Concrete
-NVIDIA and Apple readers live in adapters. This module does not
-read the host, does not call vendor tools, and does not compute
-safe GPU memory.
+vendor readers live in adapters. This module does not read the host,
+does not call vendor tools, and does not compute safe GPU memory.
 """
 
 from __future__ import annotations

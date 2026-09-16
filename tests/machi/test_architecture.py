@@ -84,3 +84,17 @@ def test_journal_port_is_not_the_jsonl_adapter() -> None:
 
 def test_base_package_import_does_not_load_providers() -> None:
     assert package_import_violations(source_root()) == []
+
+
+def test_intel_provider_is_absent_from_composition() -> None:
+    root = source_root()
+    assert not (root / "adapters" / "discover" / "intel_accelerator.py").exists()
+    native = (root / "adapters" / "discover" / "native_accelerator.py").read_text(
+        encoding="utf-8"
+    )
+    tree = "\n".join(path.read_text(encoding="utf-8") for path in root.rglob("*.py"))
+    assert "IntelAcceleratorProvider" not in native
+    assert "intel_provider" not in native
+    assert "xpu-smi" not in tree
+    assert "xpumcli" not in tree
+    assert "tools.acceptance_lab" not in tree
