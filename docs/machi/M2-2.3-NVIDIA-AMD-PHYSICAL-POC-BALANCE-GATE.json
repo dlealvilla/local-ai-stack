@@ -1,0 +1,44 @@
+{
+  "authentication_mode": "mcp_oauth",
+  "balance_exposed": false,
+  "balance_usd": null,
+  "campaign_owned_running_pods": 0,
+  "candidate_sha256": "eaee5c98e340ed6fbd301919ab59cf18fc213b30ab0715e532340d903f5c651e",
+  "candidate_sha256_verified_local": true,
+  "captured_at_utc": "2026-09-21T05:51:12.135Z",
+  "cli_authenticated": false,
+  "cli_error_code": "no_credentials",
+  "existing_pod_count": 23,
+  "machi_acceptance_named_pods": 0,
+  "mcp_billing_window": {
+    "bucketSize": "day",
+    "endTime": "2026-09-22T00:00:00Z",
+    "meaning": "spend, not remaining balance",
+    "podDiskAmount": 0.33564815064892173,
+    "podGpuAmount": 0.0,
+    "startTime": "2026-09-21T00:00:00Z",
+    "storageStandardAmount": 0.21875000791624188,
+    "totalAmount": 0.5543981585651636
+  },
+  "mcp_connected": true,
+  "openapi_v2": {
+    "account_paths": [
+      "/v2/account/secrets",
+      "/v2/account/ssh-keys"
+    ],
+    "billing_paths": [
+      "/v2/billing",
+      "/v2/billing/clusters",
+      "/v2/billing/endpoints",
+      "/v2/billing/network-volumes",
+      "/v2/billing/pods",
+      "/v2/billing/serverless"
+    ],
+    "remaining_balance_endpoint": false
+  },
+  "pods_created": 0,
+  "running_pod_count": 0,
+  "runpodctl_version": "2.14.0-dd55bcf",
+  "status": "BALANCE_AUTH_REQUIRED",
+  "work_token": "MACHI-2.3-NVIDIA-AMD-PHYSICAL-POC"
+}
