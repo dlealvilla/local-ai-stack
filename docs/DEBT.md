@@ -2142,14 +2142,16 @@ Fixture:         MI300X / MI300A `amd-smi` JSON fixtures in Machi 2.3
 Architecture:    ARCHITECTURE-READY
 Implementation:  ADAPTER-IMPLEMENTED for Discover (`AmdAcceleratorProvider`);
                  runtime/ROCm serving not implemented
-Evidence:        local fixtures only; no AMD physical PASS
+Evidence:        physical MI300X Discover PASS on SHA `eaee5c98…`
+                 (`erun_7ef504e9f5b47d94`) after host PyYAML remediations
+                 for stock `amd-smi`; XCP/SR-IOV/consumer still unproven
 Seam:            Machi Discover via `amd-smi` JSON. No `rocm-smi`, sysfs/DRM,
                  or `amdsmi` SDK. Capacity/runtime remain later
-Unproven:        real MI300X host observation; XCP/partition; SR-IOV;
-                 consumer Radeon/iGPU coverage
+Unproven:        XCP/partition; SR-IOV; consumer Radeon/iGPU coverage;
+                 serving on ROCm
 Downstream redesign expected: NO for Discover contract; Capacity must not
                  treat unified HBM as dedicated VRAM
-Revisit:         after NVIDIA+AMD physical POC of the frozen candidate
+Revisit:         remaining AMD classes (XCP, SR-IOV, consumer); serving on ROCm
 
 ### M-2.3-01 — AMD XCP / partition topology
 Label:        DEFERRED
@@ -2204,6 +2206,23 @@ Authorizes:   NO
 What:         Consumer Radeon and typical iGPUs are not claimed as covered.
 Why now:      First server target is MI300X; generic devices may still parse.
 Retire when:  a product requirement names those SKUs
+Status:       OPEN
+
+### M-2.3-06 — Vendor CLI prerequisite readiness
+Label:        DEFERRED
+Owner stage:  PrerequisiteReadiness (after 2.3 close)
+Subsystem:    readiness / environment
+Authorizes:   NO until that component exists
+What:         Stock ROCm images can ship `amd-smi` that fails solely
+              because PyYAML is missing. 2.3 Discover stays read-only;
+              lab remediations installed PyYAML on the host interpreter
+              only. The product still lacks a generic inspect → diagnose
+              → plan → optionally remediate under policy → verify path.
+Why now:      2.3 proves observation given a functioning vendor CLI.
+To make real: a non-PyYAML-specific PrerequisiteReadiness capability;
+              Discover remains read-only
+Retire when:  PrerequisiteReadiness is implemented at Tier 2 and can
+              diagnose this class without special-casing yaml
 Status:       OPEN
 
 ### DC-04 — Intel accelerators

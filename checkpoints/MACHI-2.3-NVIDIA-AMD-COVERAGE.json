@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "name": "machi-2.3-nvidia-amd-coverage",
+  "work_token": "MACHI-2.3-COVERAGE-CLOSURE",
+  "status": "closed",
+  "semantic_meaning": "Machi Accelerator Discovery has been physically demonstrated across the deliberately selected NVIDIA/AMD support classes representing at least approximately 80% of the current declared 2.3 product-support proxy, with residual risks explicitly documented. This is not a universal GPU compatibility claim.",
+  "qualification_state": "nvidia_amd_physical_coverage_pass_approx_0.85",
+  "estimated_weighted_2_3_coverage": 0.85,
+  "target_met": true,
+  "branch": "m2/2.3-accelerator-discovery-nvidia-amd",
+  "implementation_commit": "67e9c7ff7493fe557f71a9674cbd6011398d2a67",
+  "artifact_sha256": "eaee5c98e340ed6fbd301919ab59cf18fc213b30ab0715e532340d903f5c651e",
+  "build_id": "0.1.0+67e9c7ff7493",
+  "lab_candidate_id": "cand_ad8c1e3289083f1f",
+  "lab_campaign_id": "camp_1fa67ff35930cdbe",
+  "lab_checkpoint_id": "chk_49f69c78395d7e5c",
+  "canonical_machi": "1db764607a5806d080cc138932002760bad113ad",
+  "package": "docs/machi/M2-2.3-NVIDIA-AMD-COVERAGE.md",
+  "tests": {
+    "A": {
+      "class": "NVIDIA A40 Ampere datacenter",
+      "status": "PASS",
+      "experiment_run_id": "erun_9ec76c657a8ddd78",
+      "proxy_weight": 0.50
+    },
+    "B": {
+      "class": "AMD Instinct MI300X",
+      "status": "PASS",
+      "experiment_run_id": "erun_7ef504e9f5b47d94",
+      "proxy_weight": 0.25,
+      "environment_remediation": "PyYAML==6.0.2 for stock amd-smi only"
+    },
+    "C": {
+      "class": "NVIDIA RTX PRO 4500 Blackwell workstation",
+      "status": "PASS",
+      "experiment_run_id": "erun_06d137a02cdab189",
+      "proxy_weight": 0.10
+    }
+  },
+  "accepted_provider_target": ["nvidia", "amd"],
+  "deferred": [
+    "Apple Silicon physical qualification",
+    "Intel provider (PARKED)",
+    "PrerequisiteReadiness product capability",
+    "XCP/partition topology",
+    "SR-IOV",
+    "rocm-smi/sysfs/DRM fallback",
+    "consumer Radeon/iGPU as a claimed class",
+    "Hopper/Blackwell datacenter physical",
+    "multi-GPU and MIG physical"
+  ],
+  "next_stage": "PrerequisiteReadiness at Tier 2"
+}
