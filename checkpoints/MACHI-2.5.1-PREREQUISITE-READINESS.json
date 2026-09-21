@@ -13,6 +13,8 @@
   "build_id": "0.1.0+670b0e7dce1b",
   "lab_candidate_id": "cand_629e86799d46d060",
   "lab_campaign_id": "camp_1d3f14dcabe62251",
+  "lab_checkpoint_id": "chk_8cc30b36915fd0b5",
+  "evidence_commit": "a3d59d3d17f72fd1805fcc6440076c3da9371557",
   "canonical_machi": "1db764607a5806d080cc138932002760bad113ad",
   "predecessor_2_3_checkpoint": "c7e3b1a53c7e50f31de961c29457065f3e9e2da0",
   "package": "docs/machi/M2-2.5.1-PHYSICAL.md",
