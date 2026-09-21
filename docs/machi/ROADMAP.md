@@ -185,12 +185,14 @@ predecessors green. Physical 1.4.1 accepted on `99b96bf`.
 ## M2 — Discover
 
 **Milestone ID:** `M2`  
-**Architecture IDs:** `2`, `2.1`–`2.4`
+**Architecture IDs:** `2`, `2.1`–`2.5`
 
 **Working Component order:** `2.1.1` → `2.2.1` → `2.3` (generic
-Accelerator Discovery + NVIDIA and Apple providers) → `2.4.1`. Do
-not treat NVIDIA as the capability. Do not implement later Components
-in an earlier increment.
+Accelerator Discovery + NVIDIA and Apple providers) → `2.5.1`
+PrerequisiteReadiness → `2.4.1`. `2.5` is sequenced before `2.4`
+because a usable vendor CLI is a discovered-environment concern, not
+a mount concern. Do not treat NVIDIA as the capability. Do not
+implement later Components in an earlier increment.
 
 **Objective:** normalized host observations from adapters; unknown
 preserved. HostProfile is the milestone output, not this increment.
@@ -262,11 +264,10 @@ remain later on that same SHA.
 **Non-goals (2.3):** Intel, HostId, HostProfile, Capacity, driver
 install, MIG/XCP mutation, mounts.
 
-**Unlocks:** physical NVIDIA then AMD MI300X proof of the frozen
-NVIDIA+AMD candidate; `2.4.1` Mount enumerator after 2.3 physical
-acceptance. Intel remains deferred. Cgroup/execution memory limit
-remains deferred until HostProfile or Capacity needs a distinct
-execution ceiling.
+**Unlocks:** `2.5.1` PrerequisiteReadiness, then `2.4.1` Mount
+enumerator after 2.5.1 closes. Intel remains deferred. Cgroup/execution
+memory limit remains deferred until HostProfile or Capacity needs a
+distinct execution ceiling.
 
 **Chronology (do not flatten):** last completed forward feature before
 this increment was `2.2.1` (`66e8ee0` / `b341819`). The
@@ -277,6 +278,49 @@ proof of the new candidate is later. Apple physical remains deferred.
 Intel is out. See [M2-2.3.md](M2-2.3.md),
 [M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md), and
 [ACCEPTANCE-LAB.md](ACCEPTANCE-LAB.md).
+
+**2.5.1 PrerequisiteReadiness (this increment):** inspect, diagnose,
+plan, and optionally remediate bounded environment prerequisites for a
+selected provider/runtime/path. Discover remains read-only. Product
+default policy is `plan_only`. `remediate` may install only an
+allowlisted interpreter dependency into the interpreter the target CLI
+actually uses, then re-inspect and verify. First adapter:
+`AmdSmiPrerequisiteAdapter` (stock ROCm `amd-smi` missing `yaml` is
+the first instance of the generic missing-module class).
+
+**Inputs (2.5.1):** selected `PrerequisitePolicy`; current host
+environment; optional M1 InstallId/InstallRunId from composition. Does
+not consume Discover observations.
+
+**Outputs (2.5.1):** `PrerequisiteReadinessReport`; events
+`prerequisite.*`. No Store entity.
+
+**Telemetry:** `prerequisite.inspected`, `prerequisite.diagnosed`,
+`prerequisite.plan_created`, `prerequisite.remediation_started`,
+`prerequisite.remediation_completed`, `prerequisite.remediation_failed`,
+`prerequisite.verified` (privacy `operational`).
+
+**Local tests:** fixture host covering READY/`NO_OP`, missing
+executable, missing allowlisted module, unrecognized failure, timeout,
+permission, not-applicable, policy modes, interpreter identity, forged
+package refusal, offline source representation, serialization, event
+privacy, architecture non-edges.
+
+**Physical:** environment-prerequisite campaign on one owned MI300X
+stock ROCm image (broken → remediated; READY → `NO_OP`). Policy gating
+is proven locally unless physical repetition adds new information.
+Not a GPU-market matrix.
+
+**Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 → 2.5.1.
+
+**Non-goals (2.5.1):** driver installation; package-manager framework;
+dependency graph; transactional rollback; arbitrary packages; runtime
+provisioning; optimizer; command-center UI; global settings registry;
+PyYAML as a Machi wheel dependency.
+
+**Unlocks:** `2.4.1` Mount enumerator.
+
+See [M2-2.5.1.md](M2-2.5.1.md).
 
 ---
 

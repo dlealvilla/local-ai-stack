@@ -1305,6 +1305,943 @@
       }
     }
   },
+  "prerequisite.action@1": {
+    "python": "PrerequisiteAction",
+    "fields": {
+      "action_id": {
+        "type": "PrerequisiteActionId",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque identity of this action"
+      },
+      "action_kind": {
+        "type": "ActionKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "no_op or install_interpreter_dependency"
+      },
+      "status": {
+        "type": "ActionStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not_attempted, succeeded, failed, blocked, or no_op"
+      },
+      "source": {
+        "type": "RemediationSourceKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "where the dependency would be obtained"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this action was planned"
+      },
+      "dependency": {
+        "type": "InterpreterDependency | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "allowlisted dependency when this action installs one"
+      }
+    }
+  },
+  "prerequisite.diagnosed@1": {
+    "python": "PrerequisiteDiagnosedPayload",
+    "fields": {
+      "target_id": {
+        "type": "Name",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target identity"
+      },
+      "adapter_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier"
+      },
+      "code": {
+        "type": "DiagnosisCode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable diagnosis class"
+      },
+      "module_name": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "missing import name when that is the class"
+      },
+      "remediable": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether an allowlisted action exists"
+      },
+      "readiness": {
+        "type": "ReadinessState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness after diagnosis"
+      }
+    }
+  },
+  "prerequisite.diagnosis@1": {
+    "python": "PrerequisiteDiagnosis",
+    "fields": {
+      "code": {
+        "type": "DiagnosisCode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable diagnosis class"
+      },
+      "module_name": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "imported module name when the class is a missing interpreter dependency"
+      },
+      "detail": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded human-readable diagnosis"
+      },
+      "readiness": {
+        "type": "ReadinessState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness after diagnosis"
+      },
+      "remediable": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether an allowlisted action exists for this diagnosis under policy"
+      }
+    }
+  },
+  "prerequisite.inspected@1": {
+    "python": "PrerequisiteInspectedPayload",
+    "fields": {
+      "target_id": {
+        "type": "Name",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target identity"
+      },
+      "adapter_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier"
+      },
+      "applicable": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the adapter applies on this host"
+      },
+      "executable_found": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the executable was resolved"
+      },
+      "invocation_ok": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the health invocation exited zero"
+      },
+      "timed_out": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the health invocation timed out"
+      },
+      "permission_denied": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether permissions refused execution"
+      },
+      "interpreter_resolved": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether a unique interpreter was identified"
+      },
+      "readiness": {
+        "type": "ReadinessState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness implied by inspection"
+      }
+    }
+  },
+  "prerequisite.inspection@1": {
+    "python": "PrerequisiteInspection",
+    "fields": {
+      "target": {
+        "type": "PrerequisiteTarget",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "which prerequisite was inspected"
+      },
+      "inspected_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when inspection ran; timezone-aware UTC"
+      },
+      "applicable": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this adapter applies on this host"
+      },
+      "executable_found": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the target executable was resolved"
+      },
+      "executable_basename": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "basename only; empty when not found"
+      },
+      "executable_path": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "absolute executable path when known; Unresolved otherwise"
+      },
+      "interpreter_resolution": {
+        "type": "InterpreterResolution",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the CLI interpreter was established"
+      },
+      "interpreter_basename": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "interpreter basename when known; empty when unresolved"
+      },
+      "interpreter_path": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "absolute interpreter path when uniquely known; Unresolved otherwise"
+      },
+      "invocation_ok": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the health invocation exited zero"
+      },
+      "timed_out": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the health invocation exceeded its timeout"
+      },
+      "permission_denied": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether execution was refused by permissions"
+      },
+      "exit_code": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "process exit code when one was observed"
+      },
+      "stderr_excerpt": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded, path-stripped stderr used for diagnosis"
+      },
+      "readiness": {
+        "type": "ReadinessState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness implied by this inspection alone"
+      }
+    }
+  },
+  "prerequisite.interpreter_dependency@1": {
+    "python": "InterpreterDependency",
+    "fields": {
+      "module_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "import name that failed, for example yaml"
+      },
+      "package_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "install name from the adapter allowlist"
+      },
+      "constraint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact version constraint, for example ==6.0.2"
+      }
+    }
+  },
+  "prerequisite.plan@1": {
+    "python": "PrerequisitePlan",
+    "fields": {
+      "plan_id": {
+        "type": "PrerequisitePlanId",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque identity of this plan"
+      },
+      "target": {
+        "type": "PrerequisiteTarget",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target this plan applies to"
+      },
+      "diagnosis": {
+        "type": "PrerequisiteDiagnosis",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "diagnosis that produced the plan"
+      },
+      "actions": {
+        "type": "tuple[PrerequisiteAction, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ordered bounded actions"
+      },
+      "policy_mode": {
+        "type": "PolicyMode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "policy mode under which the plan was created"
+      },
+      "created_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the plan was composed; timezone-aware UTC"
+      }
+    }
+  },
+  "prerequisite.plan_created@1": {
+    "python": "PrerequisitePlanCreatedPayload",
+    "fields": {
+      "target_id": {
+        "type": "Name",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target identity"
+      },
+      "adapter_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque plan identity"
+      },
+      "policy_mode": {
+        "type": "PolicyMode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "policy mode that produced the plan"
+      },
+      "action_kind": {
+        "type": "ActionKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "primary planned action kind"
+      },
+      "source": {
+        "type": "RemediationSourceKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dependency source represented by the plan"
+      },
+      "diagnosis_code": {
+        "type": "DiagnosisCode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "diagnosis that produced the plan"
+      }
+    }
+  },
+  "prerequisite.policy@1": {
+    "python": "PrerequisitePolicy",
+    "fields": {
+      "mode": {
+        "type": "PolicyMode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "observe_only, plan_only, or remediate"
+      },
+      "mode_provenance": {
+        "type": "SettingProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who selected the policy mode"
+      },
+      "mode_reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this policy mode is in force"
+      },
+      "dependency_source": {
+        "type": "RemediationSourceKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "where an allowlisted dependency would be obtained"
+      },
+      "dependency_source_provenance": {
+        "type": "SettingProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who selected the dependency source"
+      },
+      "dependency_source_reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this dependency source is in force"
+      }
+    }
+  },
+  "prerequisite.readiness_report@1": {
+    "python": "PrerequisiteReadinessReport",
+    "fields": {
+      "target": {
+        "type": "PrerequisiteTarget",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target evaluated"
+      },
+      "policy": {
+        "type": "PrerequisitePolicy",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "selected policy for this invocation"
+      },
+      "settings": {
+        "type": "tuple[PrerequisiteSetting, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspectable settings for command-center aggregation"
+      },
+      "inspection_before": {
+        "type": "PrerequisiteInspection",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "first inspection"
+      },
+      "diagnosis": {
+        "type": "PrerequisiteDiagnosis",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "diagnosis of the first inspection"
+      },
+      "readiness_before": {
+        "type": "ReadinessState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness before any mutation"
+      },
+      "readiness_after": {
+        "type": "ReadinessState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness at the end of the cycle"
+      },
+      "mutated": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this cycle invoked a host mutation"
+      },
+      "plan": {
+        "type": "PrerequisitePlan | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "remediation plan when policy is plan_only or remediate"
+      },
+      "remediation": {
+        "type": "RemediationResult | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "mutation result when an action was considered"
+      },
+      "verification": {
+        "type": "VerificationResult | None",
+        "optional": true,
+        "nullable": true,
+        "may_be_unresolved": false,
+        "meaning": "re-inspection after remediate, or none when not required"
+      }
+    }
+  },
+  "prerequisite.remediation_completed@1": {
+    "python": "PrerequisiteRemediationCompletedPayload",
+    "fields": {
+      "target_id": {
+        "type": "Name",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target identity"
+      },
+      "adapter_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque plan identity"
+      },
+      "action_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque action identity"
+      },
+      "status": {
+        "type": "ActionStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "action status after the attempt"
+      },
+      "attempted": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether a host command ran"
+      },
+      "changed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the adapter believes the environment changed"
+      },
+      "interpreter_basename": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "interpreter basename that was targeted"
+      }
+    }
+  },
+  "prerequisite.remediation_failed@1": {
+    "python": "PrerequisiteRemediationFailedPayload",
+    "fields": {
+      "target_id": {
+        "type": "Name",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target identity"
+      },
+      "adapter_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque plan identity"
+      },
+      "action_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque action identity"
+      },
+      "status": {
+        "type": "ActionStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "failed or blocked"
+      },
+      "attempted": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether a host command ran"
+      }
+    }
+  },
+  "prerequisite.remediation_result@1": {
+    "python": "RemediationResult",
+    "fields": {
+      "action": {
+        "type": "PrerequisiteAction",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "action after the attempt"
+      },
+      "attempted": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether a host mutation was invoked"
+      },
+      "changed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the adapter believes the environment changed"
+      },
+      "interpreter_basename": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "interpreter that would receive the dependency; empty when unknown"
+      },
+      "stdout_excerpt": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded, path-stripped command stdout"
+      },
+      "stderr_excerpt": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded, path-stripped command stderr"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what happened, including interpreter identity"
+      }
+    }
+  },
+  "prerequisite.remediation_started@1": {
+    "python": "PrerequisiteRemediationStartedPayload",
+    "fields": {
+      "target_id": {
+        "type": "Name",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target identity"
+      },
+      "adapter_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque plan identity"
+      },
+      "action_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "opaque action identity"
+      },
+      "action_kind": {
+        "type": "ActionKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "action about to run"
+      },
+      "package_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allowlisted package name; empty for no-op"
+      }
+    }
+  },
+  "prerequisite.setting@1": {
+    "python": "PrerequisiteSetting",
+    "fields": {
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dotted setting name, for example policy.mode"
+      },
+      "value": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "current selected/desired value as text"
+      },
+      "provenance": {
+        "type": "SettingProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who selected this value"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this value is in force"
+      },
+      "allowed_values": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compact allowed-value description"
+      },
+      "support_state": {
+        "type": "SettingSupportState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this setting is usable"
+      },
+      "mutability": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime or restart_required"
+      },
+      "invalidation": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what must re-run if this setting changes, for example reinspect"
+      }
+    }
+  },
+  "prerequisite.target@1": {
+    "python": "PrerequisiteTarget",
+    "fields": {
+      "target_id": {
+        "type": "Name",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable target identity, for example amd_smi"
+      },
+      "adapter_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier that owns inspection"
+      },
+      "target_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target class, for example vendor_cli"
+      }
+    }
+  },
+  "prerequisite.verification_result@1": {
+    "python": "VerificationResult",
+    "fields": {
+      "inspection": {
+        "type": "PrerequisiteInspection",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspection used for verification"
+      },
+      "diagnosis": {
+        "type": "PrerequisiteDiagnosis",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "diagnosis of the verification inspect"
+      },
+      "ready": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "true only when verification readiness is ready"
+      },
+      "readiness": {
+        "type": "ReadinessState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness after verification"
+      }
+    }
+  },
+  "prerequisite.verified@1": {
+    "python": "PrerequisiteVerifiedPayload",
+    "fields": {
+      "target_id": {
+        "type": "Name",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "target identity"
+      },
+      "adapter_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier"
+      },
+      "ready": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "true only when verification readiness is ready"
+      },
+      "readiness": {
+        "type": "ReadinessState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness after verification"
+      },
+      "diagnosis_code": {
+        "type": "DiagnosisCode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verification diagnosis"
+      }
+    }
+  },
   "state_root_binding@1": {
     "python": "StateRootBinding",
     "fields": {

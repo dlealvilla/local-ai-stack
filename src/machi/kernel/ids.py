@@ -167,6 +167,18 @@ class HostId(EntityId):
     prefix = "host"
 
 
+class PrerequisitePlanId(EntityId):
+    """Identifies one prerequisite remediation plan. Minted by 2.5.1."""
+
+    prefix = "pplan"
+
+
+class PrerequisiteActionId(EntityId):
+    """Identifies one prerequisite action inside a plan. Minted by 2.5.1."""
+
+    prefix = "pact"
+
+
 class LocalOwnershipId(EntityId):
     """Identifies one local ownership marker. Minted by 1.3.1.
 

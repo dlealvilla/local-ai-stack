@@ -134,7 +134,8 @@ still be running. Reservation remains until explicit release.
 flowchart TD
   K[0 Kernel] --> I[1 Install]
   I --> D[2 Discover]
-  D --> S[3 Steward]
+  D --> R[2.5 PrerequisiteReadiness]
+  R --> S[3 Steward]
   S --> C[4 Capacity]
   C --> F[5 Foundation]
   F --> M[6 Model]
@@ -143,6 +144,7 @@ flowchart TD
   A --> V[9 Serve]
   K -.events / witness.-> I
   K -.events / witness.-> D
+  K -.events / witness.-> R
   K -.events / witness.-> S
   K -.events / witness.-> C
   K -.events / witness.-> F
@@ -192,6 +194,7 @@ Recompute (not a second pipeline) is Diagram E.
   2.2 CPU / RAM
   2.3 Accelerator Discovery
   2.4 Mounts
+  2.5 PrerequisiteReadiness
 3 Steward
   3.1 Ownership
   3.2 Occupancy
@@ -241,7 +244,8 @@ Recompute (not a second pipeline) is Diagram E.
 |---|---|---|---|---|---|---|---|
 | 0 | Kernel | Mechanisms, events, witness | 0.1–0.7 | store, disabled export | none | EventRecord, Witness | `kernel.alive` |
 | 1 | Install | This copy on this disk | 1.1–1.4 | none at v0 | artifact | `StateRootBinding` (1.2.1); `LocalOwnershipEstablishment` (1.3.1; not dual proof); later InstallRecord, InstallRun, registry (1.3.2) | `install.state_root.bound` (1.2.1); `install.ownership.local_marked` (1.3.1); `install.bound` (1.4.1) |
-| 2 | Discover | Observe the machine | 2.1–2.4 | OS/arch, memory providers, later accelerators/fixture | InstallRecord | HostProfile | `discover.completed` |
+| 2 | Discover | Observe the machine | 2.1–2.4 | OS/arch, memory, NVIDIA/AMD/Apple accelerators, later mounts | InstallRecord | HostProfile | `discover.completed` |
+| 2.5 | PrerequisiteReadiness | Are selected environment prerequisites usable? | 2.5.1 | vendor-CLI adapters (first: AMD `amd-smi`) | policy + host environment | `PrerequisiteReadinessReport` | `prerequisite.*` |
 | 3 | Steward | Own, classify, reclaim | 3.1–3.3 | filesystem markers | HostProfile | OccupancyMap, ReclaimResult | `steward.*` |
 | 4 | Capacity | What may be consumed | 4.1–4.6 | posix, fuse, quota, sonar writer | OccupancyMap | CapacityEnvelope, HostMinimumVerdict | `capacity.*` |
 | 5 | Foundation | How software will run | 5.1–5.6 | native process, container, vLLM provision | Envelope | FoundationSelection, RuntimeCapability | `foundation.*` |
@@ -249,6 +253,10 @@ Recompute (not a second pipeline) is Diagram E.
 | 7 | Plan | Authoritative configuration | 7.1–7.3 | none | selections + artifacts | DeploymentConfiguration | `plan.*` |
 | 8 | Admit | Authorize now | 8.1–8.3 | none (policy core) | Configuration | ResourceReservation | `admit.*` |
 | 9 | Serve | Run and prove a request | 9.1–9.6 | native process, vLLM runtime | Reservation + Configuration | InferenceProof | `serve.*` `inference.completed` |
+
+`2.5` is a Block 2 capability, not a tenth Block. Discover (`2.1`–`2.4`)
+remains read-only observation. PrerequisiteReadiness may mutate only
+explicitly allowlisted environment prerequisites under policy.
 
 ---
 
@@ -516,13 +524,14 @@ capability model. Intel remains unimplemented.
   from composition after M1. `host_id` stays unresolved.
 - Observation is not mutation. Adapters must not write `/etc`, change
   swap, tune cgroups, allocate probe buffers, install packages, or
-  change GPU persistence/MIG/power.
+  change GPU persistence/MIG/power. Discover must not import
+  PrerequisiteReadiness.
 
 **Adapters:** native OS/arch (accepted); native memory observer with
 Linux and macOS providers (accepted); native accelerator observer with
-NVIDIA, AMD, and retained Apple providers (local NVIDIA+AMD candidate;
-physical pending). Intel later. Adapters observe; they do not decide
-models.
+NVIDIA, AMD, and retained Apple providers (NVIDIA+AMD physically
+covered on SHA `eaee5c98…`). Intel later. Adapters observe; they do not
+decide models. They do not remediate.
 
 **Inputs:** optional InstallRecord / InstallRun correlation from
 composition; Memory and Accelerator compose OS family from 2.1.1 for
@@ -558,6 +567,106 @@ cgroup/execution limits remain deferred.
 **Deferred:** available memory, swap, cgroup/execution memory limit,
 Windows native reader. Reconsider at HostProfile / Capacity, not by
 silently treating `MemTotal` as the admission ceiling.
+
+## 2.5 PrerequisiteReadiness
+
+**ID:** 2.5  
+**Name:** PrerequisiteReadiness  
+**Purpose:** Decide whether software/environment prerequisites required
+by a selected provider/runtime/path are usable, and if not, explain and
+optionally remediate under policy.  
+**Short Description:** inspect → diagnose → plan → policy-gated
+remediate → re-inspect → verify.
+
+This is **not** Discover. Discover remains read-only. This is **not**
+ResourceManager, Plan, Foundation, a package-management platform, a
+driver installer, or an optimizer.
+
+**Approved Components:**
+
+| ID | Name | Role | Status |
+|---|---|---|---|
+| `2.5.1` | PrerequisiteReadiness | Generic cycle + policy + inspectable settings | implementing |
+| `2.5.1` adapter | `AmdSmiPrerequisiteAdapter` | First real adapter: AMD vendor CLI operational | implementing |
+
+**Lifecycle:** inspect → diagnose → plan → if policy permits mutation,
+remediate → re-inspect → verify. READY is never claimed from a mutation
+without verification. Already-READY is `NO_OP`, not a reinstall.
+
+**Readiness states:** `ready`, `blocked`, `remediable`, `unknown`,
+`not_applicable`, `failed`. Unknown is never Ready and never Missing.
+
+**Policy modes:** `observe_only` (inspect/diagnose only), `plan_only`
+(product default; inspect/diagnose/plan, never mutate), `remediate`
+(allowlisted actions only, then verify).
+
+**May:** install a specific missing interpreter dependency when the
+adapter positively proves that is the diagnosed cause, into the
+interpreter the target CLI actually uses, in a policy-authorized
+environment, recording exactly what changed.
+
+**Must not:** install or replace GPU drivers; modify kernel modules;
+install arbitrary ROCm/CUDA stacks; upgrade system Python; mutate Machi
+code; modify model/runtime configuration; allocate GPUs; launch
+inference; perform unrelated package upgrades; accept an arbitrary
+package name from the caller.
+
+**Configuration:** every meaningful setting is a typed
+`PrerequisiteSetting` (value, provenance, reason, allowed values,
+support state, mutability, invalidation). Selected policy is desired
+state; inspection/verification is effective state. Adapters may
+translate typed settings into argv, but argv is not the source of
+truth. Future administration and optimization consume these contracts,
+not raw host flags.
+
+**Adapters:** `AmdSmiPrerequisiteAdapter` (Linux `amd-smi` health). The
+first remediable instance is a missing interpreter module (`yaml` →
+allowlisted `PyYAML==6.0.2`). Diagnosis is the generic missing-module
+class, not a PyYAML special case. PyYAML is a target-environment
+prerequisite, not a Machi wheel dependency.
+
+**Inputs:** selected `PrerequisitePolicy`; current host environment;
+optional M1 InstallId/InstallRunId from composition.  
+**Outputs:** `PrerequisiteReadinessReport` (inspection, diagnosis, plan,
+optional remediation/verification, inspectable settings); events
+`prerequisite.*`.  
+**Preconditions:** Kernel. Composition may attach M1 identities.
+Discover observations are not consumed and are not rewritten.  
+**Success:** truthful readiness; plan when policy allows; mutation only
+when remediating an allowlisted action; post-mutation verification;
+idempotent READY → `NO_OP`.  
+**Blocked:** missing executable, permission denied, unrecognized
+failure, ambiguous interpreter, non-allowlisted module, unavailable
+dependency source, policy that forbids mutation.  
+**State owned:** none as durable entity state. Reports are results.  
+**Persistence:** events only. No Store entity.  
+**Side effects:** none under `observe_only` / `plan_only`. Under
+`remediate`, only the allowlisted interpreter-dependency command
+against the identified CLI interpreter.  
+**Downstream:** later adapters that need a usable vendor CLI; never
+Capacity or admission.  
+**Re-entry:** evaluate again; READY remains `NO_OP`.  
+**Idempotence:** second cycle after successful remediation is READY
+without mutation.  
+**Telemetry:** `prerequisite.inspected`, `prerequisite.diagnosed`,
+`prerequisite.plan_created`, `prerequisite.remediation_started`,
+`prerequisite.remediation_completed`, `prerequisite.remediation_failed`,
+`prerequisite.verified` (privacy `operational`; no paths, no customer
+content).  
+**Independent test:** fixture host covering READY, missing executable,
+missing allowlisted module, unrecognized failure, timeout, permission,
+not-applicable, policy modes, interpreter identity, forged package
+refusal, offline source representation, round-trip, event privacy.  
+**Cumulative:** M0→M1→2.1.1→2.2.1→2.3→2.5.1.  
+**Lessons:** vendor CLI presence ≠ vendor CLI usability; target
+interpreter ≠ Machi interpreter; network install is a represented
+source, not the architecture.
+
+**Deferred (Tier 3):** privileged driver installation; multiple
+remediation strategies; rollback; dependency graphs; managed offline
+artifact cache; CUDA/ROCm full prerequisite preparation;
+cross-platform package-manager abstraction; organization policy
+templates.
 
 ## 3 Steward
 
@@ -839,6 +948,9 @@ cleanup on stop.
     NVIDIA, AMD, and retained Apple providers under 2.3.1; Intel out
   2.4 Mounts
     2.4.1 Mount enumerator
+  2.5 PrerequisiteReadiness
+    2.5.1 PrerequisiteReadiness (generic cycle; Discover stays read-only)
+    AmdSmiPrerequisiteAdapter under 2.5.1; not a Discover observer
 3 Steward
   3.1 Ownership
     3.1.1 Dual-proof records
@@ -1001,7 +1113,8 @@ Adapters exist only where the **technology varies**.
 
 | Port owner | Adapter examples | Must not |
 |---|---|---|
-| Discover | Linux/macOS memory providers, NVIDIA/AMD/Apple accelerators, later Intel, fixture | Decide SAFE, models, or admission |
+| Discover | Linux/macOS memory providers, NVIDIA/AMD/Apple accelerators, later Intel, fixture | Decide SAFE, models, admission, or remediate |
+| PrerequisiteReadiness | AMD vendor CLI (`amd-smi`); later CUDA/ROCm/runtime adapters | Discover, ResourceManager, Plan, driver install, arbitrary pip |
 | Capacity | posix, FUSE, quota, ZFS, sonar writer | Know model IDs |
 | Foundation | native process, Docker engine, vLLM pip | Admit resources |
 | Model | Hub, fixture | Authorize compatibility by existing on disk |
@@ -1064,7 +1177,8 @@ Raw filesystem capacity never authorizes a mutation.
 | Controlled execution | KEEP — native process required on supported hosts |
 | Ownership | KEEP — dual proof |
 | Safe destruction | KEEP — fail closed |
-| Authoritative configuration | KEEP — Block 7 |
+| Authoritative configuration | KEEP — Block 7 desired; later RunningConfiguration observed |
+| Inspectable control-plane settings | KEEP — typed desired/effective values with provenance; adapters may translate into CLI/env/files/API, those representations are not the sole truth |
 | Customer data control | KEEP — prompts never in events; vendor default off |
 
 ---
@@ -1152,12 +1266,30 @@ the development workspace.
 - Thin end-to-end (M0–M9) before deepening any Block.
 - No third-party technology is a semantic owner.
 - Architecture tests enforce non-edges from the first code milestone.
+- Discover remains read-only. PrerequisiteReadiness is the only Block 2
+  path that may mutate, and only under explicit policy.
+- Machi should produce safe, useful initial configuration automatically
+  while preserving all meaningful configuration choices as typed and
+  inspectable control-plane state. Runtime adapters may translate this
+  state into runtime-specific flags, environment variables, configuration
+  files, or API calls, but those runtime representations must not become
+  the sole source of configuration truth. Future administration and
+  optimization systems should operate on Machi's normalized configuration
+  contracts.
+- Configuration should preserve the distinction between recommended,
+  selected/desired, admitted and effective/running values, together with
+  provenance, support/bounds and invalidation implications where
+  applicable. Not every component needs all four today.
+- Optimization belongs to Plan. Optimizer outputs are proposals.
+  PrerequisiteReadiness is not optimization.
 
 ---
 
 # 21. Extension points
 
 - New HostDiscoveryProvider
+- New prerequisite adapter behind `PrerequisiteAdapter`
+- Managed offline prerequisite artifact cache (Tier 3)
 - New storage specialist
 - New executor / runtime descriptor
 - New model source

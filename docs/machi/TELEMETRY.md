@@ -89,6 +89,7 @@ Names are examples; the catalogue is owned by Kernel 0.3.
 - `discover.os_arch.observed` (2.1.1; OS family + CPU architecture; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not `discover.completed`)
 - `discover.memory.observed` (2.2.1; physical/system memory bytes; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not safe capacity; not `discover.completed`)
 - `discover.accelerator.observed` (2.3.1; generic accelerator devices + provider reports; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not capacity; not `discover.completed`)
+- `prerequisite.inspected` / `prerequisite.diagnosed` / `prerequisite.plan_created` / `prerequisite.remediation_started` / `prerequisite.remediation_completed` / `prerequisite.remediation_failed` / `prerequisite.verified` (2.5.1; privacy `operational`; basenames not paths; no customer content; Discover remains read-only)
 - `discover.completed`
 - `steward.classified` / `steward.reclaim.planned` / `steward.reclaim.completed`
 - `capacity.characterized` / `capacity.minimum.completed`
@@ -209,6 +210,7 @@ flowchart TB
   subgraph core [Core blocks 1-9]
     B1[Install]
     B2[Discover]
+    B25[PrerequisiteReadiness]
     B3[Steward]
     B4[Capacity]
     B5[Foundation]
@@ -225,6 +227,7 @@ flowchart TB
   V[Optional vendor export]
   B1 --> J
   B2 --> J
+  B25 --> J
   B3 --> J
   B4 --> J
   B5 --> J
@@ -276,6 +279,13 @@ vendor, model, topology, and reported dedicated memory (when the
 source actually reported it) are machine hardware facts. GPU UUID is
 device identity, not HostId. `host_id` remains unresolved. Hostname,
 paths, and customer content are omitted.
+
+**2.5.1:** `prerequisite.*` events are `operational`. They record
+target/adapter ids, readiness, diagnosis code, plan/action ids, and
+bounded command provenance. Absolute paths stay off the event
+payload (they may exist on the in-process report). Customer content
+is forbidden. Mutation events are emitted only when a remediate
+policy actually attempts an allowlisted action.
 
 That is the empirical proof that observability is not a log
 statement.

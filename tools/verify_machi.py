@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove M0 through 2.3.
+"""Install a Machi wheel into a throwaway environment and prove M0 through 2.5.1.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """
@@ -1180,6 +1180,52 @@ def main() -> int:
         raise SystemExit("journaled accelerator event lost InstallRunId")
     if "$unresolved" not in json.dumps(accelerator_events[-1]["host_id"]):
         raise SystemExit("accelerator event resolved host_id")
+
+    readiness = run(
+        [
+            str(machi),
+            "prerequisites",
+            "check",
+            "--policy",
+            "observe_only",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(readiness.stdout, end="")
+    if '"kind": "prerequisite.readiness_report"' not in readiness.stdout:
+        raise SystemExit("prerequisites check did not print a readiness report")
+    if '"mutated": true' in readiness.stdout:
+        raise SystemExit("observe_only prerequisites check mutated the host")
+    if "prerequisite.remediation_started" in readiness.stdout:
+        raise SystemExit("observe_only emitted a remediation start")
+    journal_after_prereq = [
+        json.loads(line)
+        for line in (root_a / "journal" / "events.jsonl").read_text().splitlines()
+        if line
+    ]
+    still_acc = next(
+        item
+        for item in journal_after_prereq
+        if item["event_id"] == accelerator_events[-1]["event_id"]
+    )
+    if still_acc != accelerator_events[-1]:
+        raise SystemExit("prerequisites check rewrote discover.accelerator.observed")
+    inspected = [
+        item
+        for item in journal_after_prereq
+        if item.get("event_type") == "prerequisite.inspected"
+    ]
+    if not inspected:
+        raise SystemExit("journal is missing prerequisite.inspected")
+    if inspected[-1]["install_id"] != install_a["install_id"]:
+        raise SystemExit("journaled prerequisite event lost InstallId")
+    payload = json.dumps(inspected[-1]["payload"])
+    if str(root_a) in payload or str(control_registry) in payload:
+        raise SystemExit("absolute path leaked into prerequisite event payload")
 
     print("verify_ok")
     return 0

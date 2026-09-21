@@ -1,4 +1,4 @@
-"""Machi architecture boundary tests through 2.3."""
+"""Machi architecture boundary tests through 2.5.1."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from tests.machi.architecture import (
     kernel_technology_violations,
     marker_boundary_violations,
     package_import_violations,
+    prerequisite_boundary_violations,
     registry_boundary_violations,
     run_boundary_violations,
     scan,
@@ -84,6 +85,10 @@ def test_journal_port_is_not_the_jsonl_adapter() -> None:
 
 def test_base_package_import_does_not_load_providers() -> None:
     assert package_import_violations(source_root()) == []
+
+
+def test_prerequisite_readiness_stays_outside_discover_and_admission() -> None:
+    assert prerequisite_boundary_violations(source_root()) == []
 
 
 def test_intel_provider_is_absent_from_composition() -> None:

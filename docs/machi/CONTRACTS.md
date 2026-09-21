@@ -13,6 +13,7 @@ Unknown is `Unresolved`, never zero, never a pass.
 | Category | Meaning | Example |
 |---|---|---|
 | Observation | Raw or adapter-normalized fact about the world | `HostObservation`, `MountObservation` |
+| Readiness | Environment usability of a selected prerequisite | `PrerequisiteReadinessReport` |
 | Profile | Machi-owned normalization | `HostProfile` |
 | Evidence | Measurement with provenance | `CapacityEvidence` |
 | Inventory | Owned bytes and their class | `OccupancyMap` |
@@ -87,6 +88,14 @@ entity.
 | `AcceleratorObservation` | 2.3 Native accelerator observer | Discover events; later HostProfile / Capacity | Observation | no | devices + provider reports; topology; not safe VRAM |
 | `AcceleratorDevice` | 2.3 providers via native observer | `AcceleratorObservation` | Observation | no | per-device identity/model/topology/memory; never aggregated |
 | `AcceleratorProviderReport` | 2.3 native observer | `AcceleratorObservation` | Observation | no | observed / not_applicable / unavailable / failed; not a device count synonym |
+| `PrerequisitePolicy` | 2.5.1 composition | PrerequisiteReadiness | Configuration (selected/desired) | no | mode + dependency source + provenance |
+| `PrerequisiteSetting` | 2.5.1 policy/adapter | command-center later; optimizer later | Configuration | no | value, provenance, reason, bounds, support, mutability, invalidation |
+| `PrerequisiteTarget` | 2.5.1 adapter | inspection/plan/report | Profile | no | target id + adapter id; not a GPU |
+| `PrerequisiteInspection` | 2.5.1 adapter | diagnosis, report | Observation | no | executable/interpreter facts; readiness; paths stay off events |
+| `PrerequisiteDiagnosis` | 2.5.1 adapter | plan, report | Evidence | no | diagnosis code; remediable flag; unknown ≠ missing |
+| `PrerequisitePlan` / `PrerequisiteAction` | 2.5.1 adapter | remediate, report | Recommendation | no | allowlisted actions only; `NO_OP` when READY |
+| `RemediationResult` / `VerificationResult` | 2.5.1 adapter | report | Proof | no | mutation never assumed successful |
+| `PrerequisiteReadinessReport` | 2.5.1 orchestration | CLI, later composition | Readiness | no | before/after readiness; inspectable settings; mutated flag |
 | `HostObservation` | 2 adapters | Discover | Observation | optional raw | adapter name, tool version |
 | `HostProfile` | 2 Discover | Capacity, Foundation, Admit | Profile | yes | observation IDs |
 | `MountObservation` | 2.4 | Capacity | Observation | yes | path, fs type, reported free flagged |

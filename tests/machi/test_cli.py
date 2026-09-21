@@ -35,6 +35,32 @@ def test_kernel_prove_then_events_round_trip(
     assert (journal / "events.jsonl").is_file()
 
 
+def test_prerequisites_observe_only_does_not_mutate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    journal = tmp_path / "journal"
+    assert (
+        main(
+            [
+                "prerequisites",
+                "check",
+                "--policy",
+                "observe_only",
+                "--journal-dir",
+                str(journal),
+            ]
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert '"kind": "prerequisite.readiness_report"' in out
+    assert '"mutated": false' in out
+    assert "observe_only" in out
+    journal_text = (journal / "events.jsonl").read_text(encoding="utf-8")
+    assert "prerequisite.inspected" in journal_text
+    assert "prerequisite.remediation_started" not in journal_text
+
+
 def test_missing_journal_dir_is_an_error() -> None:
     with pytest.raises(SystemExit):
         main(["kernel", "prove"])

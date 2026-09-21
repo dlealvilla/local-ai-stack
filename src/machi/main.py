@@ -19,6 +19,7 @@ from machi.adapters.discover.native_memory import NativeMemoryObserver
 from machi.adapters.discover.native_os_arch import NativeOSArchitectureObserver
 from machi.adapters.journal.jsonl import JsonlJournal
 from machi.adapters.persistence.file_store import FileStore
+from machi.adapters.prerequisites.amd_smi import AmdSmiPrerequisiteAdapter
 from machi.discover.contracts import (
     AcceleratorObservation,
     MemoryObservation,
@@ -68,6 +69,14 @@ from machi.kernel.journal import JournalDefect
 from machi.kernel.schema import Contract, to_dict, validate_registry
 from machi.kernel.store_proof import StoreProof, store_proved
 from machi.kernel.unresolved import Maybe, is_resolved
+from machi.prerequisites.contracts import (
+    PolicyMode,
+    PrerequisiteReadinessReport,
+    SettingProvenance,
+)
+from machi.prerequisites.policy import default_prerequisite_policy, policy_with_mode
+from machi.prerequisites.ports import PrerequisiteAdapter
+from machi.prerequisites.service import PrerequisiteReadiness
 
 
 def prove_alive(journal_dir_path: Path) -> EventRecord:
@@ -465,6 +474,75 @@ def observe_accelerator(
     return observation, event, event.install_id, event.install_run_id, target
 
 
+def evaluate_prerequisites(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    store_dir: Path | None,
+    journal_dir_path: Path | None,
+    mode: PolicyMode,
+    adapter: PrerequisiteAdapter | None = None,
+) -> tuple[
+    PrerequisiteReadinessReport,
+    tuple[EventRecord, ...],
+    Maybe[InstallId],
+    Maybe[InstallRunId],
+    Path | None,
+]:
+    """Inspect a vendor CLI prerequisite. Discover remains read-only.
+
+    Mutation happens only when mode is remediate and the adapter allowlists
+    the action. Discover remains read-only. This is not admission.
+    """
+    validate_registry(module_prefix="machi.")
+    if store_dir is not None and explicit is None and environment is None:
+        raise ValidationError(
+            "prerequisites check needs --state-root or MACHI_STATE_ROOT when "
+            "a control-plane Store is supplied",
+        )
+    install_id: Maybe[InstallId] | None = None
+    install_run_id: Maybe[InstallRunId] | None = None
+    binding_root: Path | None = None
+    if store_dir is not None:
+        binding = StateRootBinder().bind(explicit=explicit, environment=environment)
+        establishment = SelfOwnershipMarker().establish(binding)
+        store = FileStore(store_dir)
+        seeded = RegistrySeed().seed(binding, establishment, store)
+        established = InstallIdentity().establish(
+            binding, establishment, seeded, store, build_identity()
+        )
+        run = InstallRunStore().establish(established.record, store, build_identity())
+        install_id = established.record.install_id
+        install_run_id = run.record.install_run_id
+        binding_root = Path(binding.root)
+        _warn_if_defaulted(binding)
+    selected = adapter or AmdSmiPrerequisiteAdapter()
+    policy = default_prerequisite_policy()
+    if mode is not policy.mode:
+        policy = policy_with_mode(
+            mode,
+            provenance=SettingProvenance.ADMINISTRATOR,
+            reason="selected on the invocation",
+            source=policy,
+        )
+    report, events = PrerequisiteReadiness().evaluate(
+        selected,
+        policy,
+        install_id=install_id,
+        install_run_id=install_run_id,
+    )
+    target: Path | None = None
+    if journal_dir_path is not None:
+        target = journal_dir_path
+    elif binding_root is not None:
+        target = journal_dir(binding_root)
+    if target is not None:
+        journal = JsonlJournal(target)
+        events = tuple(journal.append(event) for event in events)
+    leading = events[0]
+    return report, events, leading.install_id, leading.install_run_id, target
+
+
 def show_version() -> int:
     identity = build_identity()
     print(identity.describe())
@@ -733,6 +811,39 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="journal directory; defaults to <state-root>/journal when Store is set",
     )
 
+    readiness = sub.add_parser(
+        "prerequisites",
+        help="inspect and optionally remediate environment prerequisites",
+    )
+    readiness_sub = readiness.add_subparsers(
+        dest="prerequisites_command", required=True
+    )
+    check = readiness_sub.add_parser(
+        "check",
+        help="inspect/diagnose/plan a vendor CLI; mutate only with remediate policy",
+    )
+    check.add_argument(
+        "--policy",
+        choices=["observe_only", "plan_only", "remediate"],
+        default="plan_only",
+        help="observe_only and plan_only never mutate; remediate is allowlisted",
+    )
+    check.add_argument(
+        "--state-root",
+        default=None,
+        help="explicit state root used only to re-enter M1 correlation",
+    )
+    check.add_argument(
+        "--store-dir",
+        default=None,
+        help="injected control-plane Store; required to resolve InstallId/InstallRunId",
+    )
+    check.add_argument(
+        "--journal-dir",
+        default=None,
+        help="journal directory; defaults to <state-root>/journal when Store is set",
+    )
+
     ns = parser.parse_args(list(argv) if argv is not None else None)
     try:
         if ns.command == "version":
@@ -961,15 +1072,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"devices  {len(accelerator_observation.devices)}")
             print(f"status   {accelerator_observation.status.value}")
             print(f"observer {accelerator_observation.observer}")
-            for report in accelerator_observation.providers:
+            for provider_report in accelerator_observation.providers:
                 count = (
-                    f" devices={report.device_count}"
-                    if is_resolved(report.device_count)
+                    f" devices={provider_report.device_count}"
+                    if is_resolved(provider_report.device_count)
                     else ""
                 )
-                detail = f" {report.detail}" if report.detail else ""
+                detail = f" {provider_report.detail}" if provider_report.detail else ""
                 print(
-                    f"provider {report.provider} {report.status.value}{count}{detail}"
+                    "provider "
+                    f"{provider_report.provider} "
+                    f"{provider_report.status.value}{count}{detail}"
                 )
             for device in accelerator_observation.devices:
                 print(
@@ -994,6 +1107,38 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"journal  {journal_shown}")
             _print_document(accelerator_observation)
             _print_document(event)
+            return 0
+        if ns.command == "prerequisites" and ns.prerequisites_command == "check":
+            (
+                readiness_report,
+                readiness_events,
+                install_id,
+                install_run_id,
+                journal_target,
+            ) = evaluate_prerequisites(
+                explicit=ns.state_root,
+                environment=_environment_override(),
+                store_dir=Path(ns.store_dir) if ns.store_dir else None,
+                journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+                mode=PolicyMode(ns.policy),
+            )
+            print(f"target   {readiness_report.target.target_id.value}")
+            print(f"adapter  {readiness_report.target.adapter_id}")
+            print(f"policy   {readiness_report.policy.mode.value}")
+            print(f"before   {readiness_report.readiness_before.value}")
+            print(f"after    {readiness_report.readiness_after.value}")
+            print(f"code     {readiness_report.diagnosis.code.value}")
+            print(f"mutated  {str(readiness_report.mutated).lower()}")
+            print(f"install  {_format_maybe(install_id)}")
+            print(f"run      {_format_maybe(install_run_id)}")
+            journal_shown = (
+                str(JsonlJournal(journal_target).path)
+                if journal_target is not None
+                else "-"
+            )
+            print(f"journal  {journal_shown}")
+            print(f"events   {len(readiness_events)}")
+            _print_document(readiness_report)
             return 0
     except PersistenceError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

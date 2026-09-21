@@ -52,6 +52,7 @@ contracts. It does not own deployment truth.
 | [M2-2.3-LOCAL.md](M2-2.3-LOCAL.md) | 2.3 local acceptance of the `1c774a0` combined NVIDIA+Apple wheel. |
 | [M2-2.3-NVIDIA-PHYSICAL.md](M2-2.3-NVIDIA-PHYSICAL.md) | 2.3 NVIDIA physical acceptance of the `1c774a0` combined wheel. |
 | [M2-2.3-NVIDIA-AMD-CANDIDATE.md](M2-2.3-NVIDIA-AMD-CANDIDATE.md) | 2.3 NVIDIA+AMD local candidate freeze. |
+| [M2-2.5.1.md](M2-2.5.1.md) | 2.5.1 PrerequisiteReadiness implementation notes. |
 | [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md) | 2.3 provider selection gate (NVIDIA + Apple selected). |
 | [PROVIDER-AGNOSTIC-AUDIT.md](PROVIDER-AGNOSTIC-AUDIT.md) | First (partial) Discover/Memory audit; historical. |
 | [FULL-BUILT-SYSTEM-AUDIT.md](FULL-BUILT-SYSTEM-AUDIT.md) | Consolidated Kernel+Install+Discover provider/portability audit through 2.2.1 (promoted). |
@@ -68,6 +69,7 @@ lessons instead of from accidental history.
 Block 0 Kernel          governance, events, persistence, witness
 Block 1 Install         this copy of Machi on this disk
 Block 2 Discover         observations of the machine
+  2.5 PrerequisiteReadiness  bounded environment usability (not Discover)
 Block 3 Steward         ownership, occupancy, safe reclaim
 Block 4 Capacity         SAFE envelope and host-minimum gate
 Block 5 Foundation      executor + runtime, provision, verify, select

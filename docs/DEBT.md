@@ -2223,6 +2223,88 @@ To make real: a non-PyYAML-specific PrerequisiteReadiness capability;
               Discover remains read-only
 Retire when:  PrerequisiteReadiness is implemented at Tier 2 and can
               diagnose this class without special-casing yaml
+Status:       RETIRED (2.5.1, 2026-09-21)
+
+### M-2.5-01 — Privileged driver installation
+Label:        DEFERRED
+Owner stage:  PrerequisiteReadiness Tier 3 / pre-commercial
+Subsystem:    readiness / drivers
+Authorizes:   NO
+What:         Installing or replacing GPU drivers and kernel modules.
+Why now:      Tier 2 remediates interpreter dependencies only.
+Retire when:  a product requirement names privileged driver remediation
+Status:       OPEN
+
+### M-2.5-02 — Multiple remediation strategies
+Label:        DEFERRED
+Owner stage:  PrerequisiteReadiness Tier 3
+Subsystem:    readiness
+Authorizes:   NO
+What:         Alternate strategies for one diagnosis (local wheel vs
+              network vs managed cache vs OS package).
+Why now:      One allowlisted interpreter-dependency action is enough.
+Retire when:  a second strategy is required for a real adapter
+Status:       OPEN
+
+### M-2.5-03 — Remediation rollback
+Label:        DEFERRED
+Owner stage:  PrerequisiteReadiness Tier 3
+Subsystem:    readiness
+Authorizes:   NO
+What:         Transactional undo of a prerequisite mutation.
+Why now:      Failed mutation already fails closed and re-inspects.
+Retire when:  a mutation that cannot be re-diagnosed needs undo
+Status:       OPEN
+
+### M-2.5-04 — Dependency graph / order
+Label:        DEFERRED
+Owner stage:  PrerequisiteReadiness Tier 3
+Subsystem:    readiness
+Authorizes:   NO
+What:         Ordered multi-package / multi-target graphs.
+Why now:      One allowlisted pin is the first instance, not a solver.
+Retire when:  an adapter must remediate more than one ordered target
+Status:       OPEN
+
+### M-2.5-05 — Managed offline prerequisite artifact cache
+Label:        DEFERRED
+Owner stage:  PrerequisiteReadiness Tier 3
+Subsystem:    readiness / air-gap
+Authorizes:   NO
+What:         Product-owned cache of prerequisite artifacts.
+Why now:      Source kinds (network / local_artifact / managed_cache /
+              unavailable) are represented; cache is not implemented.
+Retire when:  air-gapped remediation is a required product path
+Status:       OPEN
+
+### M-2.5-06 — CUDA / ROCm full prerequisite preparation
+Label:        DEFERRED
+Owner stage:  PrerequisiteReadiness Tier 3 / Foundation
+Subsystem:    readiness / runtime
+Authorizes:   NO
+What:         Installing complete CUDA or ROCm stacks.
+Why now:      Out of Tier 2 mutation boundary.
+Retire when:  Foundation or a later adapter requires stack preparation
+Status:       OPEN
+
+### M-2.5-07 — Cross-platform package-manager abstraction
+Label:        DEFERRED
+Owner stage:  PrerequisiteReadiness Tier 3
+Subsystem:    readiness
+Authorizes:   NO
+What:         apt/dnf/brew/pip generic package-manager product.
+Why now:      Would become a package-management platform.
+Retire when:  architecture explicitly accepts that product expansion
+Status:       OPEN
+
+### M-2.5-08 — Organization policy templates
+Label:        DEFERRED
+Owner stage:  PrerequisiteReadiness Tier 3 / Admin
+Subsystem:    readiness / policy
+Authorizes:   NO
+What:         Org-wide observe/plan/remediate templates.
+Why now:      Invocation policy plus inspectable settings suffice.
+Retire when:  Admin / command center consumes the typed settings
 Status:       OPEN
 
 ### DC-04 — Intel accelerators

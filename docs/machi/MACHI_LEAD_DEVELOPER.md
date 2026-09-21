@@ -50,12 +50,13 @@ Kultrun documents in `docs/` (except `docs/machi/`) describe Kultrun.
 - Return structured evidence. Preserve exact work/chain tokens. STOP at task boundaries.
 - **Provider Selection Gate.** Before starting any new provider-backed Component: inspect the repository; name the generic capability, contract, and port; list candidate providers; recommend a default; **ASK DANIEL**; then implement. Do not skip the gate because the first machine already has one vendor, OS, filesystem, or runtime. Do not implement a new concrete provider merely to finish an audit.
 
-## M0 / M1 / Discover (implemented through 2.2.1)
+## M0 / M1 / Discover (implemented through 2.3; 2.5.1 next)
 
 Kernel: `0.1.1` registry, `0.1.2` Unresolved, `0.2.1` typed IDs, `0.3.1` EventRecord, `0.3.2` journal, `0.4.1` Store, `0.5.1` privacy.  
 Install: `1.2.1` binder, `1.3.1` marker, `1.3.2` registry seed, `1.1.1` InstallRecord, `1.4.1` InstallRun.  
-Discover: `2.1.1` OS/arch, `2.2.1` memory, `2.3`/`2.3.1` accelerator (NVIDIA physical PASS; Apple physical pending; Checkpoint A not created).  
-Next: Apple Silicon physical on the exact `1c774a0` combined candidate. After Checkpoint A: `2.4.1` mounts. Not started: HostId minting, HostProfile, Capacity, Steward.
+Discover: `2.1.1` OS/arch, `2.2.1` memory, `2.3`/`2.3.1` accelerator (NVIDIA+AMD physical coverage closed for SHA `eaee5c98…`; Apple physical deferred).  
+PrerequisiteReadiness: `2.5.1` inspect → diagnose → plan → policy-gated remediate → verify. Discover stays read-only.  
+Next after 2.5.1 closes: `2.4.1` mounts. Not started: HostId minting, HostProfile, Capacity, Steward.
 
 ## Packaging
 

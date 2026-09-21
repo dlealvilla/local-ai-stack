@@ -9,9 +9,7 @@ from typing import Any
 
 import pytest
 
-import machi.discover
-import machi.install
-import machi.kernel.store_proof  # noqa: F401
+import machi.prerequisites  # noqa: F401
 from machi.kernel.alive import KernelAlivePayload, kernel_alive
 from machi.kernel.clock import FixedClock
 from machi.kernel.errors import UnknownKindError, ValidationError

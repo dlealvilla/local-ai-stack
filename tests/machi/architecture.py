@@ -17,9 +17,20 @@ TIERS: dict[str, int] = {
     "kernel": 0,
     "install": 1,
     "discover": 2,
+    "prerequisites": 2,
     "adapters": 3,
     "main": 4,
 }
+
+CROSS_IMPORT_FORBIDDEN: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("discover", "prerequisites"),
+        ("prerequisites", "discover"),
+        ("prerequisites", "install"),
+        ("install", "prerequisites"),
+        ("kernel", "prerequisites"),
+    }
+)
 
 FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
@@ -134,6 +145,12 @@ def violations(edges: Iterable[ImportEdge]) -> list[str]:
             continue
         if target_package not in TIERS:
             found.append(f"{edge.describe()} targets an unassigned Machi package")
+            continue
+        if (edge.source_package, target_package) in CROSS_IMPORT_FORBIDDEN:
+            found.append(
+                f"{edge.describe()} "
+                f"({edge.source_package} may not import {target_package})"
+            )
             continue
         if TIERS[target_package] < TIERS[edge.source_package]:
             continue
@@ -442,6 +459,8 @@ DISCOVER_DOMAIN_FORBIDDEN = (
     "shutil.rmtree",
     "from machi.install",
     "from machi.adapters",
+    "from machi.prerequisites",
+    "PrerequisiteReadiness",
     "cuda",
     "nvml",
     "pynvml",
@@ -848,4 +867,93 @@ def package_import_violations(root: Path) -> list[str]:
     for token in ("machi.adapters", "from machi.adapters", "LinuxProc", "nvidia"):
         if token in text:
             found.append(f"machi/__init__.py must not contain {token!r}")
+    return found
+
+
+PREREQUISITE_DOMAIN_FORBIDDEN = (
+    "subprocess",
+    "shell=True",
+    "amd-smi",
+    "nvidia-smi",
+    "rocm-smi",
+    "from machi.adapters",
+    "from machi.discover",
+    "from machi.install",
+    "ResourceManager",
+    "DeploymentPlan",
+    "DeploymentConfiguration",
+    "ServingConfiguration",
+    "OptimizerProvider",
+    "GlobalOptimizer",
+    "MetaOptimizer",
+    "pip install",
+)
+
+PREREQUISITE_ADAPTER_FORBIDDEN = (
+    "from machi.discover",
+    "from machi.install",
+    "ResourceManager",
+    "DeploymentPlan",
+    "OptimizerProvider",
+    "shell=True",
+    "nvidia-smi",
+    "from amdsmi",
+    "import amdsmi",
+    "pynvml",
+    "torch",
+)
+
+
+def prerequisite_boundary_violations(root: Path) -> list[str]:
+    """2.5.1 domain orchestrates; adapters own host I/O; Discover stays read-only."""
+    found: list[str] = []
+    domain = root / "prerequisites"
+    if not domain.exists():
+        return ["prerequisites package is missing"]
+    for path in sorted(domain.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for token in PREREQUISITE_DOMAIN_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    adapter_root = root / "adapters" / "prerequisites"
+    if not adapter_root.exists():
+        found.append("prerequisite adapters package is missing")
+        return found
+    for path in sorted(adapter_root.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for token in PREREQUISITE_ADAPTER_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    amd = adapter_root / "amd_smi.py"
+    if not amd.exists():
+        found.append("AMD vendor CLI prerequisite adapter is missing")
+    else:
+        amd_text = amd.read_text(encoding="utf-8")
+        if "amd-smi" not in amd_text:
+            found.append("AMD prerequisite adapter must inspect amd-smi")
+        if "PyYAML" not in amd_text:
+            found.append("AMD allowlist must include the first known pin")
+        if "missing_module_name" not in amd_text:
+            found.append("AMD adapter must use generic missing-module diagnosis")
+    for path in sorted((root / "adapters" / "discover").rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        if "machi.prerequisites" in text or "PrerequisiteReadiness" in text:
+            found.append(f"{path.name} must not import PrerequisiteReadiness")
+        if "pip" in text and "install" in text:
+            found.append(f"{path.name} must not remediate packages")
+    domain_init = (domain / "__init__.py").read_text(encoding="utf-8")
+    if "machi.adapters" in domain_init:
+        found.append("prerequisites package must not import adapters")
+    main_text = (root / "main.py").read_text(encoding="utf-8")
+    if "AmdSmiPrerequisiteAdapter" not in main_text:
+        found.append("composition must wire AmdSmiPrerequisiteAdapter")
+    if "PrerequisiteReadiness" not in main_text:
+        found.append("composition must wire PrerequisiteReadiness")
+    if "AmdAcceleratorProvider" in main_text:
+        found.append("composition must not wire AmdAcceleratorProvider directly")
+    kernel_text = "\n".join(
+        path.read_text(encoding="utf-8") for path in (root / "kernel").rglob("*.py")
+    )
+    if "machi.prerequisites" in kernel_text:
+        found.append("Kernel must not import prerequisites")
     return found
