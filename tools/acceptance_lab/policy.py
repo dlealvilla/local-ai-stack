@@ -1,8 +1,9 @@
-"""Active NVIDIA+AMD acceptance policy snapshot.
+"""Live NVIDIA+AMD acceptance policy.
 
-This is the policy that was in force when the lab was created. Historical
-campaigns store their own ``policy_snapshot`` rows and must not be
-reconstructed from this module after the fact.
+``CURRENT_POLICY`` is the policy that runtime checks use now. Historical
+``policy_snapshot`` rows are append-only: never rewrite a snapshot that
+truthfully recorded an older floor or scope. A policy change is a new
+snapshot plus an update of this module.
 """
 
 from __future__ import annotations
@@ -15,11 +16,13 @@ CURRENT_POLICY: dict[str, Any] = {
     "out_of_scope_providers": ["intel"],
     "apple_policy": "code_retained_not_accepted_physical_deferred",
     "intel_policy": "out_of_scope",
+    "intel_status": "PARKED_OUT_OF_SCOPE",
+    "policy_revision": "physical-poc-2026-09-21-balance-floor-5",
     "max_nvidia_hourly_usd": 1.50,
     "max_amd_hourly_usd": 4.00,
     "max_session_usd": 40.0,
     "max_daily_usd": 80.0,
-    "balance_floor_usd": 20.0,
+    "balance_floor_usd": 5.0,
     "max_concurrent_pods": 1,
     "max_pod_lifetime_seconds": 5400,
     "max_provision_retries": 3,
