@@ -586,8 +586,8 @@ driver installer, or an optimizer.
 
 | ID | Name | Role | Status |
 |---|---|---|---|
-| `2.5.1` | PrerequisiteReadiness | Generic cycle + policy + inspectable settings | implementing |
-| `2.5.1` adapter | `AmdSmiPrerequisiteAdapter` | First real adapter: AMD vendor CLI operational | implementing |
+| `2.5.1` | PrerequisiteReadiness | Generic cycle + policy + inspectable settings | accepted |
+| `2.5.1` adapter | `AmdSmiPrerequisiteAdapter` | First real adapter: AMD vendor CLI operational | accepted |
 
 **Lifecycle:** inspect → diagnose → plan → if policy permits mutation,
 remediate → re-inspect → verify. READY is never claimed from a mutation

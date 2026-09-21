@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "name": "machi-2.5.1-prerequisite-readiness",
+  "work_token": "MACHI-2.5.1-PREREQUISITE-READINESS",
+  "status": "closed",
+  "semantic_meaning": "PrerequisiteReadiness Tier 2 is implemented and physically proven for the AMD vendor-CLI adapter: inspect, diagnose, plan, policy-gated remediate, verify. Discover remains read-only. This is not driver installation and not a GPU-market claim.",
+  "qualification_state": "prerequisite_readiness_physical_pass",
+  "estimated_behavior_coverage": 0.90,
+  "target_met": true,
+  "branch": "m2/prerequisite-readiness",
+  "implementation_commit": "670b0e7dce1b0278ee9d1a6c7ba6f23bf88ca058",
+  "artifact_sha256": "50abb0a04da1791f0495149bfd389f3b70dcabe2d11df24a354b53547aeac535",
+  "build_id": "0.1.0+670b0e7dce1b",
+  "lab_candidate_id": "cand_629e86799d46d060",
+  "lab_campaign_id": "camp_1d3f14dcabe62251",
+  "canonical_machi": "1db764607a5806d080cc138932002760bad113ad",
+  "predecessor_2_3_checkpoint": "c7e3b1a53c7e50f31de961c29457065f3e9e2da0",
+  "package": "docs/machi/M2-2.5.1-PHYSICAL.md",
+  "pod_id": "0vpbgqx4h8yth9",
+  "pod_terminated": true,
+  "tests": {
+    "C": {
+      "axis": "PLAN_ONLY on stock broken ROCm",
+      "status": "PASS"
+    },
+    "A": {
+      "axis": "BROKEN to REMEDIATED",
+      "status": "PASS"
+    },
+    "B": {
+      "axis": "READY to NO_OP",
+      "status": "PASS"
+    }
+  }
+}

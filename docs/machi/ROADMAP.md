@@ -306,10 +306,10 @@ permission, not-applicable, policy modes, interpreter identity, forged
 package refusal, offline source representation, serialization, event
 privacy, architecture non-edges.
 
-**Physical:** environment-prerequisite campaign on one owned MI300X
-stock ROCm image (broken → remediated; READY → `NO_OP`). Policy gating
-is proven locally unless physical repetition adds new information.
-Not a GPU-market matrix.
+**Physical:** PASS on one owned MI300X stock ROCm image (template
+`runpod-torch-v240-rocm61`). Test C PLAN_ONLY left `amd-smi` broken;
+Test A REMEDIATE verified READY and independent `amd-smi` plus AMD
+observer; Test B READY → `NO_OP`. Not a GPU-market matrix.
 
 **Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 → 2.5.1.
 
