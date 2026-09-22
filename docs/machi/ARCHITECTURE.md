@@ -774,38 +774,45 @@ See [M3.md](M3.md).
 
 **ID:** 4  
 **Name:** Capacity  
-**Purpose:** Interpret observations into SAFE remaining; gate the
-minimum host.  
-**Short Description:** Pool identity, characterization, envelope,
-remaining, host-minimum, recharacterize.
+**Purpose:** SAFE planning ceilings for RAM, execution limits,
+per-device accelerator memory, and storage. Not admission and not an
+optimizer.  
+**Short Description:** Reported, proven, and SAFE stay distinct.
+Storage Sonar corroborates or contradicts. It does not inflate.
 
-**Components:** 4.1 Pool identity, 4.2 Characterization, 4.3 Envelope,
-4.4 Remaining, 4.5 Host minimum, 4.6 Recharacterize.
+**Components:** 4.1 Evidence and settings, 4.2 Memory and execution,
+4.3 Accelerator ceilings, 4.4 Storage including bounded Sonar and
+administrator fallback, 4.5 Envelope composition.
 
-**Adapters:** posix stat, FUSE identify, Linux quota, ZFS/NFS
-specialists, empirical sonar writer. Never model-aware.
+**Adapters:** cgroup execution limit where the platform exposes one;
+exclusive Sonar file writer. No live quota specialist is claimed in
+this increment. A specialist bound can be supplied when one has
+actually been read.
 
-**Inputs:** HostProfile, OccupancyMap, ReclaimResult.  
-**Outputs:** CapacityEvidence, CapacityEnvelope, HostMinimumVerdict.  
-**Preconditions:** Discover; Steward should have run (occupancy may
-be empty).  
-**Success:** authorizing bytes have provenance; SAFE ≤ authorizing.  
-**Blocked:** unresolved authorizing when consume is required; min FAIL
-with reason.  
-**State owned:** evidence, envelope, verdict.  
-**Persistence:** yes (cheap GET must not erase characterization).  
-**Side effects:** probe files on the **claimed pool only**.  
-**Downstream:** Foundation, Model, Admit.  
-**Re-entry:** 4.6 after occupancy drop if SAFE still blocks.  
-**Idempotence:** same pool identity reuses evidence until invalidated.  
-**Invalidated by:** fingerprint/quota change, occupancy drop, policy
-version.  
-**Recompute:** directed 4.6, not a global refresh.  
-**Telemetry:** sonar tiers, EDQUOT as evidence, min verdict.  
-**Independent test:** untrusted FUSE; pool bind mismatch refuses.  
+**Inputs:** MemoryObservation, AcceleratorObservation, MountObservation,
+optional OccupancyMap, optional specialist and administrator bounds.  
+**Outputs:** `CapacityEnvelope`. Resource classes are not added together.  
+**Preconditions:** Discover facts. Steward occupancy is optional.  
+**Success:** the smallest hard bound wins; reserve is visible; SAFE is
+not the raw report when a smaller proof exists.  
+**Blocked:** unknown stays Unresolved, never zero. Read-only and pseudo
+storage are not planning domains.  
+**State owned:** none. The envelope is a snapshot.  
+**Persistence:** event only.  
+**Side effects:** a Sonar probe file only when writes are explicitly
+bounded, on a caller-owned directory, then cleaned up.  
+**Downstream:** Foundation, Model, Plan. ResourceManager admits later.  
+**Re-entry:** a new input token produces a new snapshot.  
+**Idempotence:** the same inputs derive the same ceilings.  
+**Invalidated by:** a changed input token.  
+**Telemetry:** `capacity.observed`, `capacity.safe_envelope.derived`,
+`capacity.storage_sonar.completed`. No paths.  
+**Independent test:** specialist and EDQUOT beat a larger report; a
+larger Sonar write does not raise the report; GPUs stay separate.  
 **Cumulative:** M0→M4.  
-**Lessons:** df is not quota; probe-the-pool; remaining after usage;
-realize-time vs live remaining.
+**Lessons:** available is not SAFE; Sonar is not a ±10% check.
+
+See [M4.md](M4.md).
 
 ## 5 Foundation
 

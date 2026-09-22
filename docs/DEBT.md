@@ -2452,6 +2452,31 @@ Retire when:  a comparative Ollama / direct / Dynamo campaign needs
               losing observed-versus-estimated
 Status:       OPEN
 
+### M-4-01 — Live storage-quota specialists
+Label:        DEFERRED
+Owner stage:  Capacity Tier 3 / a justified specialist
+Subsystem:    capacity
+Authorizes:   NO
+What:         Executing quotactl, FUSE/MooseFS, NFS, XFS, ZFS, or
+              provider-volume entitlement readers.
+Why now:      This increment accepts an injected specialist bound and
+              uses Sonar when native evidence is inadequate. No live
+              specialist is claimed as supported.
+Retire when:  a provider-selection decision names a technology and its
+              reader is physically proven
+Status:       OPEN
+
+### M-4-02 — Tier-3 capacity intelligence
+Label:        DEFERRED
+Owner stage:  Capacity Tier 3
+Subsystem:    capacity
+Authorizes:   NO
+What:         Placement, predictive memory curves, learned margins,
+              fleet capacity, and closed-loop optimization.
+Why now:      Tier 2 produces a planning envelope, not an optimizer.
+Retire when:  Foundation and Serve exist and evidence asks for it
+Status:       OPEN
+
 ### S-3-01 — Tier-3 Steward cleanup
 Label:        DEFERRED
 Owner stage:  Steward Tier 3

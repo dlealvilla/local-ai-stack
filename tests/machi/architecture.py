@@ -19,6 +19,7 @@ TIERS: dict[str, int] = {
     "discover": 2,
     "prerequisites": 2,
     "steward": 2,
+    "capacity": 2,
     "adapters": 3,
     "main": 4,
 }
@@ -35,6 +36,12 @@ CROSS_IMPORT_FORBIDDEN: frozenset[tuple[str, str]] = frozenset(
         ("kernel", "steward"),
         ("prerequisites", "steward"),
         ("steward", "prerequisites"),
+        ("discover", "capacity"),
+        ("steward", "capacity"),
+        ("kernel", "capacity"),
+        ("install", "capacity"),
+        ("prerequisites", "capacity"),
+        ("capacity", "prerequisites"),
     }
 )
 
@@ -42,7 +49,6 @@ FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
 FUTURE_PACKAGES = frozenset(
     {
-        "capacity",
         "foundation",
         "model",
         "plan",
@@ -1103,6 +1109,52 @@ def prerequisite_boundary_violations(root: Path) -> list[str]:
     )
     if "machi.prerequisites" in kernel_text:
         found.append("Kernel must not import prerequisites")
+    return found
+
+
+CAPACITY_DOMAIN_FORBIDDEN = (
+    "vllm",
+    "ResourceManager",
+    "DeploymentConfiguration",
+    "shutil.rmtree",
+    "0.8",
+    "from machi.adapters",
+    "from machi.prerequisites",
+)
+
+CAPACITY_SONAR_FORBIDDEN = (
+    "shutil.rmtree",
+    "vllm",
+    "ResourceManager",
+)
+
+
+def capacity_boundary_violations(root: Path) -> list[str]:
+    """Capacity derives envelopes. It does not admit, tune, or delete trees."""
+    found: list[str] = []
+    domain = root / "capacity"
+    if not domain.is_dir():
+        return ["capacity domain is missing"]
+    for path in sorted(domain.rglob("*.py")):
+        text = path.read_text(encoding="utf-8").lower()
+        for token in CAPACITY_DOMAIN_FORBIDDEN:
+            if token.lower() in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    sonar = root / "adapters" / "capacity" / "sonar_file.py"
+    if not sonar.is_file():
+        found.append("capacity sonar file writer is missing")
+    else:
+        text = sonar.read_text(encoding="utf-8")
+        for token in CAPACITY_SONAR_FORBIDDEN:
+            if token in text:
+                found.append(f"{sonar.name} must not contain {token!r}")
+        if "O_EXCL" not in text:
+            found.append("sonar writer must create an exclusive probe file")
+        if ".machi-capacity-sonar-" not in text:
+            found.append("sonar writer must use a Machi-owned probe name")
+    main_text = (root / "main.py").read_text(encoding="utf-8")
+    if "NativeCapacity" not in main_text:
+        found.append("composition must wire NativeCapacity")
     return found
 
 

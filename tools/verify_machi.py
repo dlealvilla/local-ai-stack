@@ -1345,6 +1345,31 @@ def main() -> int:
     ):
         raise SystemExit("journal is missing steward.occupancy.observed")
 
+    capacity = run(
+        [
+            str(machi),
+            "capacity",
+            "evaluate",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(capacity.stdout, end="")
+    if '"event_type": "capacity.safe_envelope.derived"' not in capacity.stdout:
+        raise SystemExit("capacity did not derive a SAFE envelope")
+    if '"privacy": "operational"' not in capacity.stdout:
+        raise SystemExit("capacity event was not operational")
+    if "vllm" in capacity.stdout.lower():
+        raise SystemExit("capacity envelope named vLLM")
+    if "sonar    disabled" not in capacity.stdout:
+        raise SystemExit("default capacity evaluation ran or armed Sonar writes")
+    cap_at = capacity.stdout.find('"event_type": "capacity.observed"')
+    if cap_at < 0 or str(root_a) in capacity.stdout[cap_at:]:
+        raise SystemExit("capacity event leaked a path or was missing")
+
     print("verify_ok")
     return 0
 

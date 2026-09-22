@@ -175,6 +175,598 @@
       }
     }
   },
+  "capacity.accelerator@1": {
+    "python": "AcceleratorCapacity",
+    "fields": {
+      "identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider-local device identity from Discover"
+      },
+      "ordinal": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "position in the accelerator observation"
+      },
+      "topology": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "discrete, unified, or unresolved"
+      },
+      "physical_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "dedicated total when Discover reported one"
+      },
+      "current_used_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "current occupancy; Unresolved when this tier cannot prove it"
+      },
+      "reserve_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "headroom subtracted from a discrete total"
+      },
+      "safe_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "per-device planning ceiling; not a sum across devices"
+      },
+      "strength": {
+        "type": "EvidenceStrength",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "trust in safe_bytes"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how this device ceiling was chosen"
+      }
+    }
+  },
+  "capacity.admin_bound@1": {
+    "python": "AdministratorBound",
+    "fields": {
+      "domain_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "storage domain this bound applies to"
+      },
+      "bound_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "administrator ceiling in bytes"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why the administrator supplied this bound"
+      }
+    }
+  },
+  "capacity.envelope@1": {
+    "python": "CapacityEnvelope",
+    "fields": {
+      "evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this snapshot; plans must cite it"
+      },
+      "input_token": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of the inputs; a mismatch means stale"
+      },
+      "memory": {
+        "type": "MemoryCapacity",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "system RAM planning ceiling"
+      },
+      "accelerators": {
+        "type": "tuple[AcceleratorCapacity, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "per-device ceilings"
+      },
+      "storage_domains": {
+        "type": "tuple[StorageDomainCapacity, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "per-backing storage"
+      },
+      "settings": {
+        "type": "CapacitySettings",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "policy used for this snapshot"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this envelope was derived; UTC"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier, for example native"
+      }
+    }
+  },
+  "capacity.memory@1": {
+    "python": "MemoryCapacity",
+    "fields": {
+      "physical_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "reported physical RAM; not a planning ceiling"
+      },
+      "execution_limit_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "authoritative cgroup or container limit when known"
+      },
+      "hard_ceiling_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "minimum of the hard bounds that exist"
+      },
+      "reserve_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "configured headroom subtracted from the hard ceiling"
+      },
+      "safe_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "planning ceiling after reserve; Unresolved when unknown"
+      },
+      "strength": {
+        "type": "EvidenceStrength",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "trust in safe_bytes"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the ceiling was chosen"
+      }
+    }
+  },
+  "capacity.observed@1": {
+    "python": "CapacityObservedPayload",
+    "fields": {
+      "accelerator_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "per-device rows in the envelope"
+      },
+      "storage_domain_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "backing domains, not a sum of mount free space"
+      },
+      "unresolved_safe_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rows whose safe_bytes stayed Unresolved"
+      },
+      "evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "snapshot identity"
+      }
+    }
+  },
+  "capacity.safe_envelope.derived@1": {
+    "python": "SafeEnvelopePayload",
+    "fields": {
+      "memory_resolved": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "system RAM safe ceiling is known"
+      },
+      "storage_resolved_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "storage domains with a known safe ceiling"
+      },
+      "input_token": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inputs this snapshot was based on"
+      }
+    }
+  },
+  "capacity.setting@1": {
+    "python": "CapacitySetting",
+    "fields": {
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dotted setting name"
+      },
+      "value": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "current value as text"
+      },
+      "provenance": {
+        "type": "CapacitySettingProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who selected this value"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this value is in force"
+      },
+      "allowed_values": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compact allowed-value description"
+      },
+      "support_state": {
+        "type": "CapacitySettingSupport",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this setting is usable"
+      },
+      "mutability": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime or restart_required"
+      },
+      "invalidation": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what must be recomputed if this changes"
+      }
+    }
+  },
+  "capacity.settings@1": {
+    "python": "CapacitySettings",
+    "fields": {
+      "memory_reserve_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bytes held back from the memory hard ceiling"
+      },
+      "accelerator_reserve_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bytes held back from each discrete accelerator total"
+      },
+      "storage_reserve_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bytes held back from a storage hard bound, including Sonar"
+      },
+      "sonar_writes": {
+        "type": "SonarWritePolicy",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "disabled by default; bounded writes require an explicit invocation"
+      },
+      "sonar_max_tier_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "largest Sonar tier this evaluation may attempt"
+      },
+      "admin_fallback": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow or deny a last-resort administrator bound"
+      },
+      "settings": {
+        "type": "tuple[CapacitySetting, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspectable setting records"
+      }
+    }
+  },
+  "capacity.sonar_evidence@1": {
+    "python": "SonarEvidence",
+    "fields": {
+      "status": {
+        "type": "SonarStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not attempted, corroborated, contradicted, or stopped"
+      },
+      "proven_lower_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "highest tier actually committed"
+      },
+      "contradictory_upper_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "first tier that failed with EDQUOT or ENOSPC"
+      },
+      "failure": {
+        "type": "SonarFailure",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "classified write failure, or none"
+      },
+      "tiers_attempted": {
+        "type": "tuple[int, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "tier sizes attempted, in order"
+      },
+      "cleanup_completed": {
+        "type": "bool | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "whether the owned probe file was removed"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "short sonar outcome"
+      }
+    }
+  },
+  "capacity.specialist_bound@1": {
+    "python": "SpecialistBound",
+    "fields": {
+      "backing_store_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "2.4 backing identity this bound applies to"
+      },
+      "remaining_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "hard remaining bytes the specialist reported"
+      },
+      "source": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "which specialist produced the bound"
+      }
+    }
+  },
+  "capacity.storage_domain@1": {
+    "python": "StorageDomainCapacity",
+    "fields": {
+      "domain_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "backing id, or one mount id when backing is unresolved"
+      },
+      "backing_resolved": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "false when this domain must not be merged"
+      },
+      "reported_available_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "filesystem-reported available bytes"
+      },
+      "specialist_remaining_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "specialist hard remaining, if read"
+      },
+      "hard_bound_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "smallest trusted hard ceiling"
+      },
+      "reserve_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "storage headroom"
+      },
+      "safe_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "planning bytes now; not potential-after-reclaim"
+      },
+      "protected_occupancy_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "Steward protected bytes on this backing; not subtracted again from available"
+      },
+      "reclaimable_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "candidate bytes; not current free space"
+      },
+      "potential_after_reclaim_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "safe_bytes plus reclaimable candidates; not current free space"
+      },
+      "usable": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "false for read-only or pseudo domains"
+      },
+      "strength": {
+        "type": "EvidenceStrength",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "trust in safe_bytes"
+      },
+      "sonar": {
+        "type": "SonarEvidence",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "empirical write evidence, or not attempted"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the storage ceiling was chosen"
+      }
+    }
+  },
+  "capacity.storage_sonar.completed@1": {
+    "python": "SonarCompletedPayload",
+    "fields": {
+      "corroborated_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "domains where a write signed off the reported ceiling"
+      },
+      "contradicted_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "domains where a hard failure downgraded the report"
+      },
+      "not_attempted_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "domains that were not written"
+      }
+    }
+  },
   "discover.accelerator.observed@1": {
     "python": "AcceleratorObservedPayload",
     "fields": {

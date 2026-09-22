@@ -14,6 +14,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from machi.adapters.capacity.native import NativeCapacity
 from machi.adapters.discover.native_accelerator import NativeAcceleratorObserver
 from machi.adapters.discover.native_memory import NativeMemoryObserver
 from machi.adapters.discover.native_mount import NativeMountObserver
@@ -22,6 +23,8 @@ from machi.adapters.journal.jsonl import JsonlJournal
 from machi.adapters.persistence.file_store import FileStore
 from machi.adapters.prerequisites.amd_smi import AmdSmiPrerequisiteAdapter
 from machi.adapters.steward.native import NativeSteward, RootClaim
+from machi.capacity.contracts import CapacityEnvelope
+from machi.capacity.events import capacity_events
 from machi.discover.contracts import (
     AcceleratorObservation,
     MemoryObservation,
@@ -608,6 +611,50 @@ def assess_steward(
     return occupancy, events, target
 
 
+def evaluate_capacity(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    store_dir: Path | None,
+    journal_dir_path: Path | None,
+) -> tuple[CapacityEnvelope, tuple[EventRecord, ...], Path | None]:
+    """Derive a planning envelope. Does not run Sonar unless a later flag asks."""
+    validate_registry(module_prefix="machi.")
+    memory = NativeMemoryObserver().observe()
+    accelerators = NativeAcceleratorObserver().observe()
+    mounts = NativeMountObserver().observe()
+    occupancy = None
+    root = None
+    store = FileStore(store_dir) if store_dir is not None else None
+    if explicit is not None or environment is not None:
+        raw = explicit if explicit is not None else environment
+        assert raw is not None
+        root = str(Path(raw).expanduser().resolve())
+        occupancy = NativeSteward((RootClaim(path=root),), store=store).assess()
+    parts = (
+        memory.observed_at.isoformat(),
+        accelerators.observed_at.isoformat(),
+        mounts.observed_at.isoformat(),
+        occupancy.observed_at.isoformat() if occupancy is not None else "none",
+    )
+    envelope = NativeCapacity(
+        memory=memory,
+        accelerators=accelerators,
+        mounts=mounts,
+        occupancy=occupancy,
+        evidence_id="cap_cli",
+        input_parts=parts,
+    ).evaluate()
+    events = capacity_events(envelope)
+    target = journal_dir_path
+    if target is None and root is not None and (Path(root) / "journal").is_dir():
+        target = journal_dir(Path(root))
+    if target is not None:
+        journal = JsonlJournal(target)
+        events = tuple(journal.append(event) for event in events)
+    return envelope, events, target
+
+
 def evaluate_prerequisites(
     *,
     explicit: str | None,
@@ -1002,6 +1049,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="caller-supplied protection; active resources stay protected",
     )
 
+    capacity = sub.add_parser(
+        "capacity",
+        help="derive a SAFE planning envelope; does not admit or run Sonar by default",
+    )
+    capacity_sub = capacity.add_subparsers(dest="capacity_command", required=True)
+    evaluate = capacity_sub.add_parser(
+        "evaluate",
+        help="compose reported, proven, and SAFE ceilings from current observations",
+    )
+    evaluate.add_argument("--state-root", default=None)
+    evaluate.add_argument("--store-dir", default=None)
+    evaluate.add_argument("--journal-dir", default=None)
+
     readiness = sub.add_parser(
         "prerequisites",
         help="inspect and optionally remediate environment prerequisites",
@@ -1386,6 +1446,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"journal  {journal_shown}")
             _print_document(occupancy)
             for event in steward_events_out:
+                _print_document(event)
+            return 0
+        if ns.command == "capacity" and ns.capacity_command == "evaluate":
+            envelope, capacity_events_out, journal_target = evaluate_capacity(
+                explicit=ns.state_root,
+                environment=_environment_override(),
+                store_dir=Path(ns.store_dir) if ns.store_dir else None,
+                journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+            )
+            print(f"evidence {envelope.evidence_id}")
+            print(f"memory   {_format_maybe(envelope.memory.safe_bytes)}")
+            print(f"accel    {len(envelope.accelerators)}")
+            print(f"storage  {len(envelope.storage_domains)}")
+            print(f"sonar    {envelope.settings.sonar_writes.value}")
+            print(f"host     {_format_maybe(capacity_events_out[0].host_id)}")
+            journal_shown = (
+                str(JsonlJournal(journal_target).path)
+                if journal_target is not None
+                else "-"
+            )
+            print(f"journal  {journal_shown}")
+            _print_document(envelope)
+            for event in capacity_events_out:
                 _print_document(event)
             return 0
         if ns.command == "prerequisites" and ns.prerequisites_command == "check":

@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+import machi.capacity.events as capacity_events_module
 import machi.discover.events as discover_events_module
 import machi.install.events as install_events_module
 import machi.kernel.store_proof as store_proof_module
@@ -151,6 +152,7 @@ def test_unexpected_fields_are_forbidden_on_the_api_and_ignored_on_the_journal(
 
 
 def test_schema_fingerprint_matches_committed_golden() -> None:
+    assert capacity_events_module.ENVELOPE_TYPE == "capacity.safe_envelope.derived"
     assert discover_events_module.MOUNT_OBSERVED_TYPE == "discover.mounts.observed"
     assert install_events_module.INSTALL_BOUND_TYPE == "install.bound"
     assert store_proof_module.STORE_PROVED_TYPE == "kernel.store.proved"

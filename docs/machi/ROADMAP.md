@@ -412,34 +412,43 @@ See [M3.md](M3.md).
 ## M4 — Capacity
 
 **Milestone ID:** `M4`  
-**Architecture IDs:** `4`, `4.1`–`4.6`
+**Architecture IDs:** `4`, `4.1`–`4.5`
 
-**Objective:** authorizing remaining on the destination pool;
-HostMinimumVerdict; SAFE is the only authorizing layer.
+**Objective:** a SAFE planning envelope. RAM, execution limit,
+per-device accelerator memory, and storage stay separate. Reported,
+proven, and SAFE stay distinct. Bounded Storage Sonar is included.
+It corroborates or contradicts. It does not inflate, and it is not a
+±10% agreement test.
 
-**Inputs:** HostProfile, OccupancyMap, ReclaimResult.
+**Inputs:** Discover memory, accelerators, and mounts; optional
+Steward occupancy; optional specialist and administrator bounds.
 
-**Outputs:** `CapacityEvidence`, `CapacityEnvelope`,
-`HostMinimumVerdict`.
+**Outputs:** `CapacityEnvelope`. Events `capacity.observed`,
+`capacity.safe_envelope.derived`, `capacity.storage_sonar.completed`.
+No Store entity. No admission.
 
-**Telemetry:** `capacity.characterized`, `capacity.minimum.completed`,
-sonar tier outcomes including EDQUOT as capacity evidence.
+**Telemetry:** those events, `operational`, without paths.
 
-**Local tests:** FUSE reported free cannot authorize; remaining after
-occupancy; occupancy drop may recharacterize.
+**Local tests:** execution limit, reserves, separate GPUs, unified
+memory, shared backing, specialist override, Sonar corroboration,
+contradiction, non-inflation, administrator bound, exclusive probe
+cleanup.
 
-**Physical:** T3 pool-bound probe; EDQUOT recovery; post-reclaim
-Sonar when SAFE still blocks.
+**Physical:** disposable filesystem and the current host. No production
+GiB Sonar writes. No GPU pod unless a later case needs one.
 
-**Cumulative:** M0 → M4.
+**Cumulative:** M0 → M3 → 4.
 
-**Acceptance:** envelope persisted with provenance; min gate PASS or
-FAIL with reason; live remaining must not rewrite realize-time
-verdict.
+**Acceptance:** SAFE is smaller than a contradicted report; default
+evaluation does not write a probe file.
 
-**Non-goals:** runtime pip, models.
+**Non-goals:** ResourceManager, placement, vLLM tuning, the 20%
+deployment retry ladder, every filesystem specialist, automatic
+cleanup of reclaim candidates.
 
-**Unlocks:** Foundation feasibility.
+**Unlocks:** Foundation (`5`).
+
+See [M4.md](M4.md).
 
 ---
 
