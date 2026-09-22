@@ -11,7 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from machi.adapters.model.acquire import store_local, store_view, view_local
+from machi.adapters.model.acquire import (
+    store_local,
+    store_view,
+    view_local,
+    with_stored,
+)
 from machi.adapters.model.local import list_local_files
 from machi.adapters.model.warehouse import list_stored, load_artifact, warehouse_root
 from machi.capacity.contracts import (
@@ -28,9 +33,9 @@ from machi.kernel.unresolved import NOT_PROVIDED, is_resolved
 from machi.model.compat import RuntimeView
 from machi.model.contracts import (
     ArtifactLifecycle,
+    AvailableModelEntry,
     CommercialUse,
     CompatibilityState,
-    AvailableModelEntry,
     ModelFailure,
     ModelSourceKind,
     ProviderQualification,
@@ -389,6 +394,9 @@ def test_hub_revision_is_acquired_once_and_reused(tmp_path: Path) -> None:
     assert first.artifact is not None
     assert first.artifact.immutable_revision == "commit-aaa"
     assert first.artifact.lifecycle is ArtifactLifecycle.STORED
+    cited = with_stored(tmp_path, _entry(_view(revision="commit-aaa")))
+    assert cited.artifact_id == first.artifact.artifact_id
+    assert cited.lifecycle == ArtifactLifecycle.STORED.value
     assert second.artifact is not None
     assert second.artifact.artifact_id == first.artifact.artifact_id
     assert len(calls) == 1

@@ -29,6 +29,7 @@ from machi.model.access import access_failure
 from machi.model.compat import RuntimeView, storage_fits
 from machi.model.contracts import (
     ArtifactLifecycle,
+    AvailableModelEntry,
     CompatibilityState,
     ModelArtifact,
     ModelFailure,
@@ -84,6 +85,30 @@ def view_local(root: Path, label: str) -> SourceView:
         license_id=None,
         gated=False,
         private=False,
+    )
+
+
+def with_stored(state_root: Path, entry: AvailableModelEntry) -> AvailableModelEntry:
+    """Cite a verified warehouse copy when this revision is already stored."""
+    variant = variant_name(
+        entry.definition.dtype,
+        entry.definition.quantization,
+        entry.definition.weight_format,
+    )
+    stored_id = artifact_id(
+        entry.definition.model_id,
+        entry.definition.immutable_revision,
+        variant,
+    )
+    existing = load_artifact(state_root, stored_id)
+    if existing is None or not verify_stored(state_root, existing):
+        return entry
+    return AvailableModelEntry(
+        definition=entry.definition,
+        compatibility=entry.compatibility,
+        requirement=entry.requirement,
+        artifact_id=existing.artifact_id,
+        lifecycle=existing.lifecycle.value,
     )
 
 

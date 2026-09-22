@@ -30,6 +30,7 @@ from machi.adapters.model.acquire import (
     store_local,
     store_view,
     view_local,
+    with_stored,
 )
 from machi.adapters.model.hub import (
     credential_supplied,
@@ -961,6 +962,7 @@ def inspect_model(
     source_path: Path,
     label: str,
     journal_dir_path: Path | None,
+    state_root: Path | None = None,
     foundation_id: str = "foundation_unspecified",
     capacity_evidence_id: str = "capacity_unspecified",
     qualification: str = "unknown",
@@ -983,6 +985,8 @@ def inspect_model(
         accelerator_safe_bytes=None,
         observed_at=observed,
     )
+    if state_root is not None:
+        entry = with_stored(state_root, entry)
     settings = default_model_settings()
     snapshot = snapshot_for(
         (entry,),
@@ -1059,6 +1063,8 @@ def _inspect_hub(
         accelerator_safe_bytes=accelerator_safe_bytes,
         observed_at=observed,
     )
+    if ns.state_root:
+        entry = with_stored(Path(ns.state_root), entry)
     settings = default_model_settings()
     snapshot = snapshot_for(
         (entry,),
@@ -1974,6 +1980,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     runtime_python=(
                         Path(ns.runtime_python) if ns.runtime_python else None
                     ),
+                    state_root=Path(ns.state_root) if ns.state_root else None,
                 )
             _print_model_snapshot(model_snapshot, model_events_out, ns.journal_dir)
             return 0
