@@ -16,6 +16,7 @@ from tests.machi.architecture import (
     run_boundary_violations,
     scan,
     source_root,
+    steward_boundary_violations,
     store_boundary_violations,
     unassigned_packages,
     violations,
@@ -73,6 +74,10 @@ def test_memory_observer_stays_inside_observation() -> None:
 
 def test_accelerator_observer_stays_inside_observation() -> None:
     assert discover_boundary_violations(source_root()) == []
+
+
+def test_steward_classifies_without_deletion_or_admission() -> None:
+    assert steward_boundary_violations(source_root()) == []
 
 
 def test_mount_observer_stays_inside_observation() -> None:

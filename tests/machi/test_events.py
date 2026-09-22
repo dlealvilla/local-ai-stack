@@ -9,10 +9,11 @@ from typing import Any
 
 import pytest
 
-import machi.discover.events
-import machi.install.events
-import machi.kernel.store_proof
-import machi.prerequisites  # noqa: F401
+import machi.discover.events as discover_events_module
+import machi.install.events as install_events_module
+import machi.kernel.store_proof as store_proof_module
+import machi.prerequisites as prerequisites_module
+import machi.steward.events as steward_events_module
 from machi.kernel.alive import KernelAlivePayload, kernel_alive
 from machi.kernel.clock import FixedClock
 from machi.kernel.errors import UnknownKindError, ValidationError
@@ -150,6 +151,11 @@ def test_unexpected_fields_are_forbidden_on_the_api_and_ignored_on_the_journal(
 
 
 def test_schema_fingerprint_matches_committed_golden() -> None:
+    assert discover_events_module.MOUNT_OBSERVED_TYPE == "discover.mounts.observed"
+    assert install_events_module.INSTALL_BOUND_TYPE == "install.bound"
+    assert store_proof_module.STORE_PROVED_TYPE == "kernel.store.proved"
+    assert prerequisites_module is not None
+    assert steward_events_module.OCCUPANCY_TYPE == "steward.occupancy.observed"
     assert JournalDefect.kind == "journal_defect"
     current = fingerprint(module_prefix="machi.")
     expected = json.loads(GOLDEN.read_text(encoding="utf-8"))

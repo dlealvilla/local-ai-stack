@@ -2452,6 +2452,20 @@ Retire when:  a comparative Ollama / direct / Dynamo campaign needs
               losing observed-versus-estimated
 Status:       OPEN
 
+### S-3-01 — Tier-3 Steward cleanup
+Label:        DEFERRED
+Owner stage:  Steward Tier 3
+Subsystem:    steward
+Authorizes:   NO
+What:         Automatic garbage collection, pressure-aware cleanup,
+              rollback-aware reclamation, retention schedules,
+              generation migration, failed-deployment cleanup, cache
+              eviction, and organisation retention policies.
+Why now:      Tier 2 classifies reclaim candidates and does not delete.
+Retire when:  an explicit cleanup policy is authorized to delete a
+              verified, unprotected, obsolete object
+Status:       OPEN
+
 ### S-STRAT-02 — Dynamo foundation family
 Label:        DEFERRED
 Owner stage:  Strategic Stage 2

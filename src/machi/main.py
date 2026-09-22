@@ -21,6 +21,7 @@ from machi.adapters.discover.native_os_arch import NativeOSArchitectureObserver
 from machi.adapters.journal.jsonl import JsonlJournal
 from machi.adapters.persistence.file_store import FileStore
 from machi.adapters.prerequisites.amd_smi import AmdSmiPrerequisiteAdapter
+from machi.adapters.steward.native import NativeSteward, RootClaim
 from machi.discover.contracts import (
     AcceleratorObservation,
     MemoryObservation,
@@ -43,6 +44,7 @@ from machi.install.binder import StateRootBinder
 from machi.install.contracts import (
     InstallRecordEstablishment,
     InstallRunEstablishment,
+    InstallRunRecord,
     LocalOwnershipEstablishment,
     LocalOwnershipRegistryEstablishment,
     SelectionSource,
@@ -66,7 +68,12 @@ from machi.install.registry import RegistrySeed
 from machi.install.run import InstallRunStore
 from machi.kernel.alive import kernel_alive
 from machi.kernel.build import identity as build_identity
-from machi.kernel.errors import MachiError, PersistenceError, ValidationError
+from machi.kernel.errors import (
+    MachiError,
+    NotFoundError,
+    PersistenceError,
+    ValidationError,
+)
 from machi.kernel.events import EventRecord
 from machi.kernel.ids import InstallId, InstallRunId
 from machi.kernel.journal import JournalDefect
@@ -81,6 +88,12 @@ from machi.prerequisites.contracts import (
 from machi.prerequisites.policy import default_prerequisite_policy, policy_with_mode
 from machi.prerequisites.ports import PrerequisiteAdapter
 from machi.prerequisites.service import PrerequisiteReadiness
+from machi.steward.contracts import (
+    GenerationHint,
+    OccupancyMap,
+    ProtectionHint,
+)
+from machi.steward.events import steward_events
 
 
 def prove_alive(journal_dir_path: Path) -> EventRecord:
@@ -540,6 +553,61 @@ def observe_mounts(
     return observation, event, event.install_id, event.install_run_id, target
 
 
+def assess_steward(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    store_dir: Path | None,
+    journal_dir_path: Path | None,
+    generation: str,
+    protection: str,
+) -> tuple[OccupancyMap, tuple[EventRecord, ...], Path | None]:
+    """Classify one known root. Does not create markers or delete."""
+    validate_registry(module_prefix="machi.")
+    if explicit is None and environment is None:
+        raise ValidationError(
+            "steward assess needs --state-root or MACHI_STATE_ROOT",
+        )
+    raw = explicit if explicit is not None else environment
+    assert raw is not None
+    root = str(Path(raw).expanduser().resolve())
+    store = FileStore(store_dir) if store_dir is not None else None
+    occupancy = NativeSteward(
+        (
+            RootClaim(
+                path=root,
+                generation=GenerationHint(generation),
+                protection=ProtectionHint(protection),
+            ),
+        ),
+        store=store,
+    ).assess()
+    install_id: Maybe[InstallId] | None = None
+    install_run_id: Maybe[InstallRunId] | None = None
+    if store is not None and occupancy.resources:
+        found = occupancy.resources[0].install_id
+        if isinstance(found, str):
+            install_id = InstallId(found)
+            try:
+                existing = store.get(InstallRunRecord, found)
+            except NotFoundError:
+                existing = None
+            if existing is not None:
+                install_run_id = existing.install_run_id
+    events = steward_events(
+        occupancy,
+        install_id=install_id,
+        install_run_id=install_run_id,
+    )
+    target: Path | None = journal_dir_path
+    if target is None and (Path(root) / "journal").is_dir():
+        target = journal_dir(Path(root))
+    if target is not None:
+        journal = JsonlJournal(target)
+        events = tuple(journal.append(event) for event in events)
+    return occupancy, events, target
+
+
 def evaluate_prerequisites(
     *,
     explicit: str | None,
@@ -901,6 +969,39 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="enable a tiny observational write probe; never fill-until-failure",
     )
 
+    steward = sub.add_parser(
+        "steward",
+        help="classify ownership and occupancy; does not delete",
+    )
+    steward_sub = steward.add_subparsers(dest="steward_command", required=True)
+    assess = steward_sub.add_parser(
+        "assess",
+        help="classify caller-supplied roots; never crawl mounts or delete",
+    )
+    assess.add_argument("--state-root", default=None, help="known managed root")
+    assess.add_argument(
+        "--store-dir",
+        default=None,
+        help="injected control-plane Store used only to read ownership records",
+    )
+    assess.add_argument(
+        "--journal-dir",
+        default=None,
+        help="journal directory; defaults to an existing <state-root>/journal",
+    )
+    assess.add_argument(
+        "--generation",
+        choices=["current", "obsolete", "abandoned", "rollback"],
+        default="current",
+        help="caller-supplied generation; never inferred from the path name",
+    )
+    assess.add_argument(
+        "--protection",
+        choices=["default", "rollback", "evidence", "policy", "unprotected"],
+        default="default",
+        help="caller-supplied protection; active resources stay protected",
+    )
+
     readiness = sub.add_parser(
         "prerequisites",
         help="inspect and optionally remediate environment prerequisites",
@@ -1239,6 +1340,53 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"journal  {journal_shown}")
             _print_document(mount_observation)
             _print_document(event)
+            return 0
+        if ns.command == "steward" and ns.steward_command == "assess":
+            occupancy, steward_events_out, journal_target = assess_steward(
+                explicit=ns.state_root,
+                environment=_environment_override(),
+                store_dir=Path(ns.store_dir) if ns.store_dir else None,
+                journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+                generation=ns.generation,
+                protection=ns.protection,
+            )
+            print(f"resources {len(occupancy.resources)}")
+            print(f"provider {occupancy.provider}")
+            print(f"delete   {occupancy.destructive_authorization}")
+            for resource in occupancy.resources:
+                print(
+                    "root     "
+                    f"{resource.ownership.value} "
+                    f"{resource.lifecycle.value} "
+                    f"{resource.protection.value} "
+                    f"{resource.reclaimability.value} "
+                    f"bytes={_format_maybe(resource.size_bytes)}"
+                )
+            print(
+                "install  "
+                + (
+                    _format_maybe(steward_events_out[0].install_id)
+                    if steward_events_out
+                    else "unresolved(not_provided)"
+                )
+            )
+            print(
+                "host     "
+                + (
+                    _format_maybe(steward_events_out[0].host_id)
+                    if steward_events_out
+                    else "unresolved(not_provided)"
+                )
+            )
+            journal_shown = (
+                str(JsonlJournal(journal_target).path)
+                if journal_target is not None
+                else "-"
+            )
+            print(f"journal  {journal_shown}")
+            _print_document(occupancy)
+            for event in steward_events_out:
+                _print_document(event)
             return 0
         if ns.command == "prerequisites" and ns.prerequisites_command == "check":
             (

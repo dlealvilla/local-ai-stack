@@ -2879,5 +2879,468 @@
         "meaning": "when this bind resolved; timezone-aware UTC"
       }
     }
+  },
+  "steward.backing_occupancy@1": {
+    "python": "BackingOccupancy",
+    "fields": {
+      "backing_store_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "shared backing id, or Unresolved"
+      },
+      "resource_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how many managed roots share this identity"
+      },
+      "size_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "sum of measured bytes; Unresolved if any is"
+      }
+    }
+  },
+  "steward.occupancy.observed@1": {
+    "python": "OccupancyObservedPayload",
+    "fields": {
+      "measured_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified roots with a measured size"
+      },
+      "unresolved_size_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "roots whose size stayed Unresolved"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false"
+      }
+    }
+  },
+  "steward.occupancy_map@1": {
+    "python": "OccupancyMap",
+    "fields": {
+      "resources": {
+        "type": "tuple[StewardResource, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "classified known roots"
+      },
+      "totals": {
+        "type": "OccupancyTotals",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "aggregated occupancy for Capacity"
+      },
+      "backing": {
+        "type": "tuple[BackingOccupancy, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "occupancy by backing store"
+      },
+      "settings": {
+        "type": "StewardSettings",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed policy used for this projection"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false; Steward does not delete"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this projection was built; UTC"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier, for example native"
+      }
+    }
+  },
+  "steward.occupancy_totals@1": {
+    "python": "OccupancyTotals",
+    "fields": {
+      "active_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "verified active or standby protected bytes"
+      },
+      "protected_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "verified bytes that must be kept"
+      },
+      "reclaimable_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "verified candidate bytes; not deleted"
+      },
+      "unknown_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "Unresolved when an unclassified root was not measured"
+      }
+    }
+  },
+  "steward.ownership.conflict@1": {
+    "python": "OwnershipConflictPayload",
+    "fields": {
+      "conflict_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how many roots were conflicted"
+      }
+    }
+  },
+  "steward.reclaimability.assessed@1": {
+    "python": "ReclaimabilityAssessedPayload",
+    "fields": {
+      "reclaimable_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified obsolete unprotected candidates"
+      },
+      "not_reclaimable_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "roots that must be kept"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false"
+      }
+    }
+  },
+  "steward.resource@1": {
+    "python": "StewardResource",
+    "fields": {
+      "resource_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "marker id or root fingerprint; not a customer filename"
+      },
+      "path": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "managed root path; operational document, not an event field"
+      },
+      "ownership": {
+        "type": "OwnershipStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dual-proof result"
+      },
+      "lifecycle": {
+        "type": "LifecycleStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "generation state; unknown unless verified"
+      },
+      "protection": {
+        "type": "ProtectionStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "retention; independent of lifecycle"
+      },
+      "reclaimability": {
+        "type": "Reclaimability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "candidate or not; not a delete"
+      },
+      "category": {
+        "type": "ResourceCategory",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "installation root or unknown"
+      },
+      "generation": {
+        "type": "GenerationHint",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "caller-supplied generation hint"
+      },
+      "install_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "InstallId when the record matched"
+      },
+      "size_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured bytes of this verified root; Unresolved otherwise"
+      },
+      "mount_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "2.4 mount id when an observation was supplied"
+      },
+      "backing_store_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "2.4 backing identity when an observation was supplied"
+      },
+      "storage_class": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "2.4 storage class when supplied"
+      },
+      "provenance": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "which evidence produced this classification"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "short classification reason"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "always false at Tier 2"
+      }
+    }
+  },
+  "steward.resource.classified@1": {
+    "python": "ResourceClassifiedPayload",
+    "fields": {
+      "resource_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how many roots were classified"
+      },
+      "verified_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "roots with agreeing marker and registry"
+      },
+      "conflict_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "roots whose evidence disagreed"
+      },
+      "unknown_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "roots with incomplete proof"
+      },
+      "legacy_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "roots with legacy evidence only"
+      },
+      "not_machi_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "roots with no Machi marker"
+      }
+    }
+  },
+  "steward.setting@1": {
+    "python": "StewardSetting",
+    "fields": {
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dotted setting name"
+      },
+      "value": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "current value as text"
+      },
+      "provenance": {
+        "type": "StewardSettingProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who selected this value"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this value is in force"
+      },
+      "allowed_values": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compact allowed-value description"
+      },
+      "support_state": {
+        "type": "StewardSettingSupportState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this setting is usable"
+      },
+      "mutability": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime or restart_required"
+      },
+      "invalidation": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what must re-run if this setting changes"
+      }
+    }
+  },
+  "steward.settings@1": {
+    "python": "StewardSettings",
+    "fields": {
+      "unknown_ownership": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "preserve; unknown is not Machi-owned"
+      },
+      "conflicted_ownership": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "preserve and surface the conflict"
+      },
+      "legacy_unlabelled": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "preserve and report; do not adopt"
+      },
+      "active_resource": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "protect the current generation"
+      },
+      "obsolete_policy": {
+        "type": "ObsoletePolicy",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "obsolete unprotected objects are candidates or need a decision"
+      },
+      "scan_scope": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "only caller-supplied roots; no mount crawl"
+      },
+      "destructive_authorization": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "Tier 2 never authorizes deletion; always false"
+      },
+      "settings": {
+        "type": "tuple[StewardSetting, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspectable setting records"
+      }
+    }
   }
 }

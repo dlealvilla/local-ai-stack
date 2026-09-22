@@ -729,35 +729,46 @@ templates.
 
 **ID:** 3  
 **Name:** Steward  
-**Purpose:** Know what Machi already owns; delete only what dual proof
-allows.  
-**Short Description:** Ownership, occupancy classes, reclaim.
+**Purpose:** Know which known roots Machi owns, how they are protected,
+and what occupancy Capacity may later account for.  
+**Short Description:** Dual-proof ownership, lifecycle, protection,
+occupancy, reclaimability. Tier 2 does not delete.
 
-**Components:** 3.1 Ownership, 3.2 Occupancy, 3.3 Reclaim.
+**Components:** 3.1 Ownership, 3.2 Occupancy, 3.3 Reclaimability.
+The Tier-3 delete executor is not this increment.
 
-**Adapters:** filesystem markers; no “delete by path heuristic”
-adapter.
+**Adapters:** read the local marker and the Install registry; measure
+a verified root without following symlink escapes. No path-name
+ownership and no mount crawl.
 
-**Inputs:** HostProfile, mounts, registry.  
-**Outputs:** OccupancyMap, ReclaimPlan, ReclaimResult.  
-**Preconditions:** Discover.  
-**Success:** classes mutually exclusive; reclaim only dual-owned
-CLEANUP ELIGIBLE.  
-**Blocked:** conflict, missing marker, UNKNOWN — keep. Failure to
-delete a positively identified eligible root **blocks** (fail closed).  
-**State owned:** OwnershipRecord, OccupancyMap.  
-**Persistence:** yes.  
-**Side effects:** deletes eligible trees.  
-**Downstream:** Capacity remaining.  
-**Re-entry:** classify anytime; reclaim idempotent.  
-**Idempotence:** second reclaim of empty set is success with 0 bytes.  
-**Invalidated by:** new files on disk (rediscover occupancy).  
-**Recompute:** may trigger Capacity 4.6.  
-**Telemetry:** `steward.classified`, `steward.reclaim.*`.  
-**Independent test:** unique_occupancy; dual proof.  
+**Inputs:** caller-supplied roots, Install marker and registry, optional
+`MountObservation` already produced by 2.4.  
+**Outputs:** `OccupancyMap`. Reclaimable means a candidate, not a
+deletion. `destructive_authorization` is false.  
+**Preconditions:** Install evidence for any root that can verify.
+Discover mount facts are optional and are not recomputed here.  
+**Success:** marker and registry agree → verified; active generation
+is protected; obsolete and unprotected is a candidate and is not
+deleted.  
+**Blocked:** conflict, missing registry, unknown, and legacy stay
+preserved and not reclaimable.  
+**State owned:** none. The registry remains the ownership authority.
+The map is a rebuildable projection.  
+**Persistence:** event only.  
+**Side effects:** none on the assessed trees.  
+**Downstream:** Capacity, which computes SAFE bytes. Steward does not.  
+**Re-entry:** assess again; it does not rewrite markers.  
+**Idempotence:** the same evidence classifies the same way.  
+**Invalidated by:** marker, registry, or tree contents changing.  
+**Telemetry:** `steward.resource.classified`,
+`steward.ownership.conflict`, `steward.occupancy.observed`,
+`steward.reclaimability.assessed`. Paths stay off the event.  
+**Independent test:** dual proof; unknown is not reclaimable; symlink
+escape is not counted.  
 **Cumulative:** M0→M3.  
-**Lessons:** sibling leftovers; UNKNOWN parent; lifecycle vs
-capacity flags on one plan.
+**Lessons:** path names are not ownership; a copied marker fails closed.
+
+See [M3.md](M3.md).
 
 ## 4 Capacity
 
@@ -1028,14 +1039,14 @@ cleanup on stop.
     AmdSmiPrerequisiteAdapter under 2.5.1; not a Discover observer
 3 Steward
   3.1 Ownership
-    3.1.1 Dual-proof records
-    3.1.2 Conflict detection
+    3.1.1 Dual-proof classification
+    3.1.2 Conflict and legacy detection
   3.2 Occupancy
-    3.2.1 Classifier (ACTIVE/REUSABLE/PROTECTED/RECLAIMABLE/UNKNOWN)
-    3.2.2 unique_occupancy
-  3.3 Reclaim
-    3.3.1 Planner (lifecycle vs capacity flags)
-    3.3.2 Executor (fail closed)
+    3.2.1 Bounded measurement of verified roots
+    3.2.2 Backing-store grouping from a supplied MountObservation
+  3.3 Reclaimability
+    3.3.1 Candidate assessment
+    3.3.2 Delete executor (Tier 3; not implemented)
 4 Capacity
   4.1 Pool identity
     4.1.1 Mount + quota + fingerprint

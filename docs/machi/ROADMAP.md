@@ -373,29 +373,39 @@ See [M2-2.4.1.md](M2-2.4.1.md).
 **Milestone ID:** `M3`  
 **Architecture IDs:** `3`, `3.1`, `3.2`, `3.3`
 
-**Objective:** classify nearby Machi/Kultrun-owned state; delete only
-dual-owned CLEANUP ELIGIBLE; keep UNKNOWN.
+**Objective:** classify caller-supplied roots. Verified ownership
+requires the local marker and the registry to agree. Unknown, conflict,
+and legacy state are preserved. A reclaimable result is a candidate,
+not a deletion.
 
-**Inputs:** HostProfile, mounts, ownership registry.
+**Inputs:** known roots; Install marker, registry, and InstallRecord;
+optional `MountObservation` from 2.4. Does not re-run mount discovery
+and does not consume Capacity.
 
-**Outputs:** `OccupancyMap`, optional `ReclaimResult`.
+**Outputs:** `OccupancyMap`. Events `steward.resource.classified`,
+`steward.ownership.conflict`, `steward.occupancy.observed`,
+`steward.reclaimability.assessed`. No Store entity. No SAFE bytes.
 
-**Telemetry:** `steward.classified`, `steward.reclaim.*`.
+**Telemetry:** those four events, `operational`, without root paths.
 
-**Local tests:** unique_occupancy: UNKNOWN parent cannot hide
-RECLAIMABLE children; no delete without dual proof.
+**Local tests:** dual proof, copied and malformed markers, legacy,
+active protection, obsolete candidate left on disk, symlink escape,
+hard link, inaccessible tree, shared backing, typed defaults.
 
-**Physical:** T3 on a host with leftover sibling `models`/`runtimes`;
-product deletes them; journals remain. No operator `rm`.
+**Physical:** disposable filesystem fixtures on an owned host. No GPU.
+No deletion of ambiguous trees.
 
-**Cumulative:** M0 → M3.
+**Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 → 2.5.1 → 2.4.1 → 3.
 
-**Acceptance:** OccupancyMap mutually exclusive classes; reclaim is
-idempotent.
+**Acceptance:** verified roots report occupancy; conflict fails closed;
+obsolete unprotected is a candidate and the bytes remain.
 
-**Non-goals:** using reclaimed bytes (that is M4).
+**Non-goals:** automatic GC, pressure cleanup, SAFE storage, mount
+crawl, path-name ownership, model or runtime lifecycle.
 
-**Unlocks:** Capacity remaining and recharacterize.
+**Unlocks:** Capacity (`4`).
+
+See [M3.md](M3.md).
 
 ---
 

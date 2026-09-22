@@ -1299,6 +1299,52 @@ def main() -> int:
     if str(root_a) in payload or str(control_registry) in payload:
         raise SystemExit("absolute path leaked into prerequisite event payload")
 
+    steward = run(
+        [
+            str(machi),
+            "steward",
+            "assess",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(steward.stdout, end="")
+    if "verified_machi_owned" not in steward.stdout:
+        raise SystemExit("steward did not verify agreeing marker and registry")
+    if "delete   False" not in steward.stdout:
+        raise SystemExit("steward authorized deletion")
+    if "safe_storage_bytes" in steward.stdout:
+        raise SystemExit("steward computed SAFE storage")
+    if '"event_type": "steward.occupancy.observed"' not in steward.stdout:
+        raise SystemExit("steward did not emit steward.occupancy.observed")
+    if '"privacy": "operational"' not in steward.stdout:
+        raise SystemExit("steward occupancy event was not operational")
+    steward_at = steward.stdout.find('"event_type": "steward.resource.classified"')
+    if steward_at < 0:
+        raise SystemExit("steward did not print a classification event")
+    if str(root_a) in steward.stdout[steward_at:]:
+        raise SystemExit("absolute path leaked into steward events")
+    journal_after_steward = [
+        json.loads(line)
+        for line in (root_a / "journal" / "events.jsonl").read_text().splitlines()
+        if line
+    ]
+    still_mounts_after = next(
+        item
+        for item in journal_after_steward
+        if item["event_id"] == mount_snapshot["event_id"]
+    )
+    if still_mounts_after != mount_snapshot:
+        raise SystemExit("steward rewrote discover.mounts.observed")
+    if not any(
+        item.get("event_type") == "steward.occupancy.observed"
+        for item in journal_after_steward
+    ):
+        raise SystemExit("journal is missing steward.occupancy.observed")
+
     print("verify_ok")
     return 0
 

@@ -18,6 +18,7 @@ TIERS: dict[str, int] = {
     "install": 1,
     "discover": 2,
     "prerequisites": 2,
+    "steward": 2,
     "adapters": 3,
     "main": 4,
 }
@@ -29,6 +30,11 @@ CROSS_IMPORT_FORBIDDEN: frozenset[tuple[str, str]] = frozenset(
         ("prerequisites", "install"),
         ("install", "prerequisites"),
         ("kernel", "prerequisites"),
+        ("discover", "steward"),
+        ("install", "steward"),
+        ("kernel", "steward"),
+        ("prerequisites", "steward"),
+        ("steward", "prerequisites"),
     }
 )
 
@@ -36,7 +42,6 @@ FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
 FUTURE_PACKAGES = frozenset(
     {
-        "steward",
         "capacity",
         "foundation",
         "model",
@@ -1098,4 +1103,63 @@ def prerequisite_boundary_violations(root: Path) -> list[str]:
     )
     if "machi.prerequisites" in kernel_text:
         found.append("Kernel must not import prerequisites")
+    return found
+
+
+STEWARD_DOMAIN_FORBIDDEN = (
+    "shutil.rmtree",
+    "os.walk",
+    "os.unlink",
+    "os.remove",
+    "SAFE_STORAGE_BYTES",
+    "ResourceManager",
+    "DeploymentConfiguration",
+    "ServingConfiguration",
+    "from machi.adapters",
+    "from machi.prerequisites",
+    "NativeMountObserver",
+    "umount",
+)
+
+STEWARD_ADAPTER_FORBIDDEN = (
+    "shutil.rmtree",
+    "os.unlink",
+    "os.remove",
+    "SAFE_STORAGE_BYTES",
+    "ResourceManager",
+    "DeploymentConfiguration",
+    "umount",
+    "from machi.prerequisites",
+)
+
+
+def steward_boundary_violations(root: Path) -> list[str]:
+    """Steward classifies known roots. It does not delete or admit."""
+    found: list[str] = []
+    domain = root / "steward"
+    if not domain.is_dir():
+        return ["steward domain is missing"]
+    for path in sorted(domain.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for token in STEWARD_DOMAIN_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    adapter = root / "adapters" / "steward"
+    if not adapter.is_dir():
+        return [*found, "steward adapter is missing"]
+    for path in sorted(adapter.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for token in STEWARD_ADAPTER_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    native = (adapter / "native.py").read_text(encoding="utf-8")
+    if "measure_owned_tree" not in native:
+        found.append("native steward must measure only through the bounded helper")
+    if "read_ownership" not in native:
+        found.append("native steward must read Install evidence")
+    main_text = (root / "main.py").read_text(encoding="utf-8")
+    if "NativeSteward" not in main_text:
+        found.append("composition must wire NativeSteward")
+    if "def assess_steward" not in main_text:
+        found.append("composition must expose steward assessment")
     return found
