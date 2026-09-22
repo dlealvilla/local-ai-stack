@@ -19,6 +19,7 @@ from machi.adapters.discover.native_accelerator import NativeAcceleratorObserver
 from machi.adapters.discover.native_memory import NativeMemoryObserver
 from machi.adapters.discover.native_mount import NativeMountObserver
 from machi.adapters.discover.native_os_arch import NativeOSArchitectureObserver
+from machi.adapters.foundation.host_runtime import observe_host_runtime
 from machi.adapters.foundation.provision import ManagedVllmProvisioner
 from machi.adapters.foundation.uv_tool import ManagedUv
 from machi.adapters.journal.jsonl import JsonlJournal
@@ -708,6 +709,8 @@ def inspect_foundation(
         capacity=envelope,
         backend=backend,
         prerequisite_ready=None,
+        host_runtime=observe_host_runtime(accelerators),
+        python_version=settings.python_version,
     )
     uv: str | Callable[[Path], str] = "uv"
     if mode is ProvisionMode.PROVISION and candidate.failure is FailureCode.NONE:

@@ -26,6 +26,8 @@ class FoundationInspectedPayload(Contract):
     support: str = meaning("support state")
     failure: str = meaning("typed failure or none")
     backend: str = meaning("cuda, rocm, or unresolved")
+    variant: str = meaning("cuda, rocm700, or unresolved")
+    observed_rocm: str = meaning("observed ROCm version, or unresolved")
 
 
 @contract(kind="foundation.selected", version=1)
@@ -48,6 +50,13 @@ def foundation_events(
     moment = clock or FixedClock(result.observed_at)
     backend = result.selection.backend
     backend_text = backend.value if is_resolved(backend) else "unresolved"
+    variant = "unresolved"
+    observed = "unresolved"
+    candidate = result.candidate
+    if is_resolved(candidate):
+        variant = candidate.variant
+        if is_resolved(candidate.observed_rocm):
+            observed = candidate.observed_rocm
 
     def emit(event_type: str, payload: Contract) -> EventRecord:
         return EventRecord.create(
@@ -69,6 +78,8 @@ def foundation_events(
                 support=result.selection.support.value,
                 failure=result.selection.failure.value,
                 backend=backend_text,
+                variant=variant,
+                observed_rocm=observed,
             ),
         ),
         emit(

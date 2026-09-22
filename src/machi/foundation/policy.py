@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from machi.foundation.contracts import (
     ExecutorKind,
+    FoundationEngine,
     FoundationSetting,
     FoundationSettings,
     ProvisionMode,
+    RuntimeRecipe,
     SettingProvenance,
     SettingSupport,
 )
@@ -19,7 +21,29 @@ PERSISTENT_BYTES = 12 * 1024 * 1024 * 1024
 TRANSIENT_BYTES = 8 * 1024 * 1024 * 1024
 MINIMUM_MEMORY_BYTES = 8 * 1024 * 1024 * 1024
 CUDA_SOURCE = "pypi:torch-backend=auto"
+ROCM_VARIANT = "rocm700"
+ROCM700_VARIANT = ROCM_VARIANT
+ROCM700_LINE = (7, 0)
+ROCM700_GLIBC = (2, 35)
+ROCM700_ARCHS = frozenset(
+    {
+        "gfx90a",
+        "gfx942",
+        "gfx950",
+        "gfx1100",
+        "gfx1101",
+        "gfx1200",
+        "gfx1201",
+    }
+)
+ROCM700_LIBS = (
+    "libamdhip64.so",
+    "librocblas.so",
+    "libmpi_cxx.so.40",
+)
 ROCM_SOURCE = "https://wheels.vllm.ai/rocm/0.18.0/rocm700"
+_ARCH_TEXT = ",".join(sorted(ROCM700_ARCHS))
+_LIB_TEXT = ",".join(ROCM700_LIBS)
 
 
 def default_foundation_settings(
@@ -100,6 +124,34 @@ def default_foundation_settings(
             "one process invocation",
             "1..3600",
         ),
+        _row(
+            "rocm.variant",
+            ROCM700_VARIANT,
+            provenance,
+            "published wheel identity for this vLLM pin",
+            ROCM700_VARIANT,
+        ),
+        _row(
+            "rocm.line",
+            "7.0",
+            provenance,
+            "rocm700 is the ROCm 7.0 line, not a minimum",
+            "7.0",
+        ),
+        _row(
+            "glibc.minimum",
+            "2.35",
+            provenance,
+            "rocm700 wheel requires this glibc",
+            ">=2.35",
+        ),
+        _row(
+            "native.libraries",
+            _LIB_TEXT,
+            provenance,
+            "sonames the rocm700 build loads",
+            _LIB_TEXT,
+        ),
     )
     return FoundationSettings(
         python_version=DEFAULT_PYTHON,
@@ -110,7 +162,23 @@ def default_foundation_settings(
         environment_root_policy="state_root_generations",
         reuse_policy="reuse_verified",
         timeout_seconds=DEFAULT_TIMEOUT,
+        rocm_recipe=rocm700_recipe(),
         settings=rows,
+    )
+
+
+def rocm700_recipe() -> RuntimeRecipe:
+    """The only AMD recipe for the pinned vLLM version."""
+    return RuntimeRecipe(
+        recipe_id=f"vllm-{DEFAULT_VLLM}-{ROCM700_VARIANT}",
+        engine=FoundationEngine.VLLM,
+        vllm_version=DEFAULT_VLLM,
+        variant=ROCM700_VARIANT,
+        python_version=DEFAULT_PYTHON,
+        rocm_line="7.0",
+        glibc_minimum="2.35",
+        accelerator_architectures=_ARCH_TEXT,
+        native_libraries=_LIB_TEXT,
     )
 
 

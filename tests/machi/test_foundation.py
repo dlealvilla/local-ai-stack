@@ -6,6 +6,7 @@ import datetime as dt
 from collections.abc import Mapping
 from pathlib import Path
 
+from machi.adapters.foundation.host_runtime import observe_host_runtime
 from machi.adapters.foundation.process import ProcessResult
 from machi.adapters.foundation.provision import ManagedVllmProvisioner
 from machi.capacity.compose import compose_envelope
@@ -32,7 +33,8 @@ from machi.foundation.contracts import (
     ProvisionMode,
     SupportState,
 )
-from machi.foundation.policy import default_foundation_settings
+from machi.foundation.policy import ROCM700_LIBS, default_foundation_settings
+from machi.foundation.recipe import HostRuntimeFacts
 from machi.foundation.resolve import resolve_candidate
 from machi.kernel.clock import FixedClock
 from machi.kernel.unresolved import NOT_MEASURED, is_resolved
@@ -149,6 +151,24 @@ def test_nvidia_candidate_is_cuda() -> None:
     assert candidate.failure is FailureCode.NONE
 
 
+def _rocm7(
+    *,
+    rocm_version: str = "7.0.2",
+    glibc_version: str = "2.39",
+    accelerator_architecture: str = "gfx942",
+    present_libraries: frozenset[str] | None = None,
+) -> HostRuntimeFacts:
+    libraries = (
+        frozenset(ROCM700_LIBS) if present_libraries is None else present_libraries
+    )
+    return HostRuntimeFacts(
+        rocm_version=rocm_version,
+        glibc_version=glibc_version,
+        accelerator_architecture=accelerator_architecture,
+        present_libraries=libraries,
+    )
+
+
 def test_amd_candidate_is_rocm() -> None:
     candidate = resolve_candidate(
         os_observation=_os(OSFamily.LINUX),
@@ -156,10 +176,123 @@ def test_amd_candidate_is_rocm() -> None:
         capacity=_capacity(40 * GIB, 16 * GIB),
         backend="auto",
         prerequisite_ready=None,
+        host_runtime=_rocm7(),
     )
     assert candidate.backend is AcceleratorBackend.ROCM
+    assert candidate.support is SupportState.SUPPORTED
+    assert candidate.variant == "rocm700"
     assert "rocm700" in candidate.package_spec
     assert candidate.package_source.startswith("https://wheels.vllm.ai/rocm/")
+
+
+def test_mi300x_rocm_61_is_rejected_before_install(tmp_path: Path) -> None:
+    runner = _Runner()
+    candidate = resolve_candidate(
+        os_observation=_os(OSFamily.LINUX),
+        accelerators=_gpu(AcceleratorVendor.AMD, "gpu0"),
+        capacity=_capacity(40 * GIB, 16 * GIB),
+        backend="auto",
+        prerequisite_ready=None,
+        host_runtime=_rocm7(rocm_version="6.1.0-82"),
+    )
+    assert candidate.failure is FailureCode.DRIVER_OR_BACKEND_INCOMPATIBLE
+    assert candidate.support is SupportState.UNSUPPORTED
+    assert "6.1.0-82" in candidate.reason
+    assert "rocm700" in candidate.reason
+    assert "0.18.0" in candidate.reason
+    assert "ollama" not in candidate.reason
+    result = ManagedVllmProvisioner(runner, clock=FixedClock(FIXED)).apply(
+        state_root=tmp_path,
+        candidate=candidate,
+        settings=default_foundation_settings(mode=ProvisionMode.PROVISION),
+        capacity_evidence_id="cap_foundation",
+    )
+    assert runner.calls == []
+    assert result.selection.failure is FailureCode.DRIVER_OR_BACKEND_INCOMPATIBLE
+    assert not (tmp_path / "foundation" / "generations").exists()
+
+
+def test_wrong_glibc_is_rejected_before_install(tmp_path: Path) -> None:
+    runner = _Runner()
+    candidate = resolve_candidate(
+        os_observation=_os(OSFamily.LINUX),
+        accelerators=_gpu(AcceleratorVendor.AMD, "gpu0"),
+        capacity=_capacity(40 * GIB, 16 * GIB),
+        backend="rocm",
+        prerequisite_ready=True,
+        host_runtime=_rocm7(glibc_version="2.34"),
+    )
+    assert candidate.failure is FailureCode.DRIVER_OR_BACKEND_INCOMPATIBLE
+    assert "2.34" in candidate.reason
+    assert "2.35" in candidate.reason
+    ManagedVllmProvisioner(runner, clock=FixedClock(FIXED)).apply(
+        state_root=tmp_path,
+        candidate=candidate,
+        settings=default_foundation_settings(mode=ProvisionMode.PROVISION),
+        capacity_evidence_id="cap_foundation",
+    )
+    assert runner.calls == []
+
+
+def test_wrong_python_recipe_is_rejected() -> None:
+    candidate = resolve_candidate(
+        os_observation=_os(OSFamily.LINUX),
+        accelerators=_gpu(AcceleratorVendor.AMD, "gpu0"),
+        capacity=_capacity(40 * GIB, 16 * GIB),
+        backend="rocm",
+        prerequisite_ready=None,
+        host_runtime=_rocm7(),
+        python_version="3.11",
+    )
+    assert candidate.failure is FailureCode.PACKAGE_RESOLUTION_FAILED
+    assert "3.11" in candidate.reason
+    assert "3.12" in candidate.reason
+
+
+def test_missing_native_library_is_prerequisite_blocked() -> None:
+    present = frozenset(name for name in ROCM700_LIBS if name != "libmpi_cxx.so.40")
+    candidate = resolve_candidate(
+        os_observation=_os(OSFamily.LINUX),
+        accelerators=_gpu(AcceleratorVendor.AMD, "gpu0"),
+        capacity=_capacity(40 * GIB, 16 * GIB),
+        backend="rocm",
+        prerequisite_ready=True,
+        host_runtime=_rocm7(present_libraries=present),
+    )
+    assert candidate.failure is FailureCode.PREREQUISITE_BLOCKED
+    assert candidate.support is SupportState.BLOCKED_BY_PREREQUISITE
+    assert "libmpi_cxx.so.40" in candidate.reason
+    assert candidate.package_spec == "unresolved"
+
+
+def test_library_scan_records_a_managed_prefix(tmp_path: Path) -> None:
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    for name in ROCM700_LIBS:
+        (lib / name).write_text("", encoding="utf-8")
+    facts = observe_host_runtime(
+        version_text="7.0.0",
+        library_roots=(lib,),
+        glibc_text="2.39",
+        rocminfo_text="Name: gfx942",
+    )
+    assert facts.rocm_version == "7.0.0"
+    assert facts.accelerator_architecture == "gfx942"
+    assert facts.present_libraries == frozenset(ROCM700_LIBS)
+    assert facts.library_prefix == str(lib)
+
+
+def test_explicit_rocm_on_nvidia_fails_closed() -> None:
+    candidate = resolve_candidate(
+        os_observation=_os(OSFamily.LINUX),
+        accelerators=_gpu(AcceleratorVendor.NVIDIA, "gpu0"),
+        capacity=_capacity(40 * GIB, 16 * GIB),
+        backend="rocm",
+        prerequisite_ready=None,
+        host_runtime=_rocm7(),
+    )
+    assert candidate.failure is FailureCode.ACCELERATOR_UNSUPPORTED
+    assert "ollama" not in candidate.reason
 
 
 def test_macos_is_unsupported_without_ollama_substitution() -> None:
@@ -194,6 +327,7 @@ def test_prerequisite_block_is_distinct() -> None:
         capacity=_capacity(40 * GIB, 16 * GIB),
         backend="rocm",
         prerequisite_ready=False,
+        host_runtime=_rocm7(),
     )
     assert candidate.failure is FailureCode.PREREQUISITE_BLOCKED
     assert candidate.support is SupportState.BLOCKED_BY_PREREQUISITE

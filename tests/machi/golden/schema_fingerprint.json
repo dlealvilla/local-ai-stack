@@ -1131,6 +1131,62 @@
         "may_be_unresolved": false,
         "meaning": "index or wheel source without secrets"
       },
+      "variant": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cuda, rocm700, or none when no recipe was reached"
+      },
+      "required_rocm": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "required ROCm major.minor, or none"
+      },
+      "observed_rocm": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "ROCm version read from the host"
+      },
+      "observed_glibc": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "glibc version read from the host"
+      },
+      "accelerator_architecture": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "gfx name when observed"
+      },
+      "native_libraries": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "required sonames, or none"
+      },
+      "native_status": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "satisfied, missing, or not_applicable"
+      },
+      "native_library_prefix": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "managed linker prefix, or none"
+      },
       "support": {
         "type": "SupportState",
         "optional": false,
@@ -1292,6 +1348,20 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "cuda, rocm, or unresolved"
+      },
+      "variant": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cuda, rocm700, or unresolved"
+      },
+      "observed_rocm": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "observed ROCm version, or unresolved"
       }
     }
   },
@@ -1318,6 +1388,74 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "RAM ceiling required to provision"
+      }
+    }
+  },
+  "foundation.runtime_recipe@1": {
+    "python": "RuntimeRecipe",
+    "fields": {
+      "recipe_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable id of this engine, version, and variant"
+      },
+      "engine": {
+        "type": "FoundationEngine",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "vllm"
+      },
+      "vllm_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact vLLM version"
+      },
+      "variant": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "wheel variant, for example rocm700 or cuda"
+      },
+      "python_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "interpreter the artifact was built for"
+      },
+      "rocm_line": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "major.minor ROCm identity, or none for CUDA"
+      },
+      "glibc_minimum": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "minimum glibc major.minor, or none"
+      },
+      "accelerator_architectures": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "comma-separated gfx names, or none"
+      },
+      "native_libraries": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "comma-separated sonames, or none"
       }
     }
   },
@@ -1610,6 +1748,13 @@
         "may_be_unresolved": false,
         "meaning": "bound on one process invocation"
       },
+      "rocm_recipe": {
+        "type": "RuntimeRecipe",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "pinned AMD artifact compatibility"
+      },
       "settings": {
         "type": "tuple[FoundationSetting, ...]",
         "optional": false,
@@ -1635,6 +1780,27 @@
         "nullable": false,
         "may_be_unresolved": true,
         "meaning": "vLLM version the interpreter reported"
+      },
+      "effective_python": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "managed interpreter version after verify"
+      },
+      "effective_torch": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "torch version the interpreter reported"
+      },
+      "effective_backend_runtime": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "torch CUDA or HIP version"
       },
       "failure": {
         "type": "FailureCode",

@@ -142,6 +142,7 @@ class FoundationSettings(Contract):
     environment_root_policy: str = meaning("generations live under the owned root")
     reuse_policy: str = meaning("reuse a verified generation; do not mutate it")
     timeout_seconds: int = meaning("bound on one process invocation")
+    rocm_recipe: RuntimeRecipe = meaning("pinned AMD artifact compatibility")
     settings: tuple[FoundationSetting, ...] = meaning("inspectable records")
 
     def __post_init__(self) -> None:
@@ -157,6 +158,36 @@ class FoundationSettings(Contract):
             raise ValidationError("timeout is outside 1..3600 seconds")
         if len(self.settings) > _MAX_SETTINGS:
             raise ValidationError("too many foundation settings")
+
+
+@contract(kind="foundation.runtime_recipe", version=1)
+@dataclass(frozen=True, slots=True)
+class RuntimeRecipe(Contract):
+    """Compatibility identity of one published vLLM artifact."""
+
+    recipe_id: str = meaning("stable id of this engine, version, and variant")
+    engine: FoundationEngine = meaning("vllm")
+    vllm_version: str = meaning("exact vLLM version")
+    variant: str = meaning("wheel variant, for example rocm700 or cuda")
+    python_version: str = meaning("interpreter the artifact was built for")
+    rocm_line: str = meaning("major.minor ROCm identity, or none for CUDA")
+    glibc_minimum: str = meaning("minimum glibc major.minor, or none")
+    accelerator_architectures: str = meaning("comma-separated gfx names, or none")
+    native_libraries: str = meaning("comma-separated sonames, or none")
+
+    def __post_init__(self) -> None:
+        _bounded(self.recipe_id, what="recipe", maximum=_TOKEN_MAX)
+        _bounded(self.variant, what="variant", maximum=32)
+        _bounded(self.python_version, what="python", maximum=16)
+        _bounded(self.vllm_version, what="vllm", maximum=32)
+        _bounded(self.rocm_line, what="rocm line", maximum=16)
+        _bounded(self.glibc_minimum, what="glibc", maximum=16)
+        _bounded(
+            self.accelerator_architectures,
+            what="architectures",
+            maximum=_REASON_MAX,
+        )
+        _bounded(self.native_libraries, what="libraries", maximum=_REASON_MAX)
 
 
 @contract(kind="foundation.requirement", version=1)
@@ -192,6 +223,14 @@ class FoundationCandidate(Contract):
     vllm_version: str = meaning("exact vLLM version")
     package_spec: str = meaning("exact package requirement, not an open range")
     package_source: str = meaning("index or wheel source without secrets")
+    variant: str = meaning("cuda, rocm700, or none when no recipe was reached")
+    required_rocm: str = meaning("required ROCm major.minor, or none")
+    observed_rocm: Maybe[str] = meaning("ROCm version read from the host")
+    observed_glibc: Maybe[str] = meaning("glibc version read from the host")
+    accelerator_architecture: Maybe[str] = meaning("gfx name when observed")
+    native_libraries: str = meaning("required sonames, or none")
+    native_status: str = meaning("satisfied, missing, or not_applicable")
+    native_library_prefix: str = meaning("managed linker prefix, or none")
     support: SupportState = meaning("resolution outcome before provision")
     failure: FailureCode = meaning("none when the candidate is usable")
     reason: str = meaning("why this candidate was selected or refused")
@@ -200,6 +239,11 @@ class FoundationCandidate(Contract):
         _bounded(self.candidate_id, what="candidate", maximum=_TOKEN_MAX)
         _bounded(self.package_spec, what="package", maximum=_REASON_MAX)
         _bounded(self.package_source, what="source", maximum=_REASON_MAX)
+        _bounded(self.variant, what="variant", maximum=32)
+        _bounded(self.required_rocm, what="required rocm", maximum=16)
+        _bounded(self.native_libraries, what="libraries", maximum=_REASON_MAX)
+        _bounded(self.native_status, what="native status", maximum=_REASON_MAX)
+        _bounded(self.native_library_prefix, what="library prefix", maximum=_REASON_MAX)
         _bounded(self.reason, what="reason", maximum=_REASON_MAX)
 
 
@@ -231,6 +275,9 @@ class VerificationEvidence(Contract):
 
     passed: bool = meaning("true only when the minimum checks passed")
     observed_version: Maybe[str] = meaning("vLLM version the interpreter reported")
+    effective_python: Maybe[str] = meaning("managed interpreter version after verify")
+    effective_torch: Maybe[str] = meaning("torch version the interpreter reported")
+    effective_backend_runtime: Maybe[str] = meaning("torch CUDA or HIP version")
     failure: FailureCode = meaning("verification_failed, timeout, or none")
     reason: str = meaning("which check passed or failed")
 

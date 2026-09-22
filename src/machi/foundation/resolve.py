@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 from machi.capacity.contracts import CapacityEnvelope
 from machi.discover.contracts import (
     AcceleratorMemoryTopology,
@@ -25,10 +27,24 @@ from machi.foundation.policy import (
     DEFAULT_VLLM,
     MINIMUM_MEMORY_BYTES,
     PERSISTENT_BYTES,
+    ROCM700_LIBS,
+    ROCM700_VARIANT,
     ROCM_SOURCE,
     TRANSIENT_BYTES,
 )
-from machi.kernel.unresolved import NOT_PROVIDED, is_resolved
+from machi.foundation.recipe import HostRuntimeFacts, rocm700_refusal
+from machi.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
+
+
+class _Evidence(TypedDict):
+    variant: str
+    required_rocm: str
+    observed_rocm: Maybe[str]
+    observed_glibc: Maybe[str]
+    accelerator_architecture: Maybe[str]
+    native_libraries: str
+    native_status: str
+    native_library_prefix: str
 
 
 def resolve_candidate(
@@ -38,6 +54,8 @@ def resolve_candidate(
     capacity: CapacityEnvelope | None,
     backend: str,
     prerequisite_ready: bool | None,
+    host_runtime: HostRuntimeFacts | None = None,
+    python_version: str = DEFAULT_PYTHON,
 ) -> FoundationCandidate:
     """Pick CUDA or ROCm, or a typed refusal. Explicit vLLM does not fall back."""
     if os_observation is None or not is_resolved(os_observation.os_family):
@@ -56,6 +74,25 @@ def resolve_candidate(
             FailureCode.ACCELERATOR_UNSUPPORTED,
             "no discrete NVIDIA or AMD accelerator was observed",
         )
+    host = host_runtime or HostRuntimeFacts()
+    if chosen is AcceleratorBackend.ROCM:
+        refusal = rocm700_refusal(host, python_version=python_version)
+        if refusal is not None:
+            code_text, reason = refusal
+            status = "not_checked"
+            if code_text == FailureCode.PREREQUISITE_BLOCKED.value:
+                absent = [
+                    name
+                    for name in ROCM700_LIBS
+                    if name not in host.present_libraries
+                ]
+                status = "missing:" + ",".join(absent)
+            return _refused(
+                FailureCode(code_text),
+                reason,
+                backend=chosen,
+                evidence=_rocm_evidence(host, status=status, matched=False),
+            )
     if prerequisite_ready is False:
         return _refused(
             FailureCode.PREREQUISITE_BLOCKED,
@@ -75,19 +112,25 @@ def resolve_candidate(
             backend=chosen,
         )
     spec, source = _package(chosen)
+    evidence = (
+        _rocm_evidence(host, status="satisfied", matched=True)
+        if chosen is AcceleratorBackend.ROCM
+        else _cuda_evidence()
+    )
     return FoundationCandidate(
         candidate_id=f"vllm-{DEFAULT_VLLM}-{chosen.value}",
         family=FoundationFamily.DIRECT,
         engine=FoundationEngine.VLLM,
         executor=ExecutorKind.NATIVE_PROCESS,
         backend=chosen,
-        python_version=DEFAULT_PYTHON,
+        python_version=python_version,
         vllm_version=DEFAULT_VLLM,
         package_spec=spec,
         package_source=source,
         support=SupportState.SUPPORTED,
         failure=FailureCode.NONE,
         reason="native vLLM candidate matches the host accelerator",
+        **evidence,
     )
 
 
@@ -145,8 +188,10 @@ def _refused(
     reason: str,
     *,
     backend: AcceleratorBackend | None = None,
+    evidence: _Evidence | None = None,
 ) -> FoundationCandidate:
     chosen = backend if backend is not None else NOT_PROVIDED
+    fields: _Evidence = _cuda_evidence() if evidence is None else evidence
     return FoundationCandidate(
         candidate_id=f"refused-{failure.value}",
         family=FoundationFamily.DIRECT,
@@ -160,7 +205,45 @@ def _refused(
         support=_support(failure),
         failure=failure,
         reason=reason,
+        **fields,
     )
+
+
+def _cuda_evidence() -> _Evidence:
+    return {
+        "variant": "cuda",
+        "required_rocm": "none",
+        "observed_rocm": NOT_PROVIDED,
+        "observed_glibc": NOT_PROVIDED,
+        "accelerator_architecture": NOT_PROVIDED,
+        "native_libraries": "none",
+        "native_status": "not_applicable",
+        "native_library_prefix": "none",
+    }
+
+
+def _rocm_evidence(
+    host: HostRuntimeFacts,
+    *,
+    status: str,
+    matched: bool,
+) -> _Evidence:
+    return {
+        "variant": ROCM700_VARIANT,
+        "required_rocm": "7.0",
+        "observed_rocm": _maybe(host.rocm_version),
+        "observed_glibc": _maybe(host.glibc_version),
+        "accelerator_architecture": _maybe(host.accelerator_architecture),
+        "native_libraries": ",".join(ROCM700_LIBS),
+        "native_status": status,
+        "native_library_prefix": host.library_prefix if matched else "none",
+    }
+
+
+def _maybe(value: str | None) -> Maybe[str]:
+    if value is None or not value.strip():
+        return NOT_PROVIDED
+    return value.strip()
 
 
 def _support(failure: FailureCode) -> SupportState:

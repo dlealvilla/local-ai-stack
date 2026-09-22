@@ -35,7 +35,7 @@ from machi.foundation.select import selection_from_candidate
 from machi.kernel.clock import Clock, SystemClock
 from machi.kernel.errors import ValidationError
 from machi.kernel.schema import to_dict
-from machi.kernel.unresolved import NOT_MEASURED, NOT_PROVIDED, is_resolved
+from machi.kernel.unresolved import NOT_MEASURED, NOT_PROVIDED, Maybe, is_resolved
 
 _MANIFEST = ".machi-foundation.json"
 
@@ -143,7 +143,7 @@ class ManagedVllmProvisioner:
                 )
         else:
             uv = resolver
-        env = _provision_env(cache)
+        env = _provision_env(cache, candidate.native_library_prefix)
         created = self._runner.run(
             [uv, "venv", "--python", candidate.python_version, str(venv), "--seed"],
             cwd=str(root),
@@ -208,7 +208,7 @@ class ManagedVllmProvisioner:
             created_at=when,
         )
         verification = self._verify(candidate, python, settings.timeout_seconds, env)
-        self._write_manifest(root, generation, cache)
+        self._write_manifest(root, generation, cache, candidate, verification)
         capability: RuntimeCapability | None = None
         ready = verification.passed
         if ready:
@@ -251,7 +251,10 @@ class ManagedVllmProvisioner:
             if payload.get("candidate_id") != candidate.candidate_id:
                 continue
             python = Path(str(payload["python_path"]))
-            env = _provision_env(state_root / "foundation" / "cache")
+            env = _provision_env(
+                state_root / "foundation" / "cache",
+                candidate.native_library_prefix,
+            )
             verification = self._verify(
                 candidate, python, settings.timeout_seconds, env
             )
@@ -291,6 +294,9 @@ class ManagedVllmProvisioner:
             return VerificationEvidence(
                 passed=False,
                 observed_version=NOT_MEASURED,
+                effective_python=NOT_MEASURED,
+                effective_torch=NOT_MEASURED,
+                effective_backend_runtime=NOT_MEASURED,
                 failure=FailureCode.VERIFICATION_FAILED,
                 reason="verification has no accelerator backend",
             )
@@ -300,6 +306,7 @@ class ManagedVllmProvisioner:
             f"if not vllm.__version__.startswith({pin!r}):\n"
             "    raise SystemExit(1)\n"
             "import vllm.entrypoints.openai.api_server\n"
+            "import sys\n"
             "import torch\n"
             f"if {backend_name!r} == 'cuda' and not torch.version.cuda:\n"
             "    print('MACHI_BACKEND_MISMATCH')\n"
@@ -307,7 +314,11 @@ class ManagedVllmProvisioner:
             f"if {backend_name!r} == 'rocm' and not torch.version.hip:\n"
             "    print('MACHI_BACKEND_MISMATCH')\n"
             "    raise SystemExit(2)\n"
+            "runtime = torch.version.hip or torch.version.cuda or ''\n"
             "print(vllm.__version__)\n"
+            "print(torch.__version__)\n"
+            "print(runtime)\n"
+            "print(sys.version.split()[0])\n"
         )
         result = self._runner.run(
             [str(python), "-c", code],
@@ -319,6 +330,9 @@ class ManagedVllmProvisioner:
             return VerificationEvidence(
                 passed=False,
                 observed_version=NOT_MEASURED,
+                effective_python=NOT_MEASURED,
+                effective_torch=NOT_MEASURED,
+                effective_backend_runtime=NOT_MEASURED,
                 failure=FailureCode.TIMEOUT,
                 reason="verification timed out",
             )
@@ -326,6 +340,9 @@ class ManagedVllmProvisioner:
             return VerificationEvidence(
                 passed=False,
                 observed_version=NOT_MEASURED,
+                effective_python=NOT_MEASURED,
+                effective_torch=NOT_MEASURED,
+                effective_backend_runtime=NOT_MEASURED,
                 failure=FailureCode.DRIVER_OR_BACKEND_INCOMPATIBLE,
                 reason="installed backend does not match the selected provider",
             )
@@ -333,13 +350,20 @@ class ManagedVllmProvisioner:
             return VerificationEvidence(
                 passed=False,
                 observed_version=NOT_MEASURED,
+                effective_python=NOT_MEASURED,
+                effective_torch=NOT_MEASURED,
+                effective_backend_runtime=NOT_MEASURED,
                 failure=FailureCode.VERIFICATION_FAILED,
                 reason="import, version, or entrypoint check failed",
             )
-        observed = result.stdout.strip().splitlines()[-1][:32]
+        lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        observed = lines[0][:32] if lines else ""
         return VerificationEvidence(
             passed=True,
             observed_version=observed,
+            effective_python=_line(lines, 3),
+            effective_torch=_line(lines, 1),
+            effective_backend_runtime=_line(lines, 2),
             failure=FailureCode.NONE,
             reason="import, version, backend, and entrypoint checks passed",
         )
@@ -349,6 +373,8 @@ class ManagedVllmProvisioner:
         root: Path,
         generation: ManagedGeneration,
         cache: Path,
+        candidate: FoundationCandidate,
+        verification: VerificationEvidence,
     ) -> None:
         payload = to_dict(generation)
         payload["purpose"] = "managed_vllm_foundation"
@@ -356,6 +382,16 @@ class ManagedVllmProvisioner:
         payload["tool_version"] = UV_VERSION
         payload["measured_persistent_bytes"] = _tree_bytes(root)
         payload["measured_cache_bytes"] = _tree_bytes(cache)
+        payload["wheel_variant"] = candidate.variant
+        payload["observed_rocm"] = _text(candidate.observed_rocm)
+        payload["accelerator_architecture"] = _text(candidate.accelerator_architecture)
+        payload["native_status"] = candidate.native_status
+        payload["native_library_prefix"] = candidate.native_library_prefix
+        payload["effective_python"] = _text(verification.effective_python)
+        payload["effective_torch"] = _text(verification.effective_torch)
+        payload["effective_backend_runtime"] = _text(
+            verification.effective_backend_runtime
+        )
         text = json.dumps(payload, indent=2) + "\n"
         (root / _MANIFEST).write_text(text, encoding="utf-8")
 
@@ -380,6 +416,14 @@ class ManagedVllmProvisioner:
             vllm_version=candidate.vllm_version,
             package_spec=candidate.package_spec,
             package_source=candidate.package_source,
+            variant=candidate.variant,
+            required_rocm=candidate.required_rocm,
+            observed_rocm=candidate.observed_rocm,
+            observed_glibc=candidate.observed_glibc,
+            accelerator_architecture=candidate.accelerator_architecture,
+            native_libraries=candidate.native_libraries,
+            native_status=candidate.native_status,
+            native_library_prefix=candidate.native_library_prefix,
             support=SupportState.PROVISIONING_FAILED,
             failure=failure,
             reason=reason,
@@ -418,7 +462,19 @@ def _capability(candidate: FoundationCandidate) -> RuntimeCapability:
     )
 
 
-def _provision_env(cache: Path) -> dict[str, str]:
+def _line(lines: list[str], index: int) -> Maybe[str]:
+    if len(lines) <= index or not lines[index]:
+        return NOT_MEASURED
+    return lines[index][:32]
+
+
+def _text(value: Maybe[str]) -> str:
+    if is_resolved(value) and isinstance(value, str):
+        return value
+    return "unresolved"
+
+
+def _provision_env(cache: Path, library_prefix: str) -> dict[str, str]:
     kept = (
         "PATH",
         "HOME",
@@ -440,6 +496,8 @@ def _provision_env(cache: Path) -> dict[str, str]:
     env = {key: os.environ[key] for key in kept if key in os.environ}
     env["UV_CACHE_DIR"] = str(cache)
     env["UV_LINK_MODE"] = "copy"
+    if library_prefix != "none":
+        env["LD_LIBRARY_PATH"] = library_prefix
     return env
 
 
