@@ -25,8 +25,19 @@ from machi.adapters.foundation.host_runtime import observe_host_runtime
 from machi.adapters.foundation.provision import ManagedVllmProvisioner
 from machi.adapters.foundation.uv_tool import ManagedUv
 from machi.adapters.journal.jsonl import JsonlJournal
-from machi.adapters.model.acquire import store_local, view_local
+from machi.adapters.model.acquire import (
+    StoreResult,
+    store_local,
+    store_view,
+    view_local,
+)
+from machi.adapters.model.hub import (
+    credential_supplied,
+    fetch_files,
+    inspect_repository,
+)
 from machi.adapters.model.runtime_query import query_runtime
+from machi.adapters.model.warehouse import cache_root
 from machi.adapters.persistence.file_store import FileStore
 from machi.adapters.prerequisites.amd_smi import AmdSmiPrerequisiteAdapter
 from machi.adapters.steward.native import NativeSteward, RootClaim
@@ -98,12 +109,13 @@ from machi.kernel.unresolved import Maybe, is_resolved
 from machi.model.compat import RuntimeView
 from machi.model.contracts import (
     AvailableModels,
+    ModelFailure,
     ModelSourceKind,
     ProviderQualification,
 )
 from machi.model.evaluate import evaluate_source, snapshot_for
 from machi.model.events import acquisition_events, model_events
-from machi.model.policy import default_model_settings
+from machi.model.policy import DEFAULT_TIMEOUT, default_model_settings
 from machi.prerequisites.contracts import (
     PolicyMode,
     PrerequisiteReadinessReport,
@@ -906,6 +918,44 @@ def _warn_if_defaulted(binding: StateRootBinding) -> None:
     )
 
 
+def _model_runtime(
+    *,
+    runtime_python: Path | None,
+    foundation_id: str,
+    qualification: str,
+) -> RuntimeView:
+    """Query the managed interpreter when one is supplied. Do not guess."""
+    architectures: frozenset[str] = frozenset()
+    quantizations: frozenset[str] = frozenset()
+    capability_known = False
+    if runtime_python is not None:
+        with tempfile.TemporaryDirectory() as tmp:
+            architectures, quantizations = query_runtime(
+                runtime_python,
+                Path(tmp) / "runtime.json",
+            )
+        capability_known = bool(architectures)
+    return RuntimeView(
+        architectures=architectures,
+        quantizations=quantizations,
+        foundation_id=foundation_id,
+        provider_qualification=ProviderQualification(qualification),
+        capability_known=capability_known,
+    )
+
+
+def _device_ceiling(envelope: CapacityEnvelope) -> int | None:
+    """Largest single-device SAFE baseline. Devices are not summed."""
+    known = [
+        int(item.safe_bytes)
+        for item in envelope.accelerators
+        if is_resolved(item.safe_bytes) and isinstance(item.safe_bytes, int)
+    ]
+    if not known:
+        return None
+    return max(known)
+
+
 def inspect_model(
     *,
     source_path: Path,
@@ -919,22 +969,10 @@ def inspect_model(
     """Inspect one local directory. This does not download or load weights."""
     validate_registry(module_prefix="machi.")
     observed = dt.datetime.now(dt.UTC)
-    architectures: frozenset[str] = frozenset()
-    quantizations: frozenset[str] = frozenset()
-    capability_known = False
-    if runtime_python is not None:
-        with tempfile.TemporaryDirectory() as tmp:
-            architectures, quantizations = query_runtime(
-                runtime_python,
-                Path(tmp) / "runtime.json",
-            )
-        capability_known = bool(architectures)
-    runtime = RuntimeView(
-        architectures=architectures,
-        quantizations=quantizations,
+    runtime = _model_runtime(
+        runtime_python=runtime_python,
         foundation_id=foundation_id,
-        provider_qualification=ProviderQualification(qualification),
-        capability_known=capability_known,
+        qualification=qualification,
     )
     view = view_local(source_path, label)
     entry = evaluate_source(
@@ -959,6 +997,168 @@ def inspect_model(
         for event in events_out:
             journal.append(event)
     return snapshot, events_out
+
+
+def _print_model_snapshot(
+    snapshot: AvailableModels,
+    events_out: tuple[EventRecord, ...],
+    journal_dir_path: str | None,
+) -> None:
+    model_entry = snapshot.entries[0]
+    print(f"state    {model_entry.compatibility.state.value}")
+    print(f"failure  {model_entry.compatibility.failure.value}")
+    print(f"revision {model_entry.definition.immutable_revision}")
+    remote = str(model_entry.definition.requires_remote_code).lower()
+    print(f"remote   {remote}")
+    print("mode     inspect_only")
+    journal_shown = (
+        str(JsonlJournal(Path(journal_dir_path)).path) if journal_dir_path else "-"
+    )
+    print(f"journal  {journal_shown}")
+    _print_document(snapshot)
+    for event in events_out:
+        _print_document(event)
+
+
+def _inspect_hub(
+    ns: argparse.Namespace,
+) -> tuple[AvailableModels, tuple[EventRecord, ...]]:
+    """Resolve one repository revision. Weights stay remote."""
+    validate_registry(module_prefix="machi.")
+    observed = dt.datetime.now(dt.UTC)
+    if ns.state_root:
+        cache = cache_root(Path(ns.state_root))
+        cache.mkdir(parents=True, exist_ok=True)
+        view = inspect_repository(ns.repository, ns.revision, cache=cache)
+    else:
+        with tempfile.TemporaryDirectory() as tmp:
+            view = inspect_repository(ns.repository, ns.revision, cache=Path(tmp))
+    runtime = _model_runtime(
+        runtime_python=Path(ns.runtime_python) if ns.runtime_python else None,
+        foundation_id=ns.foundation_id,
+        qualification=ns.qualification,
+    )
+    entry = evaluate_source(
+        view,
+        source_kind=ModelSourceKind.HUB,
+        runtime=runtime,
+        capacity=None,
+        accelerator_safe_bytes=None,
+        observed_at=observed,
+    )
+    settings = default_model_settings()
+    snapshot = snapshot_for(
+        (entry,),
+        foundation_id=ns.foundation_id,
+        capacity_evidence_id="capacity_unspecified",
+        policy_token=settings.revision_policy,
+        observed_at=observed,
+    )
+    events_out = model_events(snapshot, clock=FixedClock(observed))
+    if ns.journal_dir:
+        journal = JsonlJournal(Path(ns.journal_dir))
+        for event in events_out:
+            journal.append(event)
+    return snapshot, events_out
+
+
+def _planning_inputs(
+    ns: argparse.Namespace,
+) -> tuple[CapacityEnvelope, RuntimeView, dt.datetime]:
+    if not ns.state_root:
+        raise ValidationError("state root is required before acquisition")
+    envelope, _events, _journal = evaluate_capacity(
+        explicit=ns.state_root,
+        environment=_environment_override(),
+        store_dir=Path(ns.store_dir) if ns.store_dir else None,
+        journal_dir_path=Path(ns.journal_dir) if ns.journal_dir else None,
+    )
+    runtime = _model_runtime(
+        runtime_python=Path(ns.runtime_python) if ns.runtime_python else None,
+        foundation_id=ns.foundation_id,
+        qualification=ns.qualification,
+    )
+    return envelope, runtime, dt.datetime.now(dt.UTC)
+
+
+def _finish_store(
+    ns: argparse.Namespace,
+    stored: StoreResult,
+    observed: dt.datetime,
+) -> int:
+    events_out = acquisition_events(
+        artifact=stored.artifact,
+        failure=stored.failure,
+        artifact_id=stored.artifact_id,
+        clock=FixedClock(observed),
+    )
+    if ns.journal_dir:
+        journal = JsonlJournal(Path(ns.journal_dir))
+        for event in events_out:
+            journal.append(event)
+    print(f"failure  {stored.failure.value}")
+    lifecycle = stored.artifact.lifecycle.value if stored.artifact is not None else "-"
+    print(f"lifecycle {lifecycle}")
+    if stored.artifact is not None:
+        print(f"revision {stored.artifact.immutable_revision}")
+        print(f"bytes    {stored.artifact.total_bytes}")
+        print(f"files    {len(stored.artifact.files)}")
+    for event in events_out:
+        _print_document(event)
+    if stored.failure is ModelFailure.NONE:
+        return 0
+    return 2
+
+
+def _import_local(ns: argparse.Namespace) -> int:
+    envelope, runtime, observed = _planning_inputs(ns)
+    stored = store_local(
+        Path(ns.state_root),
+        Path(ns.path),
+        ns.label,
+        runtime=runtime,
+        capacity=envelope,
+        accelerator_safe_bytes=_device_ceiling(envelope),
+        observed_at=observed,
+    )
+    return _finish_store(ns, stored, observed)
+
+
+def _acquire_hub(ns: argparse.Namespace) -> int:
+    envelope, runtime, observed = _planning_inputs(ns)
+    cache = cache_root(Path(ns.state_root))
+    try:
+        view = inspect_repository(ns.repository, ns.revision, cache=cache)
+    except ValidationError as exc:
+        try:
+            failure = ModelFailure(exc.message)
+        except ValueError:
+            failure = ModelFailure.SOURCE_UNAVAILABLE
+        print(f"failure  {failure.value}")
+        print("lifecycle -")
+        return 2
+
+    def _fetch(destination: Path, relative_paths: tuple[str, ...]) -> None:
+        fetch_files(
+            view,
+            destination,
+            relative_paths,
+            cache=cache,
+            timeout_seconds=DEFAULT_TIMEOUT,
+        )
+
+    stored = store_view(
+        Path(ns.state_root),
+        view,
+        source_kind=ModelSourceKind.HUB,
+        fetch=_fetch,
+        runtime=runtime,
+        capacity=envelope,
+        accelerator_safe_bytes=_device_ceiling(envelope),
+        observed_at=observed,
+        credential_present=credential_supplied(),
+    )
+    return _finish_store(ns, stored, observed)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1267,17 +1467,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         "import",
         help="copy a local artifact into the owned warehouse",
     )
-    for model_command in (model_inspect, model_import):
-        model_command.add_argument("--path", required=True)
-        model_command.add_argument("--label", required=True)
+    model_acquire = model_sub.add_parser(
+        "acquire",
+        help="download one explicit hub revision into the warehouse",
+    )
+    for model_command in (model_inspect, model_import, model_acquire):
         model_command.add_argument("--state-root", default=None)
+        model_command.add_argument("--store-dir", default=None)
         model_command.add_argument("--journal-dir", default=None)
+        model_command.add_argument("--foundation-id", default="foundation_unspecified")
         model_command.add_argument(
             "--qualification",
             choices=["qualified", "deferred", "unknown"],
             default="unknown",
         )
         model_command.add_argument("--runtime-python", default=None)
+    model_inspect.add_argument("--path", default=None)
+    model_inspect.add_argument("--label", default=None)
+    model_inspect.add_argument("--repository", default=None)
+    model_inspect.add_argument("--revision", default="main")
+    model_import.add_argument("--path", required=True)
+    model_import.add_argument("--label", required=True)
+    model_acquire.add_argument("--repository", required=True)
+    model_acquire.add_argument("--revision", default="main")
 
     readiness = sub.add_parser(
         "prerequisites",
@@ -1733,84 +1945,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _print_document(event)
             return 0
         if ns.command == "model" and ns.model_command == "inspect":
-            model_snapshot, model_events_out = inspect_model(
-                source_path=Path(ns.path),
-                label=ns.label,
-                journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
-                qualification=ns.qualification,
-                runtime_python=(
-                    Path(ns.runtime_python) if ns.runtime_python else None
-                ),
-            )
-            model_entry = model_snapshot.entries[0]
-            print(f"state    {model_entry.compatibility.state.value}")
-            print(f"failure  {model_entry.compatibility.failure.value}")
-            print(f"revision {model_entry.definition.immutable_revision}")
-            remote = str(model_entry.definition.requires_remote_code).lower()
-            print(f"remote   {remote}")
-            print("mode     inspect_only")
-            journal_shown = (
-                str(JsonlJournal(Path(ns.journal_dir)).path)
-                if ns.journal_dir
-                else "-"
-            )
-            print(f"journal  {journal_shown}")
-            _print_document(model_snapshot)
-            for event in model_events_out:
-                _print_document(event)
+            if ns.repository:
+                model_snapshot, model_events_out = _inspect_hub(ns)
+            else:
+                if not ns.path or not ns.label:
+                    raise ValidationError("local inspect requires --path and --label")
+                model_snapshot, model_events_out = inspect_model(
+                    source_path=Path(ns.path),
+                    label=ns.label,
+                    journal_dir_path=(
+                        Path(ns.journal_dir) if ns.journal_dir else None
+                    ),
+                    foundation_id=ns.foundation_id,
+                    qualification=ns.qualification,
+                    runtime_python=(
+                        Path(ns.runtime_python) if ns.runtime_python else None
+                    ),
+                )
+            _print_model_snapshot(model_snapshot, model_events_out, ns.journal_dir)
             return 0
         if ns.command == "model" and ns.model_command == "import":
-            if not ns.state_root:
-                raise ValidationError("state root is required to import a model")
-            observed = dt.datetime.now(dt.UTC)
-            architectures: frozenset[str] = frozenset()
-            quantizations: frozenset[str] = frozenset()
-            capability_known = False
-            if ns.runtime_python:
-                with tempfile.TemporaryDirectory() as tmp:
-                    architectures, quantizations = query_runtime(
-                        Path(ns.runtime_python),
-                        Path(tmp) / "runtime.json",
-                    )
-                capability_known = bool(architectures)
-            runtime = RuntimeView(
-                architectures=architectures,
-                quantizations=quantizations,
-                foundation_id="foundation_unspecified",
-                provider_qualification=ProviderQualification(ns.qualification),
-                capability_known=capability_known,
-            )
-            stored = store_local(
-                Path(ns.state_root),
-                Path(ns.path),
-                ns.label,
-                runtime=runtime,
-                capacity=None,
-                accelerator_safe_bytes=None,
-                observed_at=observed,
-            )
-            acquire_events = acquisition_events(
-                artifact=stored.artifact,
-                failure=stored.failure,
-                artifact_id=stored.artifact_id,
-                clock=FixedClock(observed),
-            )
-            if ns.journal_dir:
-                journal = JsonlJournal(Path(ns.journal_dir))
-                for event in acquire_events:
-                    journal.append(event)
-            print(f"failure  {stored.failure.value}")
-            print(
-                "lifecycle "
-                + (
-                    stored.artifact.lifecycle.value
-                    if stored.artifact is not None
-                    else "-"
-                )
-            )
-            for event in acquire_events:
-                _print_document(event)
-            return 0 if stored.failure.value == "none" else 2
+            return _import_local(ns)
+        if ns.command == "model" and ns.model_command == "acquire":
+            return _acquire_hub(ns)
         if ns.command == "prerequisites" and ns.prerequisites_command == "check":
             (
                 readiness_report,
