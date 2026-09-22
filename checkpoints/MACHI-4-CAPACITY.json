@@ -19,9 +19,22 @@
   "package": "docs/machi/M4-PHYSICAL.md",
   "pod_id": null,
   "tests": {
-    "A": {"axis": "host memory reserve and ordinary storage without Sonar", "status": "PASS"},
-    "B": {"axis": "overlay container sonar", "status": "RESIDUAL"},
-    "C": {"axis": "bounded real sonar write and cleanup", "status": "PASS"},
-    "D": {"axis": "unified accelerator is not a VRAM pool", "status": "PASS"}
-  }
+    "A": {
+      "axis": "host memory reserve and ordinary storage without Sonar",
+      "status": "PASS"
+    },
+    "B": {
+      "axis": "overlay container sonar",
+      "status": "RESIDUAL"
+    },
+    "C": {
+      "axis": "bounded real sonar write and cleanup",
+      "status": "PASS"
+    },
+    "D": {
+      "axis": "unified accelerator is not a VRAM pool",
+      "status": "PASS"
+    }
+  },
+  "evidence_commit": "4a47591dcbf88b1ab2fb90e25ead6ef8dbf57feb"
 }
