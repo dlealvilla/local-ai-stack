@@ -685,7 +685,7 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization. Accepted at Tier 2 |
 | M5 Foundation | MODIFY | 1 | Development closed. NVIDIA CUDA qualified. AMD ROCm implemented, qualification deferred (`M-5-AMD-01`) |
 | M6 Model | KEEP | 1 | Closed at Tier 2. NVIDIA artifact path accepted. AMD foundation qualification remains `M-5-AMD-01` |
-| M7 Plan | KEEP | 1 | Local candidate. Physical acceptance not run. Plan is not admission and not launch |
+| M7 Plan | KEEP | 1 | Physically accepted on NVIDIA. Plan is not admission and not launch. M8 waits for a decision |
 | M8 Admit | KEEP | 1 | ResourceManager remains the only admission authority |
 | M9 Serve | KEEP | 1 | One real request path. Comparative campaigns are Stage 2 |
 | OllamaExecutionMacropath | REPOSITION | 1 exit | Compatibility fallback after the vLLM path. Not before Capacity |
