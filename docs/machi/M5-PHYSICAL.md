@@ -49,3 +49,24 @@ It was terminated. Approximate compute: about 12 minutes, about $0.48
 at the catalog rate.
 
 No pod created for this campaign is still running.
+
+## ROCm recipe fix — not a close
+
+Commit `8f68c6d34a997e05df718f77a233afafeaa2169d`, wheel SHA256
+`df23311c0b5a357d02b8c4cb24b6fe9c7eec944e266b98352f2efd0382be81ba`,
+build `0.1.0+8f68c6d34a99`. Isolated `verify_ok`. Lab candidate
+`cand_25a818fa39cc9334`.
+
+`rocm700` now matches only the ROCm 7.0 line. A ROCm 6.1 host is
+`driver_or_backend_incompatible` before install. Missing
+`libamdhip64.so`, `librocblas.so`, or `libmpi_cxx.so.40` is
+`prerequisite_blocked` before install.
+
+The previous CUDA proof on `d3b45dd` stays the NVIDIA evidence. The
+CUDA resolver does not read the ROCm recipe, so that proof was not
+rerun.
+
+A secure MI300X create on 2026-09-22 was refused: catalog availability
+`NONE`. No new pod was left running. RunPod's SSH-capable AMD images
+in the official catalog are ROCm 6.x, which this recipe now rejects.
+The public `rocm/pytorch` ROCm 7.0 image does not start RunPod SSH.
