@@ -825,16 +825,17 @@ select.
 **Components:** 5.1 Executor catalogue, 5.2 Runtime catalogue, 5.3
 Resolve, 5.4 Provision, 5.5 Verify, 5.6 Select.
 
-**Adapters:** NativeProcessExecutor, ContainerExecutor (optional),
-vLLM provision/verify as the primary direct engine; llama.cpp/MLX later.
-`OllamaExecutionMacropath` is the compatibility fallback family.
-NVIDIA Dynamo is a deferred Stage-2 fabric family. None of these is
-an extra block, and none is the meaning of Foundation.
+**Adapters:** `NativeProcessExecutor` is the execution seam.
+`ManagedVllmProvisioner` installs pinned native vLLM for NVIDIA CUDA
+and AMD ROCm. Container executors are deferred (`M-5-01`). The
+compatibility fallback family is not implemented in this increment.
+NVIDIA Dynamo remains a deferred Stage-2 fabric family. None of these
+is an extra block, and none is the meaning of Foundation.
 
-**Product policy (when selection exists):** AUTO prefers supported and
-healthy vLLM, otherwise supported Ollama. Explicit vLLM or explicit
-Ollama fails closed when that path is unsupported. This policy is not
-implemented in the current spine.
+**Product policy:** AUTO selects supported native vLLM. If that path
+is unsupported, the result is a typed refusal. Explicit vLLM fails
+closed. The Ollama fallback is not substituted. Containers, system
+Python, and model download are outside this block.
 
 **Inputs:** HostProfile, CapacityEnvelope, HostMinimum PASS.  
 **Outputs:** FoundationSet, FoundationSelection, RuntimeInstallation,
@@ -861,11 +862,15 @@ equivalent.
 **Idempotence:** select AUTO stable given same inputs.  
 **Invalidated by:** envelope or host change.  
 **Recompute:** new FoundationSet; STALE plan.  
-**Telemetry:** funnel counts; selected vs recommended.  
-**Independent test:** execution ⟂ runtime; CONDITIONAL selectable.  
+**Telemetry:** `foundation.inspected`, `foundation.selected`.
+Operational only. No paths and no package credentials.  
+**Independent test:** CUDA and ROCm candidates share one resolver;
+inspection does not install; a failed import is not READY.  
 **Cumulative:** M0→M5.  
-**Lessons:** don’t copy foundations[0]; provisionable ≠ executable;
-Docker not mandatory.
+**Lessons:** the managed environment is not system Python; a verified
+generation is reused; Docker is not mandatory.
+
+See [M5.md](M5.md).
 
 ## 6 Model
 

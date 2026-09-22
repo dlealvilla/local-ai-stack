@@ -2491,6 +2491,23 @@ Retire when:  an explicit cleanup policy is authorized to delete a
               verified, unprotected, obsolete object
 Status:       OPEN
 
+### M-5-01 — Deferred foundation executors and engines
+Label:        DEFERRED
+Owner stage:  Foundation Tier 3
+Subsystem:    foundation
+Authorizes:   NO
+What:         ContainerExecutor (Docker and Podman), Kubernetes,
+              Apple/Metal vLLM, Intel, SGLang, TensorRT-LLM, llama.cpp,
+              MLX, Dynamo, air-gapped artifact bundles, binary mirrors,
+              automated upgrades, rollback, environment garbage
+              collection, and fleet-wide foundation orchestration.
+Why now:      This increment provisions one native vLLM generation for
+              CUDA or ROCm through NativeProcessExecutor. A later
+              container path must use the same Foundation semantics.
+Retire when:  a provider-selection decision names the executor or
+              engine and physical evidence accepts it
+Status:       OPEN
+
 ### S-STRAT-02 — Dynamo foundation family
 Label:        DEFERRED
 Owner stage:  Strategic Stage 2

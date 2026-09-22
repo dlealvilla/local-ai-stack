@@ -1370,6 +1370,35 @@ def main() -> int:
     if cap_at < 0 or str(root_a) in capacity.stdout[cap_at:]:
         raise SystemExit("capacity event leaked a path or was missing")
 
+    foundation = run(
+        [
+            str(machi),
+            "foundation",
+            "inspect",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(foundation.stdout, end="")
+    if '"event_type": "foundation.inspected"' not in foundation.stdout:
+        raise SystemExit("foundation did not inspect")
+    if '"privacy": "operational"' not in foundation.stdout:
+        raise SystemExit("foundation event was not operational")
+    if "mode     inspect_only" not in foundation.stdout:
+        raise SystemExit("foundation inspect mutated or provisioned")
+    if "engine   vllm" not in foundation.stdout:
+        raise SystemExit("foundation did not select vLLM")
+    if "ollama" in foundation.stdout.lower():
+        raise SystemExit("foundation substituted a fallback runtime")
+    if "huggingface" in foundation.stdout.lower():
+        raise SystemExit("foundation downloaded a model")
+    inspected_at = foundation.stdout.find('"event_type": "foundation.inspected"')
+    if inspected_at < 0 or str(root_a) in foundation.stdout[inspected_at:]:
+        raise SystemExit("foundation event leaked a path or was missing")
+
     print("verify_ok")
     return 0
 

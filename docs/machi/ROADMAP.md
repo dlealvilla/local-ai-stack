@@ -459,13 +459,11 @@ See [M4.md](M4.md).
 
 **Objective:** one selected, provisioned, verified execution
 foundation. `FoundationSelection` names the family and the engine.
-Native process is first-class. Docker is optional. Approved product
-policy, when this milestone exists: `VllmExecutionMacropath` is
-PRIMARY; `OllamaExecutionMacropath` is COMPATIBILITY / FALLBACK.
-AUTO prefers supported and healthy vLLM, otherwise supported Ollama.
-Explicit vLLM or Ollama fails closed when that path is unsupported.
-That policy is not a reason to skip this milestone or to invent a
-second selector. Dynamo stays a deferred Stage-2 family. None of
+Native process is first-class. Docker is optional and not implemented.
+`VllmExecutionMacropath` is PRIMARY. `OllamaExecutionMacropath` is the
+compatibility fallback and is not implemented here. AUTO selects
+supported native vLLM and otherwise returns a typed refusal. Explicit
+vLLM fails closed. Dynamo stays a deferred Stage-2 family. None of
 these paths own host or admission truth.
 
 **Inputs:** HostProfile, CapacityEnvelope, HostMinimumVerdict PASS.
@@ -473,14 +471,17 @@ these paths own host or admission truth.
 **Outputs:** `FoundationSet`, `FoundationSelection`,
 `RuntimeInstallation`, `RuntimeCapability`.
 
-**Telemetry:** `foundation.resolved`, `.selected`, `.verified`;
-funnel counts (COMPATIBLE+CONDITIONAL = feasible).
+**Telemetry:** `foundation.inspected`, `foundation.selected`.
+Operational only. No paths and no package credentials.
 
 **Local tests:** executor ⟂ runtime; CONDITIONAL product is
 selectable; container unsupported is FILTERED not selected.
 
-**Physical:** T3/T5-prep native vLLM install + verify on the reference
-NVIDIA host. llama.cpp/MLX may remain FUTURE.
+**Physical:** the same frozen candidate on one NVIDIA CUDA Linux host
+and one AMD ROCm Linux host. No model download and no server.
+llama.cpp/MLX remain deferred.
+
+See [M5.md](M5.md).
 
 **Cumulative:** M0 → M5.
 
@@ -674,8 +675,8 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M1 Install | KEEP | 1 | Install identity before host facts |
 | M2 Discover, including 2.4 Mounts and 2.5 PrerequisiteReadiness | KEEP | 1 | Host and mount truth; readiness is not discovery |
 | M3 Steward | KEEP | 1 | Ownership before capacity. Accepted at Tier 2 |
-| M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization. Next component |
-| M5 Foundation | MODIFY | 1 | `VllmExecutionMacropath` is PRIMARY. `OllamaExecutionMacropath` is the compatibility fallback. Not a second selector |
+| M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization. Accepted at Tier 2 |
+| M5 Foundation | MODIFY | 1 | Native vLLM is PRIMARY. CUDA and ROCm share one selection. The fallback runtime is not implemented |
 | M6 Model | KEEP | 1 | Catalog and artifact stay Kultrun-owned |
 | M7 Plan | KEEP | 1 | Plan is not admission and not launch |
 | M8 Admit | KEEP | 1 | ResourceManager remains the only admission authority |

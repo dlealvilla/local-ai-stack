@@ -11,7 +11,7 @@ import argparse
 import json
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from machi.adapters.capacity.native import NativeCapacity
@@ -19,6 +19,8 @@ from machi.adapters.discover.native_accelerator import NativeAcceleratorObserver
 from machi.adapters.discover.native_memory import NativeMemoryObserver
 from machi.adapters.discover.native_mount import NativeMountObserver
 from machi.adapters.discover.native_os_arch import NativeOSArchitectureObserver
+from machi.adapters.foundation.provision import ManagedVllmProvisioner
+from machi.adapters.foundation.uv_tool import ManagedUv
 from machi.adapters.journal.jsonl import JsonlJournal
 from machi.adapters.persistence.file_store import FileStore
 from machi.adapters.prerequisites.amd_smi import AmdSmiPrerequisiteAdapter
@@ -43,6 +45,10 @@ from machi.discover.ports import (
     MountObserver,
     OSArchitectureObserver,
 )
+from machi.foundation.contracts import FailureCode, FoundationSet, ProvisionMode
+from machi.foundation.events import foundation_events
+from machi.foundation.policy import BACKEND_CHOICES, default_foundation_settings
+from machi.foundation.resolve import resolve_candidate
 from machi.install.binder import StateRootBinder
 from machi.install.contracts import (
     InstallRecordEstablishment,
@@ -94,6 +100,7 @@ from machi.prerequisites.service import PrerequisiteReadiness
 from machi.steward.contracts import (
     GenerationHint,
     OccupancyMap,
+    OwnershipStatus,
     ProtectionHint,
 )
 from machi.steward.events import steward_events
@@ -655,6 +662,96 @@ def evaluate_capacity(
     return envelope, events, target
 
 
+def inspect_foundation(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    store_dir: Path | None,
+    journal_dir_path: Path | None,
+    mode: ProvisionMode,
+    backend: str,
+) -> tuple[FoundationSet, tuple[EventRecord, ...], Path | None]:
+    """Resolve native vLLM. Inspection does not install. Provision is explicit."""
+    validate_registry(module_prefix="machi.")
+    if explicit is None and environment is None:
+        raise ValidationError(
+            "foundation needs --state-root or MACHI_STATE_ROOT",
+        )
+    raw = explicit if explicit is not None else environment
+    assert raw is not None
+    root = str(Path(raw).expanduser().resolve())
+    store = FileStore(store_dir) if store_dir is not None else None
+    occupancy = NativeSteward((RootClaim(path=root),), store=store).assess()
+    memory = NativeMemoryObserver().observe()
+    accelerators = NativeAcceleratorObserver().observe()
+    mounts = NativeMountObserver().observe()
+    os_observation = NativeOSArchitectureObserver().observe()
+    parts = (
+        os_observation.observed_at.isoformat(),
+        memory.observed_at.isoformat(),
+        accelerators.observed_at.isoformat(),
+        mounts.observed_at.isoformat(),
+        occupancy.observed_at.isoformat(),
+    )
+    envelope = NativeCapacity(
+        memory=memory,
+        accelerators=accelerators,
+        mounts=mounts,
+        occupancy=occupancy,
+        evidence_id="cap_foundation",
+        input_parts=parts,
+    ).evaluate()
+    settings = default_foundation_settings(mode=mode, backend=backend)
+    candidate = resolve_candidate(
+        os_observation=os_observation,
+        accelerators=accelerators,
+        capacity=envelope,
+        backend=backend,
+        prerequisite_ready=None,
+    )
+    uv: str | Callable[[Path], str] = "uv"
+    if mode is ProvisionMode.PROVISION and candidate.failure is FailureCode.NONE:
+        owned = any(
+            resource.ownership is OwnershipStatus.VERIFIED_MACHI_OWNED
+            for resource in occupancy.resources
+        )
+        if not owned:
+            raise ValidationError(
+                "foundation provision requires a verified Machi-owned state root",
+            )
+        uv = ManagedUv().resolve
+    result = ManagedVllmProvisioner(uv_executable=uv).apply(
+        state_root=Path(root),
+        candidate=candidate,
+        settings=settings,
+        capacity_evidence_id=envelope.evidence_id,
+    )
+    install_id: Maybe[InstallId] | None = None
+    install_run_id: Maybe[InstallRunId] | None = None
+    if store is not None and occupancy.resources:
+        found = occupancy.resources[0].install_id
+        if isinstance(found, str):
+            install_id = InstallId(found)
+            try:
+                existing = store.get(InstallRunRecord, found)
+            except NotFoundError:
+                existing = None
+            if existing is not None:
+                install_run_id = existing.install_run_id
+    events = foundation_events(
+        result,
+        install_id=install_id,
+        install_run_id=install_run_id,
+    )
+    target = journal_dir_path
+    if target is None and (Path(root) / "journal").is_dir():
+        target = journal_dir(Path(root))
+    if target is not None:
+        journal = JsonlJournal(target)
+        events = tuple(journal.append(event) for event in events)
+    return result, events, target
+
+
 def evaluate_prerequisites(
     *,
     explicit: str | None,
@@ -1061,6 +1158,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     evaluate.add_argument("--state-root", default=None)
     evaluate.add_argument("--store-dir", default=None)
     evaluate.add_argument("--journal-dir", default=None)
+
+    foundation = sub.add_parser(
+        "foundation",
+        help="resolve or provision a managed native vLLM foundation",
+    )
+    foundation_sub = foundation.add_subparsers(dest="foundation_command", required=True)
+    foundation_inspect = foundation_sub.add_parser(
+        "inspect",
+        help="resolve support without installing",
+    )
+    foundation_provision = foundation_sub.add_parser(
+        "provision",
+        help="create or reuse a managed vLLM generation",
+    )
+    for foundation_command in (foundation_inspect, foundation_provision):
+        foundation_command.add_argument("--state-root", default=None)
+        foundation_command.add_argument("--store-dir", default=None)
+        foundation_command.add_argument("--journal-dir", default=None)
+        foundation_command.add_argument(
+            "--backend",
+            choices=list(BACKEND_CHOICES),
+            default="auto",
+        )
 
     readiness = sub.add_parser(
         "prerequisites",
@@ -1469,6 +1589,50 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"journal  {journal_shown}")
             _print_document(envelope)
             for event in capacity_events_out:
+                _print_document(event)
+            return 0
+        if ns.command == "foundation" and ns.foundation_command in {
+            "inspect",
+            "provision",
+        }:
+            mode = (
+                ProvisionMode.INSPECT_ONLY
+                if ns.foundation_command == "inspect"
+                else ProvisionMode.PROVISION
+            )
+            foundation_set, foundation_events_out, journal_target = inspect_foundation(
+                explicit=ns.state_root,
+                environment=_environment_override(),
+                store_dir=Path(ns.store_dir) if ns.store_dir else None,
+                journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+                mode=mode,
+                backend=ns.backend,
+            )
+            selection = foundation_set.selection
+            print(f"support  {selection.support.value}")
+            print(f"failure  {selection.failure.value}")
+            print(f"engine   {selection.engine.value}")
+            print(f"executor {selection.executor.value}")
+            print(f"backend  {_format_maybe(selection.backend)}")
+            print(f"mode     {foundation_set.settings.provision_mode.value}")
+            print(f"python   {foundation_set.settings.python_version}")
+            print(f"vllm     {foundation_set.settings.vllm_version}")
+            print(
+                "install  "
+                + (
+                    _format_maybe(foundation_events_out[0].install_id)
+                    if foundation_events_out
+                    else "unresolved(not_provided)"
+                )
+            )
+            journal_shown = (
+                str(JsonlJournal(journal_target).path)
+                if journal_target is not None
+                else "-"
+            )
+            print(f"journal  {journal_shown}")
+            _print_document(foundation_set)
+            for event in foundation_events_out:
                 _print_document(event)
             return 0
         if ns.command == "prerequisites" and ns.prerequisites_command == "check":

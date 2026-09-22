@@ -1065,6 +1065,593 @@
       }
     }
   },
+  "foundation.candidate@1": {
+    "python": "FoundationCandidate",
+    "fields": {
+      "candidate_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable id of this pin and backend"
+      },
+      "family": {
+        "type": "FoundationFamily",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "direct"
+      },
+      "engine": {
+        "type": "FoundationEngine",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "vllm"
+      },
+      "executor": {
+        "type": "ExecutorKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "native_process"
+      },
+      "backend": {
+        "type": "AcceleratorBackend | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "cuda or rocm when chosen"
+      },
+      "python_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "managed Python pin"
+      },
+      "vllm_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact vLLM version"
+      },
+      "package_spec": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact package requirement, not an open range"
+      },
+      "package_source": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "index or wheel source without secrets"
+      },
+      "support": {
+        "type": "SupportState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "resolution outcome before provision"
+      },
+      "failure": {
+        "type": "FailureCode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none when the candidate is usable"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this candidate was selected or refused"
+      }
+    }
+  },
+  "foundation.capability@1": {
+    "python": "RuntimeCapability",
+    "fields": {
+      "engine": {
+        "type": "FoundationEngine",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "vllm"
+      },
+      "version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective vLLM version"
+      },
+      "backend": {
+        "type": "AcceleratorBackend",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cuda or rocm"
+      },
+      "import_state": {
+        "type": "FeatureState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether import was verified"
+      },
+      "entrypoint_state": {
+        "type": "FeatureState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the module entry is present"
+      },
+      "server_launch": {
+        "type": "FeatureState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "serving is unsupported in this block"
+      },
+      "streaming": {
+        "type": "FeatureState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not proven by installing the package"
+      },
+      "structured_output": {
+        "type": "FeatureState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not proven without a model"
+      },
+      "lora": {
+        "type": "FeatureState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not proven without a model"
+      },
+      "metrics": {
+        "type": "FeatureState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not proven without a server"
+      }
+    }
+  },
+  "foundation.generation@1": {
+    "python": "ManagedGeneration",
+    "fields": {
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this environment generation"
+      },
+      "candidate_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "candidate this generation was built from"
+      },
+      "python_path": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "managed interpreter; not system Python"
+      },
+      "vllm_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "version recorded after verification"
+      },
+      "created_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the generation was recorded; UTC"
+      }
+    }
+  },
+  "foundation.inspected@1": {
+    "python": "FoundationInspectedPayload",
+    "fields": {
+      "support": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "support state"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed failure or none"
+      },
+      "backend": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cuda, rocm, or unresolved"
+      }
+    }
+  },
+  "foundation.requirement@1": {
+    "python": "FoundationRequirement",
+    "fields": {
+      "persistent_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "installed environment bytes, conservative"
+      },
+      "transient_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "peak extra bytes during install"
+      },
+      "minimum_memory_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "RAM ceiling required to provision"
+      }
+    }
+  },
+  "foundation.selected@1": {
+    "python": "FoundationSelectedPayload",
+    "fields": {
+      "selection_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "selection identity"
+      },
+      "engine": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "vllm"
+      },
+      "executor": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "native_process"
+      }
+    }
+  },
+  "foundation.selection@1": {
+    "python": "FoundationSelection",
+    "fields": {
+      "selection_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this decision"
+      },
+      "family": {
+        "type": "FoundationFamily",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "direct"
+      },
+      "engine": {
+        "type": "FoundationEngine",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "vllm"
+      },
+      "executor": {
+        "type": "ExecutorKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "native_process"
+      },
+      "backend": {
+        "type": "AcceleratorBackend | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "cuda or rocm when a candidate exists"
+      },
+      "support": {
+        "type": "SupportState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "support or failure state"
+      },
+      "failure": {
+        "type": "FailureCode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed failure or none"
+      },
+      "candidate_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "resolved candidate when one exists"
+      },
+      "generation_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "generation when reused or created"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "Capacity snapshot this decision consumed"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this selection was made"
+      }
+    }
+  },
+  "foundation.set@1": {
+    "python": "FoundationSet",
+    "fields": {
+      "selection": {
+        "type": "FoundationSelection",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "the macropath decision"
+      },
+      "candidate": {
+        "type": "FoundationCandidate | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "exact pin when resolved"
+      },
+      "requirement": {
+        "type": "FoundationRequirement",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "install footprint bound"
+      },
+      "generation": {
+        "type": "ManagedGeneration | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "environment when provisioned"
+      },
+      "verification": {
+        "type": "VerificationEvidence | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "import check when attempted"
+      },
+      "capability": {
+        "type": "RuntimeCapability | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "profile when verification passed"
+      },
+      "settings": {
+        "type": "FoundationSettings",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "policy used"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this set was produced; UTC"
+      }
+    }
+  },
+  "foundation.setting@1": {
+    "python": "FoundationSetting",
+    "fields": {
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dotted setting name"
+      },
+      "value": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "current value as text"
+      },
+      "provenance": {
+        "type": "SettingProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who selected this value"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this value is in force"
+      },
+      "allowed_values": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compact allowed values"
+      },
+      "support_state": {
+        "type": "SettingSupport",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the setting is usable"
+      },
+      "mutability": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime or restart_required"
+      },
+      "invalidation": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what must be recomputed if this changes"
+      }
+    }
+  },
+  "foundation.settings@1": {
+    "python": "FoundationSettings",
+    "fields": {
+      "python_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "managed interpreter version, not system Python"
+      },
+      "vllm_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact vLLM version pin"
+      },
+      "executor": {
+        "type": "ExecutorKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "native process; containers are deferred"
+      },
+      "backend": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "auto, cuda, or rocm"
+      },
+      "provision_mode": {
+        "type": "ProvisionMode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspect, plan, or provision"
+      },
+      "environment_root_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "generations live under the owned root"
+      },
+      "reuse_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reuse a verified generation; do not mutate it"
+      },
+      "timeout_seconds": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bound on one process invocation"
+      },
+      "settings": {
+        "type": "tuple[FoundationSetting, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspectable records"
+      }
+    }
+  },
+  "foundation.verification@1": {
+    "python": "VerificationEvidence",
+    "fields": {
+      "passed": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "true only when the minimum checks passed"
+      },
+      "observed_version": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "vLLM version the interpreter reported"
+      },
+      "failure": {
+        "type": "FailureCode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verification_failed, timeout, or none"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "which check passed or failed"
+      }
+    }
+  },
   "install.bound@1": {
     "python": "InstallBoundPayload",
     "fields": {

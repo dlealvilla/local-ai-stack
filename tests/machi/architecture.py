@@ -20,6 +20,7 @@ TIERS: dict[str, int] = {
     "prerequisites": 2,
     "steward": 2,
     "capacity": 2,
+    "foundation": 2,
     "adapters": 3,
     "main": 4,
 }
@@ -42,6 +43,13 @@ CROSS_IMPORT_FORBIDDEN: frozenset[tuple[str, str]] = frozenset(
         ("install", "capacity"),
         ("prerequisites", "capacity"),
         ("capacity", "prerequisites"),
+        ("capacity", "foundation"),
+        ("discover", "foundation"),
+        ("steward", "foundation"),
+        ("kernel", "foundation"),
+        ("install", "foundation"),
+        ("prerequisites", "foundation"),
+        ("foundation", "prerequisites"),
     }
 )
 
@@ -49,7 +57,6 @@ FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
 FUTURE_PACKAGES = frozenset(
     {
-        "foundation",
         "model",
         "plan",
         "admit",
@@ -1155,6 +1162,45 @@ def capacity_boundary_violations(root: Path) -> list[str]:
     main_text = (root / "main.py").read_text(encoding="utf-8")
     if "NativeCapacity" not in main_text:
         found.append("composition must wire NativeCapacity")
+    return found
+
+
+FOUNDATION_DOMAIN_FORBIDDEN = (
+    "docker",
+    "ollama",
+    "huggingface",
+    "subprocess",
+    "resourcemanager",
+    "from machi.adapters",
+    "from machi.prerequisites",
+)
+
+
+def foundation_boundary_violations(root: Path) -> list[str]:
+    """Foundation resolves and verifies vLLM. It does not serve or download models."""
+    found: list[str] = []
+    domain = root / "foundation"
+    if not domain.is_dir():
+        return ["foundation domain is missing"]
+    for path in sorted(domain.rglob("*.py")):
+        text = path.read_text(encoding="utf-8").lower()
+        for token in FOUNDATION_DOMAIN_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    process = root / "adapters" / "foundation" / "process.py"
+    if "subprocess" not in process.read_text(encoding="utf-8"):
+        found.append("native process runner must own subprocess")
+    if "shell=True" in process.read_text(encoding="utf-8"):
+        found.append("native process runner must not use a shell")
+    provision_path = root / "adapters" / "foundation" / "provision.py"
+    provision = provision_path.read_text(encoding="utf-8")
+    if "api_server" in provision and "entrypoints" not in provision:
+        found.append("verification must not launch a server")
+    if "NativeProcessRunner" not in provision:
+        found.append("provisioning must use the native process runner")
+    main_text = (root / "main.py").read_text(encoding="utf-8")
+    if "def inspect_foundation" not in main_text:
+        found.append("composition must expose foundation inspection")
     return found
 
 

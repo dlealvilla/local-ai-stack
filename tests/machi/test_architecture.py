@@ -6,6 +6,7 @@ from tests.machi.architecture import (
     binder_ownership_violations,
     capacity_boundary_violations,
     discover_boundary_violations,
+    foundation_boundary_violations,
     identity_boundary_violations,
     journal_port_violations,
     kernel_policy_violations,
@@ -79,6 +80,10 @@ def test_accelerator_observer_stays_inside_observation() -> None:
 
 def test_capacity_derives_envelopes_without_admission() -> None:
     assert capacity_boundary_violations(source_root()) == []
+
+
+def test_foundation_verifies_vllm_without_serving() -> None:
+    assert foundation_boundary_violations(source_root()) == []
 
 
 def test_steward_classifies_without_deletion_or_admission() -> None:
