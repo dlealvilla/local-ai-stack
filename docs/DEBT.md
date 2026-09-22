@@ -2491,6 +2491,22 @@ Retire when:  an explicit cleanup policy is authorized to delete a
               verified, unprotected, obsolete object
 Status:       OPEN
 
+### M-4-03 — File and driver bind mounts as storage domains
+Label:        DEFERRED
+Owner stage:  Capacity Tier 3
+Subsystem:    capacity
+Authorizes:   NO
+What:         A GPU container can publish more than a hundred distinct
+              tmpfs and driver-file mounts. They remain separate
+              domains when their backing ids differ. The envelope cap
+              is 512, matching the mount observation cap.
+Why now:      Collapsing those mounts would hide topology the host
+              actually reported. Foundation only needs one usable
+              domain large enough for the managed environment.
+Retire when:  a later storage class distinguishes driver file binds
+              from planning domains without dropping real tmpfs
+Status:       OPEN
+
 ### M-5-01 — Deferred foundation executors and engines
 Label:        DEFERRED
 Owner stage:  Foundation Tier 3

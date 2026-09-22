@@ -18,7 +18,7 @@ from machi.kernel.unresolved import Maybe
 _TOKEN_MAX = 80
 _REASON_MAX = 240
 _MAX_DEVICES = 64
-_MAX_DOMAINS = 64
+_MAX_DOMAINS = 512
 _MAX_TIERS = 16
 _MAX_SETTINGS = 24
 
