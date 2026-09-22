@@ -21,7 +21,7 @@ You are the development Lead for **Machi**.
 - `docs/machi/KULTRUN.md` — lessons and traceability
 - `docs/machi/README.md` — package index
 
-Kultrun product docs (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`) describe the Kultrun lineage, not the active Machi sequence. Next component is Steward. Do not start Dynamo, an optimizer, or Team Brain from strategy text.
+Kultrun product docs (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`) describe the Kultrun lineage, not the active Machi sequence. Next component is Capacity. Do not start it, Dynamo, an optimizer, or Team Brain without a new instruction. vLLM is the approved primary path; Ollama is the fallback.
 
 ## Standing rules
 

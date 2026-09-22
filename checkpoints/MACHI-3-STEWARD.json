@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "name": "machi-3-steward",
+  "work_token": "MACHI-3-STEWARD",
+  "status": "closed",
+  "semantic_meaning": "Steward Tier 2 classifies caller-supplied roots by dual proof, lifecycle, protection, occupancy, and reclaimability. A reclaimable result is a candidate. Steward does not delete and does not compute SAFE storage.",
+  "qualification_state": "steward_physical_pass",
+  "estimated_behavior_coverage": 0.92,
+  "target_met": true,
+  "branch": "m3/steward",
+  "implementation_commit": "785a7658ba73b25e4bafb33686fb0ec4761df244",
+  "artifact_sha256": "a9234b697ef659ebcebdcab446ac36b30b1408d55f9b259e5a6231ef35f681e9",
+  "build_id": "0.1.0+785a7658ba73",
+  "lab_candidate_id": "cand_a29dd524251ae6c7",
+  "lab_campaign_id": "camp_611b40f4f3d82d84",
+  "lab_checkpoint_id": "chk_22e9eec9041d5317",
+  "strategy_commit": "dedf801628bee6479b815a6e058e948721b8aa53",
+  "canonical_machi": "1db764607a5806d080cc138932002760bad113ad",
+  "predecessor_2_4_checkpoint": "b1310417706af1ec73dbcc2ecd4877c1d54e4653",
+  "package": "docs/machi/M3-PHYSICAL.md",
+  "pod_id": null,
+  "tests": {
+    "A": {"axis": "verified owned active protected root", "status": "PASS"},
+    "B": {"axis": "copied marker fails closed", "status": "PASS"},
+    "C": {"axis": "obsolete unprotected reclaim candidate, not deleted", "status": "PASS"},
+    "D": {"axis": "symlink escape and hard link", "status": "PASS"},
+    "E": {"axis": "legacy unlabelled marker preserved", "status": "PASS"}
+  }
+}
