@@ -51,6 +51,8 @@ class NativeProcessRunner:
                 check=False,
                 env=dict(env) if env is not None else None,
             )
+        except FileNotFoundError:
+            return ProcessResult(returncode=127, stdout="", timed_out=False)
         except subprocess.TimeoutExpired as exc:
             stdout = exc.stdout or ""
             if isinstance(stdout, bytes):

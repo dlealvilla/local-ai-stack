@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from machi.adapters.foundation.host_runtime import observe_host_runtime
-from machi.adapters.foundation.process import ProcessResult
+from machi.adapters.foundation.process import NativeProcessRunner, ProcessResult
 from machi.adapters.foundation.provision import ManagedVllmProvisioner
 from machi.capacity.compose import compose_envelope
 from machi.capacity.contracts import CapacityEnvelope
@@ -280,6 +280,22 @@ def test_library_scan_records_a_managed_prefix(tmp_path: Path) -> None:
     assert facts.accelerator_architecture == "gfx942"
     assert facts.present_libraries == frozenset(ROCM700_LIBS)
     assert facts.library_prefix == str(lib)
+
+
+def test_missing_rocminfo_does_not_crash_inspection(tmp_path: Path) -> None:
+    result = NativeProcessRunner().run(
+        [str(tmp_path / "rocminfo")],
+        cwd=str(tmp_path),
+        timeout=5,
+    )
+    assert result.returncode == 127
+    assert result.timed_out is False
+    facts = observe_host_runtime(
+        library_roots=(),
+        glibc_text="2.35",
+        rocminfo_text="",
+    )
+    assert facts.accelerator_architecture is None
 
 
 def test_explicit_rocm_on_nvidia_fails_closed() -> None:
