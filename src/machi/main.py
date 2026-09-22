@@ -16,6 +16,7 @@ from pathlib import Path
 
 from machi.adapters.discover.native_accelerator import NativeAcceleratorObserver
 from machi.adapters.discover.native_memory import NativeMemoryObserver
+from machi.adapters.discover.native_mount import NativeMountObserver
 from machi.adapters.discover.native_os_arch import NativeOSArchitectureObserver
 from machi.adapters.journal.jsonl import JsonlJournal
 from machi.adapters.persistence.file_store import FileStore
@@ -28,11 +29,14 @@ from machi.discover.contracts import (
 from machi.discover.events import (
     accelerator_observed,
     memory_observed,
+    mounts_observed,
     os_arch_observed,
 )
+from machi.discover.mount_contracts import MountObservation, WriteProbePolicy
 from machi.discover.ports import (
     AcceleratorObserver,
     MemoryObserver,
+    MountObserver,
     OSArchitectureObserver,
 )
 from machi.install.binder import StateRootBinder
@@ -474,6 +478,68 @@ def observe_accelerator(
     return observation, event, event.install_id, event.install_run_id, target
 
 
+def observe_mounts(
+    *,
+    explicit: str | None,
+    environment: str | None,
+    store_dir: Path | None,
+    journal_dir_path: Path | None,
+    write_probe: bool = False,
+    observer: MountObserver | None = None,
+) -> tuple[
+    MountObservation,
+    EventRecord,
+    Maybe[InstallId],
+    Maybe[InstallRunId],
+    Path | None,
+]:
+    """Observe mount topology. Re-enter M1 when a Store is supplied.
+
+    Does not mint HostId, does not persist a HostProfile, does not rewrite
+    predecessor events, and does not compute SAFE storage.
+    """
+    validate_registry(module_prefix="machi.")
+    if store_dir is not None and explicit is None and environment is None:
+        raise ValidationError(
+            "discover mounts needs --state-root or MACHI_STATE_ROOT when "
+            "a control-plane Store is supplied",
+        )
+    install_id: Maybe[InstallId] | None = None
+    install_run_id: Maybe[InstallRunId] | None = None
+    binding_root: Path | None = None
+    if store_dir is not None:
+        binding = StateRootBinder().bind(explicit=explicit, environment=environment)
+        establishment = SelfOwnershipMarker().establish(binding)
+        store = FileStore(store_dir)
+        seeded = RegistrySeed().seed(binding, establishment, store)
+        established = InstallIdentity().establish(
+            binding, establishment, seeded, store, build_identity()
+        )
+        run = InstallRunStore().establish(established.record, store, build_identity())
+        install_id = established.record.install_id
+        install_run_id = run.record.install_run_id
+        binding_root = Path(binding.root)
+        _warn_if_defaulted(binding)
+    selected = observer
+    if selected is None:
+        policy = WriteProbePolicy.BOUNDED if write_probe else None
+        selected = NativeMountObserver(write_probe_policy=policy)
+    observation = selected.observe()
+    event = mounts_observed(
+        observation,
+        install_id=install_id,
+        install_run_id=install_run_id,
+    )
+    target: Path | None = None
+    if journal_dir_path is not None:
+        target = journal_dir_path
+    elif binding_root is not None:
+        target = journal_dir(binding_root)
+    if target is not None:
+        event = JsonlJournal(target).append(event)
+    return observation, event, event.install_id, event.install_run_id, target
+
+
 def evaluate_prerequisites(
     *,
     explicit: str | None,
@@ -810,6 +876,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="journal directory; defaults to <state-root>/journal when Store is set",
     )
+    mounts = discover_sub.add_parser(
+        "mounts",
+        help="observe filesystem/mount topology; not SAFE storage capacity",
+    )
+    mounts.add_argument(
+        "--state-root",
+        default=None,
+        help="explicit state root used only to re-enter M1 correlation",
+    )
+    mounts.add_argument(
+        "--store-dir",
+        default=None,
+        help="injected control-plane Store; required to resolve InstallId/InstallRunId",
+    )
+    mounts.add_argument(
+        "--journal-dir",
+        default=None,
+        help="journal directory; defaults to <state-root>/journal when Store is set",
+    )
+    mounts.add_argument(
+        "--write-probe",
+        action="store_true",
+        help="enable a tiny observational write probe; never fill-until-failure",
+    )
 
     readiness = sub.add_parser(
         "prerequisites",
@@ -1106,6 +1196,48 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(f"journal  {journal_shown}")
             _print_document(accelerator_observation)
+            _print_document(event)
+            return 0
+        if ns.command == "discover" and ns.discover_command == "mounts":
+            mount_observation, event, install_id, install_run_id, journal_target = (
+                observe_mounts(
+                    explicit=ns.state_root,
+                    environment=_environment_override(),
+                    store_dir=Path(ns.store_dir) if ns.store_dir else None,
+                    journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+                    write_probe=ns.write_probe,
+                )
+            )
+            print(f"entries  {len(mount_observation.entries)}")
+            print(f"status   {mount_observation.status.value}")
+            print(f"observer {mount_observation.observer}")
+            print(f"provider {mount_observation.provider}")
+            print(f"ns       {mount_observation.namespace_context.value}")
+            print(f"invalid  {mount_observation.invalid_record_count}")
+            print(f"probe    {mount_observation.settings.write_probe_policy.value}")
+            for entry in mount_observation.entries:
+                print(
+                    "mount    "
+                    f"{entry.mount_id} "
+                    f"{entry.mount_point} "
+                    f"{entry.filesystem_type or '-'} "
+                    f"{entry.access_mode.value} "
+                    f"{entry.storage_class.value} "
+                    f"{_format_maybe(entry.backing_store_id)} "
+                    f"total={_format_maybe(entry.reported_capacity.total_bytes)} "
+                    f"free={_format_maybe(entry.reported_capacity.free_bytes)} "
+                    f"avail={_format_maybe(entry.reported_capacity.available_bytes)}"
+                )
+            print(f"install  {_format_maybe(install_id)}")
+            print(f"run      {_format_maybe(install_run_id)}")
+            print(f"host     {_format_maybe(event.host_id)}")
+            journal_shown = (
+                str(JsonlJournal(journal_target).path)
+                if journal_target is not None
+                else "-"
+            )
+            print(f"journal  {journal_shown}")
+            _print_document(mount_observation)
             _print_document(event)
             return 0
         if ns.command == "prerequisites" and ns.prerequisites_command == "check":

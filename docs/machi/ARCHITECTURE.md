@@ -244,7 +244,7 @@ Recompute (not a second pipeline) is Diagram E.
 |---|---|---|---|---|---|---|---|
 | 0 | Kernel | Mechanisms, events, witness | 0.1–0.7 | store, disabled export | none | EventRecord, Witness | `kernel.alive` |
 | 1 | Install | This copy on this disk | 1.1–1.4 | none at v0 | artifact | `StateRootBinding` (1.2.1); `LocalOwnershipEstablishment` (1.3.1; not dual proof); later InstallRecord, InstallRun, registry (1.3.2) | `install.state_root.bound` (1.2.1); `install.ownership.local_marked` (1.3.1); `install.bound` (1.4.1) |
-| 2 | Discover | Observe the machine | 2.1–2.4 | OS/arch, memory, NVIDIA/AMD/Apple accelerators, later mounts | InstallRecord | HostProfile | `discover.completed` |
+| 2 | Discover | Observe the machine | 2.1–2.4 | OS/arch, memory, NVIDIA/AMD/Apple accelerators, Linux/macOS mounts | InstallRecord | HostProfile | `discover.completed` |
 | 2.5 | PrerequisiteReadiness | Are selected environment prerequisites usable? | 2.5.1 | vendor-CLI adapters (first: AMD `amd-smi`) | policy + host environment | `PrerequisiteReadinessReport` | `prerequisite.*` |
 | 3 | Steward | Own, classify, reclaim | 3.1–3.3 | filesystem markers | HostProfile | OccupancyMap, ReclaimResult | `steward.*` |
 | 4 | Capacity | What may be consumed | 4.1–4.6 | posix, fuse, quota, sonar writer | OccupancyMap | CapacityEnvelope, HostMinimumVerdict | `capacity.*` |
@@ -492,12 +492,12 @@ provenance.
 | `2.2.1` | Memory observer | Observe reported physical/system memory in bytes | accepted |
 | `2.3` | Accelerator Discovery | Generic accelerator observation capability | NVIDIA+AMD implemented locally; physical pending for this candidate |
 | `2.3.1` | Native accelerator observer | Generic port + provider orchestration | NVIDIA, AMD, retained Apple; Intel out |
-| `2.4.1` | Mount enumerator | Filesystem mounts | later |
+| `2.4.1` | Mount enumerator | Filesystem/mount topology | implemented locally; physical later |
 
 Working implementation order: `2.1.1` → `2.2.1` → `2.3` (generic +
-NVIDIA and AMD accepted providers; Apple retained) → `2.4.1`. OS/arch
-before memory before accelerators before mounts. HostProfile aggregation
-waits until enough observations exist. `2.3` is the generic accelerator
+NVIDIA and AMD accepted providers; Apple retained) → `2.5.1` →
+`2.4.1`. OS/arch before memory before accelerators before mounts.
+HostProfile aggregation waits until enough observations exist. `2.3` is the generic accelerator
 capability. `2.3.1` is the native observer (orchestration), matching
 `2.2.1`. NVIDIA, AMD, and Apple are providers under it, not the
 capability model. Intel remains unimplemented.
@@ -515,23 +515,36 @@ capability model. Intel remains unimplemented.
   Historical NVIDIA physical PASS does not qualify a later NVIDIA+AMD
   wheel. Apple physical remains deferred. Intel is unimplemented. This is
   not safe GPU memory.
-- `2.1.1` / `2.2.1` / `2.3` do **not** mint HostId, persist HostProfile,
-  enumerate mounts, or decide support/capacity.
+- `2.4.1` observes filesystem/mount topology through a replaceable
+  observer. Core owns `MountObservation`. The native observer selects
+  a Linux or macOS provider. Windows is unsupported, not zero. Reported
+  total/free/available bytes, a tiny write probe, and SAFE deployable
+  capacity remain distinct. Backing identity is recorded when the
+  platform exposes it and stays `Unresolved` when it does not.
+  Classification is provider-owned and is not a safety label.
+  Suitability signals are descriptive, not admission.
+- `2.1.1` / `2.2.1` / `2.3` / `2.4.1` do **not** mint HostId, persist
+  HostProfile, infer Steward ownership from path names, or compute
+  SAFE capacity.
 - Unknown is not defaulted. Missing measurements stay unobserved.
   Unknown is never emitted as `0`. Unavailable tooling is not a
   measured empty device list.
 - Discover events may carry resolved `install_id` and `install_run_id`
   from composition after M1. `host_id` stays unresolved.
 - Observation is not mutation. Adapters must not write `/etc`, change
-  swap, tune cgroups, allocate probe buffers, install packages, or
-  change GPU persistence/MIG/power. Discover must not import
-  PrerequisiteReadiness.
+  swap, tune cgroups, remount, fill a filesystem, or change GPU
+  persistence/MIG/power. A tiny exclusive Machi-owned temp write with
+  guaranteed cleanup may be used as observational path evidence when
+  explicitly enabled; it is not Storage Sonar. Discover must not
+  import PrerequisiteReadiness, Steward, or Capacity.
 
 **Adapters:** native OS/arch (accepted); native memory observer with
 Linux and macOS providers (accepted); native accelerator observer with
 NVIDIA, AMD, and retained Apple providers (NVIDIA+AMD physically
-covered on SHA `eaee5c98…`). Intel later. Adapters observe; they do not
-decide models. They do not remediate.
+covered on SHA `eaee5c98…`); native mount observer with Linux and
+macOS providers (this increment). Intel later. Windows mount reader
+later. Adapters observe; they do not decide models. They do not
+remediate.
 
 **Inputs:** optional InstallRecord / InstallRun correlation from
 composition; Memory and Accelerator compose OS family from 2.1.1 for
@@ -567,6 +580,50 @@ cgroup/execution limits remain deferred.
 **Deferred:** available memory, swap, cgroup/execution memory limit,
 Windows native reader. Reconsider at HostProfile / Capacity, not by
 silently treating `MemTotal` as the admission ceiling.
+
+## 2.4 Mounts
+
+**ID:** 2.4  
+**Name:** Mounts  
+**Purpose:** Observe storage/mount topology visible to this process.
+Never authorize. Never compute SAFE storage.  
+**Short Description:** mount table, reported capacity, backing
+identity, path capability, descriptive candidacy.
+
+**Approved Components:**
+
+| ID | Name | Role | Status |
+|---|---|---|---|
+| `2.4.1` | Mount enumerator | Observe filesystem/mount topology through a replaceable adapter | implemented locally; physical later |
+
+- Core owns `MountObservation`. Linux and macOS providers classify
+  filesystems. Windows is unsupported, not zero.
+- Reported `total_bytes`, `free_bytes`, and `available_bytes` stay
+  distinct. None of them is proven writable capacity. None is SAFE.
+- Backing-store identity is `dev:major:minor` (Linux) or `fsid:a:b`
+  (macOS) when the platform exposes a non-zero identifier;
+  `Unresolved` otherwise. Overlay is classified overlay; host-backing
+  reconciliation is later.
+- Native quota specialists are not read. Quota options may be
+  advertised-but-unread (`unavailable`). That is not a zero quota.
+- Default write probe is off. When enabled, the payload is tiny,
+  Machi-owned, exclusive, fsync'd, and deleted. Success means this
+  path accepted that payload.
+- Discover does not walk customer directories, remount, reclaim, or
+  infer ownership from names such as `/models`.
+- Typed inspectable settings travel with the observation.
+  `MEANINGFUL_SETTINGS_REMAIN_TYPED_AND_INSPECTABLE=YES`.
+
+**Inputs:** optional InstallRecord / InstallRun correlation; OS family
+from 2.1.1 for provider selection. Does not consume Steward or
+Capacity.  
+**Outputs:** `MountObservation`; event `discover.mounts.observed`.  
+**State owned:** none.  
+**Persistence:** event only.  
+**Downstream:** Steward occupancy; Capacity pool identity. Neither
+may treat reported free bytes as SAFE.  
+**Telemetry:** `discover.mounts.observed` (privacy `operational`).  
+See [M2-2.4.1.md](M2-2.4.1.md).
 
 ## 2.5 PrerequisiteReadiness
 
@@ -947,7 +1004,7 @@ cleanup on stop.
     2.3.1 Native accelerator observer (local)
     NVIDIA, AMD, and retained Apple providers under 2.3.1; Intel out
   2.4 Mounts
-    2.4.1 Mount enumerator
+    2.4.1 Mount enumerator (Linux + macOS; Windows unsupported)
   2.5 PrerequisiteReadiness
     2.5.1 PrerequisiteReadiness (generic cycle; Discover stays read-only)
     AmdSmiPrerequisiteAdapter under 2.5.1; not a Discover observer

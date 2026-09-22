@@ -98,7 +98,7 @@ entity.
 | `PrerequisiteReadinessReport` | 2.5.1 orchestration | CLI, later composition | Readiness | no | before/after readiness; inspectable settings; mutated flag |
 | `HostObservation` | 2 adapters | Discover | Observation | optional raw | adapter name, tool version |
 | `HostProfile` | 2 Discover | Capacity, Foundation, Admit | Profile | yes | observation IDs |
-| `MountObservation` | 2.4 | Capacity | Observation | yes | path, fs type, reported free flagged |
+| `MountObservation` | 2.4.1 Mount enumerator | Discover events; later Steward / Capacity | Observation | no | mount topology; reported total/free/available flagged as not SAFE; backing identity or Unresolved; not ownership |
 | `OwnershipRecord` | 3.1 | Steward, reclaim | Inventory | yes | dual proof (local marker **and** registry). Not the 1.3.1 contract. |
 | `OccupancyMap` | 3.2 | Steward, Capacity remaining | Inventory | yes | classifier version |
 | `ReclaimPlan` / `ReclaimResult` | 3.3 | Capacity recharacterize | Inventory | yes | dual-owned roots only |

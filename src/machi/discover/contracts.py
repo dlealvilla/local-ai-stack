@@ -2,8 +2,8 @@
 
 ``OSArchitectureObservation`` is the 2.1.1 output. ``MemoryObservation``
 is the 2.2.1 output. ``AcceleratorObservation`` is the 2.3 output.
-None is a HostId, a support certificate, a HostProfile, or a capacity
-envelope.
+``MountObservation`` is the 2.4.1 output. None is a HostId, a support
+certificate, a HostProfile, or a capacity envelope.
 """
 
 from __future__ import annotations

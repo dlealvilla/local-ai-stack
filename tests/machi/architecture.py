@@ -483,6 +483,19 @@ DISCOVER_DOMAIN_FORBIDDEN = (
     "parse_nvidia_smi_csv",
     "parse_amd_smi_json",
     "parse_apple_displays_json",
+    "parse_linux_mountinfo",
+    "getfsstat",
+    "LinuxMountProvider",
+    "MacOSMountProvider",
+    "linux_mount",
+    "macos_mount",
+    "umount",
+    "os.walk",
+    "SAFE_STORAGE_BYTES",
+    "ResourceManager",
+    "ServingConfiguration",
+    "OccupancyMap",
+    "OwnershipRecord",
 )
 
 NATIVE_OS_ARCH_FORBIDDEN = (
@@ -630,6 +643,71 @@ APPLE_PROVIDER_FORBIDDEN = (
     "SC_PHYS_PAGES",
 )
 
+NATIVE_MOUNT_FORBIDDEN = (
+    "subprocess",
+    "nvidia-smi",
+    "amd-smi",
+    "parse_linux_mountinfo",
+    "getfsstat",
+    "HostId.generate",
+    "FileStore",
+    "from machi.install",
+    "from machi.prerequisites",
+    "psutil",
+    "SAFE_STORAGE_BYTES",
+    "umount",
+    "os.walk",
+    "shutil.rmtree",
+    "ResourceManager",
+    "ServingConfiguration",
+    "OccupancyMap",
+)
+
+LINUX_MOUNT_FORBIDDEN = (
+    "subprocess",
+    "shell=True",
+    "nvidia-smi",
+    "HostId.generate",
+    "FileStore",
+    "from machi.install",
+    "from machi.prerequisites",
+    "psutil",
+    "SAFE_STORAGE_BYTES",
+    "umount",
+    "os.walk",
+    "shutil.rmtree",
+    "ResourceManager",
+    "ServingConfiguration",
+    "os.system",
+)
+
+MACOS_MOUNT_FORBIDDEN = (
+    "/proc/self/mountinfo",
+    "subprocess",
+    "shell=True",
+    "nvidia-smi",
+    "HostId.generate",
+    "FileStore",
+    "from machi.install",
+    "SAFE_STORAGE_BYTES",
+    "umount",
+    "os.walk",
+    "shutil.rmtree",
+    "ResourceManager",
+    "ServingConfiguration",
+)
+
+MOUNT_PROBE_FORBIDDEN = (
+    "os.walk",
+    "rglob(",
+    "umount",
+    "SAFE_STORAGE_BYTES",
+    "ENOSPC",
+    "EDQUOT",
+    "shutil.rmtree",
+    "ResourceManager",
+)
+
 
 def discover_boundary_violations(root: Path) -> list[str]:
     """Discover domain owns contracts; native adapters own host I/O."""
@@ -737,6 +815,58 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append("Apple provider must own JSON parsing")
     if "UNIFIED" not in apple_text:
         found.append("Apple provider must represent unified memory topology")
+    mount_adapter = root / "adapters" / "discover" / "native_mount.py"
+    if not mount_adapter.exists():
+        found.append("native mount observer is missing")
+    else:
+        mount_text = mount_adapter.read_text(encoding="utf-8")
+        for token in NATIVE_MOUNT_FORBIDDEN:
+            if token in mount_text:
+                found.append(f"{mount_adapter.name} must not contain {token!r}")
+        if "LinuxMountProvider" not in mount_text:
+            found.append("native mount observer must compose LinuxMountProvider")
+        if "MacOSMountProvider" not in mount_text:
+            found.append("native mount observer must compose MacOSMountProvider")
+        if "parse_linux_mountinfo" in mount_text:
+            found.append("native mount observer must not parse the Linux mount table")
+    linux_mount = root / "adapters" / "discover" / "linux_mount.py"
+    if not linux_mount.exists():
+        found.append("Linux mount provider is missing")
+    else:
+        linux_mount_text = linux_mount.read_text(encoding="utf-8")
+        for token in LINUX_MOUNT_FORBIDDEN:
+            if token in linux_mount_text:
+                found.append(f"{linux_mount.name} must not contain {token!r}")
+        if "/proc/self/mountinfo" not in linux_mount_text:
+            found.append("Linux mount provider must read the process mount table")
+        if "parse_linux_mountinfo" not in linux_mount_text:
+            found.append("Linux mount provider must own mount-table parsing")
+        if "classify_linux_filesystem" not in linux_mount_text:
+            found.append("Linux mount provider must own filesystem classification")
+    macos_mount = root / "adapters" / "discover" / "macos_mount.py"
+    if not macos_mount.exists():
+        found.append("macOS mount provider is missing")
+    else:
+        macos_mount_text = macos_mount.read_text(encoding="utf-8")
+        for token in MACOS_MOUNT_FORBIDDEN:
+            if token in macos_mount_text:
+                found.append(f"{macos_mount.name} must not contain {token!r}")
+        if "getfsstat" not in macos_mount_text:
+            found.append("macOS mount provider must use native mount statistics")
+        if "classify_darwin_filesystem" not in macos_mount_text:
+            found.append("macOS mount provider must own filesystem classification")
+    mount_probe = root / "adapters" / "discover" / "mount_probe.py"
+    if not mount_probe.exists():
+        found.append("bounded mount probe helper is missing")
+    else:
+        probe_text = mount_probe.read_text(encoding="utf-8")
+        for token in MOUNT_PROBE_FORBIDDEN:
+            if token in probe_text:
+                found.append(f"{mount_probe.name} must not contain {token!r}")
+        if "O_EXCL" not in probe_text:
+            found.append("bounded write probe must create an exclusive temp file")
+        if ".machi-mount-probe-" not in probe_text:
+            found.append("bounded write probe must use a Machi-owned temp name")
     kernel_text = "\n".join(
         p.read_text(encoding="utf-8") for p in (root / "kernel").rglob("*.py")
     )
@@ -746,6 +876,8 @@ def discover_boundary_violations(root: Path) -> list[str]:
         found.append("Kernel must not import MemoryObservation")
     if "AcceleratorObservation" in kernel_text:
         found.append("Kernel must not import AcceleratorObservation")
+    if "MountObservation" in kernel_text:
+        found.append("Kernel must not import MountObservation")
     install_text = "\n".join(
         p.read_text(encoding="utf-8") for p in (root / "install").rglob("*.py")
     )
@@ -762,6 +894,16 @@ def discover_boundary_violations(root: Path) -> list[str]:
         )
     if "NativeAcceleratorObserver" not in main_text:
         found.append("composition must wire NativeAcceleratorObserver")
+    if "NativeMountObserver" not in main_text:
+        found.append("composition must wire NativeMountObserver")
+    if "LinuxMountProvider" in main_text:
+        found.append(
+            "composition must wire NativeMountObserver, not LinuxMountProvider"
+        )
+    if "MacOSMountProvider" in main_text:
+        found.append(
+            "composition must wire NativeMountObserver, not MacOSMountProvider"
+        )
     if "NvidiaAcceleratorProvider" in main_text:
         found.append(
             "composition must wire NativeAcceleratorObserver, "

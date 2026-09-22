@@ -1,4 +1,4 @@
-"""Install a Machi wheel into a throwaway environment and prove M0 through 2.5.1.
+"""Install a Machi wheel into a throwaway environment and prove M0 through 2.4.1.
 
 python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl
 """
@@ -1181,6 +1181,71 @@ def main() -> int:
     if "$unresolved" not in json.dumps(accelerator_events[-1]["host_id"]):
         raise SystemExit("accelerator event resolved host_id")
 
+    accelerator_snapshot = accelerator_events[-1]
+    mounts = run(
+        [
+            str(machi),
+            "discover",
+            "mounts",
+            "--state-root",
+            str(root_a),
+            "--store-dir",
+            str(control_registry),
+        ],
+        env=env,
+    )
+    print(mounts.stdout, end="")
+    if '"event_type": "discover.mounts.observed"' not in mounts.stdout:
+        raise SystemExit("discover mounts did not emit discover.mounts.observed")
+    if '"privacy": "operational"' not in mounts.stdout:
+        raise SystemExit("discover.mounts.observed was not operational")
+    if f"install  {install_a['install_id']}" not in mounts.stdout:
+        raise SystemExit("mounts event lost InstallId correlation")
+    if f"run      {persisted_run_a['install_run_id']}" not in mounts.stdout:
+        raise SystemExit("mounts event lost InstallRunId correlation")
+    if "host     unresolved(not_provided)" not in mounts.stdout:
+        raise SystemExit("discover mounts minted or omitted host_id")
+    if "safe_storage_bytes" in mounts.stdout:
+        raise SystemExit("discover mounts computed SAFE storage")
+    mounts_event_at = mounts.stdout.find('"event_type": "discover.mounts.observed"')
+    if mounts_event_at < 0:
+        raise SystemExit("discover mounts did not print an EventRecord")
+    if str(root_a) in mounts.stdout[mounts_event_at:]:
+        raise SystemExit("absolute state root leaked into mounts event")
+    if str(control_registry) in mounts.stdout[mounts_event_at:]:
+        raise SystemExit("Store path leaked into mounts event")
+    if (control_registry / "mount_observation").exists():
+        raise SystemExit("mount observation was persisted as Store state")
+    journal_after_mounts = [
+        json.loads(line)
+        for line in (root_a / "journal" / "events.jsonl").read_text().splitlines()
+        if line
+    ]
+    still_acc_mounts = next(
+        item
+        for item in journal_after_mounts
+        if item["event_id"] == accelerator_snapshot["event_id"]
+    )
+    if still_acc_mounts != accelerator_snapshot:
+        raise SystemExit("mount observation rewrote discover.accelerator.observed")
+    mount_events = [
+        item
+        for item in journal_after_mounts
+        if item.get("event_type") == "discover.mounts.observed"
+    ]
+    if not mount_events:
+        raise SystemExit("journal is missing discover.mounts.observed")
+    if mount_events[-1]["install_id"] != install_a["install_id"]:
+        raise SystemExit("journaled mounts event lost InstallId")
+    if mount_events[-1]["install_run_id"] != persisted_run_a["install_run_id"]:
+        raise SystemExit("journaled mounts event lost InstallRunId")
+    if "$unresolved" not in json.dumps(mount_events[-1]["host_id"]):
+        raise SystemExit("mounts event resolved host_id")
+    mount_payload = json.dumps(mount_events[-1]["payload"])
+    if str(root_a) in mount_payload or str(control_registry) in mount_payload:
+        raise SystemExit("absolute path leaked into mounts event payload")
+
+    mount_snapshot = mount_events[-1]
     readiness = run(
         [
             str(machi),
@@ -1214,6 +1279,13 @@ def main() -> int:
     )
     if still_acc != accelerator_events[-1]:
         raise SystemExit("prerequisites check rewrote discover.accelerator.observed")
+    still_mounts = next(
+        item
+        for item in journal_after_prereq
+        if item["event_id"] == mount_snapshot["event_id"]
+    )
+    if still_mounts != mount_snapshot:
+        raise SystemExit("prerequisites check rewrote discover.mounts.observed")
     inspected = [
         item
         for item in journal_after_prereq

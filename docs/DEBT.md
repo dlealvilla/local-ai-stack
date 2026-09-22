@@ -2307,6 +2307,134 @@ Why now:      Invocation policy plus inspectable settings suffice.
 Retire when:  Admin / command center consumes the typed settings
 Status:       OPEN
 
+### M-2.4-01 — Native quota specialists
+Label:        DEFERRED
+Owner stage:  Capacity / storage Tier 3
+Subsystem:    discover / capacity
+Authorizes:   NO
+What:         Reading kernel quota (quotactl / project quota / FUSE
+              quota) into hard/soft/usage bytes.
+Why now:      2.4 records advertised-unread or unsupported status.
+              Specialist reads belong with Capacity, not topology.
+To make real: platform-specific quota adapters behind Capacity evidence.
+Retire when:  Capacity consumes native quota evidence as a distinct
+              layer from filesystem-reported free
+Status:       OPEN
+
+### M-2.4-02 — Storage Sonar / bounded capacity proving
+Label:        DEFERRED
+Owner stage:  Capacity 4.2
+Subsystem:    capacity
+Authorizes:   NO
+What:         Empirical write-to-limit characterization of a pool.
+Why now:      2.4 forbids fill-until-failure. A tiny probe is not Sonar.
+To make real: pool-bound Sonar with admission-safe limits.
+Retire when:  Capacity 4.2 ships and cannot treat reported free as SAFE
+Status:       OPEN
+
+### M-2.4-03 — FUSE-specific handlers
+Label:        DEFERRED
+Owner stage:  Capacity / storage Tier 3
+Subsystem:    discover / capacity
+Authorizes:   NO
+What:         Per-FUSE-type classification and capacity semantics.
+Why now:      2.4 classifies known FUSE names; unknown FUSE stays
+              virtual/unknown.
+Retire when:  a supported FUSE store is a product target
+Status:       OPEN
+
+### M-2.4-04 — Remote storage specialists
+Label:        DEFERRED
+Owner stage:  Capacity / storage Tier 3
+Subsystem:    capacity
+Authorizes:   NO
+What:         NFS/CIFS/object-store capacity and identity specialists.
+Why now:      2.4 classifies network mounts and does not benchmark them.
+Retire when:  remote pools are a Capacity input
+Status:       OPEN
+
+### M-2.4-05 — Storage performance profiling
+Label:        DEFERRED
+Owner stage:  later
+Subsystem:    capacity
+Authorizes:   NO
+What:         Throughput/latency of a mount.
+Why now:      Out of scope for topology observation.
+Retire when:  placement policy needs measured performance
+Status:       OPEN
+
+### M-2.4-06 — Automatic storage-root selection
+Label:        DEFERRED
+Owner stage:  later composition / Admin
+Subsystem:    discover / install
+Authorizes:   NO
+What:         Choosing state/runtime/model roots from mount topology.
+Why now:      2.4 does not infer roots from names. Setting exists empty.
+Retire when:  composition consumes suitability plus Steward ownership
+Status:       OPEN
+
+### M-2.4-07 — Storage-placement optimization
+Label:        DEFERRED
+Owner stage:  Plan / optimizer later
+Subsystem:    plan
+Authorizes:   NO
+What:         Optimizer placement across storage classes.
+Why now:      Suitability is descriptive, not a recommendation engine.
+Retire when:  Plan has a storage-placement consumer
+Status:       OPEN
+
+### M-2.4-08 — Storage cleanup / reclamation
+Label:        DEFERRED
+Owner stage:  Steward 3.3
+Subsystem:    steward
+Authorizes:   NO
+What:         Reclaim of Machi-owned bytes.
+Why now:      Discover is read-only. Probe cleanup is not reclaim.
+Retire when:  Steward reclaim ships with dual proof
+Status:       OPEN
+
+### M-2.4-09 — Container-host backing reconciliation
+Label:        DEFERRED
+Owner stage:  Capacity / storage Tier 3
+Subsystem:    discover / capacity
+Authorizes:   NO
+What:         Mapping overlay/container visible mounts onto host pools.
+Why now:      2.4 records overlay class and namespace context only.
+Retire when:  container deployments need host-pool identity
+Status:       OPEN
+
+### M-2.4-10 — Full quota exhaustion modeling
+Label:        DEFERRED
+Owner stage:  Capacity
+Subsystem:    capacity
+Authorizes:   NO
+What:         Modeling EDQUOT vs ENOSPC as distinct remaining.
+Why now:      Historical mismatch is a design constraint, not 2.4 logic.
+Retire when:  Capacity can distinguish reported free from path-limited
+              writable capacity
+Status:       OPEN
+
+### M-2.4-11 — Storage reservations
+Label:        DEFERRED
+Owner stage:  Admit / Capacity
+Subsystem:    resource / capacity
+Authorizes:   YES (when it ships)
+What:         Reserving storage bytes.
+Why now:      2.4 must not admit or reserve.
+Retire when:  ResourceManager storage reservations exist
+Status:       OPEN
+
+### M-2.4-12 — Windows mount reader
+Label:        DEFERRED
+Owner stage:  Discover 2.4 when Windows is a support target
+Subsystem:    discover
+Authorizes:   NO
+What:         Native Windows volume/mount observation.
+Why now:      Current support is Linux required, macOS useful, Windows
+              explicit unsupported.
+Retire when:  Windows is an accepted Machi host
+Status:       OPEN
+
 ### DC-04 — Intel accelerators
 Fixture:         none
 Architecture:    ARCHITECTURE-READY

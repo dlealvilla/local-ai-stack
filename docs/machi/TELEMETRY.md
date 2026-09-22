@@ -89,6 +89,7 @@ Names are examples; the catalogue is owned by Kernel 0.3.
 - `discover.os_arch.observed` (2.1.1; OS family + CPU architecture; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not `discover.completed`)
 - `discover.memory.observed` (2.2.1; physical/system memory bytes; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not safe capacity; not `discover.completed`)
 - `discover.accelerator.observed` (2.3.1; generic accelerator devices + provider reports; privacy `public_ops`; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not capacity; not `discover.completed`)
+- `discover.mounts.observed` (2.4.1; mount-topology metadata: counts, class histogram, probe policy, namespace; privacy `operational`; mount-point paths stay off the event; optional resolved `install_id`/`install_run_id`; `host_id` unresolved; not SAFE capacity; not `discover.completed`)
 - `prerequisite.inspected` / `prerequisite.diagnosed` / `prerequisite.plan_created` / `prerequisite.remediation_started` / `prerequisite.remediation_completed` / `prerequisite.remediation_failed` / `prerequisite.verified` (2.5.1; privacy `operational`; basenames not paths; no customer content; Discover remains read-only)
 - `discover.completed`
 - `steward.classified` / `steward.reclaim.planned` / `steward.reclaim.completed`
@@ -279,6 +280,13 @@ vendor, model, topology, and reported dedicated memory (when the
 source actually reported it) are machine hardware facts. GPU UUID is
 device identity, not HostId. `host_id` remains unresolved. Hostname,
 paths, and customer content are omitted.
+
+**2.4.1:** `discover.mounts.observed` is `operational`. It records
+entry counts, storage-class histogram, unresolved backing/capacity
+counts, probe policy, namespace, and observer. Mount-point paths are
+operationally necessary on the in-process `MountObservation` and CLI
+document; they stay off the journaled event. Reported byte totals are
+not SAFE capacity. `host_id` remains unresolved.
 
 **2.5.1:** `prerequisite.*` events are `operational`. They record
 target/adapter ids, readiness, diagnosis code, plan/action ids, and

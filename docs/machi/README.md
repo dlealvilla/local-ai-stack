@@ -55,6 +55,7 @@ contracts. It does not own deployment truth.
 | [M2-2.5.1.md](M2-2.5.1.md) | 2.5.1 PrerequisiteReadiness implementation notes. |
 | [M2-2.5.1-LOCAL.md](M2-2.5.1-LOCAL.md) | 2.5.1 local freeze of wheel SHA `50abb0a0…`. |
 | [M2-2.5.1-PHYSICAL.md](M2-2.5.1-PHYSICAL.md) | 2.5.1 physical acceptance on owned MI300X stock ROCm. |
+| [M2-2.4.1.md](M2-2.4.1.md) | 2.4.1 Mount enumerator implementation notes. |
 | [M2-2.3-PROVIDER-SELECTION.md](M2-2.3-PROVIDER-SELECTION.md) | 2.3 provider selection gate (NVIDIA + Apple selected). |
 | [PROVIDER-AGNOSTIC-AUDIT.md](PROVIDER-AGNOSTIC-AUDIT.md) | First (partial) Discover/Memory audit; historical. |
 | [FULL-BUILT-SYSTEM-AUDIT.md](FULL-BUILT-SYSTEM-AUDIT.md) | Consolidated Kernel+Install+Discover provider/portability audit through 2.2.1 (promoted). |

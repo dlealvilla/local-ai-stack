@@ -322,6 +322,45 @@ PyYAML as a Machi wheel dependency.
 
 See [M2-2.5.1.md](M2-2.5.1.md).
 
+**2.4.1 Mount enumerator (this increment):** filesystem/mount
+topology through a replaceable observer. Native orchestration selects
+Linux (`mountinfo` + native stat) or macOS (`getfsstat`) providers.
+Windows unsupported (not zero). Event `discover.mounts.observed`
+(`operational`; metadata only). No HostId. No HostProfile. No SAFE
+storage arithmetic. No Steward ownership. No directory crawl. Reported
+total/free/available stay distinct. Backing identity is recorded when
+visible and `Unresolved` when not. Default write probe is off; a tiny
+exclusive temp write is observational evidence only.
+
+**Inputs (2.4.1):** current host; 2.1.1 OS family for native source
+selection; optional M1 InstallId/InstallRunId from composition. Does
+not consume PrerequisiteReadiness, Steward, or Capacity.
+
+**Outputs (2.4.1):** `MountObservation`; Discover event with `host_id`
+unresolved.
+
+**Telemetry:** `discover.mounts.observed`. Block-complete
+`discover.completed` remains later.
+
+**Local tests:** Linux table fixtures covering local rw, read-only,
+pseudo, overlay, network, shared backing, unresolved backing,
+invalid/duplicate rows, distinct capacity fields, path capability,
+probe policy/bounds, settings, serialization, privacy; macOS fixture;
+Windows unsupported; current-host observation; architecture non-edges.
+
+**Physical:** after candidate freeze. Target population is
+`MACHI_RELEVANT_STORAGE_TOPOLOGY_BEHAVIOR`, not GPU market share.
+
+**Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 → 2.5.1 → 2.4.1.
+
+**Non-goals (2.4.1):** SAFE storage, Storage Sonar, quota specialists,
+ownership inference, HostProfile, remount, reclaim, customer-tree
+walk, Windows native reader.
+
+**Unlocks:** Steward (`3`).
+
+See [M2-2.4.1.md](M2-2.4.1.md).
+
 ---
 
 ## M3 — Steward

@@ -1,4 +1,4 @@
-"""Replaceable Discover observer ports (MACHI 2.1.1 / 2.2.1 / 2.3).
+"""Replaceable Discover observer ports (MACHI 2.1.1 / 2.2.1 / 2.3 / 2.4.1).
 
 Core owns observation contracts. Adapters interrogate the host.
 Composition selects adapters. This is not a probe engine.
@@ -13,6 +13,7 @@ from machi.discover.contracts import (
     MemoryObservation,
     OSArchitectureObservation,
 )
+from machi.discover.mount_contracts import MountObservation
 
 
 @runtime_checkable
@@ -39,4 +40,13 @@ class AcceleratorObserver(Protocol):
 
     def observe(self) -> AcceleratorObservation:
         """Return one observation. Must not mutate the host or compute capacity."""
+        ...
+
+
+@runtime_checkable
+class MountObserver(Protocol):
+    """Something that can observe filesystem/mount topology on this host."""
+
+    def observe(self) -> MountObservation:
+        """Return one observation. Must not mutate mounts or compute SAFE storage."""
         ...

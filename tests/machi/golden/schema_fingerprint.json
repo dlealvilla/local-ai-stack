@@ -248,6 +248,88 @@
       }
     }
   },
+  "discover.mounts.observed@1": {
+    "python": "MountsObservedPayload",
+    "fields": {
+      "entry_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how many mount entries were retained"
+      },
+      "invalid_record_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "malformed table rows skipped"
+      },
+      "truncated_entry_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "valid rows omitted after the entry bound"
+      },
+      "unresolved_backing_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "entries whose backing identity stayed Unresolved"
+      },
+      "unresolved_capacity_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "entries whose reported total_bytes stayed Unresolved"
+      },
+      "storage_classes": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compact class histogram such as local_physical:2,pseudo:8"
+      },
+      "write_probe_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "disabled or bounded"
+      },
+      "status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized when the mount table was read; unobserved otherwise"
+      },
+      "namespace_context": {
+        "type": "MountNamespace",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "filesystem namespace this process observed"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "selected provider identifier"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier, for example native"
+      }
+    }
+  },
   "discover.os_arch.observed@1": {
     "python": "OSArchObservedPayload",
     "fields": {
@@ -1241,6 +1323,522 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "adapter identifier that produced the reading, for example native"
+      }
+    }
+  },
+  "mount.entry@1": {
+    "python": "MountEntry",
+    "fields": {
+      "mount_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded observation identity; not a HostId"
+      },
+      "mount_point": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "mount point as observed in this namespace"
+      },
+      "source": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "device or source string as reported; empty if unobserved"
+      },
+      "filesystem_type": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "filesystem type token; empty if unobserved"
+      },
+      "mount_options": {
+        "type": "tuple[str, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized relevant options such as ro, rw, quota, fuse"
+      },
+      "raw_options": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded raw option evidence for diagnostics"
+      },
+      "access_mode": {
+        "type": "AccessMode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rw, ro, or unknown from VFS options"
+      },
+      "storage_class": {
+        "type": "StorageClass",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "observer classification; not a safety label"
+      },
+      "backing_store_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "stable-enough backing identity when known; Unresolved when obscured"
+      },
+      "device_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "namespace-visible device identity when known; Unresolved otherwise"
+      },
+      "reported_capacity": {
+        "type": "ReportedCapacity",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "filesystem-reported totals; not proven writable and not SAFE"
+      },
+      "quota": {
+        "type": "QuotaEvidence",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "native quota capture status for this mount"
+      },
+      "path_capability": {
+        "type": "PathCapability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "existence, access, and bounded probe"
+      },
+      "suitability": {
+        "type": "SuitabilitySignals",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "descriptive candidacy; not authority"
+      },
+      "namespace_context": {
+        "type": "MountNamespace",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "host, container, or unknown for this process view"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider identifier, for example linux or macos"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this entry was observed; UTC"
+      }
+    }
+  },
+  "mount.observation@1": {
+    "python": "MountObservation",
+    "fields": {
+      "entries": {
+        "type": "tuple[MountEntry, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "observed mounts in table order; empty when unobserved"
+      },
+      "settings": {
+        "type": "MountObservationSettings",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed inspectable 2.4 settings"
+      },
+      "status": {
+        "type": "ObservationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized when the mount table was read; unobserved otherwise"
+      },
+      "os_family": {
+        "type": "OSFamily | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "OS family used to select a provider; Unresolved when unobserved"
+      },
+      "namespace_context": {
+        "type": "MountNamespace",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "filesystem namespace this process observed"
+      },
+      "invalid_record_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "malformed mount-table rows skipped"
+      },
+      "truncated_entry_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "valid rows omitted after the entry bound"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "selected provider, or native when none applied"
+      },
+      "observer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "adapter identifier, for example native"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this observation was taken; timezone-aware UTC; never rewritten"
+      }
+    }
+  },
+  "mount.observation_settings@1": {
+    "python": "MountObservationSettings",
+    "fields": {
+      "write_probe_policy": {
+        "type": "WriteProbePolicy",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "disabled or bounded; never fill-until-failure"
+      },
+      "write_probe_max_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "tiny observational payload size; not a capacity target"
+      },
+      "included_filesystem_classes": {
+        "type": "tuple[StorageClass, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "classes eligible for descriptive managed-storage candidacy"
+      },
+      "ignored_filesystem_classes": {
+        "type": "tuple[StorageClass, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "classes observed for topology but not ordinary candidacy"
+      },
+      "managed_root_candidates": {
+        "type": "tuple[str, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "optional administrator paths; empty means Discover infers none from names"
+      },
+      "network_mount_policy": {
+        "type": "NetworkMountPolicy",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "network mounts are observed; they are not auto-rejected"
+      },
+      "pseudo_mount_policy": {
+        "type": "PseudoMountPolicy",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "pseudo filesystems stay in topology and are not ordinary candidates"
+      },
+      "read_only_handling": {
+        "type": "ReadOnlyHandling",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "read-only mounts are observed; they are not mutated"
+      },
+      "settings": {
+        "type": "tuple[MountSetting, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspectable setting records for command-center aggregation"
+      }
+    }
+  },
+  "mount.path_capability@1": {
+    "python": "PathCapability",
+    "fields": {
+      "path_exists": {
+        "type": "bool | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "whether the mount point existed"
+      },
+      "readable": {
+        "type": "bool | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "whether a read-access check succeeded"
+      },
+      "writable_by_access": {
+        "type": "bool | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "whether a permission access check reported write; not proven usable bytes"
+      },
+      "mount_read_only": {
+        "type": "bool | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "whether the VFS options included the read-only flag"
+      },
+      "write_probe_outcome": {
+        "type": "WriteProbeOutcome",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded observational probe result; success is not SAFE capacity"
+      },
+      "write_probe_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "payload size of the probe attempt; Unresolved when not attempted"
+      },
+      "cleanup_completed": {
+        "type": "bool | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "whether the probe file was removed; Unresolved when not attempted"
+      },
+      "detail": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded probe or access detail; not a customer filename"
+      }
+    }
+  },
+  "mount.quota_evidence@1": {
+    "python": "QuotaEvidence",
+    "fields": {
+      "status": {
+        "type": "QuotaEvidenceStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "available when limits were read; unavailable when advertised but unread; unsupported when this component does not read them; unresolved otherwise"
+      },
+      "hard_limit_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "hard quota in bytes when captured; Unresolved otherwise"
+      },
+      "soft_limit_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "soft quota in bytes when captured; Unresolved otherwise"
+      },
+      "usage_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "quota usage in bytes when captured; Unresolved otherwise"
+      },
+      "source": {
+        "type": "QuotaSource",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "where this quota status was established"
+      }
+    }
+  },
+  "mount.reported_capacity@1": {
+    "python": "ReportedCapacity",
+    "fields": {
+      "total_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "f_blocks * fragment size when measured; Unresolved when unknown; never rewritten as SAFE storage"
+      },
+      "free_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "f_bfree * fragment size when measured; includes reserved blocks; Unresolved when unknown; not Machi-usable bytes"
+      },
+      "available_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "f_bavail * fragment size when measured; unprivileged leftover; Unresolved when unknown; not SAFE deployable bytes"
+      },
+      "source": {
+        "type": "CapacitySource",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "native_stat when a platform stat succeeded; unobserved/unsupported otherwise"
+      }
+    }
+  },
+  "mount.setting@1": {
+    "python": "MountSetting",
+    "fields": {
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dotted setting name, for example write_probe.policy"
+      },
+      "value": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "current selected/desired value as text"
+      },
+      "provenance": {
+        "type": "MountSettingProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who selected this value"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this value is in force"
+      },
+      "allowed_values": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compact allowed-value or bound description"
+      },
+      "support_state": {
+        "type": "MountSettingSupportState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether this setting is usable"
+      },
+      "mutability": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime or restart_required"
+      },
+      "invalidation": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what must re-run if this setting changes"
+      }
+    }
+  },
+  "mount.suitability@1": {
+    "python": "SuitabilitySignals",
+    "fields": {
+      "can_host_machi_state": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not disqualified for state by topology facts"
+      },
+      "can_host_runtime": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not disqualified for runtime by topology facts"
+      },
+      "can_host_model": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not disqualified for models by topology facts"
+      },
+      "can_host_cache": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not disqualified for cache by topology facts"
+      },
+      "can_host_staging": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not disqualified for staging by topology facts"
+      },
+      "can_host_telemetry": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "not disqualified for telemetry by topology facts"
+      },
+      "reasons": {
+        "type": "tuple[SuitabilityReason, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "evidence labels; never an admission decision"
       }
     }
   },

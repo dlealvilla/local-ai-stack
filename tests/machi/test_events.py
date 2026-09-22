@@ -9,6 +9,9 @@ from typing import Any
 
 import pytest
 
+import machi.discover.events
+import machi.install.events
+import machi.kernel.store_proof
 import machi.prerequisites  # noqa: F401
 from machi.kernel.alive import KernelAlivePayload, kernel_alive
 from machi.kernel.clock import FixedClock
