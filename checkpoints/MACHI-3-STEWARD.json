@@ -15,6 +15,7 @@
   "lab_campaign_id": "camp_611b40f4f3d82d84",
   "lab_checkpoint_id": "chk_22e9eec9041d5317",
   "strategy_commit": "dedf801628bee6479b815a6e058e948721b8aa53",
+  "evidence_commit": "a470857d96656f169814d824bb9973b88a9ec13d",
   "canonical_machi": "1db764607a5806d080cc138932002760bad113ad",
   "predecessor_2_4_checkpoint": "b1310417706af1ec73dbcc2ecd4877c1d54e4653",
   "package": "docs/machi/M3-PHYSICAL.md",
