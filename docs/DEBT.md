@@ -2537,6 +2537,39 @@ Retire when:  the then-approved recipe reaches Foundation `READY`
               evidence is recorded
 Status:       OPEN
 
+### M-8-01 — Deferred enforcement beyond single-host accounting
+Label:        DEFERRED
+Owner stage:  Admit Tier 3
+Subsystem:    admit
+Authorizes:   NO
+What:         cgroups and other OS enforcement, GPU partition
+              enforcement, multi-GPU allocation, multi-host
+              scheduling, lease expiry, heartbeats, preemption,
+              priority, dynamic rebalance, richer M7 resource
+              sizing, and reservation recovery against real
+              processes.
+Why now:      Tier 2 reserves exact single-accelerator requests
+              against SAFE capacity and keeps the hold in the
+              store. It does not start a process or police one.
+Retire when:  a later decision names the enforcement or placement
+              policy and Serve already consumes a reservation
+Status:       OPEN
+
+### M-8-02 — CPU is recorded and not capacity-gated
+Label:        DEFERRED
+Owner stage:  Admit
+Subsystem:    admit
+Authorizes:   NO
+What:         Capacity has no SAFE CPU pool. A reservation records
+              the plan's cpu_count. Admit does not invent a pool
+              and does not treat an unknown CPU total as zero.
+Why now:      M7 always requests one process slot. Host memory,
+              accelerator memory, and storage are the dimensions
+              with authoritative SAFE bytes.
+Retire when:  Capacity publishes a SAFE CPU quantity and Admit
+              subtracts unreleased cpu_count from it
+Status:       OPEN
+
 ### M-7-01 — Deferred serving plans beyond one accelerator
 Label:        DEFERRED
 Owner stage:  Plan Tier 3

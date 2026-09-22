@@ -21,7 +21,7 @@ You are the development Lead for **Machi**.
 - `docs/machi/KULTRUN.md` — lessons and traceability
 - `docs/machi/README.md` — package index
 
-Kultrun product docs (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`) describe the Kultrun lineage, not the active Machi sequence. Foundation development is closed. NVIDIA CUDA is the qualified reference path. AMD ROCm is implemented and not production-qualified (`M-5-AMD-01`). Model is accepted at Tier 2 on the qualified NVIDIA path. AMD foundation qualification remains `M-5-AMD-01` on a separate lane. Plan is physically accepted on NVIDIA. The next step is the M8 Admit decision gate. Do not start Admit, Dynamo, an optimizer, or Team Brain without a new instruction. Downstream contracts stay generic. vLLM is the approved primary path; the fallback runtime is not implemented.
+Kultrun product docs (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`) describe the Kultrun lineage, not the active Machi sequence. Foundation development is closed. NVIDIA CUDA is the qualified reference path. AMD ROCm is implemented and not production-qualified (`M-5-AMD-01`). Model is accepted at Tier 2 on the qualified NVIDIA path. AMD foundation qualification remains `M-5-AMD-01` on a separate lane. Plan is physically accepted on NVIDIA. Admit is locally implemented and is not physically accepted. Do not start Serve, Dynamo, an optimizer, or Team Brain without a new instruction. Downstream contracts stay generic. vLLM is the approved primary path; the fallback runtime is not implemented.
 
 ## Standing rules
 

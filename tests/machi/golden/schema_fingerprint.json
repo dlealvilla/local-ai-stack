@@ -175,6 +175,298 @@
       }
     }
   },
+  "admit.completed@1": {
+    "python": "AdmitCompletedPayload",
+    "fields": {
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "hold identity"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "authorized plan"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan fingerprint"
+      },
+      "accelerator_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "accelerators held"
+      }
+    }
+  },
+  "admit.decision@1": {
+    "python": "AdmissionDecision",
+    "fields": {
+      "outcome": {
+        "type": "AdmissionOutcome",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "admitted, refused, or released"
+      },
+      "failure": {
+        "type": "AdmissionFailure",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none when the outcome succeeded"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "short explanation or underlying stale code"
+      },
+      "reservation": {
+        "type": "ResourceReservation | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "hold when admitted or released; unresolved when refused"
+      }
+    }
+  },
+  "admit.reconciliation@1": {
+    "python": "ReconciliationReport",
+    "fields": {
+      "status": {
+        "type": "ReconciliationStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "consistent, overcommitted, or degraded"
+      },
+      "active_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "unreleased holds"
+      },
+      "malformed_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "records that could not be read"
+      },
+      "missing_accelerators": {
+        "type": "tuple[str, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "held devices absent now"
+      },
+      "overcommitted": {
+        "type": "tuple[str, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dimensions whose holds exceed SAFE"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "policy used for this reading"
+      }
+    }
+  },
+  "admit.reconciliation_detected@1": {
+    "python": "AdmitReconciledPayload",
+    "fields": {
+      "status": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "consistent, overcommitted, or degraded"
+      },
+      "active_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "unreleased holds"
+      }
+    }
+  },
+  "admit.rejected@1": {
+    "python": "AdmitRejectedPayload",
+    "fields": {
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed refusal"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan that was not reserved"
+      }
+    }
+  },
+  "admit.release@1": {
+    "python": "ReservationRelease",
+    "fields": {
+      "release_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this release"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "hold being freed"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan whose hold was freed"
+      }
+    }
+  },
+  "admit.released@1": {
+    "python": "AdmitReleasedPayload",
+    "fields": {
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "hold that was freed"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan whose hold was freed"
+      }
+    }
+  },
+  "admit.reservation@1": {
+    "python": "ResourceReservation",
+    "fields": {
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this hold"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan this hold authorizes"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan fingerprint at admission"
+      },
+      "request_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "resource request this hold binds"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot cited by the plan"
+      },
+      "accelerator_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact device; not a substitute"
+      },
+      "accelerator_memory_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE accelerator bytes held"
+      },
+      "host_memory_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE host bytes held"
+      },
+      "persistent_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "persistent storage bytes held"
+      },
+      "transient_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "transient storage bytes held"
+      },
+      "cpu_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "requested process slots; Capacity has no CPU pool"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "admission policy that created this hold"
+      },
+      "state": {
+        "type": "ReservationState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reserved until a release record exists"
+      }
+    }
+  },
   "capacity.accelerator@1": {
     "python": "AcceleratorCapacity",
     "fields": {

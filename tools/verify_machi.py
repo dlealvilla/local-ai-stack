@@ -1451,6 +1451,22 @@ def main() -> int:
     if "plan_ok " not in planned.stdout:
         raise SystemExit("installed plan package did not compose a fixture")
 
+    admit_policy = run([str(machi), "admit", "policy"], env=env)
+    print(admit_policy.stdout, end="")
+    if "policy   m8.admit.1" not in admit_policy.stdout:
+        raise SystemExit("admit policy version missing")
+    if "accel    1" not in admit_policy.stdout:
+        raise SystemExit("admit did not pin one accelerator")
+    if "serve    false" not in admit_policy.stdout:
+        raise SystemExit("admit policy claimed serving")
+    if "api_server" in admit_policy.stdout:
+        raise SystemExit("admit policy launched a server")
+    admit_proof = Path(__file__).resolve().parent / "prove_admit_fixture.py"
+    admitted = run([str(python), str(admit_proof)], env=env)
+    print(admitted.stdout, end="")
+    if "admit_ok " not in admitted.stdout:
+        raise SystemExit("installed admit package did not reserve a fixture")
+
     print("verify_ok")
     return 0
 

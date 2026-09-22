@@ -558,7 +558,8 @@ RAM/VRAM/storage, context.
 
 **Non-goals:** admit, start.
 
-**Unlocks:** Admit.
+**Unlocks:** Admit. Physically accepted on NVIDIA. It does not admit
+or serve.
 
 ---
 
@@ -570,11 +571,14 @@ RAM/VRAM/storage, context.
 **Objective:** ResourceManager is the only author of “you may run this
 now.”
 
-**Inputs:** DeploymentConfiguration, CapacitySnapshot.
+**Inputs:** DeploymentConfiguration, ResourceRequest, current
+CapacityEnvelope.
 
-**Outputs:** `ResourceReservation` ADMITTED or typed rejection.
+**Outputs:** `ResourceReservation` in state `reserved`, or a typed
+refusal with no hold.
 
-**Telemetry:** `admit.completed` / `.rejected`.
+**Telemetry:** `admit.completed` / `.rejected` / `.released` /
+`.reconciliation_detected`.
 
 **Local tests:** executor cannot admit; snapshot is now, not
 historical envelope alone.
@@ -586,9 +590,11 @@ rejects or waits per policy (v0: reject).
 
 **Acceptance:** reservation names devices and storage; not a process.
 
-**Non-goals:** start.
+**Non-goals:** start, cgroups, GPU partitions, multi-host placement,
+lease expiry, and preemption.
 
-**Unlocks:** Serve.
+**Unlocks:** Serve, after a physical admission proof. Local candidate
+only until that proof.
 
 ---
 
@@ -685,8 +691,8 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization. Accepted at Tier 2 |
 | M5 Foundation | MODIFY | 1 | Development closed. NVIDIA CUDA qualified. AMD ROCm implemented, qualification deferred (`M-5-AMD-01`) |
 | M6 Model | KEEP | 1 | Closed at Tier 2. NVIDIA artifact path accepted. AMD foundation qualification remains `M-5-AMD-01` |
-| M7 Plan | KEEP | 1 | Physically accepted on NVIDIA. Plan is not admission and not launch. M8 waits for a decision |
-| M8 Admit | KEEP | 1 | ResourceManager remains the only admission authority |
+| M7 Plan | KEEP | 1 | Physically accepted on NVIDIA. Plan is not admission and not launch |
+| M8 Admit | KEEP | 1 | Local single-host ResourceManager. Physical admission is not run. Serve is not started |
 | M9 Serve | KEEP | 1 | One real request path. Comparative campaigns are Stage 2 |
 | OllamaExecutionMacropath | REPOSITION | 1 exit | Compatibility fallback after the vLLM path. Not before Capacity |
 | Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |

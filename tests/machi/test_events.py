@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+import machi.admit.events as admit_events_module
 import machi.capacity.events as capacity_events_module
 import machi.discover.events as discover_events_module
 import machi.foundation.events as foundation_events_module
@@ -164,6 +165,7 @@ def test_schema_fingerprint_matches_committed_golden() -> None:
     assert foundation_events_module.INSPECTED_TYPE == "foundation.inspected"
     assert model_events_module.INSPECTED_TYPE == "model.inspected"
     assert plan_events_module.CREATED_TYPE == "plan.created"
+    assert admit_events_module.COMPLETED_TYPE == "admit.completed"
     assert JournalDefect.kind == "journal_defect"
     current = fingerprint(module_prefix="machi.")
     expected = json.loads(GOLDEN.read_text(encoding="utf-8"))

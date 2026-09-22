@@ -115,7 +115,7 @@ entity.
 | `ModelArtifact` | 6.5 | Plan, Serve | Artifact | yes | digest, bytes, source |
 | `DeploymentConfiguration` | 7 Plan | Admit, Serve | Configuration | yes | CURRENT vs STALE |
 | `ResourceRequest` | 7→8 | Admit | Request | yes | configuration ID |
-| `CapacitySnapshot` | 8.1 | Admit | Envelope (now) | yes | envelope generation |
+| `CapacityEnvelope` (current snapshot) | 8.1 | Admit | Envelope (now) | yes | evidence id |
 | `ResourceReservation` | 8.2 | Serve | Reservation | yes | request ID, devices |
 | `ServingInstance` | 9.1 | Serve, Witness | Runtime state | yes | configuration + reservation IDs |
 | `ReadinessProof` | 9.3 | Serve | Proof | yes | not a user inference |

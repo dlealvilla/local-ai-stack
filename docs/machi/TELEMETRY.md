@@ -97,7 +97,7 @@ Names are examples; the catalogue is owned by Kernel 0.3.
 - `foundation.resolved` / `foundation.selected` / `foundation.verified`
 - `model.funnel.completed` / `model.selected` / `model.acquired`
 - `plan.created` / `plan.stale`
-- `admit.completed` / `admit.rejected`
+- `admit.completed` / `admit.rejected` / `admit.released` / `admit.reconciliation_detected`
 - `serve.started` / `serve.ready` / `serve.stopped` / `serve.restarted`
 - `inference.completed` (purpose in payload: `request` | `readiness`)
 - `witness.composed`

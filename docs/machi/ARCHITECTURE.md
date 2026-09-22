@@ -981,33 +981,48 @@ See [M7.md](M7.md).
 
 **ID:** 8  
 **Name:** Admit  
-**Purpose:** Authorize this configuration against **now**.  
-**Short Description:** Capacity snapshot, ResourceManager, reservation
-lifecycle.
+**Purpose:** Reserve the exact resources a current plan requested.  
+**Short Description:** Current Capacity envelope, ResourceManager,
+reservation lifecycle.
 
 **Components:** 8.1 Snapshot, 8.2 ResourceManager, 8.3 Reservation
 states.
 
-**Adapters:** none (POSIX file lock is an implementation of the lock
-port, not a policy adapter).
+**Adapters:** file-store reservation log and a POSIX file lock. The
+generic admit package does not import a vendor, cgroup, or container
+tool. The lock implements the lock port.
 
-**Inputs:** DeploymentConfiguration, live CapacitySnapshot.  
-**Outputs:** ResourceReservation or typed rejection.  
-**Preconditions:** CURRENT plan.  
-**Success:** ADMITTED reservation.  
-**Blocked:** insufficient SAFE remaining; device busy per policy.  
-**State owned:** reservations, ledger.  
-**Persistence:** yes.  
-**Side effects:** none on processes.  
-**Downstream:** Serve.  
-**Re-entry:** stop does not release.  
-**Idempotence:** same request ID does not double-count.  
-**Invalidated by:** STALE plan (must not reuse reservation).  
-**Recompute:** new request.  
-**Telemetry:** `admit.completed` / `.rejected`.  
-**Independent test:** executor cannot call admit.  
+**Inputs:** successful PlanDecision, current CapacityEnvelope, and
+the caller's PlanFailure currency from assess_plan.  
+**Outputs:** AdmissionDecision. Admitted carries a ResourceReservation.
+Refused carries none.  
+**Preconditions:** planned configuration, matching request, current
+plan, and the same capacity evidence id.  
+**Success:** one RESERVED hold for accelerator count 1.  
+**Blocked:** stale plan, stale capacity, unresolved SAFE bytes,
+missing accelerator, aggregate overflow, or an already overcommitted
+host.  
+**State owned:** ResourceReservation and ReservationRelease.  
+**Persistence:** exclusive Store create. Release is a second record.
+The hold is not deleted.  
+**Side effects:** none on processes, models, or Foundation.  
+**Downstream:** Serve may run only when execution_authorized is true
+for a RESERVED hold that matches the plan.  
+**Re-entry:** the same active admission returns the same reservation.
+Recreating the manager from the store keeps the hold.  
+**Idempotence:** repeated release converges.  
+**Invalidated by:** a stale plan cannot mint a new hold. A shrunk
+SAFE envelope does not rewrite existing holds.  
+**Recompute:** return to Plan. Admit does not resize or substitute.  
+**Telemetry:** `admit.completed`, `admit.rejected`, `admit.released`,
+`admit.reconciliation_detected`. No paths and no secrets.  
+**Independent test:** upstream blocks do not import Admit. Admit does
+not import Serve.  
 **Cumulative:** M0→M8.  
-**Lessons:** single author; stop ≠ release.
+**Lessons:** Plan may request. Only Admit may reserve. Stop is not
+release.
+
+See [M8.md](M8.md).
 
 ## 9 Serve
 

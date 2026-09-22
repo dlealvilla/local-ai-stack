@@ -23,6 +23,7 @@ TIERS: dict[str, int] = {
     "foundation": 2,
     "model": 2,
     "plan": 2,
+    "admit": 2,
     "adapters": 3,
     "main": 4,
 }
@@ -69,6 +70,16 @@ CROSS_IMPORT_FORBIDDEN: frozenset[tuple[str, str]] = frozenset(
         ("model", "plan"),
         ("prerequisites", "plan"),
         ("plan", "prerequisites"),
+        ("kernel", "admit"),
+        ("install", "admit"),
+        ("discover", "admit"),
+        ("steward", "admit"),
+        ("capacity", "admit"),
+        ("foundation", "admit"),
+        ("model", "admit"),
+        ("plan", "admit"),
+        ("prerequisites", "admit"),
+        ("admit", "prerequisites"),
     }
 )
 
@@ -76,7 +87,6 @@ FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
 FUTURE_PACKAGES = frozenset(
     {
-        "admit",
         "serve",
     }
 )
@@ -1325,6 +1335,40 @@ def plan_boundary_violations(root: Path) -> list[str]:
     main_text = (root / "main.py").read_text(encoding="utf-8")
     if "def compose_plan" not in main_text:
         found.append("composition must expose plan composition")
+    return found
+
+
+ADMIT_DOMAIN_FORBIDDEN = (
+    "nvidia-smi",
+    "amd-smi",
+    "import vllm",
+    "from vllm",
+    "docker",
+    "cgroup",
+    "runpod",
+    "subprocess",
+    "from machi.serve",
+    "from machi.adapters",
+)
+
+
+def admit_boundary_violations(root: Path) -> list[str]:
+    """Admit reserves. It does not serve or call a vendor tool."""
+    found: list[str] = []
+    domain = root / "admit"
+    if not domain.is_dir():
+        return ["admit domain is missing"]
+    for path in sorted(domain.rglob("*.py")):
+        text = path.read_text(encoding="utf-8").lower()
+        for token in ADMIT_DOMAIN_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    lock = root / "adapters" / "admit" / "lock.py"
+    if "fcntl" not in lock.read_text(encoding="utf-8"):
+        found.append("admission lock must live in the adapter")
+    main_text = (root / "main.py").read_text(encoding="utf-8")
+    if "def admit_resources" not in main_text:
+        found.append("composition must expose admission")
     return found
 
 

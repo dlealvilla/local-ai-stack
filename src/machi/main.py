@@ -16,6 +16,8 @@ import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from machi.adapters.admit.lock import FileAdmissionLock
+from machi.adapters.admit.log import StoreReservationLog
 from machi.adapters.capacity.native import NativeCapacity
 from machi.adapters.discover.native_accelerator import NativeAcceleratorObserver
 from machi.adapters.discover.native_memory import NativeMemoryObserver
@@ -43,6 +45,9 @@ from machi.adapters.persistence.file_store import FileStore
 from machi.adapters.plan.vllm import build_vllm_recipe
 from machi.adapters.prerequisites.amd_smi import AmdSmiPrerequisiteAdapter
 from machi.adapters.steward.native import NativeSteward, RootClaim
+from machi.admit.contracts import AdmissionDecision
+from machi.admit.policy import POLICY_VERSION as ADMIT_POLICY_VERSION
+from machi.admit.service import ResourceManager
 from machi.capacity.contracts import CapacityEnvelope
 from machi.capacity.events import capacity_events
 from machi.discover.contracts import (
@@ -120,7 +125,7 @@ from machi.model.events import acquisition_events, model_events
 from machi.model.policy import DEFAULT_TIMEOUT, default_model_settings
 from machi.plan.compose import PlanInputs
 from machi.plan.compose import compose_plan as compose_plan_domain
-from machi.plan.contracts import PlanDecision
+from machi.plan.contracts import PlanDecision, PlanFailure
 from machi.plan.policy import (
     ACCELERATOR_COUNT,
     DEFAULT_CONCURRENCY,
@@ -1191,6 +1196,49 @@ def _acquire_hub(ns: argparse.Namespace) -> int:
     return _finish_store(ns, stored, observed)
 
 
+def admit_resources(
+    decision: PlanDecision,
+    capacity: CapacityEnvelope,
+    plan_currency: PlanFailure,
+    store: FileStore,
+) -> AdmissionDecision:
+    """Reserve a current plan. This does not start a runtime."""
+    validate_registry(module_prefix="machi.")
+    manager = ResourceManager(
+        StoreReservationLog(store),
+        FileAdmissionLock(store.root),
+    )
+    return manager.admit(decision, capacity, plan_currency)
+
+
+def _inspect_reservations(store_dir: Path) -> int:
+    """Print stored holds. Reconciliation still needs a live envelope."""
+    store = FileStore(store_dir)
+    log = StoreReservationLog(store)
+    manager = ResourceManager(log, FileAdmissionLock(store.root))
+    records, malformed = log.reservations()
+    print(f"reservations {len(records)}")
+    for item in records:
+        visible = manager.get_reservation(item.reservation_id)
+        state = visible.state.value if visible is not None else item.state.value
+        print(f"id       {item.reservation_id}")
+        print(f"state    {state}")
+        print(f"plan     {item.plan_id}")
+        print(f"finger   {item.fingerprint}")
+        print(f"capacity {item.capacity_evidence_id}")
+        print(f"device   {item.accelerator_identity}")
+        print(f"accel    {item.accelerator_memory_bytes}")
+        print(f"host     {item.host_memory_bytes}")
+        print(f"persist  {item.persistent_bytes}")
+        print(f"transient {item.transient_bytes}")
+        print(f"cpu      {item.cpu_count}")
+        print(f"policy   {item.policy_version}")
+    print(f"malformed {malformed}")
+    print("refusals none_stored")
+    print("reconcile capacity_required")
+    return 0
+
+
 def compose_plan(inputs: PlanInputs) -> PlanDecision:
     """Compose one vLLM plan. This does not admit, load, or launch."""
     validate_registry(module_prefix="machi.")
@@ -1536,6 +1584,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         "policy",
         help="print the versioned single-accelerator defaults",
     )
+
+    admit = sub.add_parser(
+        "admit",
+        help="inspect stored holds or print policy; this command does not serve",
+    )
+    admit_sub = admit.add_subparsers(dest="admit_command", required=True)
+    admit_sub.add_parser("policy", help="print the admission policy version")
+    inspect = admit_sub.add_parser(
+        "inspect",
+        help="print stored holds; does not admit, release, or serve",
+    )
+    inspect.add_argument("--store-dir", required=True)
 
     readiness = sub.add_parser(
         "prerequisites",
@@ -1999,9 +2059,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 model_snapshot, model_events_out = inspect_model(
                     source_path=Path(ns.path),
                     label=ns.label,
-                    journal_dir_path=(
-                        Path(ns.journal_dir) if ns.journal_dir else None
-                    ),
+                    journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
                     foundation_id=ns.foundation_id,
                     qualification=ns.qualification,
                     runtime_python=(
@@ -2024,6 +2082,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("remote   refuse")
             print("reserve  false")
             return 0
+        if ns.command == "admit" and ns.admit_command == "policy":
+            print(f"policy   {ADMIT_POLICY_VERSION}")
+            print("accel    1")
+            print("serve    false")
+            return 0
+        if ns.command == "admit" and ns.admit_command == "inspect":
+            return _inspect_reservations(Path(ns.store_dir))
         if ns.command == "prerequisites" and ns.prerequisites_command == "check":
             (
                 readiness_report,
