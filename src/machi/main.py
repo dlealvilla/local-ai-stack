@@ -40,6 +40,7 @@ from machi.adapters.model.hub import (
 from machi.adapters.model.runtime_query import query_runtime
 from machi.adapters.model.warehouse import cache_root
 from machi.adapters.persistence.file_store import FileStore
+from machi.adapters.plan.vllm import build_vllm_recipe
 from machi.adapters.prerequisites.amd_smi import AmdSmiPrerequisiteAdapter
 from machi.adapters.steward.native import NativeSteward, RootClaim
 from machi.capacity.contracts import CapacityEnvelope
@@ -117,6 +118,16 @@ from machi.model.contracts import (
 from machi.model.evaluate import evaluate_source, snapshot_for
 from machi.model.events import acquisition_events, model_events
 from machi.model.policy import DEFAULT_TIMEOUT, default_model_settings
+from machi.plan.compose import PlanInputs
+from machi.plan.compose import compose_plan as compose_plan_domain
+from machi.plan.contracts import PlanDecision
+from machi.plan.policy import (
+    ACCELERATOR_COUNT,
+    DEFAULT_CONCURRENCY,
+    DEFAULT_CONTEXT,
+    MEMORY_UTILIZATION,
+    POLICY_VERSION,
+)
 from machi.prerequisites.contracts import (
     PolicyMode,
     PrerequisiteReadinessReport,
@@ -1180,6 +1191,12 @@ def _acquire_hub(ns: argparse.Namespace) -> int:
     return _finish_store(ns, stored, observed)
 
 
+def compose_plan(inputs: PlanInputs) -> PlanDecision:
+    """Compose one vLLM plan. This does not admit, load, or launch."""
+    validate_registry(module_prefix="machi.")
+    return compose_plan_domain(inputs, build_vllm_recipe)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="machi", description="Machi")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1509,6 +1526,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     model_import.add_argument("--label", required=True)
     model_acquire.add_argument("--repository", required=True)
     model_acquire.add_argument("--revision", default="main")
+
+    plan = sub.add_parser(
+        "plan",
+        help="show the planning policy; composition does not admit or launch",
+    )
+    plan_sub = plan.add_subparsers(dest="plan_command", required=True)
+    plan_sub.add_parser(
+        "policy",
+        help="print the versioned single-accelerator defaults",
+    )
 
     readiness = sub.add_parser(
         "prerequisites",
@@ -1988,6 +2015,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _import_local(ns)
         if ns.command == "model" and ns.model_command == "acquire":
             return _acquire_hub(ns)
+        if ns.command == "plan" and ns.plan_command == "policy":
+            print(f"policy   {POLICY_VERSION}")
+            print(f"accel    {ACCELERATOR_COUNT}")
+            print(f"context  {DEFAULT_CONTEXT}")
+            print(f"concur   {DEFAULT_CONCURRENCY}")
+            print(f"util     {MEMORY_UTILIZATION}")
+            print("remote   refuse")
+            print("reserve  false")
+            return 0
         if ns.command == "prerequisites" and ns.prerequisites_command == "check":
             (
                 readiness_report,

@@ -2537,6 +2537,22 @@ Retire when:  the then-approved recipe reaches Foundation `READY`
               evidence is recorded
 Status:       OPEN
 
+### M-7-01 — Deferred serving plans beyond one accelerator
+Label:        DEFERRED
+Owner stage:  Plan Tier 3
+Subsystem:    plan
+Authorizes:   NO
+What:         Multi-GPU planning, tensor parallel above 1, pipeline
+              parallel, a measured serving-memory model, benchmark
+              search, learned optimization, llama.cpp, MLX, and
+              Ollama planners, and dynamic LoRA planning.
+Why now:      The first plan asks Admit for one accelerator inside
+              the cited SAFE budget and writes a bounded vLLM
+              recipe. It does not tune or admit.
+Retire when:  a later decision names the topology or planner and
+              Admit can already reserve the single-accelerator case
+Status:       OPEN
+
 ### M-6-01 — Deferred model catalog, conversion, and training
 Label:        DEFERRED
 Owner stage:  Model Tier 3

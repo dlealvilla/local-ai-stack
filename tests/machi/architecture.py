@@ -22,6 +22,7 @@ TIERS: dict[str, int] = {
     "capacity": 2,
     "foundation": 2,
     "model": 2,
+    "plan": 2,
     "adapters": 3,
     "main": 4,
 }
@@ -59,6 +60,15 @@ CROSS_IMPORT_FORBIDDEN: frozenset[tuple[str, str]] = frozenset(
         ("install", "model"),
         ("prerequisites", "model"),
         ("model", "prerequisites"),
+        ("kernel", "plan"),
+        ("install", "plan"),
+        ("discover", "plan"),
+        ("steward", "plan"),
+        ("capacity", "plan"),
+        ("foundation", "plan"),
+        ("model", "plan"),
+        ("prerequisites", "plan"),
+        ("plan", "prerequisites"),
     }
 )
 
@@ -66,7 +76,6 @@ FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
 FUTURE_PACKAGES = frozenset(
     {
-        "plan",
         "admit",
         "serve",
     }
@@ -1276,6 +1285,47 @@ STEWARD_ADAPTER_FORBIDDEN = (
     "umount",
     "from machi.prerequisites",
 )
+
+
+PLAN_DOMAIN_FORBIDDEN = (
+    "import vllm",
+    "from vllm",
+    "nvidia-smi",
+    "amd-smi",
+    "from machi.adapters",
+    "from machi.admit",
+    "from machi.serve",
+    "resourcemanager",
+    "trust_remote_code=true",
+    "subprocess",
+    "docker",
+)
+
+
+def plan_boundary_violations(root: Path) -> list[str]:
+    """Plan requests admission. It does not reserve, load, or launch."""
+    found: list[str] = []
+    domain = root / "plan"
+    if not domain.is_dir():
+        return ["plan domain is missing"]
+    for path in sorted(domain.rglob("*.py")):
+        text = path.read_text(encoding="utf-8").lower()
+        for token in PLAN_DOMAIN_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    recipe = root / "adapters" / "plan" / "vllm.py"
+    if not recipe.is_file():
+        found.append("vllm plan adapter is missing")
+    else:
+        recipe_text = recipe.read_text(encoding="utf-8")
+        if "import vllm" in recipe_text:
+            found.append("planning must not import the vllm package")
+        if "tensor_parallel_size" not in recipe_text:
+            found.append("vllm recipe must record tensor parallel")
+    main_text = (root / "main.py").read_text(encoding="utf-8")
+    if "def compose_plan" not in main_text:
+        found.append("composition must expose plan composition")
+    return found
 
 
 def steward_boundary_violations(root: Path) -> list[str]:

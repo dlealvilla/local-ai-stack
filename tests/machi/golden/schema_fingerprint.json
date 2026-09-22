@@ -3953,6 +3953,410 @@
       }
     }
   },
+  "plan.configuration@1": {
+    "python": "DeploymentConfiguration",
+    "fields": {
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this plan"
+      },
+      "status": {
+        "type": "PlanStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "planned; stale is a later comparison"
+      },
+      "model_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "logical model"
+      },
+      "artifact_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified warehouse artifact"
+      },
+      "immutable_revision": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact revision"
+      },
+      "foundation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation identity this plan cited"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified runtime generation"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot cited"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime provider from the foundation"
+      },
+      "accelerator_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "accelerators this plan requests"
+      },
+      "accelerator_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity device identity"
+      },
+      "context_length": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "serving context, not the model maximum"
+      },
+      "concurrency": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded in-flight sequences"
+      },
+      "dtype": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dtype carried from the artifact"
+      },
+      "quantization": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "published quantization carried forward"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan policy that produced this result"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "deterministic token of the material inputs"
+      },
+      "settings": {
+        "type": "tuple[PlanSetting, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective serving settings"
+      }
+    }
+  },
+  "plan.created@1": {
+    "python": "PlanCreatedPayload",
+    "fields": {
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan identity"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "material input token"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime provider"
+      },
+      "accelerator_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "accelerators requested"
+      }
+    }
+  },
+  "plan.decision@1": {
+    "python": "PlanDecision",
+    "fields": {
+      "decision_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this decision"
+      },
+      "failure": {
+        "type": "PlanFailure",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none when a plan was produced"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this result was produced"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "token of the inputs, including refusals"
+      },
+      "configuration": {
+        "type": "DeploymentConfiguration | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "planned configuration, or unresolved when refused"
+      },
+      "request": {
+        "type": "ResourceRequest | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "resource request, or unresolved when refused"
+      }
+    }
+  },
+  "plan.preference@1": {
+    "python": "PlanPreference",
+    "fields": {
+      "context_length": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "requested context, or unresolved"
+      },
+      "concurrency": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "requested concurrency, or unresolved"
+      },
+      "accelerator_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "requested accelerators; only one is planned"
+      }
+    }
+  },
+  "plan.refused@1": {
+    "python": "PlanRefusedPayload",
+    "fields": {
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "material input token"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed refusal"
+      }
+    }
+  },
+  "plan.resource_request@1": {
+    "python": "ResourceRequest",
+    "fields": {
+      "request_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this request"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "configuration this request belongs to"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "same material token as the configuration"
+      },
+      "foundation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation identity cited"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime generation cited"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot cited"
+      },
+      "artifact_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse artifact cited"
+      },
+      "accelerator_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "accelerators requested"
+      },
+      "accelerator_memory_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE accelerator budget requested"
+      },
+      "host_memory_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE host memory budget requested"
+      },
+      "persistent_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse bytes already stored"
+      },
+      "transient_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "extra staging bytes for serving"
+      },
+      "cpu_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "process slots requested"
+      }
+    }
+  },
+  "plan.setting@1": {
+    "python": "PlanSetting",
+    "fields": {
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "setting name"
+      },
+      "value": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective value"
+      },
+      "provenance": {
+        "type": "PlanProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this value was chosen"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "short justification"
+      }
+    }
+  },
+  "plan.stale@1": {
+    "python": "PlanStalePayload",
+    "fields": {
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan that was compared"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why it is stale"
+      }
+    }
+  },
   "prerequisite.action@1": {
     "python": "PrerequisiteAction",
     "fields": {

@@ -14,6 +14,7 @@ from tests.machi.architecture import (
     marker_boundary_violations,
     model_boundary_violations,
     package_import_violations,
+    plan_boundary_violations,
     prerequisite_boundary_violations,
     registry_boundary_violations,
     run_boundary_violations,
@@ -89,6 +90,10 @@ def test_foundation_verifies_vllm_without_serving() -> None:
 
 def test_model_stores_artifacts_without_loading_them() -> None:
     assert model_boundary_violations(source_root()) == []
+
+
+def test_plan_requests_admission_without_reserving_it() -> None:
+    assert plan_boundary_violations(source_root()) == []
 
 
 def test_steward_classifies_without_deletion_or_admission() -> None:

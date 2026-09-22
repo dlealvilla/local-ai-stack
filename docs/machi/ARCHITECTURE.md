@@ -934,33 +934,48 @@ See [M6.md](M6.md).
 
 **ID:** 7  
 **Name:** Plan  
-**Purpose:** One internally consistent configuration. Does not launch.  
-**Short Description:** Compose DeploymentConfiguration; CURRENT/STALE;
-recipe data for Serve.
+**Purpose:** One deterministic serving request for a stored model,
+a verified Foundation, and a Capacity snapshot. It does not admit
+or launch.  
+**Short Description:** Compose DeploymentConfiguration; compare
+CURRENT versus STALE; vLLM recipe stays in the adapter.
 
-**Components:** 7.1 Compose, 7.2 Generation, 7.3 Recipe (structured,
-not argv in core).
+**Components:** 7.1 Compose, 7.2 Generation (CURRENT / STALE),
+7.3 Recipe (structured settings, not a process argv).
 
-**Adapters:** none.
+**Adapters:** vLLM recipe. The generic plan package does not import
+the vLLM package.
 
-**Inputs:** FoundationSelection, ModelSelection, artifact, envelope.  
+**Inputs:** ModelSelection, AvailableModels, verified ModelArtifact,
+FoundationSelection, RuntimeCapability, CapacityEnvelope, bounded
+PlanPreference.  
 **Outputs:** DeploymentConfiguration, ResourceRequest.  
-**Preconditions:** verified runtime + selected model.  
-**Success:** CURRENT configuration persisted.  
-**Blocked:** inconsistent IDs.  
-**State owned:** DeploymentConfiguration.  
-**Persistence:** yes.  
-**Side effects:** none on GPU/process.  
-**Downstream:** Admit, Serve.  
-**Re-entry:** compose replaces with new generation.  
-**Idempotence:** same inputs → same configuration digest.  
-**Invalidated by:** any upstream selection/envelope change → STALE.  
-**Recompute:** new configuration; do not mutate ADMITTED
-reservation.  
-**Telemetry:** `plan.created`, `plan.stale`.  
-**Independent test:** cannot import resource.  
+**Preconditions:** stored verified artifact, Foundation READY,
+provider qualification established, SAFE accelerator and host
+memory known.  
+**Success:** one single-accelerator plan whose fingerprint repeats
+for the same inputs.  
+**Blocked:** missing artifact, failed integrity, unresolved
+compatibility, unqualified foundation, unsafe or unknown SAFE
+capacity, more than one requested accelerator.  
+**State owned:** PlanDecision.  
+**Persistence:** exclusive Store create. A new fingerprint is a new
+record.  
+**Side effects:** none on GPU, network, or reservation.  
+**Downstream:** Admit.  
+**Re-entry:** the same decision is stored once.  
+**Idempotence:** same inputs, same fingerprint.  
+**Invalidated by:** model, artifact, foundation, capacity, policy,
+or preference change. The old plan is not edited.  
+**Recompute:** a new PlanDecision.  
+**Telemetry:** `plan.created`, `plan.refused`, `plan.stale`.
+No paths and no secrets.  
+**Independent test:** Plan does not import admission.  
 **Cumulative:** M0→M7.  
-**Lessons:** plan is authority; `--refresh` is explicit.
+**Lessons:** the request is not a reservation. Qualification is a
+state, not a vendor name.
+
+See [M7.md](M7.md).
 
 ## 8 Admit
 

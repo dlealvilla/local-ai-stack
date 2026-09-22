@@ -1433,6 +1433,24 @@ def main() -> int:
     if (root_a / "models" / "warehouse").exists():
         raise SystemExit("model inspect wrote a warehouse artifact")
 
+    policy = run([str(machi), "plan", "policy"], env=env)
+    print(policy.stdout, end="")
+    if "policy   m7.plan.1" not in policy.stdout:
+        raise SystemExit("plan policy version missing")
+    if "accel    1" not in policy.stdout:
+        raise SystemExit("plan did not pin one accelerator")
+    if "remote   refuse" not in policy.stdout:
+        raise SystemExit("plan did not refuse remote code")
+    if "reserve  false" not in policy.stdout:
+        raise SystemExit("plan claimed a reservation")
+    if "api_server" in policy.stdout:
+        raise SystemExit("plan policy launched a server")
+    proof = Path(__file__).resolve().parent / "prove_plan_fixture.py"
+    planned = run([str(python), str(proof)], env=env)
+    print(planned.stdout, end="")
+    if "plan_ok " not in planned.stdout:
+        raise SystemExit("installed plan package did not compose a fixture")
+
     print("verify_ok")
     return 0
 

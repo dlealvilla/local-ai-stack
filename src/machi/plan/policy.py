@@ -1,0 +1,19 @@
+"""Versioned single-accelerator planning policy."""
+
+from __future__ import annotations
+
+POLICY_VERSION = "m7.plan.1"
+RECIPE_SCHEMA = 1
+
+DEFAULT_CONTEXT = 4096
+MAX_CONTEXT = 32768
+MIN_CONTEXT = 128
+
+DEFAULT_CONCURRENCY = 4
+MAX_CONCURRENCY = 16
+MIN_CONCURRENCY = 1
+
+MEMORY_UTILIZATION = "0.90"
+ACCELERATOR_COUNT = 1
+CPU_COUNT = 1
+TRANSIENT_BYTES = 0

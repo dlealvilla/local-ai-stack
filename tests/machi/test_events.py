@@ -15,6 +15,7 @@ import machi.foundation.events as foundation_events_module
 import machi.install.events as install_events_module
 import machi.kernel.store_proof as store_proof_module
 import machi.model.events as model_events_module
+import machi.plan.events as plan_events_module
 import machi.prerequisites as prerequisites_module
 import machi.steward.events as steward_events_module
 from machi.kernel.alive import KernelAlivePayload, kernel_alive
@@ -162,6 +163,7 @@ def test_schema_fingerprint_matches_committed_golden() -> None:
     assert steward_events_module.OCCUPANCY_TYPE == "steward.occupancy.observed"
     assert foundation_events_module.INSPECTED_TYPE == "foundation.inspected"
     assert model_events_module.INSPECTED_TYPE == "model.inspected"
+    assert plan_events_module.CREATED_TYPE == "plan.created"
     assert JournalDefect.kind == "journal_defect"
     current = fingerprint(module_prefix="machi.")
     expected = json.loads(GOLDEN.read_text(encoding="utf-8"))
