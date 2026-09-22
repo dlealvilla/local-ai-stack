@@ -2671,6 +2671,711 @@
       }
     }
   },
+  "model.acquisition.completed@1": {
+    "python": "ModelAcquiredPayload",
+    "fields": {
+      "artifact_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse artifact"
+      },
+      "total_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stored bytes"
+      },
+      "lifecycle": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stored"
+      }
+    }
+  },
+  "model.acquisition.failed@1": {
+    "python": "ModelAcquireFailedPayload",
+    "fields": {
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed failure code"
+      }
+    }
+  },
+  "model.artifact@1": {
+    "python": "ModelArtifact",
+    "fields": {
+      "artifact_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "id of this revision and variant"
+      },
+      "model_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "logical model"
+      },
+      "source_kind": {
+        "type": "ModelSourceKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "hub or local"
+      },
+      "repository": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "source identity without secrets"
+      },
+      "immutable_revision": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact revision that was stored"
+      },
+      "variant": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dtype, quant, and format"
+      },
+      "lifecycle": {
+        "type": "ArtifactLifecycle",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stored only when hashes match"
+      },
+      "total_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "sum of stored file sizes"
+      },
+      "files": {
+        "type": "tuple[ModelFileRecord, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "manifest entries"
+      },
+      "config_sha256": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "digest of config.json when present"
+      },
+      "derivation": {
+        "type": "DerivationKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "lineage kind copied from the definition"
+      },
+      "base_model": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "declared base model id"
+      },
+      "parent_artifact_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "parent artifact when this copy names one"
+      },
+      "acquired_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when promotion succeeded; UTC"
+      }
+    }
+  },
+  "model.artifact.integrity_failed@1": {
+    "python": "ModelIntegrityFailedPayload",
+    "fields": {
+      "artifact_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "artifact that failed verification"
+      }
+    }
+  },
+  "model.available@1": {
+    "python": "AvailableModels",
+    "fields": {
+      "snapshot_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this evaluation"
+      },
+      "input_token": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of foundation, capacity, and policy"
+      },
+      "foundation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation or selection cited"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot cited"
+      },
+      "entries": {
+        "type": "tuple[AvailableModelEntry, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "evaluated candidates"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this snapshot was made; UTC"
+      }
+    }
+  },
+  "model.available_entry@1": {
+    "python": "AvailableModelEntry",
+    "fields": {
+      "definition": {
+        "type": "ModelDefinition",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized model"
+      },
+      "compatibility": {
+        "type": "ModelCompatibility",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "assessment"
+      },
+      "requirement": {
+        "type": "ModelRequirement",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "storage and static weights"
+      },
+      "artifact_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "stored artifact when one exists"
+      },
+      "lifecycle": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "warehouse lifecycle when stored"
+      }
+    }
+  },
+  "model.compatibility@1": {
+    "python": "ModelCompatibility",
+    "fields": {
+      "state": {
+        "type": "CompatibilityState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized result"
+      },
+      "failure": {
+        "type": "ModelFailure",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "primary reason, or none"
+      },
+      "technical_state": {
+        "type": "CompatibilityState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime and capacity fit"
+      },
+      "policy_state": {
+        "type": "CompatibilityState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "remote code and license policy"
+      },
+      "provider_qualification": {
+        "type": "ProviderQualification",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation provider evidence, not instance ready"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this assessment was made"
+      }
+    }
+  },
+  "model.definition@1": {
+    "python": "ModelDefinition",
+    "fields": {
+      "model_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable id of source plus repository"
+      },
+      "source_kind": {
+        "type": "ModelSourceKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "hub or local"
+      },
+      "repository": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "repository id or local label, no secrets"
+      },
+      "requested_revision": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what the caller asked for"
+      },
+      "immutable_revision": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact commit or content digest"
+      },
+      "display_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "short name from metadata or the repository"
+      },
+      "architecture": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "config architecture when present"
+      },
+      "dtype": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "declared dtype"
+      },
+      "quantization": {
+        "type": "QuantizationKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "published quant method, or none"
+      },
+      "weight_format": {
+        "type": "WeightFormat",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "selected weight files"
+      },
+      "context_length": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "declared context, not a serving choice"
+      },
+      "parameter_count": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "only when metadata states it"
+      },
+      "license_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "source license identifier"
+      },
+      "commercial_use": {
+        "type": "CommercialUse",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "declared, review, or unknown"
+      },
+      "gated": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "source says access is gated"
+      },
+      "requires_remote_code": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "config asks to execute repository code"
+      },
+      "derivation": {
+        "type": "DerivationKind",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "lineage kind"
+      },
+      "base_model": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "declared base model id"
+      }
+    }
+  },
+  "model.file@1": {
+    "python": "ModelFileRecord",
+    "fields": {
+      "relative_path": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "path inside the artifact, not a host path"
+      },
+      "size_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stored size"
+      },
+      "sha256": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "hex digest"
+      }
+    }
+  },
+  "model.inspected@1": {
+    "python": "ModelInspectedPayload",
+    "fields": {
+      "entry_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "candidates in this snapshot"
+      },
+      "compatible_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "entries whose technical state is compatible"
+      },
+      "input_token": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "snapshot input fingerprint"
+      }
+    }
+  },
+  "model.requirement@1": {
+    "python": "ModelRequirement",
+    "fields": {
+      "persistent_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "warehouse bytes; unresolved is not zero"
+      },
+      "transient_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "staging bytes during acquisition"
+      },
+      "static_weight_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "weight file bytes, not serving VRAM"
+      }
+    }
+  },
+  "model.selected@1": {
+    "python": "ModelSelectedPayload",
+    "fields": {
+      "selection_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "selection identity"
+      },
+      "model_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "logical model"
+      },
+      "state": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compatibility state"
+      }
+    }
+  },
+  "model.selection@1": {
+    "python": "ModelSelection",
+    "fields": {
+      "selection_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this choice"
+      },
+      "model_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "logical model"
+      },
+      "artifact_id": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "stored artifact when already acquired"
+      },
+      "immutable_revision": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact revision"
+      },
+      "provenance": {
+        "type": "SelectionProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who chose it"
+      },
+      "compatibility_state": {
+        "type": "CompatibilityState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "assessment at selection"
+      },
+      "foundation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation this choice cited"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot cited"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this model was selected"
+      }
+    }
+  },
+  "model.setting@1": {
+    "python": "ModelSetting",
+    "fields": {
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dotted setting name"
+      },
+      "value": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "current value"
+      },
+      "provenance": {
+        "type": "SettingProvenance",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who selected it"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why it is in force"
+      },
+      "invalidation": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what must be recomputed"
+      }
+    }
+  },
+  "model.settings@1": {
+    "python": "ModelSettings",
+    "fields": {
+      "acquisition_mode": {
+        "type": "AcquisitionMode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspect, plan, or acquire"
+      },
+      "remote_code_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "refuse is the only supported policy"
+      },
+      "warehouse_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "artifacts live under the owned state root"
+      },
+      "copy_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "local sources are copied, not linked"
+      },
+      "integrity_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "sha256 after acquisition"
+      },
+      "revision_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "persist an immutable revision"
+      },
+      "license_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "surface metadata; do not invent permission"
+      },
+      "timeout_seconds": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bound on one source operation"
+      },
+      "max_retries": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded retries, not an infinite loop"
+      },
+      "settings": {
+        "type": "tuple[ModelSetting, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspectable records"
+      }
+    }
+  },
   "mount.entry@1": {
     "python": "MountEntry",
     "fields": {

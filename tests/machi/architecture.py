@@ -21,6 +21,7 @@ TIERS: dict[str, int] = {
     "steward": 2,
     "capacity": 2,
     "foundation": 2,
+    "model": 2,
     "adapters": 3,
     "main": 4,
 }
@@ -50,6 +51,14 @@ CROSS_IMPORT_FORBIDDEN: frozenset[tuple[str, str]] = frozenset(
         ("install", "foundation"),
         ("prerequisites", "foundation"),
         ("foundation", "prerequisites"),
+        ("foundation", "model"),
+        ("capacity", "model"),
+        ("discover", "model"),
+        ("steward", "model"),
+        ("kernel", "model"),
+        ("install", "model"),
+        ("prerequisites", "model"),
+        ("model", "prerequisites"),
     }
 )
 
@@ -57,7 +66,6 @@ FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
 FUTURE_PACKAGES = frozenset(
     {
-        "model",
         "plan",
         "admit",
         "serve",
@@ -1201,6 +1209,45 @@ def foundation_boundary_violations(root: Path) -> list[str]:
     main_text = (root / "main.py").read_text(encoding="utf-8")
     if "def inspect_foundation" not in main_text:
         found.append("composition must expose foundation inspection")
+    return found
+
+
+MODEL_DOMAIN_FORBIDDEN = (
+    "huggingface",
+    "subprocess",
+    "docker",
+    "from machi.adapters",
+    "from machi.plan",
+    "from machi.serve",
+    "resourcemanager",
+    "trust_remote_code=true",
+)
+
+
+def model_boundary_violations(root: Path) -> list[str]:
+    """Model stores artifacts. It does not load weights or serve."""
+    found: list[str] = []
+    domain = root / "model"
+    if not domain.is_dir():
+        return ["model domain is missing"]
+    for path in sorted(domain.rglob("*.py")):
+        text = path.read_text(encoding="utf-8").lower()
+        for token in MODEL_DOMAIN_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    hub = root / "adapters" / "model" / "hub.py"
+    if not hub.is_file():
+        found.append("hub adapter is missing")
+    else:
+        hub_text = hub.read_text(encoding="utf-8")
+        if "huggingface_hub" not in hub_text:
+            found.append("hub adapter must own the hub client")
+    local = root / "adapters" / "model" / "local.py"
+    if "is_symlink" not in local.read_text(encoding="utf-8"):
+        found.append("local import must reject symlinks")
+    main_text = (root / "main.py").read_text(encoding="utf-8")
+    if "def inspect_model" not in main_text:
+        found.append("composition must expose model inspection")
     return found
 
 

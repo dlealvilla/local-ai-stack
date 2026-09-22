@@ -1399,6 +1399,40 @@ def main() -> int:
     if inspected_at < 0 or str(root_a) in foundation.stdout[inspected_at:]:
         raise SystemExit("foundation event leaked a path or was missing")
 
+    fixture = root / "local-model"
+    fixture.mkdir()
+    (fixture / "config.json").write_text(
+        '{"architectures": ["LlamaForCausalLM"], "torch_dtype": "bfloat16"}',
+        encoding="utf-8",
+    )
+    (fixture / "model.safetensors").write_bytes(b"not-a-real-weight")
+    inspected_model = run(
+        [
+            str(machi),
+            "model",
+            "inspect",
+            "--path",
+            str(fixture),
+            "--label",
+            "verify-local",
+            "--journal-dir",
+            str(root / "model-journal"),
+        ],
+        env=env,
+    )
+    print(inspected_model.stdout, end="")
+    if "mode     inspect_only" not in inspected_model.stdout:
+        raise SystemExit("model inspect fetched or served")
+    if '"event_type": "model.inspected"' not in inspected_model.stdout:
+        raise SystemExit("model inspect did not emit model.inspected")
+    if "api_server" in inspected_model.stdout:
+        raise SystemExit("model inspect launched a server")
+    event_at = inspected_model.stdout.find("model.inspected")
+    if str(fixture) in inspected_model.stdout[event_at:]:
+        raise SystemExit("model event leaked a source path")
+    if (root_a / "models" / "warehouse").exists():
+        raise SystemExit("model inspect wrote a warehouse artifact")
+
     print("verify_ok")
     return 0
 

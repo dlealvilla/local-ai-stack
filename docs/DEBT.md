@@ -2537,6 +2537,25 @@ Retire when:  the then-approved recipe reaches Foundation `READY`
               evidence is recorded
 Status:       OPEN
 
+### M-6-01 — Deferred model catalog, conversion, and training
+Label:        DEFERRED
+Owner stage:  Model Tier 3
+Subsystem:    model
+Authorizes:   NO
+What:         Hub search and marketplace discovery, recommendations,
+              automatic quantization and conversion, quality
+              benchmarks, learned ranking, S3/OCI/ModelScope and
+              other registries, air-gap bundles, fleet inventory,
+              content deduplication, fine-tuning, training jobs,
+              Team Brain artifacts, adapter serving, and commercial
+              distribution.
+Why now:      Tier 2 stores an explicit hub revision or a copied
+              local tree and assesses it against the installed
+              engine. It does not crawl, convert, or rank.
+Retire when:  a later decision names the provider or workflow and
+              the product spine already serves
+Status:       OPEN
+
 ### M-5-01 — Deferred foundation executors and engines
 Label:        DEFERRED
 Owner stage:  Foundation Tier 3

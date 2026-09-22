@@ -77,7 +77,7 @@ Block 2 Discover         observations of the machine
 Block 3 Steward         ownership, occupancy, safe reclaim
 Block 4 Capacity         SAFE envelope and host-minimum gate
 Block 5 Foundation      executor + runtime, provision, verify, select
-Block 6 Model           catalog → available → select → acquire
+Block 6 Model           explicit source → compatibility → warehouse → select
 Block 7 Plan            authoritative DeploymentConfiguration
 Block 8 Admit           ResourceManager reservation
 Block 9 Serve            instance, readiness, request inference

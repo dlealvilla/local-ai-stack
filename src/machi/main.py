@@ -8,9 +8,11 @@ import adapters. Kernel never owns state-root policy.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
 import sys
+import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -23,6 +25,8 @@ from machi.adapters.foundation.host_runtime import observe_host_runtime
 from machi.adapters.foundation.provision import ManagedVllmProvisioner
 from machi.adapters.foundation.uv_tool import ManagedUv
 from machi.adapters.journal.jsonl import JsonlJournal
+from machi.adapters.model.acquire import store_local, view_local
+from machi.adapters.model.runtime_query import query_runtime
 from machi.adapters.persistence.file_store import FileStore
 from machi.adapters.prerequisites.amd_smi import AmdSmiPrerequisiteAdapter
 from machi.adapters.steward.native import NativeSteward, RootClaim
@@ -78,6 +82,7 @@ from machi.install.registry import RegistrySeed
 from machi.install.run import InstallRunStore
 from machi.kernel.alive import kernel_alive
 from machi.kernel.build import identity as build_identity
+from machi.kernel.clock import FixedClock
 from machi.kernel.errors import (
     MachiError,
     NotFoundError,
@@ -90,6 +95,15 @@ from machi.kernel.journal import JournalDefect
 from machi.kernel.schema import Contract, to_dict, validate_registry
 from machi.kernel.store_proof import StoreProof, store_proved
 from machi.kernel.unresolved import Maybe, is_resolved
+from machi.model.compat import RuntimeView
+from machi.model.contracts import (
+    AvailableModels,
+    ModelSourceKind,
+    ProviderQualification,
+)
+from machi.model.evaluate import evaluate_source, snapshot_for
+from machi.model.events import acquisition_events, model_events
+from machi.model.policy import default_model_settings
 from machi.prerequisites.contracts import (
     PolicyMode,
     PrerequisiteReadinessReport,
@@ -892,6 +906,61 @@ def _warn_if_defaulted(binding: StateRootBinding) -> None:
     )
 
 
+def inspect_model(
+    *,
+    source_path: Path,
+    label: str,
+    journal_dir_path: Path | None,
+    foundation_id: str = "foundation_unspecified",
+    capacity_evidence_id: str = "capacity_unspecified",
+    qualification: str = "unknown",
+    runtime_python: Path | None = None,
+) -> tuple[AvailableModels, tuple[EventRecord, ...]]:
+    """Inspect one local directory. This does not download or load weights."""
+    validate_registry(module_prefix="machi.")
+    observed = dt.datetime.now(dt.UTC)
+    architectures: frozenset[str] = frozenset()
+    quantizations: frozenset[str] = frozenset()
+    capability_known = False
+    if runtime_python is not None:
+        with tempfile.TemporaryDirectory() as tmp:
+            architectures, quantizations = query_runtime(
+                runtime_python,
+                Path(tmp) / "runtime.json",
+            )
+        capability_known = bool(architectures)
+    runtime = RuntimeView(
+        architectures=architectures,
+        quantizations=quantizations,
+        foundation_id=foundation_id,
+        provider_qualification=ProviderQualification(qualification),
+        capability_known=capability_known,
+    )
+    view = view_local(source_path, label)
+    entry = evaluate_source(
+        view,
+        source_kind=ModelSourceKind.LOCAL,
+        runtime=runtime,
+        capacity=None,
+        accelerator_safe_bytes=None,
+        observed_at=observed,
+    )
+    settings = default_model_settings()
+    snapshot = snapshot_for(
+        (entry,),
+        foundation_id=foundation_id,
+        capacity_evidence_id=capacity_evidence_id,
+        policy_token=settings.revision_policy,
+        observed_at=observed,
+    )
+    events_out = model_events(snapshot, clock=FixedClock(observed))
+    if journal_dir_path is not None:
+        journal = JsonlJournal(journal_dir_path)
+        for event in events_out:
+            journal.append(event)
+    return snapshot, events_out
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="machi", description="Machi")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1184,6 +1253,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             choices=list(BACKEND_CHOICES),
             default="auto",
         )
+
+    model = sub.add_parser(
+        "model",
+        help="inspect or import a model artifact; does not load or serve it",
+    )
+    model_sub = model.add_subparsers(dest="model_command", required=True)
+    model_inspect = model_sub.add_parser(
+        "inspect",
+        help="read local metadata and assess compatibility; no weight download",
+    )
+    model_import = model_sub.add_parser(
+        "import",
+        help="copy a local artifact into the owned warehouse",
+    )
+    for model_command in (model_inspect, model_import):
+        model_command.add_argument("--path", required=True)
+        model_command.add_argument("--label", required=True)
+        model_command.add_argument("--state-root", default=None)
+        model_command.add_argument("--journal-dir", default=None)
+        model_command.add_argument(
+            "--qualification",
+            choices=["qualified", "deferred", "unknown"],
+            default="unknown",
+        )
+        model_command.add_argument("--runtime-python", default=None)
 
     readiness = sub.add_parser(
         "prerequisites",
@@ -1638,6 +1732,85 @@ def main(argv: Sequence[str] | None = None) -> int:
             for event in foundation_events_out:
                 _print_document(event)
             return 0
+        if ns.command == "model" and ns.model_command == "inspect":
+            model_snapshot, model_events_out = inspect_model(
+                source_path=Path(ns.path),
+                label=ns.label,
+                journal_dir_path=(Path(ns.journal_dir) if ns.journal_dir else None),
+                qualification=ns.qualification,
+                runtime_python=(
+                    Path(ns.runtime_python) if ns.runtime_python else None
+                ),
+            )
+            model_entry = model_snapshot.entries[0]
+            print(f"state    {model_entry.compatibility.state.value}")
+            print(f"failure  {model_entry.compatibility.failure.value}")
+            print(f"revision {model_entry.definition.immutable_revision}")
+            remote = str(model_entry.definition.requires_remote_code).lower()
+            print(f"remote   {remote}")
+            print("mode     inspect_only")
+            journal_shown = (
+                str(JsonlJournal(Path(ns.journal_dir)).path)
+                if ns.journal_dir
+                else "-"
+            )
+            print(f"journal  {journal_shown}")
+            _print_document(model_snapshot)
+            for event in model_events_out:
+                _print_document(event)
+            return 0
+        if ns.command == "model" and ns.model_command == "import":
+            if not ns.state_root:
+                raise ValidationError("state root is required to import a model")
+            observed = dt.datetime.now(dt.UTC)
+            architectures: frozenset[str] = frozenset()
+            quantizations: frozenset[str] = frozenset()
+            capability_known = False
+            if ns.runtime_python:
+                with tempfile.TemporaryDirectory() as tmp:
+                    architectures, quantizations = query_runtime(
+                        Path(ns.runtime_python),
+                        Path(tmp) / "runtime.json",
+                    )
+                capability_known = bool(architectures)
+            runtime = RuntimeView(
+                architectures=architectures,
+                quantizations=quantizations,
+                foundation_id="foundation_unspecified",
+                provider_qualification=ProviderQualification(ns.qualification),
+                capability_known=capability_known,
+            )
+            stored = store_local(
+                Path(ns.state_root),
+                Path(ns.path),
+                ns.label,
+                runtime=runtime,
+                capacity=None,
+                accelerator_safe_bytes=None,
+                observed_at=observed,
+            )
+            acquire_events = acquisition_events(
+                artifact=stored.artifact,
+                failure=stored.failure,
+                artifact_id=stored.artifact_id,
+                clock=FixedClock(observed),
+            )
+            if ns.journal_dir:
+                journal = JsonlJournal(Path(ns.journal_dir))
+                for event in acquire_events:
+                    journal.append(event)
+            print(f"failure  {stored.failure.value}")
+            print(
+                "lifecycle "
+                + (
+                    stored.artifact.lifecycle.value
+                    if stored.artifact is not None
+                    else "-"
+                )
+            )
+            for event in acquire_events:
+                _print_document(event)
+            return 0 if stored.failure.value == "none" else 2
         if ns.command == "prerequisites" and ns.prerequisites_command == "check":
             (
                 readiness_report,

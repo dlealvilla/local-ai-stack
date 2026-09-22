@@ -214,11 +214,11 @@ Recompute (not a second pipeline) is Diagram E.
   5.5 Verify
   5.6 Select
 6 Model
-  6.1 Catalog
+  6.1 Explicit sources
   6.2 Compatibility
-  6.3 Capacity funnel
+  6.3 Requirement
   6.4 Select
-  6.5 Acquire
+  6.5 Warehouse
 7 Plan
   7.1 Compose
   7.2 CURRENT / STALE
@@ -885,33 +885,50 @@ See [M5.md](M5.md).
 
 **ID:** 6  
 **Name:** Model  
-**Purpose:** From catalog to a local artifact the host can run.  
-**Short Description:** Catalog, compatibility, capacity funnel,
-select, acquire.
+**Purpose:** Which artifacts exist or can be acquired, what they are,
+whether they fit this Foundation and host, and whether Machi can store
+them.  
+**Short Description:** Explicit sources, compatibility, requirement,
+warehouse, selection.
 
-**Components:** 6.1 Catalog, 6.2 Compatibility, 6.3 Capacity funnel,
-6.4 Select, 6.5 Acquire.
+**Components:** 6.1 Explicit sources, 6.2 Compatibility,
+6.3 Requirement, 6.4 Select, 6.5 Warehouse.
 
-**Adapters:** fixture catalog, optional Hub fetch; estimators
-advisory.
+**Adapters:** Hugging Face Hub for one named repository; local import
+by copy. The generic model package does not import the hub client.
 
-**Inputs:** RuntimeCapability, CapacityEnvelope remaining.  
-**Outputs:** AvailableModels, ModelSelection, ModelArtifact.  
-**Preconditions:** verified foundation.  
-**Success:** selected member is Available and artifact local.  
-**Blocked:** empty Available; acquire fail; infeasible storage.  
-**State owned:** views, selection, artifacts, inventory.  
+**Inputs:** Foundation selection and runtime capability, Capacity
+envelope, an explicit source reference, model policy.  
+**Outputs:** ModelDefinition, ModelRequirement, AvailableModels,
+ModelSelection, ModelArtifact.  
+**Preconditions:** a Foundation identity and a Capacity snapshot for a
+non-conditional storage decision. Inspection does not require a
+download.  
+**Success:** an exact revision is assessed, and an explicit acquire
+promotes a verified warehouse copy.  
+**Blocked:** unknown architecture, refused remote code, insufficient
+SAFE storage, failed integrity, gated access without a credential.  
+**State owned:** warehouse manifests and stored files. A hub cache
+under the state root is not the inventory.  
 **Persistence:** yes.  
-**Side effects:** downloads into owned trees.  
+**Side effects:** copy or download only when acquire is requested.
+No weight load and no server.  
 **Downstream:** Plan.  
-**Re-entry:** funnel on remaining change.  
-**Idempotence:** acquire reuses digest.  
-**Invalidated by:** foundation or envelope change.  
-**Recompute:** new AvailableModels; STALE plan.  
-**Telemetry:** funnel counts; important blocked reasons.  
-**Independent test:** estimated ≠ available.  
+**Re-entry:** an exact verified artifact is reused.  
+**Idempotence:** same source, revision, and variant do not download
+again.  
+**Invalidated by:** foundation, runtime capability, capacity, revision,
+or policy change. Old snapshots are not rewritten.  
+**Recompute:** a new AvailableModels snapshot.  
+**Telemetry:** `model.inspected`, `model.selected`, acquisition
+outcome. No tokens, card bodies, or customer paths.  
+**Independent test:** a branch name is not artifact identity; a
+partial staging directory is not stored.  
 **Cumulative:** M0→M6.  
-**Lessons:** Hub is not compatibility authority; llmfit advisory.
+**Lessons:** stored is not loaded and not running. AMD qualification
+stays `M-5-AMD-01`.
+
+See [M6.md](M6.md).
 
 ## 7 Plan
 
@@ -1098,16 +1115,17 @@ cleanup on stop.
   5.6 Select
     5.6.1 AUTO / MANUAL
 6 Model
-  6.1 Catalog
-    6.1.1 Internal catalog
+  6.1 Explicit sources
+    6.1.1 Hub repository revision
+    6.1.2 Local import
   6.2 Compatibility
-    6.2.1 Runtime-aware prefilter
-  6.3 Capacity funnel
-    6.3.1 Storage/RAM/VRAM vs envelope
+    6.2.1 Installed-engine architecture query
+  6.3 Requirement
+    6.3.1 Artifact bytes and static weight baseline
   6.4 Select
-    6.4.1 AUTO / MANUAL
-  6.5 Acquire
-    6.5.1 Local artifact + inventory
+    6.4.1 Administrator or curated choice
+  6.5 Warehouse
+    6.5.1 Staging, hash, promote, reuse
 7 Plan
   7.1 Compose
     7.1.1 DeploymentConfiguration
