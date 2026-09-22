@@ -59,8 +59,9 @@ Discover: `2.1.1` OS/arch, `2.2.1` memory, `2.3`/`2.3.1` accelerator (NVIDIA+AMD
 PrerequisiteReadiness: `2.5.1` accepted (physical PASS on stock ROCm `amd-smi` missing yaml). Discover stays read-only.  
 Mounts: `2.4.1` accepted (Darwin + Docker overlay physical on SHA `3fbf6c83…`).  
 Steward: Tier 2 accepted on SHA `a9234b69…`. It classifies and does not delete.  
-Next: Capacity. Not started: HostId minting, HostProfile, SAFE storage.
-Do not start Capacity, Dynamo, an optimizer, or Team Brain without a new instruction.
+Capacity: Tier 2 accepted on SHA `56d6a5d7…`. SAFE planning envelopes. Sonar writes default off.  
+Next: Foundation / vLLM. Not started.
+Do not start Foundation, Dynamo, an optimizer, or Team Brain without a new instruction.
 Approved serving policy, when Foundation exists: vLLM primary, Ollama fallback.
 
 ## Packaging
