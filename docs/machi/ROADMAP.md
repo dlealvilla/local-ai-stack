@@ -348,8 +348,11 @@ invalid/duplicate rows, distinct capacity fields, path capability,
 probe policy/bounds, settings, serialization, privacy; macOS fixture;
 Windows unsupported; current-host observation; architecture non-edges.
 
-**Physical:** after candidate freeze. Target population is
-`MACHI_RELEVANT_STORAGE_TOPOLOGY_BEHAVIOR`, not GPU market share.
+**Physical:** accepted on frozen wheel `3fbf6c83…` — Darwin local/RO/pseudo
+and Docker Linux overlay/container (write-probe success + shared
+backing). Quota/FUSE specialist residual recorded. Target population is
+`MACHI_RELEVANT_STORAGE_TOPOLOGY_BEHAVIOR`, not GPU market share. See
+[M2-2.4.1-PHYSICAL.md](M2-2.4.1-PHYSICAL.md).
 
 **Cumulative:** M0 → M1 → 2.1.1 → 2.2.1 → 2.3 → 2.5.1 → 2.4.1.
 

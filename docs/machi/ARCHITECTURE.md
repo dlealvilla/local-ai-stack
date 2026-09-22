@@ -492,7 +492,7 @@ provenance.
 | `2.2.1` | Memory observer | Observe reported physical/system memory in bytes | accepted |
 | `2.3` | Accelerator Discovery | Generic accelerator observation capability | NVIDIA+AMD implemented locally; physical pending for this candidate |
 | `2.3.1` | Native accelerator observer | Generic port + provider orchestration | NVIDIA, AMD, retained Apple; Intel out |
-| `2.4.1` | Mount enumerator | Filesystem/mount topology | implemented locally; physical later |
+| `2.4.1` | Mount enumerator | Filesystem/mount topology | accepted (Darwin + Docker overlay physical) |
 
 Working implementation order: `2.1.1` → `2.2.1` → `2.3` (generic +
 NVIDIA and AMD accepted providers; Apple retained) → `2.5.1` →
@@ -594,7 +594,7 @@ identity, path capability, descriptive candidacy.
 
 | ID | Name | Role | Status |
 |---|---|---|---|
-| `2.4.1` | Mount enumerator | Observe filesystem/mount topology through a replaceable adapter | implemented locally; physical later |
+| `2.4.1` | Mount enumerator | Observe filesystem/mount topology through a replaceable adapter | accepted (Darwin + Docker overlay physical) |
 
 - Core owns `MountObservation`. Linux and macOS providers classify
   filesystems. Windows is unsupported, not zero.

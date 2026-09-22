@@ -56,7 +56,8 @@ Kernel: `0.1.1` registry, `0.1.2` Unresolved, `0.2.1` typed IDs, `0.3.1` EventRe
 Install: `1.2.1` binder, `1.3.1` marker, `1.3.2` registry seed, `1.1.1` InstallRecord, `1.4.1` InstallRun.  
 Discover: `2.1.1` OS/arch, `2.2.1` memory, `2.3`/`2.3.1` accelerator (NVIDIA+AMD physical coverage closed for SHA `eaee5c98…`; Apple physical deferred).  
 PrerequisiteReadiness: `2.5.1` accepted (physical PASS on stock ROCm `amd-smi` missing yaml). Discover stays read-only.  
-Next after 2.4.1 closes: Steward. Not started: HostId minting, HostProfile, Capacity.
+Mounts: `2.4.1` accepted (Darwin + Docker overlay physical on SHA `3fbf6c83…`).  
+Next: Steward. Not started: HostId minting, HostProfile, Capacity.
 
 ## Packaging
 
