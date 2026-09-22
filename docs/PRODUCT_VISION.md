@@ -29,12 +29,28 @@ This document should function as the product's **architectural constitution**.
 
 Technical plans, implementation phases, APIs, repositories, services, schemas, and deployment components should be derived from it.
 
-Two documents derive from this one and are authoritative within their own
-scope: `docs/ROADMAP.md` for build sequence and gates, and
-`docs/ARCHITECTURE.md` for the module map — where each concept below
-lives, what it consumes and produces, and what may depend on what. Where
-either disagrees with this document about what a concept *means*, this
-document wins.
+`docs/STRATEGY.md` sits above this constitution. It owns why Kultrun
+exists, the product-and-lab split, serving-path neutrality, and the
+four strategic stages. It does not own the customer experience, and it
+does not override what a concept means here.
+
+This document remains the product constitution: the experience and the
+semantics an organisation is promised. Kultrun is that organisational
+intelligence layer. It is not defined as Ollama, vLLM, Dynamo, or any
+other serving implementation. Those are replaceable ways to run models
+under this product.
+
+Two further documents are authoritative within their own scope.
+`docs/machi/ROADMAP.md` is the active build sequence. `docs/ROADMAP.md`
+is the earlier Kultrun sequence and stays historical. `docs/machi/ARCHITECTURE.md`
+is the active module map. `docs/ARCHITECTURE.md` is the Kultrun module
+map. Where a roadmap or module map disagrees with this document about
+what a concept *means*, this document wins. Where strategy and this
+document disagree about a customer promise, this document wins. Where
+they disagree about which serving implementation is strategically
+preferred, strategy wins. The approved preference is vLLM as the
+primary execution path and Ollama as the compatibility fallback.
+Neither path becomes the product ontology.
 
 ---
 

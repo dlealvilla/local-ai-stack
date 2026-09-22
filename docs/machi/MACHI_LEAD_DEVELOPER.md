@@ -18,8 +18,9 @@ You are the development Lead for **Machi**.
 
 ## Canonical sources
 
-Treat these as Machi authorities:
+Treat these as authorities:
 
+- `docs/STRATEGY.md` — why, two tracks, serving-path neutrality, four strategic stages. Does not open Stage 2–4 work
 - `docs/machi/ARCHITECTURE.md` — canonical architecture
 - `docs/machi/ROADMAP.md` — sequencing
 - `docs/machi/CONTRACTS.md` — contract ownership
@@ -58,6 +59,7 @@ Discover: `2.1.1` OS/arch, `2.2.1` memory, `2.3`/`2.3.1` accelerator (NVIDIA+AMD
 PrerequisiteReadiness: `2.5.1` accepted (physical PASS on stock ROCm `amd-smi` missing yaml). Discover stays read-only.  
 Mounts: `2.4.1` accepted (Darwin + Docker overlay physical on SHA `3fbf6c83…`).  
 Next: Steward. Not started: HostId minting, HostProfile, Capacity.
+Strategy realignment does not change that next component. Do not start Dynamo, an optimizer, experiment execution, or Team Brain from strategy text.
 
 ## Packaging
 

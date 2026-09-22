@@ -15,18 +15,19 @@ and do not treat its status claims or phase numbers as current.
 
 ## Authoritative documents
 
-- @docs/PRODUCT_VISION.md — the architectural constitution. Authoritative
- for product intent, domain boundaries, normalized concepts and safety
- semantics. Technical plans derive from it
-- @docs/ROADMAP.md — authoritative for build sequence: Milestones 0–14,
- numbered stages, stage outputs, acceptance levels and gates. Part I
- records why the sequence is ordered as it is; read it before proposing
- a reordering
-- @docs/ARCHITECTURE.md — the module map. Authoritative for module
- boundaries, concept ownership, inputs and outputs, tier dependency
- direction and the composition root. Consult it before creating any
- module or import; a change to a module boundary is an edit to this
- document in the same commit as the code
+- @docs/STRATEGY.md — why Kultrun exists, the product/lab split,
+ serving-path neutrality, and the four strategic stages. It does not
+ own component sequence or module boundaries, and it does not authorize
+ Stage 2–4 implementation during the product spine
+- @docs/PRODUCT_VISION.md — the product constitution. Authoritative
+ for customer experience, domain meaning, and safety semantics
+- @docs/machi/ROADMAP.md — authoritative for the active clean-slate
+ build sequence. @docs/ROADMAP.md remains the earlier Kultrun
+ milestone sequence (0–14) and must not be used to renumber Machi
+- @docs/machi/ARCHITECTURE.md — the active module map. Consult it
+ before creating any Machi module or import. @docs/ARCHITECTURE.md is
+ the Kultrun-lineage map. A change to a module boundary is an edit to
+ the active map in the same commit as the code
 - @docs/DEBT.md — the debt ledger. Every approximation is recorded here
  with the condition that retires it
 - @docs/DEVELOPMENT_WORKFLOW.md — branch/GPU workflow **and the
@@ -36,19 +37,19 @@ and do not treat its status claims or phase numbers as current.
 
 ## Current position
 
-The rebuild has not started implementation. The next work is
-**Milestone 0 — Architectural Kernel**, whose output is
-`PlatformContracts v1 + PlatformState v1 + ControlPlaneShell v1`.
-Keep it small: contracts only, no subsystem implementations.
+The active build is Machi, not a port of `src/kultrun`. Kernel, Install,
+Discover (including mounts and prerequisite readiness) are accepted on
+their own checkpoints. The next component is **Steward**. Do not start
+it unless the task says so.
 
-After that, **Milestone 1 is a complete working vertical** — a real
-request reaching a real model on real hardware, crude everywhere but
-real end to end. The previous attempt wrote 58,706 lines and never
-reached this proof. No subsystem may be deepened until Milestone 1
-passes.
+The product spine is still the priority: one real inference path, thin
+end to end, before lab comparisons, Dynamo, optimizers, memory, or
+Team Brain. The previous attempt wrote 58,706 lines and never reached
+that proof. Kultrun on the `kultrun` branch is evidence of a later
+native vLLM path, not structure to copy wholesale.
 
-Do not begin later milestones early, and do not reintroduce previous-attempt
-code to appear further along.
+Do not begin later strategic stages early, and do not reintroduce
+previous-attempt code to appear further along.
 
 ## Governing rules
 
@@ -78,13 +79,14 @@ code to appear further along.
 - Build the exoskeleton thin end-to-end before deepening any part of it.
 
 No third-party technology may become the semantic owner of a platform
-concept. Docker, vLLM and LiteLLM are replaceable adapters; native
-process execution is first class. Every external evidence provider is
-advisory with a mandatory internal fallback.
+concept. Docker, vLLM, Ollama, Dynamo, and LiteLLM are replaceable
+adapters or serving paths; native process execution is first class.
+Every external evidence provider is advisory with a mandatory internal
+fallback.
 
 ## Stage discipline
 
-- Produce the stage brief (`docs/ROADMAP.md` Part V) before implementing.
+- Produce the stage brief before implementing. For Machi, that brief is the component note under `docs/machi/` and the sequence is `docs/machi/ROADMAP.md`. Kultrun `docs/ROADMAP.md` Part V remains the Kultrun-lineage brief.
 - Consume the predecessor's stage output; do not rediscover its facts.
 - A stage is done only when it also has failure semantics,
   reconciliation, cleanup/cancellation, a Platform API surface,
@@ -92,12 +94,14 @@ advisory with a mandatory internal fallback.
   Part II §4.
 - `L1` unit evidence never closes a stage that touches hardware, storage
   or a runtime. Milestones 1–4 require `L2` or above.
-- End a stage with `docs/stages/STAGE-XX-<name>.md` and
-  `checkpoints/STAGE-XX-<name>.json`.
+- End a Kultrun-lineage stage with `docs/stages/STAGE-XX-<name>.md` and
+  `checkpoints/STAGE-XX-<name>.json`. End a Machi component with its
+  `docs/machi/` package and `checkpoints/MACHI-*.json`.
 - If a change is not needed to produce the current stage output, defer
   and record it in `docs/DEBT.md`.
-- One concept, one owning module, as assigned in `docs/ARCHITECTURE.md`
-  Part IV. Never create a near-synonymous module to hold a concept that
+- One concept, one owning module, as assigned in `docs/machi/ARCHITECTURE.md`
+  for the active build (`docs/ARCHITECTURE.md` Part IV for the Kultrun
+  lineage). Never create a near-synonymous module to hold a concept that
   already has an owner.
 - Respect the tier dependency law and the declared non-edges in
   `docs/ARCHITECTURE.md` Part II. Ports belong to the domain that needs

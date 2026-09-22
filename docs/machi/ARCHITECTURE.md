@@ -808,11 +808,29 @@ select.
 Resolve, 5.4 Provision, 5.5 Verify, 5.6 Select.
 
 **Adapters:** NativeProcessExecutor, ContainerExecutor (optional),
-vLLM provision/verify; llama.cpp/MLX later.
+vLLM provision/verify as the primary direct engine; llama.cpp/MLX later.
+`OllamaExecutionMacropath` is the compatibility fallback family.
+NVIDIA Dynamo is a deferred Stage-2 fabric family. None of these is
+an extra block, and none is the meaning of Foundation.
+
+**Product policy (when selection exists):** AUTO prefers supported and
+healthy vLLM, otherwise supported Ollama. Explicit vLLM or explicit
+Ollama fails closed when that path is unsupported. This policy is not
+implemented in the current spine.
 
 **Inputs:** HostProfile, CapacityEnvelope, HostMinimum PASS.  
 **Outputs:** FoundationSet, FoundationSelection, RuntimeInstallation,
-RuntimeCapability.  
+RuntimeCapability. `FoundationSelection` is the macropath decision:
+family plus engine. Do not add a parallel macropath object.
+
+**Macropath neutrality:** Ollama, a direct engine, and Dynamo may each
+perform local discovery and local scheduling. None of that becomes
+host truth, SAFE capacity, catalog authority, or ResourceManager
+admission. Lab predictions stay estimated. Observed results stay
+observed. Evidence is not owned by the runtime adapter. Comparative
+experiment records are deferred (`S-STRAT-01` in `docs/DEBT.md`);
+`EventRecord` and the acceptance lab are the seam that already exists.
+
 **Preconditions:** 4.5 PASS.  
 **Success:** selected PRODUCT path VERIFIED.  
 **Blocked:** no PRODUCT plausible path; provision fail; verify fail.  

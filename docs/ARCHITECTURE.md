@@ -5,13 +5,15 @@
 each one owns, what it consumes, what it produces, which adapter seams it
 defines, and which module may import which.
 
-**Authority:** Authoritative for **module boundaries, concept ownership,
-dependency direction and the composition root**. It is not authoritative
-for product intent (`docs/PRODUCT_VISION.md`) or for build sequence and
-gates (`docs/ROADMAP.md`). Where this document and the constitution
-disagree about what a concept *means*, the constitution wins. Where this
-document and the roadmap disagree about *when* something is built, the
-roadmap wins.
+**Authority:** Authoritative for the **Kultrun-lineage** module
+boundaries, concept ownership, dependency direction and composition
+root. It is not the active Machi map (`docs/machi/ARCHITECTURE.md`).
+It is not authoritative for strategy (`docs/STRATEGY.md`), product
+intent (`docs/PRODUCT_VISION.md`), or the active build sequence
+(`docs/machi/ROADMAP.md`). Where this document and the constitution
+disagree about what a concept *means*, the constitution wins. Where
+this document and a roadmap disagree about *when* something is built,
+the active Machi roadmap wins for the clean-slate build.
 
 **Why it exists:** `docs/PRODUCT_VISION.md` §125 Rule 1 requires the
 complete skeleton to be designed before deep implementation, and

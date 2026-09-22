@@ -1,10 +1,10 @@
 # KULTRUN
 ## Company Brain Platform — Technical Product Roadmap
 
-**Purpose:** Define the build sequence for Kultrun, the Company Brain platform.  
-**Authority:** Authoritative for milestone structure, stage scope, ordering and gates.  
-**Derived from:** `docs/PRODUCT_VISION.md` (the architectural constitution) is authoritative for *what* Kultrun is and what its contracts mean. This document is authoritative for *in what order it gets built and how each step is proven*.  
-**Companion:** `docs/ARCHITECTURE.md` is authoritative for *where each concept lives* — module boundaries, ownership, inputs and outputs, and tier dependency direction. This document orders the work; that one structures it, and its Part V verifies this sequence against the module graph.  
+**Purpose:** Define the earlier Kultrun build sequence for the Company Brain platform.  
+**Authority:** Historical and still authoritative for *this* milestone numbering (0–14). It is not the active clean-slate sequence. That sequence is `docs/machi/ROADMAP.md`, interpreted by the four strategic stages in `docs/STRATEGY.md`. Do not renumber Machi components to match this document.  
+**Derived from:** `docs/PRODUCT_VISION.md` is authoritative for *what* Kultrun is and what its contracts mean. `docs/STRATEGY.md` is authoritative for *why* and for serving-path neutrality. This document remains authoritative for *how this Kultrun sequence is proven*.  
+**Companion:** `docs/ARCHITECTURE.md` is the Kultrun module map. `docs/machi/ARCHITECTURE.md` is the active map. This document orders the Kultrun-lineage work; it does not silently redefine either map.  
 **Design basis:** The measured outcome of the previous implementation attempt, recorded in `docs/legacy/` and in the `phase9` and `backup/*` branch history.
 
 ---

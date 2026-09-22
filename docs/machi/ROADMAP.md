@@ -1,8 +1,10 @@
 # Machi implementation roadmap
 
 **Authority for Machi build sequence.** Derived from
-[ARCHITECTURE.md](ARCHITECTURE.md). Kultrun `docs/ROADMAP.md` remains
-authoritative for Kultrun only.
+[ARCHITECTURE.md](ARCHITECTURE.md). Strategic stage meaning lives in
+[../STRATEGY.md](../STRATEGY.md). Kultrun `docs/ROADMAP.md` remains the
+earlier Kultrun sequence only. This document does not renumber itself
+to match those four stages.
 
 Work token prefix: `MACHI-0.0.1` for this architecture package.
 Implementation tokens will be `MACHI-<milestone>`.
@@ -437,7 +439,15 @@ verdict.
 **Architecture IDs:** `5`, `5.1`–`5.6`
 
 **Objective:** one selected, provisioned, verified execution
-foundation. Native process is first-class. Docker is optional.
+foundation. `FoundationSelection` names the family and the engine.
+Native process is first-class. Docker is optional. Approved product
+policy, when this milestone exists: `VllmExecutionMacropath` is
+PRIMARY; `OllamaExecutionMacropath` is COMPATIBILITY / FALLBACK.
+AUTO prefers supported and healthy vLLM, otherwise supported Ollama.
+Explicit vLLM or Ollama fails closed when that path is unsupported.
+That policy is not a reason to skip this milestone or to invent a
+second selector. Dynamo stays a deferred Stage-2 family. None of
+these paths own host or admission truth.
 
 **Inputs:** HostProfile, CapacityEnvelope, HostMinimumVerdict PASS.
 
@@ -631,3 +641,32 @@ Failures are attributed to the Capability ID, not to “the stack.”
 | Host discovery, native vLLM path, admission, ownership, Sonar, reclaim, report-as-projection (after honesty fix) | Event unification; Block sequence; Witness not live-resolver; Install first; Steward before Capacity | Entire runtime from empty tree | UI, Knowledge, brains, marketplace, fleet, extra runtimes |
 
 Conceptual reuse ≠ code reuse.
+
+---
+
+# 6. Strategic stage map
+
+[../STRATEGY.md](../STRATEGY.md) is the strategy. This table only places
+existing components. Classifications do not reopen accepted checkpoints.
+
+| Component | Class | Strategic stage | Reason |
+|---|---|---|---|
+| M0 Kernel | KEEP | 1 | Event, privacy, and provenance spine |
+| M1 Install | KEEP | 1 | Install identity before host facts |
+| M2 Discover, including 2.4 Mounts and 2.5 PrerequisiteReadiness | KEEP | 1 | Host and mount truth; readiness is not discovery |
+| M3 Steward | KEEP | 1 | Ownership before capacity. Next component |
+| M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization |
+| M5 Foundation | MODIFY | 1 | `VllmExecutionMacropath` is PRIMARY. `OllamaExecutionMacropath` is the compatibility fallback. Not a second selector |
+| M6 Model | KEEP | 1 | Catalog and artifact stay Kultrun-owned |
+| M7 Plan | KEEP | 1 | Plan is not admission and not launch |
+| M8 Admit | KEEP | 1 | ResourceManager remains the only admission authority |
+| M9 Serve | KEEP | 1 | One real request path. Comparative campaigns are Stage 2 |
+| OllamaExecutionMacropath | REPOSITION | 1 exit | Compatibility fallback after the vLLM path. Not before Steward |
+| Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |
+| Dynamo | DEFER | 2 | Fabric family. No integration until the evidence in strategy |
+| Additional engines (llama.cpp, MLX, SGLang, TensorRT-LLM) | DEFER | 1–2 | Catalogue entries when a coverage gap is real |
+| Gateway, Admin UI, Knowledge/RAG | DEFER | 3 | Attach after a dependable serve path |
+| Organisational nouns, usage analytics beyond the local event | DEFER | 3 | Typed context before logs are mined. No analytics UI now |
+| Team Brain, memory, agents, learned routing | DEFER | 4 | Downstream of inference, identity, and knowledge |
+| Marketplace, fleet, licensing backend | DEFER | 3–4 | Not part of the spine |
+| Untracked `docs/machi/proposals/MACROPATH-*.md` | not adopted | — | Superseded where they disagree with vLLM primary / Ollama fallback |

@@ -2435,6 +2435,38 @@ Why now:      Current support is Linux required, macOS useful, Windows
 Retire when:  Windows is an accepted Machi host
 Status:       OPEN
 
+### S-STRAT-01 — Comparative experiment records
+Label:        DEFERRED
+Owner stage:  Strategic Stage 2, after one serve path exists
+Subsystem:    evidence
+Authorizes:   NO
+What:         Experiment specification, result, and evidence records
+              that keep observed facts distinct from estimates, name
+              the foundation family, and carry provenance. Not a
+              benchmark warehouse.
+Why now:      `EventRecord` and the acceptance lab already hold
+              operational and campaign facts. A second schema before
+              Steward would be lab scope inside the product spine.
+Retire when:  a comparative Ollama / direct / Dynamo campaign needs
+              a normalized record the journal cannot express without
+              losing observed-versus-estimated
+Status:       OPEN
+
+### S-STRAT-02 — Dynamo foundation family
+Label:        DEFERRED
+Owner stage:  Strategic Stage 2
+Subsystem:    foundation
+Authorizes:   NO
+What:         Treating NVIDIA Dynamo as a distributed-fabric family
+              under `FoundationSelection`, after measured comparison
+              with direct vLLM and with Ollama.
+Why now:      Dynamo is not a product-spine dependency and must not
+              be modeled as a vLLM optimizer or as a replacement for
+              the direct path.
+Retire when:  evidence answers scale, overhead, vendor coverage, and
+              whether KV-aware routing or prefill/decode split pays
+Status:       OPEN
+
 ### DC-04 — Intel accelerators
 Fixture:         none
 Architecture:    ARCHITECTURE-READY

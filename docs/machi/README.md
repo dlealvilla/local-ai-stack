@@ -19,6 +19,7 @@ contracts. It does not own deployment truth.
 
 | Document | Role |
 |---|---|
+| [../STRATEGY.md](../STRATEGY.md) | Why Kultrun exists, product and lab tracks, serving-path neutrality. Not the build sequence. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Canonical architecture. Mission, hierarchy, blocks, adapters, invariants, attachment, diagrams. |
 | [KULTRUN.md](KULTRUN.md) | What Kultrun actually became, lessons, and Kultrun → Machi traceability. |
 | [CONTRACTS.md](CONTRACTS.md) | Named contract chain, producers, consumers, invalidation. |
