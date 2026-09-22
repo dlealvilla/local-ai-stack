@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "name": "machi-6-model",
+  "work_token": "MACHI-6-MODEL",
+  "status": "closed",
+  "semantic_meaning": "Model stores and assesses artifacts. It does not load weights or start a server. NVIDIA is the qualified reference path. AMD foundation qualification remains deferred.",
+  "branch": "m6/model",
+  "implementation_commit": "a91ab2c8ae3d71d1e0370fc5264ab5c4f334c5e9",
+  "artifact_sha256": "8212ab16fd3dfd2a256c3eb4c95bb681fef4cef2f420a38a2dddffbcd9369e4b",
+  "build_id": "0.1.0+a91ab2c8ae3d",
+  "provider_decision": "LEAD_DEVELOPER_SELECTED",
+  "sources": ["hub", "local"],
+  "nvidia_evidence": {
+    "host": "NVIDIA A40",
+    "data_center": "CA-MTL-1",
+    "foundation_generation": "fgen_8bac70ed6e01e752",
+    "vllm": "0.18.0",
+    "repository": "hf-internal-testing/tiny-random-LlamaForCausalLM",
+    "requested_revision": "main",
+    "immutable_revision": "9fb191250dd56d0ba7ec9785a025ed29c03d5998",
+    "artifact_id": "mart_01a30fdd655751ed",
+    "stored_bytes": 6477074,
+    "compatibility": "compatible",
+    "result": "STORED"
+  },
+  "outstanding_gate": ["M-5-AMD-01", "M-6-01"],
+  "lab_campaign_id": "camp_093923490aef3d30",
+  "lab_candidate_id": "cand_3ad76308239b4e7d",
+  "canonical_machi": "1db764607a5806d080cc138932002760bad113ad",
+  "predecessor_foundation": "796f2ced37d40bd34a1bee55e3841c0cf2a6ede4",
+  "package": "docs/machi/M6-PHYSICAL.md",
+  "pod_id": null
+}

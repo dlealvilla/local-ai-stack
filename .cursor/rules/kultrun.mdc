@@ -41,8 +41,9 @@ The active build is Machi, not a port of `src/kultrun`. Kernel, Install,
 Discover (including mounts and prerequisite readiness), Steward, and
 Capacity are accepted on their own checkpoints. Foundation development
 is closed: NVIDIA CUDA is physically qualified; AMD ROCm is
-implemented and not production-qualified (`M-5-AMD-01`). The active
-component is **Model**. Do not start Plan unless the task says so.
+implemented and not production-qualified (`M-5-AMD-01`). **Model** is accepted at Tier 2 on the qualified NVIDIA path.
+AMD foundation qualification remains `M-5-AMD-01`. The next
+component is **Plan**. Do not start it unless the task says so.
 
 The product spine is still the priority: one real inference path, thin
 end to end, before lab comparisons, Dynamo, optimizers, memory, or
