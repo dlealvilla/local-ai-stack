@@ -1038,19 +1038,32 @@ def _inspect_hub(
         foundation_id=ns.foundation_id,
         qualification=ns.qualification,
     )
+    capacity = None
+    accelerator_safe_bytes = None
+    evidence_id = "capacity_unspecified"
+    if ns.state_root:
+        envelope, _events, _journal = evaluate_capacity(
+            explicit=ns.state_root,
+            environment=_environment_override(),
+            store_dir=Path(ns.store_dir) if ns.store_dir else None,
+            journal_dir_path=Path(ns.journal_dir) if ns.journal_dir else None,
+        )
+        capacity = envelope
+        accelerator_safe_bytes = _device_ceiling(envelope)
+        evidence_id = envelope.evidence_id
     entry = evaluate_source(
         view,
         source_kind=ModelSourceKind.HUB,
         runtime=runtime,
-        capacity=None,
-        accelerator_safe_bytes=None,
+        capacity=capacity,
+        accelerator_safe_bytes=accelerator_safe_bytes,
         observed_at=observed,
     )
     settings = default_model_settings()
     snapshot = snapshot_for(
         (entry,),
         foundation_id=ns.foundation_id,
-        capacity_evidence_id="capacity_unspecified",
+        capacity_evidence_id=evidence_id,
         policy_token=settings.revision_policy,
         observed_at=observed,
     )

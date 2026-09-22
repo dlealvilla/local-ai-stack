@@ -17,7 +17,7 @@ def inspect_repository(repository: str, revision: str, *, cache: Path) -> Source
     token = _token()
     cache.mkdir(parents=True, exist_ok=True)
     try:
-        info = api.model_info(repository, revision=revision, token=token)
+        info = _model_info(api, repository, revision, token)
     except Exception as exc:
         raise ValidationError(_classify(exc)) from None
     commit = str(getattr(info, "sha", "") or "")
@@ -103,6 +103,19 @@ def fetch_files(
     finally:
         if scratch.exists():
             shutil.rmtree(scratch)
+
+
+def _model_info(api: Any, repository: str, revision: str, token: str | None) -> Any:
+    """Ask for file sizes. Without them the requirement stays unresolved."""
+    try:
+        return api.model_info(
+            repository,
+            revision=revision,
+            token=token,
+            files_metadata=True,
+        )
+    except TypeError:
+        return api.model_info(repository, revision=revision, token=token)
 
 
 def _client() -> tuple[Any, Any]:
