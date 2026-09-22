@@ -1,4 +1,17 @@
-# M5 physical evidence — not closed
+# M5 physical evidence
+
+Development is closed. Provider qualification is not uniform.
+
+| Provider | Implementation | Physical qualification | Production validation |
+|---|---|---|---|
+| NVIDIA CUDA | complete | qualified | validated |
+| AMD ROCm | complete | deferred (`M-5-AMD-01`) | not_validated |
+
+AMD ROCm native Foundation is implemented and is not physically
+production-qualified. Runtime `READY` on one host does not change that.
+
+NVIDIA development reference: Linux, NVIDIA, CUDA, native process,
+managed vLLM. Downstream contracts stay generic.
 
 The frozen candidate is commit `d3b45dda63eaca99116e5fa37744c498c259913b`,
 wheel SHA256 `9a8747ffb567c5270911fcb67cc10000bad65fc00740e4b813b7a1c25dd713bd`,
@@ -70,3 +83,11 @@ A secure MI300X create on 2026-09-22 was refused: catalog availability
 `NONE`. No new pod was left running. RunPod's SSH-capable AMD images
 in the official catalog are ROCm 6.x, which this recipe now rejects.
 The public `rocm/pytorch` ROCm 7.0 image does not start RunPod SSH.
+
+## Deferred qualification
+
+`M-5-AMD-01` remains open. Revisit the frozen candidate above unless
+a newer approved AMD native-vLLM recipe has superseded it. Closure is
+Foundation `READY` on MI300X / gfx942 for that recipe, with managed
+Python, exact artifact, import, backend, API entrypoint, and reuse.
+Do not treat this document as an AMD production acceptance.

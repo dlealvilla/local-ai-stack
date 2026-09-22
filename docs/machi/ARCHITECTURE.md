@@ -837,6 +837,15 @@ is unsupported, the result is a typed refusal. Explicit vLLM fails
 closed. The Ollama fallback is not substituted. Containers, system
 Python, and model download are outside this block.
 
+**Qualification:** implementation and physical qualification are
+separate. NVIDIA CUDA is qualified. AMD ROCm native Foundation is
+implemented and not yet physically production-qualified
+(`M-5-AMD-01`). Runtime `READY` means that instance passed
+verification. It does not mark a provider as production-qualified.
+Public or commercial AMD native-vLLM support cannot be claimed until
+that gate closes. Later NVIDIA Model, Plan, or Serve evidence does
+not promote AMD.
+
 **Inputs:** HostProfile, CapacityEnvelope, HostMinimum PASS.  
 **Outputs:** FoundationSet, FoundationSelection, RuntimeInstallation,
 RuntimeCapability. `FoundationSelection` is the macropath decision:

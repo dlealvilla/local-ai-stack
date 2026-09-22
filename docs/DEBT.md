@@ -2507,6 +2507,36 @@ Retire when:  a later storage class distinguishes driver file binds
               from planning domains without dropping real tmpfs
 Status:       OPEN
 
+### M-5-AMD-01 — AMD MI300X native Foundation physical qualification
+Label:        DEFERRED
+Owner stage:  Foundation physical qualification
+Subsystem:    foundation
+Authorizes:   NO
+What:         Physically qualify the current approved AMD native-vLLM
+              recipe on a real SSH-reachable Linux MI300X / gfx942
+              host. The host must already match that recipe. Machi
+              then creates the managed Python environment, installs
+              the exact artifact, verifies import, version, HIP or
+              backend, and the API entrypoint, and reuses the
+              generation. No remote repair, no model load, no server.
+Why now:      The provider is implemented. ROCm 6.1 is rejected
+              before install. A compatible acceptance host was not
+              available. That is not permission to call AMD
+              production-qualified.
+Historical:   Candidate `8f68c6d34a997e05df718f77a233afafeaa2169d`,
+              wheel SHA256
+              `df23311c0b5a357d02b8c4cb24b6fe9c7eec944e266b98352f2efd0382be81ba`,
+              build `0.1.0+8f68c6d34a99`, recipe `vllm-0.18.0-rocm700`
+              (ROCm 7.0 line). NVIDIA qualification remains the A40
+              proof on `d3b45dd`. If a newer AMD recipe is approved
+              before this gate runs, qualify that recipe and keep
+              this candidate as history.
+Retire when:  the then-approved recipe reaches Foundation `READY`
+              on MI300X / gfx942 under the rules above, and public
+              or commercial AMD support is still withheld until that
+              evidence is recorded
+Status:       OPEN
+
 ### M-5-01 — Deferred foundation executors and engines
 Label:        DEFERRED
 Owner stage:  Foundation Tier 3

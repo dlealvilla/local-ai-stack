@@ -60,9 +60,9 @@ PrerequisiteReadiness: `2.5.1` accepted (physical PASS on stock ROCm `amd-smi` m
 Mounts: `2.4.1` accepted (Darwin + Docker overlay physical on SHA `3fbf6c83…`).  
 Steward: Tier 2 accepted on SHA `a9234b69…`. It classifies and does not delete.  
 Capacity: Tier 2 accepted on SHA `56d6a5d7…`. SAFE planning envelopes. Sonar writes default off.  
-Next: Foundation / vLLM. Not started.
-Do not start Foundation, Dynamo, an optimizer, or Team Brain without a new instruction.
-Approved serving policy, when Foundation exists: vLLM primary, Ollama fallback.
+Foundation: development closed. NVIDIA CUDA qualified. AMD ROCm implemented, qualification deferred (`M-5-AMD-01`), not production support.  
+Next: Model. Not started. Do not start Model, Dynamo, an optimizer, or Team Brain without a new instruction.  
+Approved serving policy: vLLM primary, Ollama fallback, fallback not implemented.
 
 ## Packaging
 

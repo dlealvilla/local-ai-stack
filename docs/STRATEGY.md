@@ -221,6 +221,16 @@ The acceptance lab and `EventRecord` are the current machinery. They
 are not yet that comparison record. Do not build the warehouse now.
 See debt `S-STRAT-01`.
 
+Provider implementation and provider physical qualification are
+different gates. A component may close for downstream development
+when its generic contracts are usable, at least one intended provider
+is physically qualified, and any other implemented provider that is
+blocked only by an external acceptance host is recorded as
+unqualified. That does not waive a failed product behavior, and it
+does not authorize a public or commercial claim for the unqualified
+provider. Downstream blocks keep generic contracts. NVIDIA success
+does not promote AMD. See `M-5-AMD-01`.
+
 Every material physical campaign should be able to say what it cost,
 what coverage it added, what uncertainty it reduced, which question
 it answered, and what evidence it produced.

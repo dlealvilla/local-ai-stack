@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "name": "machi-5-foundation",
+  "work_token": "MACHI-5-FOUNDATION",
+  "status": "development_closed",
+  "semantic_meaning": "Foundation development is closed. NVIDIA CUDA native vLLM is physically qualified. AMD ROCm native vLLM is implemented and not production-qualified. Instance READY is not provider qualification.",
+  "qualification_state": "development_closed_with_deferred_amd_qualification",
+  "provider_qualification": {
+    "nvidia_cuda": {
+      "implementation": "complete",
+      "physical_qualification": "qualified",
+      "production_validation_state": "validated"
+    },
+    "amd_rocm": {
+      "implementation": "complete",
+      "physical_qualification": "deferred",
+      "production_validation_state": "not_validated"
+    }
+  },
+  "outstanding_gate": ["M-5-AMD-01"],
+  "development_reference_path": "linux_nvidia_cuda_native_vllm",
+  "downstream_contracts": "generic",
+  "public_amd_support": "blocked_until_M-5-AMD-01",
+  "branch": "m5/foundation",
+  "nvidia_evidence": {
+    "implementation_commit": "d3b45dda63eaca99116e5fa37744c498c259913b",
+    "artifact_sha256": "9a8747ffb567c5270911fcb67cc10000bad65fc00740e4b813b7a1c25dd713bd",
+    "build_id": "0.1.0+d3b45dda63ea",
+    "host": "NVIDIA A40",
+    "result": "READY",
+    "generation_id": "fgen_7d35608a014edb96"
+  },
+  "amd_evidence": {
+    "implementation_commit": "8f68c6d34a997e05df718f77a233afafeaa2169d",
+    "artifact_sha256": "df23311c0b5a357d02b8c4cb24b6fe9c7eec944e266b98352f2efd0382be81ba",
+    "build_id": "0.1.0+8f68c6d34a99",
+    "historical_recipe": "vllm-0.18.0-rocm700",
+    "result": "not_validated",
+    "note": "ROCm 6.1 was rejected before install after the resolver fix. MI300X ROCm 7 READY was not run. A newer approved recipe supersedes this pin for M-5-AMD-01 and does not rewrite this record."
+  },
+  "lab_campaign_id": "camp_5b444f653f6ee340",
+  "lab_candidate_id": "cand_25a818fa39cc9334",
+  "canonical_machi": "1db764607a5806d080cc138932002760bad113ad",
+  "predecessor_capacity": "bfec15f7c6b784795632113d1ec0923779949111",
+  "package": "docs/machi/M5-PHYSICAL.md",
+  "pod_id": null
+}

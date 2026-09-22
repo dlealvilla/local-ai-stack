@@ -477,11 +477,15 @@ Operational only. No paths and no package credentials.
 **Local tests:** executor ⟂ runtime; CONDITIONAL product is
 selectable; container unsupported is FILTERED not selected.
 
-**Physical:** the same frozen candidate on one NVIDIA CUDA Linux host
-and one AMD ROCm Linux host. No model download and no server.
-llama.cpp/MLX remain deferred.
+**Status:** `DEVELOPMENT_CLOSED`. NVIDIA CUDA is
+`QUALIFIED`. AMD ROCm is `IMPLEMENTED_UNQUALIFIED`. Outstanding gate:
+`M-5-AMD-01`. Instance `READY` is not provider qualification.
 
-See [M5.md](M5.md).
+**Physical:** NVIDIA CUDA passed on an A40. AMD MI300X / gfx942
+qualification of the then-approved native vLLM recipe is deferred.
+No model download and no server. llama.cpp/MLX remain deferred.
+
+See [M5.md](M5.md) and [M5-PHYSICAL.md](M5-PHYSICAL.md).
 
 **Cumulative:** M0 → M5.
 
@@ -490,7 +494,10 @@ VERIFIED; installation bytes recorded.
 
 **Non-goals:** serving a model.
 
-**Unlocks:** Model funnel.
+**Unlocks:** Model. Blocks 6–9 may use the qualified NVIDIA CUDA
+native vLLM path as the development reference. Their contracts stay
+generic. AMD public or commercial support stays blocked until
+`M-5-AMD-01` closes.
 
 ---
 
@@ -676,8 +683,8 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M2 Discover, including 2.4 Mounts and 2.5 PrerequisiteReadiness | KEEP | 1 | Host and mount truth; readiness is not discovery |
 | M3 Steward | KEEP | 1 | Ownership before capacity. Accepted at Tier 2 |
 | M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization. Accepted at Tier 2 |
-| M5 Foundation | MODIFY | 1 | Native vLLM is PRIMARY. CUDA and ROCm share one selection. The fallback runtime is not implemented |
-| M6 Model | KEEP | 1 | Catalog and artifact stay Kultrun-owned |
+| M5 Foundation | MODIFY | 1 | Development closed. NVIDIA CUDA qualified. AMD ROCm implemented, qualification deferred (`M-5-AMD-01`) |
+| M6 Model | KEEP | 1 | Next. Generic contracts. NVIDIA is the qualified reference path, not a special case |
 | M7 Plan | KEEP | 1 | Plan is not admission and not launch |
 | M8 Admit | KEEP | 1 | ResourceManager remains the only admission authority |
 | M9 Serve | KEEP | 1 | One real request path. Comparative campaigns are Stage 2 |
