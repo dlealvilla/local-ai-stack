@@ -664,14 +664,14 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M0 Kernel | KEEP | 1 | Event, privacy, and provenance spine |
 | M1 Install | KEEP | 1 | Install identity before host facts |
 | M2 Discover, including 2.4 Mounts and 2.5 PrerequisiteReadiness | KEEP | 1 | Host and mount truth; readiness is not discovery |
-| M3 Steward | KEEP | 1 | Ownership before capacity. Next component |
-| M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization |
+| M3 Steward | KEEP | 1 | Ownership before capacity. Accepted at Tier 2 |
+| M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization. Next component |
 | M5 Foundation | MODIFY | 1 | `VllmExecutionMacropath` is PRIMARY. `OllamaExecutionMacropath` is the compatibility fallback. Not a second selector |
 | M6 Model | KEEP | 1 | Catalog and artifact stay Kultrun-owned |
 | M7 Plan | KEEP | 1 | Plan is not admission and not launch |
 | M8 Admit | KEEP | 1 | ResourceManager remains the only admission authority |
 | M9 Serve | KEEP | 1 | One real request path. Comparative campaigns are Stage 2 |
-| OllamaExecutionMacropath | REPOSITION | 1 exit | Compatibility fallback after the vLLM path. Not before Steward |
+| OllamaExecutionMacropath | REPOSITION | 1 exit | Compatibility fallback after the vLLM path. Not before Capacity |
 | Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |
 | Dynamo | DEFER | 2 | Fabric family. No integration until the evidence in strategy |
 | Additional engines (llama.cpp, MLX, SGLang, TensorRT-LLM) | DEFER | 1–2 | Catalogue entries when a coverage gap is real |

@@ -91,7 +91,7 @@ otherwise:
 Explicit `VLLM` selects vLLM and fails closed when vLLM is unsupported.
 Explicit `OLLAMA` selects Ollama and fails closed when Ollama is
 unsupported. This is future product policy. Current hosts do not yet
-ship vLLM product code, and Steward does not select a path.
+ship vLLM product code. Steward is closed and does not select a path.
 
 Untracked notes under `docs/machi/proposals/` are not canonical. Where
 they disagree with this default, this document wins.
@@ -145,7 +145,7 @@ named and unbuilt.
 Exit: useful end-to-end inference on the vLLM path where the host
 supports it, Ollama available as the fallback path, and normalized
 evidence with provenance. The fallback path is a Stage 1 exit, not a
-reason to pause Steward, Capacity, or the first vLLM serve.
+reason to pause Capacity or the first vLLM serve.
 
 ### 2 — Empirical infrastructure lab
 
@@ -334,7 +334,7 @@ facts are the only vendor-facing shape.
 
 **Memory distraction.** Team Brain can become a second product.
 Guardrail: it stays Stage 4 and a consumer of inference, identity, and
-knowledge. It does not start in parallel with Steward.
+knowledge. It does not start during the product spine.
 
 **Research project.** A lab with no users is not a company.
 Guardrail: Stage 1 exit requires a path an organisation can run.
@@ -351,4 +351,4 @@ Empirical evidence is a first-class asset. Lab evidence and production
 evidence stay distinguishable.
 
 Strategy widens later options. It does not widen today's
-implementation. The next component is still Steward.
+implementation. Steward is closed. The next component is Capacity.
