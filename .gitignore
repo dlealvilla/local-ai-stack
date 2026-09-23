@@ -56,3 +56,6 @@ validation/
 
 .idea/
 .vscode/
+
+# Development-only Lead Developer ↔ Cursor handoff cache
+.machi-handoff/
