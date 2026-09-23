@@ -1,958 +1,573 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-**Instruction ID:** `MACHI-INFERENCE-PROGRAM-PLAN-001`  
-**Mode:** PROGRAM PLANNING / ARCHITECTURE ALIGNMENT ONLY  
-**Implementation:** FORBIDDEN IN THIS INSTRUCTION  
-**Physical servers:** DO NOT CREATE  
-**Scope horizon:** complete the deployment spine through real request inference, then extend the same governed semantics to the approved additional serving macropaths.
+Instruction ID: MACHI-INFERENCE-EXEC-005-001
+Mode: EXECUTE FIVE BOUNDED STEPS SEQUENTIALLY
+Automation: ALLOWED ONLY WITHIN THE RULES BELOW
+Physical servers: ALLOWED ONLY IN STEPS 3 AND 4, under existing RunPod ownership/budget rules
+Recovery branch: checkpoint/pre-automation-inference-2026-09-23
+Automation integration branch: automation/inference-program
 
----
+# 0. OBJECTIVE
 
-# 0. WHY THIS INSTRUCTION EXISTS
+Execute the next five bounded steps toward a production-quality native-vLLM inference spine.
 
-We are about to move from one-step-at-a-time development into a controlled multi-step automation program.
+This is not "make five commits". The five steps are outcome gates:
 
-Before any automated sequence runs, design the next **exactly 30 bounded development steps** as one coherent end-to-end program.
+1. Harden the M5 to M9 narrowing funnel.
+2. Build durable empirical-lab evidence storage before more physical testing.
+3. Prove N1 Ampere with multiple positive model cases plus an upstream-rejected negative case.
+4. Prove N2 Ada with multiple model cases and cross-hardware comparison.
+5. Close the native-vLLM production-inference baseline and write the evidence-backed report.
 
-This plan must derive from, in authority order:
+Do not begin the Ollama macropath in this instruction. Ollama is expected immediately after Lead review of Step 5.
 
-1. `docs/STRATEGY.md` — strategic serving-path direction and product/lab split;
-2. `docs/PRODUCT_VISION.md` — customer promise and product meaning;
-3. `docs/machi/ARCHITECTURE.md` — active module boundaries and core pipeline;
-4. `docs/machi/CONTRACTS.md` — contract semantics and invalidation;
-5. `docs/machi/ROADMAP.md` — active build sequence and acceptance gates;
-6. `docs/machi/TELEMETRY.md` — product event/provenance/privacy rules;
-7. accepted evidence, debt, and current repository truth;
-8. the Lead Developer principles in this instruction.
+The governing product invariant is:
 
-Do not let implementation convenience redefine a higher authority.
+Host truth
+  -> capacity/prerequisite truth
+  -> Foundation feasibility
+  -> selected/provisioned/verified runtime
+  -> model catalog
+  -> cheap policy/license/format filters
+  -> structural runtime compatibility
+  -> model requirement estimation
+  -> current capacity feasibility
+  -> empirical qualification where needed
+  -> DeployableModels
+  -> ModelSelection
+  -> ModelArtifact
+  -> CURRENT DeploymentConfiguration
+  -> ResourceRequest
+  -> ResourceReservation
+  -> Serve
+  -> ReadinessProof
+  -> real request InferenceProof
 
-If these authorities currently disagree, identify the disagreement explicitly and propose the smallest canonical correction. Do not silently choose whichever document is easiest for implementation.
+A known-incompatible model should normally never reach ordinary Serve. If Serve exposes a failure that earlier facts could have prevented, fix the earlier owning Block rather than teaching Serve to tolerate the bad state.
 
----
+# 1. AUTHORITIES
 
-# 1. PRE-AUTOMATION RECOVERY POINT — VERIFY, DO NOT ALTER
+Before work, sync and inspect:
+- docs/STRATEGY.md
+- docs/PRODUCT_VISION.md
+- docs/machi/ARCHITECTURE.md
+- docs/machi/CONTRACTS.md
+- docs/machi/ROADMAP.md
+- docs/machi/TELEMETRY.md
+- accepted evidence/debt
+- current repository truth
 
-Verify these Git branches exist:
+Higher-level product meaning wins over local implementation convenience.
 
-```text
-checkpoint/pre-automation-inference-2026-09-23
-automation/inference-program
-```
+# 2. VERSION-CONTROL SAFETY
 
-Both were created from the pre-automation `m9/serve` state.
+Verify the immutable recovery branch and automation root exist:
+- checkpoint/pre-automation-inference-2026-09-23
+- automation/inference-program
 
-Expected recovery lineage:
+Never force-move, rebase away, delete, or repurpose the recovery branch.
 
-```text
-implementation:
-6a23a32cffcd1aa1bb51f44b9dcf1575b0a7fa2c
+Work on automation/inference-program, using bounded task branches only where they materially improve isolation.
 
-evidence:
-fc57f24690904e9a9348b0c8f34b363e89b9addf
+For a material decision with two credible paths, fork bounded decision branches from the nearest accepted checkpoint. Do not silently choose the higher-coupling option because it is quicker.
 
-handoff-enabled HEAD:
-0700e669267fd0db3d642192050a8654c9beb96c
-```
+Never rewrite accepted evidence.
 
-The recovery branch is immutable operationally: do not force-update, rebase, delete, or repurpose it.
+# 3. GLOBAL FAILURE POLICY
 
-The automation program will branch from `automation/inference-program`.
+Classify failures before acting.
 
-No source changes in this planning instruction.
+A. UPSTREAM PRODUCT/FUNNEL DEFECT
+Example: incompatible model reaches Serve, stale qualification survives, wrong served-model identity is accepted, or OOM is discovered only at Serve when capacity evidence should have excluded the model.
 
----
+Action:
+- identify the earliest truthful owning Block;
+- capture evidence;
+- fix locally in that owning Block;
+- new SHA;
+- rerun all affected local gates;
+- rebuild exact artifact;
+- rerun the affected scenario.
 
-# 2. PROGRAM SCOPE — DECIDE AGAINST REPOSITORY TRUTH, THEN PLAN
+Do NOT patch Serve to accept an impossible state.
+Do NOT patch source on the physical host.
 
-The intended program scope is:
+B. MODEL-SPECIFIC FAILURE
+The exact model/config fails while the host/Foundation remains healthy.
 
-> Build and empirically prove everything required for Machi to take a supported host from host understanding through environment/runtime realization, feasible-model determination, model qualification, plan, admission, Serve, and a successful real request inference — with failures prevented as early as the responsible upstream domain can truthfully prevent them.
+Action:
+- persist exact model/environment failure;
+- exclude that model from DeployableModels for that environment when warranted;
+- advance to the next approved qualification candidate if campaign policy permits.
 
-The first and primary implementation path is the **direct managed native vLLM path**.
+Do NOT mark the Foundation failed.
+Do NOT repeatedly retry the same model without a new evidence-bearing change.
 
-After that path is proven end to end and diversified physically:
+C. ENVIRONMENT OR PROVIDER FAILURE
+Examples: no stock, provider outage, broken image, host driver incompatible, network/service fault.
 
-1. build/prove the **OllamaExecutionMacropath** as the compatibility/fallback serving path under the same Machi-owned global authority;
-2. then investigate, gate, build, and empirically test the **NVIDIA Dynamo + NVIDIA Run:ai distributed-fabric path**, without making either system the product ontology or an unavoidable commercial dependency.
+Action:
+- persist provider/environment evidence;
+- use only an already-approved fallback in the same hardware class;
+- otherwise mark ENVIRONMENT_BLOCKED.
 
-For this 30-step program, **physical GPU testing is NVIDIA-only**.
+Do NOT weaken product policy to make the provider pass.
+Do NOT burn through model candidates when the runtime environment itself is invalid.
 
-AMD physical qualification is NOT required in this program. However:
-- the AMD managed-environment architecture already learned must remain correct;
-- do not regress the managed ROCm userspace/provider seam;
-- do not reintroduce a requirement that a provider image must already contain the exact runtime.
-
-Out of scope for this 30-step program unless required solely to complete inference truth:
-- Admin UI;
-- Knowledge/RAG;
-- identity/product user management;
-- Team Brain;
-- training/fine-tuning;
-- marketplace;
-- fleet control plane;
-- licensing backend;
-- public website;
-- broad multi-host fleet scheduling unrelated to the explicit Dynamo/Run:ai experiment;
-- general optimization/recommendation intelligence beyond what is needed to establish safe feasibility and qualification.
-
----
-
-# 3. THE MOST IMPORTANT PRODUCT LOGIC
-
-Treat this as a governing invariant.
-
-Machi is not supposed to discover at Serve that an obviously incompatible model cannot run.
-
-The intended narrowing funnel is:
-
-```text
-HOST / STORAGE / ACCELERATOR TRUTH
-        ↓
-CAPACITY + PREREQUISITE TRUTH
-        ↓
-FOUNDATION CANDIDATES
-        ↓
-FOUNDATION FEASIBILITY
-        ↓
-SELECTED FOUNDATION
-        ↓
-PROVISIONED + VERIFIED RUNTIME CAPABILITY
-        ↓
-MODEL UNIVERSE / CATALOG
-        ↓
-CHEAP POLICY + FORMAT + ARCHITECTURE FILTERS
-        ↓
-STRUCTURAL RUNTIME COMPATIBILITY
-        ↓
-MODEL REQUIREMENT ESTIMATION
-        ↓
-CURRENT CAPACITY FEASIBILITY
-        ↓
-EMPIRICAL QUALIFICATION WHERE NEEDED
-        ↓
-DEPLOYABLE MODELS
-        ↓
-MODEL SELECTION
-        ↓
-MODEL ARTIFACT
-        ↓
-DEPLOYMENT CONFIGURATION
-        ↓
-RESOURCE REQUEST
-        ↓
-RESOURCE RESERVATION
-        ↓
-SERVE
-        ↓
-REAL REQUEST INFERENCE
-```
-
-Each downstream domain may consume only candidates that survived the upstream authority responsible for that question.
-
-A failure such as:
-
-> vLLM starts, health succeeds, but the first token fails because the model/backend/kernel combination was never actually compatible
-
-must be treated as evidence that the compatibility/qualification funnel was insufficient.
-
-The correct product response is normally:
-
-> improve the earlier feasibility or empirical qualification gate so the model never becomes DeployableModels membership and is never selected/loaded.
-
-Serve remains the final proof and can still expose genuinely unknowable runtime defects, but it must not be the normal compatibility filter.
-
-Explicitly review every current M5→M9 boundary for ways a candidate can bypass this narrowing funnel.
-
----
-
-# 4. LEAD-DEVELOPER PRINCIPLES EXTRACTED FROM PRIOR INTERVENTIONS
-
-Treat the following as design principles to validate against repository truth and carry into the 30-step plan.
-
-## 4.1 Capability-first, not vendor-first
-
-The product understands generic capabilities.
-
-Concrete implementations sit behind adapters/providers.
-
+D. ARCHITECTURE / PRODUCT / COMMERCIAL DECISION
 Examples:
-- accelerator discovery is not NVIDIA discovery;
-- runtime environment is not CUDA or ROCm;
-- serving path is not vLLM;
-- distributed inference fabric is not Dynamo;
-- scheduler/orchestrator is not Run:ai.
-
-Core owns concepts; adapters/providers own implementations.
-
-## 4.2 The environment is part of the product
-
-Do not assume the host/provider pre-installs the exact userspace needed.
-
-The AMD lesson is general:
-
-```text
-host provides the hard host boundary
-(kernel/driver/device visibility)
-        ↓
-Machi verifies or realizes the userspace environment it requires
-        ↓
-Machi provisions/verifies the runtime
-```
-
-The same principle must be examined for NVIDIA, Ollama, Dynamo, and future paths.
-
-## 4.3 No sacred test SKU
-
-A40 was useful historical evidence, not a product dependency.
-
-Testing should cover materially different hardware classes/conditions rather than wait indefinitely for one SKU.
-
-Exact observed evidence remains exact; one SKU PASS is not automatically a whole-class PASS.
-
-## 4.4 Fail early, and fail in the right Block
-
-A model that is:
-- policy-disallowed;
-- architecture-incompatible;
-- quantization/dtype-incompatible;
-- unsupported by the installed engine/backend;
-- impossible within current RAM/VRAM/storage/context/concurrency;
-- empirically known not to execute in the exact environment
-
-must not progress to model load.
-
-Likewise:
-- an invalid Foundation must not reach Model;
-- an invalid Plan must not reach Admit;
-- an unreserved configuration must not reach Serve.
-
-## 4.5 Unknown is not zero and is not permission
-
-Unresolved capacity, storage, runtime support, licensing, environment compatibility, or model feasibility must never be converted into a silent optimistic PASS.
-
-## 4.6 Recommendation is not authority
-
-Recommendations may rank.
-
-They do not admit resources, create availability, or override feasibility.
-
-ResourceManager remains the only authority that says a current DeploymentConfiguration may consume resources now.
-
-## 4.7 Qualification and recommendation are different
-
-Qualification queue:
-> what candidate should we prove next?
-
-Model selection/recommendation:
-> among already deployable candidates, what should the administrator use?
-
-Do not make “smallest/easiest to qualify first” synonymous with “best model”.
-
-## 4.8 Acquire/load as late as practical
-
-Use remote metadata/config/safetensors metadata to reject impossible candidates before downloading full weights.
-
-Do not fully acquire every candidate merely to discover feasibility.
-
-Do not load a model merely to discover something a cheaper earlier gate could prove.
-
-## 4.9 Real inference is the final deployment proof
-
-Readiness/health is not request inference.
-
-A valid proof requires a structurally valid response with real generated token output and exact served-model identity.
-
-## 4.10 Evidence claims must not outrun observations
-
-Exact host/SKU/environment/model evidence is preserved.
-
-Promotion to family/class/vendor support requires an explicit support rule and evidence.
-
-## 4.11 Physical acceptance is product acceptance, not remote development
-
-Build locally.
-Freeze exact SHA/wheel.
-Install exact artifact on a disposable host.
-Run.
-Capture evidence.
-If a genuine product defect appears, fix locally, rebuild a new candidate, rerun.
-
-Never patch source on the physical server and call it accepted.
-
-## 4.12 Evidence is a strategic asset
-
-All meaningful empirical work must be reproducible and queryable later.
-
-A console log disappearing after a Pod is destroyed is not acceptable evidence.
-
-## 4.13 Exoskeleton first
-
-Do not turn this inference-completion program into a general scheduler, optimizer, fleet system, benchmark warehouse, enterprise UI, or deep intelligence program.
-
-Add only the schemas/seams needed to keep future paths possible.
-
-## 4.14 Version control is part of safety
-
-Before large automated/risky increments:
-- preserve a recovery point;
-- keep the automation integration line separate;
-- fork decision branches when credible architectural alternatives exist;
-- never rewrite accepted evidence to make a later design look cleaner.
-
----
-
-# 5. NATIVE vLLM PROGRAM — PRIMARY PATH
-
-Plan the native direct vLLM path all the way to dependable inference first.
-
-The plan should include any upstream correction required so that the following is true:
-
-```text
-supported host
-→ correct managed environment
-→ verified vLLM runtime
-→ truthful feasible model set
-→ empirically qualified DeployableModels
-→ selected model
-→ acquired/reused artifact
-→ CURRENT Plan
-→ ADMITTED reservation
-→ ServingInstance
-→ readiness
-→ real request inference
-→ stop/restart/re-infer
-→ witness/evidence
-```
-
-Do not preserve M5/M6/M7/M8/M9 implementation merely because it exists if repository evidence shows a boundary allows impossible states.
-
-Prefer bounded corrections to wholesale redesign.
-
----
-
-# 6. NVIDIA PHYSICAL TEST STRATEGY
-
-The 30-step plan must include a deliberate, coverage-driven physical campaign.
-
-## Required hardware diversity
-
-At minimum plan:
-- one Ampere-class NVIDIA host;
-- one Ada-class NVIDIA host.
-
-A third NVIDIA class is allowed only if it adds meaningful information per dollar/hour, such as a new generation or materially different memory/capability boundary.
-
-Do not run a third server merely to increase a count.
-
-Current N1/N2 preferences may be used as starting policy:
-- Ampere: A40 preferred, RTX A6000 allowed fallback;
-- Ada: L40S preferred, then eligible fallback with exact memory envelope recorded.
-
-But re-check live availability when the physical step actually runs.
-
-## Model diversity
-
-Plan **several model cases per physical host**, but do not run a Cartesian product.
-
-The matrix should intentionally cover different failure surfaces.
-
-Propose a small set such as:
-- a known-good small baseline;
-- a representative realistic model that comfortably fits;
-- a different architecture and/or quantization/dtype path;
-- a boundary/near-capacity model where useful;
-- at least one deliberately incompatible catalog candidate that must be excluded **before acquisition/load**, proving the funnel.
-
-An intentionally incompatible candidate is a negative qualification test, not permission to load a model expected to fail.
-
-Where possible, reuse at least one common positive model across hardware classes for comparability.
-
-## Metrics/evidence
-
-Where measurable, capture:
-- startup/provision duration;
-- model acquisition/reuse duration;
-- qualification duration;
-- time to readiness;
-- TTFT;
-- tokens/sec or inter-token latency;
-- request latency;
-- input/output tokens;
-- peak accelerator memory;
-- peak RAM;
-- reservation vs observed use;
-- errors/retries;
-- exact context/concurrency/configuration;
-- cost and runtime;
-- stop/restart behavior.
-
-Do not invent arbitrary quality/performance PASS thresholds unless the product policy actually defines them.
-
-Compatibility PASS and performance ranking are distinct.
-
----
-
-# 7. OLLAMA EXECUTION MACROPATH — AFTER DIRECT vLLM
-
-The strategy already names:
-
-```text
-VllmExecutionMacropath = PRIMARY
-OllamaExecutionMacropath = COMPATIBILITY / FALLBACK
-```
-
-The 30-step plan should include the bounded provider-selection/design/implementation/testing sequence required to make Ollama a real fallback path.
-
-Important:
-
-Ollama may own local runner/model-store/load-unload mechanics that are legitimately part of Ollama.
-
-Machi must still own global truth for:
-- host/capabilities;
-- capacity;
-- policy;
-- model catalog intent;
-- eligibility;
-- global admission;
-- deployment identity;
-- provenance/evidence;
-- support claims.
-
-Do not build a second incompatible control plane merely because Ollama has its own local management concepts.
-
-The Ollama path must terminate in a real request inference proof through Machi semantics.
-
-Plan physical testing on the NVIDIA lab hosts where practical, with several representative models, but use information gain rather than exhaustive combinations.
-
-Provider Selection Gate requirements still apply before implementing a new concrete adapter, even when strategy has already approved the high-level path.
-
----
-
-# 8. NVIDIA DYNAMO + RUN:AI MACROPATH — AFTER vLLM AND OLLAMA
-
-The user explicitly wants this program to proceed next into a NVIDIA Dynamo + Run:ai serving/fabric path.
-
-Treat this as a **distributed inference fabric / scheduler integration**, not as a replacement ontology for Foundation, Model, Plan, Admit, or Serve.
-
-Before implementation, the plan must include a formal Provider Selection Gate and current upstream verification.
-
-Research current official sources at execution time.
-
-At minimum verify:
-- current Dynamo stable release and supported backends;
-- supported NVIDIA hardware/driver/CUDA combinations;
-- local vs Kubernetes deployment options;
-- how vLLM participates as a Dynamo backend;
-- Run:ai version/support for Dynamo;
-- Kubernetes/container/runtime requirements;
-- topology/gang-scheduling requirements;
-- licensing/entitlement/commercial restrictions;
-- whether the planned lab environment can meaningfully test the integration.
-
-Do not assume a 2025/early-2026 integration shape is still current.
-
-Commercialization constraint:
-- Dynamo may be a permissive/open component;
-- Run:ai is an NVIDIA enterprise product and must be treated as a potentially commercial/entitled dependency.
-- Therefore Run:ai must remain optional and replaceable behind a generic Machi scheduler/fabric provider boundary.
-- Do not make Machi commercial viability depend on Run:ai.
-
-The 30-step plan must identify the smallest meaningful physical acceptance:
-- what can be proven on one host;
-- what genuinely requires multi-node/Kubernetes;
-- what evidence would justify paying for the larger experiment.
-
-Do not jump into a multi-node cluster before the direct path and fallback path are dependable.
-
----
-
-# 9. EMPIRICAL LAB DATA — FIRST-CLASS DEVELOPMENT INFRASTRUCTURE
-
-The user requires all test metadata, raw/direct evidence, and logs to be retained and analyzable for future reference.
-
-Design this as a **development/lab evidence system separate from Machi product state**.
-
-Do not turn the product event journal into the lab database.
-
-Propose a bounded implementation, preferably compatible with the existing Acceptance Lab and existing development conventions.
-
-Default design hypothesis to evaluate:
-
-## Structured index
-
-A versioned SQLite empirical database with explicit schema migrations.
-
-Capture at minimum:
-- experiment/campaign/run/attempt IDs;
-- task/instruction ID;
+- changes Product Vision semantics;
+- moves Block ownership;
+- introduces a mandatory new provider/dependency;
+- weakens privacy/safety/ownership;
+- widens a support claim;
+- embeds vendor logic in Core;
+- requires an Amber/Red/unknown commercial dependency;
+- materially reorders the roadmap.
+
+Action:
+- publish STATUS=DECISION_REQUIRED;
+- preserve the branch and evidence;
+- STOP the whole five-step program.
+
+Do NOT make this decision autonomously.
+
+E. UNKNOWN
+Unknown is never optimistic PASS. Preserve UNRESOLVED/BLOCKED/refusal.
+
+Repair budget:
+- maximum 3 local product-fix iterations for the same root defect per step;
+- after that STOP with typed failure and evidence.
+- physical provisioning retries remain governed by existing RunPod limits.
+
+# 4. LIVE STEP STATUS
+
+At the start and end of every step, make progress externally visible through development-only handoff state.
+
+Persist at minimum:
+- instruction ID;
+- step ID/name;
+- RUNNING/PASS/BLOCKED/FAIL/DECISION_REQUIRED;
 - branch;
-- implementation SHA;
-- evidence SHA;
-- build identity;
-- wheel/image digest;
-- provider/region;
-- server/Pod identity where safe;
-- GPU vendor/model/count/memory/capability/topology;
-- CPU/RAM/storage/mount/filesystem facts;
-- OS/kernel;
-- driver/CUDA/ROCm;
-- Python/runtime/engine/executor versions;
-- Foundation generation/environment fingerprint;
-- model source/revision/digest/architecture/quantization/dtype;
-- context/concurrency/tensor parallel/runtime config;
-- Capacity/Plan/Reservation IDs;
-- commands/probes/test scenario;
+- start/end SHA;
+- attempt number;
+- latest gate;
+- physical run IDs if any;
+- lab run IDs if any.
+
+Do not place secrets in control state.
+
+If the current helper cannot represent step status cleanly, add the smallest development-only extension in Step 1. Do not make this product runtime state.
+
+# STEP 1 — HARDEN THE M5→M9 NARROWING FUNNEL
+
+Task ID: MACHI-INF-01-FUNNEL-INVARIANTS
+Server: NO
+Autonomy: BOUNDED_ENGINEERING
+Auto-advance: YES only on PASS
+
+Inspect actual code and test these invariants:
+
+1. ModelSelection cannot be created outside current DeployableModels.
+2. MANUAL selection cannot bypass DeployableModels.
+3. Plan cannot accept a model unless qualification covers the exact execution environment/runtime recipe.
+4. Foundation-generation change invalidates qualification coverage.
+5. Material GPU-environment change invalidates qualification coverage.
+6. Model revision/dtype/quantization/TP change cannot reuse the wrong qualification.
+7. Capacity/environment changes invalidate stale model availability/Plan as required.
+8. Full acquisition does not happen before cheaper policy/format/structural/resource gates have had the chance to reject.
+9. Plan becomes STALE when any load-bearing upstream identity changes.
+10. Admit uses a current capacity snapshot and matching request/configuration.
+11. Serve requires exact CURRENT Plan + matching reservation + exact artifact + exact runtime qualification coverage.
+12. Readiness cannot satisfy request InferenceProof.
+13. Runtime-served model identity must match Machi selection/artifact identity.
+14. Engine/backend/runtime changes cannot evade invalidation.
+15. The historical tiny-head-dimension/kernel incompatibility is rejected before ordinary deployment Serve.
+16. Negative candidates can be rejected without full weight acquisition when metadata is sufficient.
+
+For every unsafe YES:
+- fix the earliest truthful owning domain;
+- add typed refusal/invalidation;
+- add regression tests.
+
+Do not wholesale redesign accepted Blocks.
+
+Failure rule:
+- if enforcing an invariant requires changing canonical Block ownership: DECISION_REQUIRED and STOP.
+- local product defects: fix up to 3 iterations.
+- pre-existing unrelated failures may be recorded only with exact proof of unrelated scope; do not call a required gate green if it is not.
+
+PASS output:
+- Step-1 implementation/evidence SHA;
+- tests;
+- exact unsafe paths corrected;
+- exact downstream failures prevented.
+
+# STEP 2 — BUILD THE EMPIRICAL LAB EVIDENCE SPINE
+
+Task ID: MACHI-INF-02-EMPIRICAL-LAB
+Server: NO
+Autonomy: BOUNDED_ENGINEERING
+Auto-advance: YES only on PASS
+
+Purpose: every subsequent server/model run must leave durable, structured, queryable evidence.
+
+This is development/lab infrastructure, separate from Machi product state and customer telemetry.
+
+Default bounded design:
+- versioned SQLite database with explicit migrations;
+- immutable/content-addressed raw artifact storage;
+- generated per-run/campaign summaries.
+
+Store structured records for:
+- program/task/instruction/campaign/run/attempt IDs;
+- branch, implementation SHA, evidence SHA, build, wheel/image digest;
+- provider/region/rate/cost/duration;
+- host/GPU vendor/model/count/VRAM/capability/topology;
+- CPU/RAM/storage/filesystem;
+- OS/kernel/driver/CUDA/runtime;
+- Foundation/environment fingerprint/generation;
+- model source/revision/digest/license/architecture/dtype/quantization/context;
+- funnel decision/exclusion stage;
+- requirement estimates;
+- Capacity/Plan/Reservation/ServingInstance/Proof IDs;
+- runtime configuration;
 - expected vs actual;
-- typed outcome/failure;
-- readiness/inference proof IDs;
-- timing/performance/resource metrics;
-- cost/rate/duration;
-- provisioning/teardown state;
-- code-fix iteration lineage;
-- artifact/log references.
+- typed failure;
+- readiness/inference performance;
+- peak RAM/VRAM when measurable;
+- TTFT/tokens-sec/request latency when measurable;
+- stop/restart evidence;
+- code-fix lineage;
+- raw artifact references.
 
-## Raw evidence artifacts
-
-Do not stuff arbitrary raw logs into relational columns.
-
-Store raw stdout/stderr, command output, provider snapshots, manifests, benchmark data, and machine-readable evidence as immutable/content-addressed artifacts or an equivalent bounded artifact store.
-
-The SQLite record references:
-- content hash;
-- media/type;
-- path/object key;
-- size;
-- producer;
-- capture timestamp;
-- privacy classification.
-
-Compress where useful.
-
-## Analysis
-
-Every material campaign should generate:
-- per-run summary;
-- comparison with previous relevant runs;
-- estimated vs measured comparison;
-- compatibility/feasibility conclusions;
-- regressions/new coverage;
-- cost;
-- unresolved uncertainty.
-
-Make accumulated evidence queryable for future architecture/model/runtime decisions.
-
-## Privacy/security
+Raw artifacts may include:
+- provider inventory snapshots;
+- sanitized stdout/stderr;
+- machine-readable probe outputs;
+- manifests;
+- runtime logs;
+- structured command specs;
+- benchmark/result JSON;
+- sanitized traces.
 
 Never store:
-- API keys;
-- passwords;
+- API keys/passwords;
 - private SSH keys;
 - OAuth tokens;
 - customer prompts/responses/files;
 - proprietary customer content.
 
-Lab data is development evidence, not customer telemetry.
-
----
-
-# 10. VERSION-CONTROL / BRANCHING STRATEGY FOR AUTOMATED DEVELOPMENT
-
-Design a branching protocol for the 30-step program.
-
-The required concepts are:
-
-```text
-checkpoint/pre-automation-inference-2026-09-23
-        immutable recovery point
-
-automation/inference-program
-        reviewed integration line for this program
-
-automation/decision/<step>-<option>
-        bounded branches for material alternatives
-
-automation/task/<nn>-<slug>
-        optional bounded work branches if useful
-```
-
-Do not generate branches mechanically when a simple linear safe step needs none.
-
-Use a decision branch when:
-- two credible architecture shapes exist;
-- a provider integration has meaningful coupling risk;
-- an external dependency may be rejected;
-- a migration could invalidate accepted evidence;
-- a deeper implementation may be valuable but is not obviously the right default.
-
-Each major accepted transition should leave a recoverable commit/checkpoint.
-
-Never force-push accepted integration history merely to make automation neat.
-
----
-
-# 11. OVERNIGHT / SEQUENTIAL AUTOMATION POLICY
-
-The next 30 steps are intended to become executable sequentially after Lead Developer review.
-
-For every step classify:
-
-```text
-AUTO_SAFE
-BOUNDED_ENGINEERING
-DECISION_GATE
-PHYSICAL_GATE
-```
-
-## AUTO_SAFE
-
-May automatically continue when all acceptance checks pass.
-
-Examples:
-- implementing an already-approved contract;
-- deterministic refactor within a fixed boundary;
-- regression tests;
-- packaging;
-- evidence capture;
-- documentation/evidence synchronization.
-
-## BOUNDED_ENGINEERING
-
-Cursor may use engineering judgement without waking Daniel, provided it does not alter accepted product/architecture semantics.
-
-Examples:
-- internal factoring;
-- naming/helper choice;
-- test fixture design;
-- choosing a standard data structure;
-- correcting an obvious local defect inside the accepted boundary.
-
-Record the choice.
-
-## DECISION_GATE
-
-Automation must stop.
-
-Examples:
-- changing product promise;
-- changing Block/Capability ownership;
-- new provider not already selected;
-- new mandatory external dependency;
-- Amber/Red/unknown commercial dependency;
-- unsafe migration of evidence/state;
-- deleting accepted semantics;
-- widening a support claim;
-- reordering the roadmap materially;
-- a credible competing architecture path with meaningful tradeoffs.
-
-## PHYSICAL_GATE
-
-May run automatically only when all pre-approved safety/budget/ownership rules are satisfied.
-
-The existing RunPod ownership/budget rules remain in force.
-
-A product defect discovered physically:
-- capture evidence;
-- terminate the owned disposable host where policy permits;
-- fix locally on a new SHA;
-- rerun required local gates;
-- then rerun the relevant physical scenario.
-
-Never remote-patch.
-
-## Repair budget
-
-Propose a bounded automatic repair policy, for example:
-- up to 3 local fix/test iterations for one task;
-- then STOP with typed failure/decision request.
-
-Do not let an agent thrash indefinitely overnight.
-
----
-
-# 12. THE EXACT 30-STEP PLAN — REQUIRED OUTPUT
-
-Return **exactly 30 development steps**.
-
-They must be genuine bounded steps, not filler and not 30 restatements of one component.
-
-The sequence must form one coherent program from the current state through:
-1. hardened native vLLM inference;
-2. diversified NVIDIA physical proof with multiple model cases;
-3. Ollama fallback inference;
-4. Dynamo + Run:ai provider gate and, if the gate/required infrastructure is approved, bounded implementation and empirical inference proof.
-
-If 30 is too few to finish every deep distributed-fabric feature, keep the program scoped to the smallest meaningful Dynamo/Run:ai inference vertical and explicitly defer optimization depth.
-
-Do not steal steps from native correctness merely to reach Dynamo.
-
-For each of the 30 steps provide:
-
-- Step number and stable proposed task ID;
-- Block / Capability / Component affected;
-- plain-language purpose;
-- exact problem being solved;
-- why it follows from Product Vision / Architecture / Roadmap;
-- inputs;
-- expected outputs/contracts;
-- files/modules likely involved;
-- dependencies on earlier step numbers;
-- local tests;
-- physical test, if any;
-- server class/model cases, if physical;
-- evidence that must be stored;
-- telemetry/events affected;
-- branch/checkpoint strategy;
-- autonomy classification;
-- `auto_advance: yes/no`;
-- stop conditions;
-- estimated complexity: S/M/L;
-- whether a Provider Selection Gate is required;
-- what downstream failure this step prevents.
-
-Explicitly mark which steps can run unattended overnight after approval.
-
----
-
-# 13. REQUIRE A PIPELINE INVARIANT REVIEW BEFORE WRITING THE 30 STEPS
-
-Before proposing the task list, inspect the actual current M5→M9 implementation and answer:
-
-1. Can any ModelSelection be created outside DeployableModels?
-2. Can Plan accept a model whose runtime qualification does not cover the exact recipe?
-3. Can acquisition happen before cheap feasibility has enough evidence?
-4. Can Serve start with stale qualification or stale Foundation environment?
-5. Can hardware/environment changes reuse qualification incorrectly?
-6. Can Capacity/Reservation facts be stale at Admit?
-7. Can runtime readiness become mistaken for inference proof?
-8. Can a provider-local model name diverge from Machi's selected model identity?
-9. Can runtime/backend changes evade invalidation?
-10. Can a previously qualified model remain selectable after capacity/environment changes?
-11. Can a path-specific runtime become global authority accidentally?
-12. Are there failures currently discovered at Serve that should be moved earlier?
-
-For every YES:
-- point to repository evidence;
-- identify the owning earlier Block;
-- include a corrective task in the 30-step program.
-
-This review is mandatory.
-
----
-
-# 14. MODEL-TEST DESIGN REVIEW
-
-Design a small model qualification matrix that tells us more than repeatedly serving one tiny model.
-
-Do not pick final models casually.
-
-For every proposed test model report:
-- source;
-- immutable revision;
-- license/commercial-use status;
-- architecture;
-- parameter/artifact size;
-- dtype/quantization;
-- context;
-- expected runtime/backend;
-- what unique compatibility boundary it exercises;
-- expected feasibility on each test host;
-- whether full acquisition is needed;
-- whether it should be a positive DeployableModels member or an intentionally excluded negative candidate.
-
-Do not download weights in this planning instruction.
-
-Use product-relevant, redistributable/commercially acceptable models where possible.
-
----
-
-# 15. SERVER-TEST DESIGN REVIEW
-
-Propose a physical test matrix optimized for information gain.
-
-At minimum:
-- Ampere;
-- Ada.
-
-For an optional third server, compare candidate classes and explain what unique uncertainty it reduces.
-
-Do not simply say “three is better than two.”
-
-For each class define:
-- required capability;
-- preferred/fallback SKUs;
-- minimum VRAM;
-- expected Foundation;
-- model cases;
-- scenario;
-- evidence;
-- estimated run time/cost method;
-- exact support claim allowed after PASS.
-
-Never claim class-wide support from one SKU unless an explicit support-promotion rule exists.
-
----
-
-# 16. DYNAMO / RUN:AI COMMERCIALIZATION AND PROVIDER RISK REVIEW
-
-This is mandatory before planning implementation steps for that path.
-
-Classify:
-- Dynamo;
-- Run:ai;
-- Kubernetes/container-runtime dependencies;
-- any NGC-only artifacts;
-- GPU Operator / scheduler dependencies;
-- backend engine dependencies.
-
-For each:
-- license/entitlement;
-- redistribution implications;
-- hosted-service restrictions;
-- air-gap implications;
-- whether it would become mandatory or optional;
-- replacement boundary.
-
-If Run:ai requires an enterprise entitlement, design the Machi seam so the direct path and Ollama path remain commercially usable without it.
-
-Do not embed entitlement/licensing logic in ResourceManager or generic Foundation contracts.
-
----
-
-# 17. REQUIRED PROGRAM DOCUMENTS IN THE PASTE-BACK
-
-Return these sections in this order.
-
-## A. Status
-
-Expected:
-`STATUS=PLAN_READY_FOR_LEAD_REVIEW`
-
-No implementation status.
-
-## B. Authority Review
-
-Summarize Strategy → Product Vision → Architecture → Contracts → Roadmap.
-
-List any contradictions/stale statements found.
-
-## C. Product Principles Extracted
-
-List the durable product/engineering principles from Section 4 and any additional ones repository history proves.
-
-For each:
-- principle;
-- concrete historical failure/intervention that motivated it;
-- architectural consequence;
-- roadmap consequence.
-
-## D. Program Scope
-
-IN / OUT / DEFERRED.
-
-## E. Recovery / Branching Plan
-
-Include the immutable pre-automation checkpoint and automation root.
-
-## F. Current Pipeline Invariant Audit
-
-Answer all 12 questions from Section 13 with repository evidence.
-
-## G. Target End-to-End Pipeline
-
-One concise text diagram showing every gate from host facts through request inference.
-
-## H. Native vLLM Completion Strategy
-
-Local + physical.
-
-## I. NVIDIA Server Matrix
-
-2 required classes + optional third analysis.
-
-## J. Model Matrix
-
-Positive and negative candidates, no downloads.
-
-## K. Empirical Lab Evidence Architecture
-
-SQLite/index + raw artifacts + summaries + privacy.
-
-## L. Ollama Macropath Strategy
-
-Same Machi authority, fallback semantics, provider gate, physical proof.
-
-## M. Dynamo + Run:ai Strategy
-
-Provider gate, licensing, infrastructure, smallest meaningful physical inference proof.
-
-## N. Automation State Machine
-
-Task statuses, auto-advance, stop/repair rules.
-
-## O. Exact 30-Step Plan
-
-Exactly 30 rows/items with all required fields.
-
-## P. Dependency DAG
-
-Show the 30-step dependency chain/branches.
-
-## Q. Overnight-Safe Subsequence
-
-Identify the longest contiguous or dependency-safe set that could run unattended after Lead approval.
-
-Do not execute it.
-
-## R. Decision Gates
-
-List only decisions Daniel/Lead must make before automation can proceed.
-
-## S. Canonical Documentation Changes Recommended
-
-Identify product/architecture/roadmap/strategy docs that should be changed before execution.
-
-Do not edit them now.
-
-## T. Definition of Program Completion
-
-State what evidence means:
-- direct native vLLM path is proven;
-- model funnel prevents known incompatible candidates from load;
-- diversified NVIDIA evidence exists;
-- Ollama fallback produces real inference;
-- bounded Dynamo/Run:ai vertical is either proven or truthfully stopped at an explicit external/provider gate;
-- evidence is retained and queryable.
-
-## U. What Should Run First After Approval
-
-Name Step 1 only.
-
-## V. Exact Final State
-
-End with:
-
-`NO_IMPLEMENTATION_PERFORMED`
-
-`NO_SERVER_CREATED`
-
-`AUTOMATION_NOT_STARTED`
-
-`STOP — WAIT FOR LEAD DEVELOPER REVIEW OF THE 30-STEP INFERENCE PROGRAM.`
-
----
-
-# 18. PUBLISH
-
-Publish the complete planning result through the existing GitHub handoff:
-
-```bash
-python tools/machi_handoff.py publish-pasteback <complete-plan-file>
-```
-
-Then STOP.
-
-Do not implement Step 1.
-Do not create a Pod.
-Do not alter canonical docs.
-Do not download model weights.
+Prefer fixture IDs/hashes to prompt text.
+
+Provide reusable analysis for:
+- hardware/model/environment outcomes;
+- estimated vs measured resources;
+- failure taxonomy;
+- performance;
+- regressions across SHAs;
+- campaign cost.
+
+Failure policy:
+- if SQLite is only hypothetically insufficient at future scale, KEEP SQLite.
+- prefer stdlib sqlite3/existing dependencies.
+- if a material new dependency is unavoidable, classify it; ambiguous/Amber/Red => DECISION_REQUIRED.
+- never store this DB as Machi product operational state.
+
+PASS:
+- schema/version frozen;
+- synthetic local scenario writes/reads/queries correctly;
+- raw artifact integrity verified.
+
+# STEP 3 — N1 AMPERE MULTI-MODEL PHYSICAL QUALIFICATION
+
+Task ID: MACHI-INF-03-N1-AMPERE
+Server: YES
+Autonomy: PHYSICAL_GATE
+Preconditions: Steps 1 and 2 PASS
+
+Existing RunPod rules remain authoritative:
+- only positively owned disposable Machi Pods;
+- one Pod at a time;
+- NVIDIA <= $1.50/hour;
+- existing session/day/balance floors;
+- no network volumes;
+- max Pod life 90 minutes;
+- max 3 provisioning retries;
+- evidence before teardown;
+- never remote-patch source.
+
+Host:
+N1 = Ampere cc-8.6 with 48 GiB continuity envelope.
+Preference:
+1. A40
+2. RTX A6000
+
+If A40 absent and A6000 eligible, use A6000.
+If neither available, record N1_ENVIRONMENT_BLOCKED. Do not invent another SKU. Step 4 may still proceed because Ada is an independent class, but Step 5 cannot claim diversified closure.
+
+Before host creation, select a high-information model matrix using metadata only:
+1. positive small baseline;
+2. positive representative realistic model comfortably feasible;
+3. positive diversity model exercising a different architecture and/or quantization/dtype path supported by the current Foundation;
+4. negative candidate expected to be excluded upstream before ordinary acquisition/load.
+
+At least one positive model must also be used on N2 for cross-hardware comparison.
+
+For every candidate capture immutable revision, license/commercial status, architecture/config, estimated artifact/requirements, expected gate, and why it is included.
+
+Funnel each candidate through:
+catalog
+-> policy/license/format
+-> structural compatibility
+-> requirement estimate
+-> current capacity
+-> qualification queue if required
+-> empirical qualification
+-> DeployableModels.
+
+Negative candidate:
+- exclude at earliest truthful gate;
+- do NOT ordinary-load it merely to prove failure.
+
+Positive candidate physical proof:
+- Foundation VERIFIED;
+- empirical qualification with real generated token, not health alone;
+- DeployableModels membership;
+- selection;
+- artifact;
+- CURRENT Plan;
+- matching reservation;
+- Serve;
+- readiness;
+- real bounded request inference;
+- exact served identity;
+- stop;
+- prove lifecycle/resource release behavior;
+- restart under correct reservation semantics;
+- re-infer;
+- clean stop/release.
+
+Persist all evidence/metrics in the Step-2 lab store.
+
+Model-specific failure:
+- record and exclude exact model/environment;
+- advance candidate if policy allows;
+- do not mutate runtime merely to rescue it.
+
+Product defect:
+- capture evidence, tear down owned host, fix locally, new SHA, gates, new wheel, rerun; max 3 same-root iterations.
+
+Environment/provider failure:
+- approved same-class fallback only; otherwise N1_ENVIRONMENT_BLOCKED; do not burn model queue.
+
+N1 PASS requires:
+- at least 2 positive model cases reach real request inference;
+- 1 negative candidate excluded before ordinary Serve/load;
+- stop/restart/re-infer proven on at least one positive;
+- exact evidence retained.
+
+If licensing/availability makes the "2 positive" criterion genuinely impossible, STOP for Lead review rather than silently weakening it.
+
+Allowed transition:
+- PASS -> Step 4
+- ENVIRONMENT_BLOCKED -> Step 4 allowed, diversification incomplete
+- PRODUCT FAIL after repair budget -> STOP
+- DECISION_REQUIRED -> STOP
+
+# STEP 4 — N2 ADA MULTI-MODEL PHYSICAL QUALIFICATION
+
+Task ID: MACHI-INF-04-N2-ADA
+Server: YES
+Autonomy: PHYSICAL_GATE
+
+Host:
+N2 = Ada cc-8.9.
+Preference:
+1. L40S
+2. L4
+3. RTX 4090
+
+Prefer L40S to keep 48 GiB and isolate architecture as the main changed variable.
+If 24 GiB fallback is used, record exact 24 GiB envelope and never claim 48 GiB Ada coverage.
+If none available: N2_ENVIRONMENT_BLOCKED; Step 5 may write a partial report only.
+
+Model matrix:
+- reuse at least one unchanged N1 positive for cross-hardware comparison;
+- add at least one Ada-informative supported case where useful;
+- keep a negative upstream-exclusion case only if it adds information not already proven.
+
+No Cartesian product.
+
+Physical proof is the same end-to-end chain as N1.
+
+Compare:
+- qualification;
+- startup/readiness;
+- TTFT;
+- throughput;
+- request latency;
+- peak VRAM/RAM;
+- reservation vs observed;
+- cost/time;
+- backend/kernel differences;
+- stop/restart.
+
+Failure rules:
+- model passes N1 but fails N2: record exact environment failure; do not generalize to model-wide failure.
+- model fails because a 24 GiB fallback cannot fit: Capacity/Model feasibility should reject before load. If Serve discovers OOM, treat as product funnel defect and fix upstream.
+- product/environment/decision failures follow global policy.
+
+Allowed transition:
+- PASS -> Step 5
+- ENVIRONMENT_BLOCKED -> Step 5 partial report
+- PRODUCT FAIL after repair budget -> STOP
+- DECISION_REQUIRED -> STOP
+
+# STEP 5 — NATIVE vLLM PRODUCTION-INFERENCE CLOSURE + REPORT
+
+Task ID: MACHI-INF-05-NATIVE-VLLM-CLOSE
+Server: normally NO; one final rerun may be used only if required to close already-defined missing evidence and existing physical policy permits
+Autonomy: BOUNDED_ENGINEERING, PHYSICAL_GATE only for that bounded rerun
+Auto-advance: NO. STOP FOR LEAD REVIEW.
+
+Decide from evidence whether the direct managed native-vLLM path is actually closed.
+
+Required end-to-end spine:
+Install
+-> Discover
+-> PrerequisiteReadiness
+-> Steward
+-> Capacity
+-> Foundation
+-> Model funnel
+-> DeployableModels
+-> ModelSelection
+-> ModelArtifact
+-> Plan CURRENT
+-> Admit
+-> Serve
+-> ReadinessProof
+-> request InferenceProof
+-> stop/restart/re-infer
+-> release.
+
+Model-safety closure:
+- known incompatible candidate did not ordinary-load;
+- no selection outside DeployableModels;
+- exact environment qualification coverage;
+- stale upstream state invalidates downstream authorization.
+
+Physical diversity:
+- report exact N1 SKU PASS/BLOCKED;
+- report exact N2 SKU PASS/BLOCKED;
+- never promote one SKU automatically to whole-class or vendor-wide support.
+
+Model diversity:
+For every exact host/model pair report:
+- excluded/qualified/deployable/served;
+- why;
+- metrics/resources;
+- failure code;
+- exact environment fingerprint.
+
+Witness:
+If DeploymentWitness remains incomplete in a way that prevents the architecture's own M9 completion definition, implement only the smallest bounded Witness completion needed to compose the journey from stored contracts/events without live re-resolution.
+If that becomes a large new architecture project => DECISION_REQUIRED, not hidden debt.
+
+Produce:
+1. Native-vLLM inference qualification report.
+2. N1 vs N2 comparative empirical report.
+3. Model funnel/exclusion/qualification report.
+4. Failure/fix lineage report.
+5. Lab DB schema/version + raw artifact index + sample queries.
+6. Exact support claims allowed.
+7. Known gaps/debt.
+8. Next-provider handoff for OllamaExecutionMacropath Provider Selection Gate.
+
+Completion status must be one of:
+
+NATIVE_VLLM_PRODUCTION_INFERENCE_PASS
+Only if:
+- funnel invariants pass;
+- evidence is durable/queryable;
+- at least one exact N1 host PASS and one exact N2 host PASS;
+- multiple positive model cases proven across the program;
+- negative case excluded upstream;
+- real request inference proven;
+- stop/restart/re-infer proven;
+- required M9/Witness acceptance satisfied.
+
+NATIVE_VLLM_PARTIAL_PHYSICAL_PASS
+Product behavior correct but one required hardware class externally blocked. Do not call diversified program closed.
+
+NATIVE_VLLM_FAIL
+Unresolved product defect.
+
+DECISION_REQUIRED
+Genuine architecture/product/provider/commercial boundary.
+
+Do not weaken acceptance criteria to manufacture PASS.
+Do not begin Ollama implementation.
+
+# 5-STEP DEPENDENCY
+
+Step 1 -> Step 2 -> Step 3 -> Step 4 -> Step 5 -> STOP
+
+Exceptions:
+- Step 3 ENVIRONMENT_BLOCKED may continue to Step 4.
+- Step 4 ENVIRONMENT_BLOCKED may continue to Step 5 for partial reporting.
+- PRODUCT FAIL after repair budget or DECISION_REQUIRED stops the entire program.
+
+# REQUIRED CHECKPOINT AFTER EVERY STEP
+
+Persist/publish:
+STEP_ID
+STATUS
+BRANCH
+START_SHA
+END_SHA
+BUILD
+WHEEL_SHA256
+LOCAL_GATES
+PHYSICAL_RUN_IDS
+LAB_DB_RUN_IDS
+FIX_ITERATIONS
+DECISIONS_MADE
+DEBT_ADDED
+NEXT_TRANSITION
+
+Do not wait until Step 5 to preserve intermediate truth.
+
+# FINAL PASTE-BACK
+
+Publish one complete result using the existing GitHub handoff helper.
+
+It must include:
+- program status;
+- recovery/checkpoint integrity;
+- each step result;
+- all implementation/evidence SHAs;
+- wheel/image hashes;
+- physical server identities/classes/lifecycle;
+- complete model matrix and immutable revisions;
+- DeployableModels and exclusion evidence;
+- empirical DB schema/version/path;
+- raw artifact index;
+- performance/resource/cost comparison;
+- failure/fix lineage;
+- support claims allowed;
+- open debt/external blocks;
+- canonical docs now stale;
+- next program: Ollama Provider Selection Gate;
+- exact final state.
+
+End with either:
+
+STOP — FIVE-STEP NATIVE vLLM PROGRAM COMPLETE. WAIT FOR LEAD REVIEW.
+
+or
+
+STOP — FIVE-STEP PROGRAM HALTED AT <STEP_ID>: <TYPED_REASON>. WAIT FOR LEAD REVIEW.
+
+Do not start Ollama automatically.
