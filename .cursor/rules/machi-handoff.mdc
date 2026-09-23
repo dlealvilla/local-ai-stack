@@ -1,0 +1,68 @@
+---
+description: Machi GitHub Lead Developer handoff protocol
+globs: src/machi/**,tests/machi/**,docs/machi/**,tools/machi_handoff.py,pyproject.machi.toml
+alwaysApply: false
+---
+
+# Machi Lead Developer GitHub Handoff
+
+When Daniel says any equivalent of:
+
+- "Continue Machi from the Lead Developer handoff"
+- "Run the current Machi instruction"
+- "Sync the Machi handoff"
+
+use the GitHub control-plane protocol below.
+
+## Sync
+
+Run:
+
+```bash
+python tools/machi_handoff.py sync
+```
+
+Then read, in this order:
+
+1. `.machi-handoff/STATE.json`
+2. `.machi-handoff/CURRENT-INSTRUCTION.md`
+3. `.machi-handoff/ARCHITECTURE-STATE.md`
+4. `.machi-handoff/OPEN-DECISIONS.md`
+
+Treat `CURRENT-INSTRUCTION.md` as the current Lead Developer instruction, subject to repository truth and the standing Machi rules.
+
+Do not ask Daniel to paste the instruction if sync succeeds.
+
+## Source branch
+
+The control branch is **not** an implementation branch.
+
+Never merge `control/machi-handoff` into product history.
+
+Continue working on the current implementation branch unless the instruction explicitly requires a new branch.
+
+## Execution
+
+- Inspect repository truth before editing.
+- Preserve Provider Selection Gates, physical gates, ownership rules, privacy, packaging and empirical-evidence requirements.
+- If the handoff instruction conflicts with stronger repository truth, stop with a structured `DECISION_REQUIRED` paste-back rather than guessing.
+- Never write secrets or customer content to the control branch.
+- Never patch source on a physical acceptance host.
+
+## Publish final result
+
+The instruction's required final paste-back remains mandatory.
+
+Save the complete final paste-back to a local temporary/development file and run:
+
+```bash
+python tools/machi_handoff.py publish-pasteback <path-to-complete-pasteback>
+```
+
+Only after publication succeeds should the task be considered handed back to the Lead Developer.
+
+Then STOP at the instruction boundary.
+
+## Development-only cache
+
+`.machi-handoff/` is a local cache of control documents. It is not product state, not evidence, and must not be committed.
