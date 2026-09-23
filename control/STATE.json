@@ -1,15 +1,17 @@
 {
   "schema": "machi.lead_handoff.v1",
-  "instruction_id": "MACHI-INFERENCE-PROGRAM-PLAN-001",
+  "instruction_id": "MACHI-INFERENCE-EXEC-005-001",
   "status": "READY",
   "source_repository": "dlealvilla/ai-stack",
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "sync_plan_publish_pasteback",
-  "expected_pasteback_instruction_id": "MACHI-INFERENCE-PROGRAM-PLAN-001",
+  "expected_cursor_action": "sync_execute_five_steps_publish_pasteback",
+  "expected_pasteback_instruction_id": "MACHI-INFERENCE-EXEC-005-001",
   "program": {
-    "name": "inference-program",
+    "name": "native-vllm-five-step",
     "recovery_branch": "checkpoint/pre-automation-inference-2026-09-23",
     "automation_root_branch": "automation/inference-program",
-    "scope": "through real inference across direct vLLM, Ollama fallback, and bounded Dynamo+Run:ai vertical"
+    "steps": 5,
+    "scope": "funnel hardening, empirical lab evidence, Ampere multi-model, Ada multi-model, native vLLM production-inference closure",
+    "next_program_after_review": "OllamaExecutionMacropath Provider Selection Gate"
   }
 }
