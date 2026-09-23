@@ -61,3 +61,6 @@ validation/
 .local/machi-acceptance/**/*.sqlite3-wal
 .local/machi-acceptance/**/*.sqlite3-shm
 .local/machi-acceptance/**/*.sqlite3-journal
+
+# Development-only Lead Developer ↔ Cursor handoff cache
+.machi-handoff/
