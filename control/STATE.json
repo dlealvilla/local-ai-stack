@@ -1,0 +1,9 @@
+{
+  "schema": "machi.lead_handoff.v1",
+  "instruction_id": "MACHI-AMD-RUNTIME-NVIDIA-MATRIX-001",
+  "status": "READY",
+  "source_repository": "dlealvilla/ai-stack",
+  "control_branch": "control/machi-handoff",
+  "expected_cursor_action": "sync_execute_publish_pasteback",
+  "expected_pasteback_instruction_id": "MACHI-AMD-RUNTIME-NVIDIA-MATRIX-001"
+}
