@@ -1263,8 +1263,7 @@ def qualify_reserved(
     store: FileStore,
     state_root: Path,
     artifact_verified: bool,
-    peak_vram_bytes: int | None = None,
-    peak_ram_bytes: int | None = None,
+    sample_peaks: Callable[[], tuple[int | None, int | None]] | None = None,
 ) -> QualificationEvidence:
     """Run one reserved vLLM proof and persist qualification evidence.
 
@@ -1301,6 +1300,10 @@ def qualify_reserved(
     instance = started.instance if is_resolved(started.instance) else None
     if proved is not None and is_resolved(proved.instance):
         instance = proved.instance
+    peak_vram_bytes = None
+    peak_ram_bytes = None
+    if sample_peaks is not None and ready:
+        peak_vram_bytes, peak_ram_bytes = sample_peaks()
     if instance is not None and instance.state is not InstanceState.STOPPED:
         service.stop(instance.instance_id)
         service.release_after_stop(instance.instance_id)
