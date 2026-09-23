@@ -1,17 +1,14 @@
 {
   "attempt": 1,
   "branch": "automation/inference-program",
-  "build": "0.1.0+96bc4303c4b4",
-  "end_sha": "96bc4303c4b4af48cfb6326b89edd951fa043911",
-  "fix_iterations": 1,
+  "end_sha": null,
   "instruction_id": "MACHI-INFERENCE-EXEC-005-001",
   "lab_run_ids": [],
-  "latest_gate": "machi suite, acceptance lab, mypy",
-  "next_transition": "MACHI-INF-02-EMPIRICAL-LAB",
+  "latest_gate": "schema design",
+  "next_transition": null,
   "physical_run_ids": [],
-  "start_sha": "0700e669267fd0db3d642192050a8654c9beb96c",
-  "status": "PASS",
-  "step_id": "MACHI-INF-01-FUNNEL-INVARIANTS",
-  "step_name": "Harden the M5 to M9 narrowing funnel",
-  "wheel_sha256": "31c8059f47de7c44eeb59489afe9887309cc9fc2cec4a1acff54972e8371d8f4"
+  "start_sha": "96bc4303c4b4af48cfb6326b89edd951fa043911",
+  "status": "RUNNING",
+  "step_id": "MACHI-INF-02-EMPIRICAL-LAB",
+  "step_name": "Build the empirical lab evidence spine"
 }
