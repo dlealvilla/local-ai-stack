@@ -34,6 +34,7 @@ class VllmServeProvider:
         argv = vllm_argv(
             python_path=request.python_path,
             model_path=request.model_path,
+            artifact_id=request.artifact_id,
             port=request.port,
             settings=dict(request.settings),
         )
@@ -90,10 +91,15 @@ def vllm_argv(
     *,
     python_path: str,
     model_path: str,
+    artifact_id: str,
     port: int,
     settings: dict[str, str],
 ) -> list[str]:
-    """Map planned settings onto the pinned vLLM module. Omit empty flags."""
+    """Map planned settings onto the pinned vLLM module. Omit empty flags.
+
+    The OpenAI model field is the artifact id. The warehouse path stays
+    on ``--model`` and is not the name the inference request sends.
+    """
     if settings.get("trust_remote_code") not in (None, "false"):
         raise ValueError("remote code is refused")
     argv = [
@@ -102,6 +108,8 @@ def vllm_argv(
         _MODULE,
         "--model",
         model_path,
+        "--served-model-name",
+        artifact_id,
         "--host",
         _LOOPBACK,
         "--port",

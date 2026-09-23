@@ -280,6 +280,7 @@ def test_vllm_argv_uses_only_planned_settings() -> None:
     argv = vllm_argv(
         python_path="/managed/python",
         model_path="/warehouse/mart",
+        artifact_id="mart_example",
         port=18080,
         settings={
             "trust_remote_code": "false",
@@ -298,10 +299,13 @@ def test_vllm_argv_uses_only_planned_settings() -> None:
     assert "--quantization" not in argv
     assert "--host" in argv
     assert "127.0.0.1" in argv
+    served = argv.index("--served-model-name")
+    assert argv[served + 1] == "mart_example"
     try:
         vllm_argv(
             python_path="python",
             model_path="model",
+            artifact_id="mart_example",
             port=1,
             settings={"trust_remote_code": "true"},
         )
