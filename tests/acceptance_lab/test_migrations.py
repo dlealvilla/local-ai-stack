@@ -17,15 +17,16 @@ from tools.acceptance_lab.paths import migrations_dir
 
 
 def test_empty_db_applies_v1_once(connection: sqlite3.Connection) -> None:
-    assert schema_version(connection) == 1
-    row = connection.execute(
-        "SELECT version, migration_name, migration_sha256 FROM schema_migration"
-    ).fetchone()
-    assert row is not None
-    assert int(row["version"]) == 1
-    assert row["migration_name"] == "initial"
+    assert schema_version(connection) == 2
+    rows = connection.execute(
+        "SELECT version, migration_name, migration_sha256 FROM schema_migration "
+        "ORDER BY version"
+    ).fetchall()
+    assert [int(row["version"]) for row in rows] == [1, 2]
+    assert rows[0]["migration_name"] == "initial"
+    assert rows[1]["migration_name"] == "empirical_case"
     expected = sha256_bytes((migrations_dir() / "0001_initial.sql").read_bytes())
-    assert row["migration_sha256"] == expected
+    assert rows[0]["migration_sha256"] == expected
 
 
 def test_repeated_initialize_is_idempotent(db_path: Path) -> None:
@@ -41,8 +42,8 @@ def test_repeated_initialize_is_idempotent(db_path: Path) -> None:
         ).fetchone()[0]
     )
     second.close()
-    assert count == 1
-    assert again == 1
+    assert count == 2
+    assert again == 2
     assert tables == 1
 
 
