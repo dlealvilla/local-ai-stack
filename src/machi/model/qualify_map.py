@@ -61,6 +61,9 @@ def evidence_for_probe(
         engine_version=request.engine_version,
         backend=request.backend,
         hardware_class=request.hardware_class,
+        execution_environment_fingerprint=(
+            request.execution_environment_fingerprint
+        ),
         dtype=request.dtype,
         quantization=request.quantization,
         context=request.context,
@@ -78,6 +81,9 @@ def evidence_for_probe(
         engine_version=request.engine_version,
         backend=request.backend,
         hardware_class=request.hardware_class,
+        execution_environment_fingerprint=(
+            request.execution_environment_fingerprint
+        ),
         dtype=request.dtype,
         quantization=request.quantization,
         context=request.context,

@@ -1470,7 +1470,7 @@
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "satisfied, missing, or not_applicable"
+        "meaning": "satisfied, realize, missing, or not_applicable"
       },
       "native_library_prefix": {
         "type": "str",
@@ -3578,6 +3578,172 @@
     }
   },
   "model.qualification@1": {
+    "python": "HistoricalQualificationEvidence",
+    "fields": {
+      "qualification_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this evidence"
+      },
+      "artifact_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse artifact, or unresolved token"
+      },
+      "immutable_revision": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact model revision"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation"
+      },
+      "engine": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime engine"
+      },
+      "engine_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime version"
+      },
+      "backend": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cuda or rocm"
+      },
+      "hardware_class": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capability class, not a host name"
+      },
+      "dtype": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "execution dtype"
+      },
+      "quantization": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "quantization token"
+      },
+      "context": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualified context envelope"
+      },
+      "concurrency": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualified concurrency envelope"
+      },
+      "tensor_parallel": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualified tensor parallel"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "policy that defined the probe"
+      },
+      "outcome": {
+        "type": "QualificationOutcome",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "pass, model failure, or host failure"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed reason, or none"
+      },
+      "load_seconds": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured load time when recorded"
+      },
+      "ttft_seconds": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured time to first token"
+      },
+      "tokens_per_second": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured generation rate"
+      },
+      "peak_vram_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured accelerator peak"
+      },
+      "peak_ram_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured host peak"
+      },
+      "measured": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "true only for figures from a real probe"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this evidence was recorded; UTC"
+      }
+    }
+  },
+  "model.qualification@2": {
     "python": "QualificationEvidence",
     "fields": {
       "qualification_id": {
@@ -3635,6 +3801,13 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "capability class, not a host name"
+      },
+      "execution_environment_fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "material accelerator environment; not a device uuid"
       },
       "dtype": {
         "type": "str",

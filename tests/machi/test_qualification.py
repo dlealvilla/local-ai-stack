@@ -29,11 +29,12 @@ from machi.model.contracts import (
 )
 from machi.model.funnel import (
     FunnelCandidate,
+    FunnelResult,
     current_capacity,
     deployable_from_pass,
     evaluate_funnel,
 )
-from machi.model.predicates import PredicateRule, PredicateSupport
+from machi.model.predicates import PredicateRule, PredicateSupport, RuntimePredicate
 from machi.model.qualification import (
     POLICY_VERSION,
     DeployableMember,
@@ -109,9 +110,7 @@ def _config(*, hidden: int, heads: int, layers: int = 2, remote: bool = False) -
     )
 
 
-def _predicates():
-    from machi.model.predicates import RuntimePredicate
-
+def _predicates() -> tuple[RuntimePredicate, ...]:
     return (
         RuntimePredicate(
             name="flash",
@@ -190,7 +189,7 @@ def _candidate(
     )
 
 
-def _funnel(candidates: tuple[FunnelCandidate, ...]):
+def _funnel(candidates: tuple[FunnelCandidate, ...]) -> FunnelResult:
     return evaluate_funnel(
         candidates,
         runtime=_runtime(),
@@ -233,6 +232,9 @@ class _Probe:
             engine_version=request.engine_version,
             backend=request.backend,
             hardware_class=request.hardware_class,
+            execution_environment_fingerprint=(
+                request.execution_environment_fingerprint
+            ),
             dtype=request.dtype,
             quantization=request.quantization,
             context=request.context,
@@ -492,6 +494,7 @@ def test_probe_mapping_requires_a_token_and_keeps_host_faults() -> None:
         engine_version="0.18.0",
         backend="cuda",
         hardware_class="8.6",
+        execution_environment_fingerprint="exe_probe",
         dtype="bfloat16",
         quantization="none",
         context=128,
@@ -516,6 +519,191 @@ def test_probe_mapping_requires_a_token_and_keeps_host_faults() -> None:
     assert evidence.measured is True
     assert evidence.tokens_per_second == 8.0
     assert not is_resolved(evidence.ttft_seconds)
+
+
+def _fingerprint(
+    model: str, *, runtime: str = "runtime-a", generation: str = "fgen"
+) -> str:
+    from machi.model.environment import execution_environment_fingerprint
+
+    return execution_environment_fingerprint(
+        vendor="nvidia",
+        accelerator_model=model,
+        capability="8.6",
+        runtime_capability=runtime,
+        generation_id=generation,
+    )
+
+
+def _pass(
+    *,
+    model: str = "A40",
+    capability: str = "cc-8.6",
+    environment: str | None = None,
+    generation: str = "fgen",
+    revision: str = "rev",
+    dtype: str = "bfloat16",
+    quantization: str = "none",
+    context: int = 4096,
+    concurrency: int = 4,
+    runtime: str = "runtime-a",
+) -> QualificationEvidence:
+    from machi.model.qualification import qualification_identity
+
+    fingerprint = environment or _fingerprint(
+        model, runtime=runtime, generation=generation
+    )
+    identity = qualification_identity(
+        revision=revision,
+        generation_id=generation,
+        engine="vllm",
+        engine_version="0.18.0",
+        backend="cuda",
+        hardware_class=capability,
+        execution_environment_fingerprint=fingerprint,
+        dtype=dtype,
+        quantization=quantization,
+        context=context,
+        concurrency=concurrency,
+        tensor_parallel=1,
+        policy_version=POLICY_VERSION,
+    )
+    return QualificationEvidence(
+        qualification_id=identity,
+        artifact_id="mart",
+        immutable_revision=revision,
+        generation_id=generation,
+        engine="vllm",
+        engine_version="0.18.0",
+        backend="cuda",
+        hardware_class=capability,
+        execution_environment_fingerprint=fingerprint,
+        dtype=dtype,
+        quantization=quantization,
+        context=context,
+        concurrency=concurrency,
+        tensor_parallel=1,
+        policy_version=POLICY_VERSION,
+        outcome=QualificationOutcome.PASS,
+        failure="none",
+        load_seconds=NOT_PROVIDED,
+        ttft_seconds=NOT_PROVIDED,
+        tokens_per_second=NOT_PROVIDED,
+        peak_vram_bytes=NOT_PROVIDED,
+        peak_ram_bytes=NOT_PROVIDED,
+        measured=False,
+        observed_at=FIXED,
+    )
+
+
+def _covers(evidence: QualificationEvidence, **overrides: object) -> bool:
+    from machi.model.qualification import covers
+
+    fields: dict[str, object] = {
+        "revision": evidence.immutable_revision,
+        "generation_id": evidence.generation_id,
+        "engine": evidence.engine,
+        "engine_version": evidence.engine_version,
+        "backend": evidence.backend,
+        "hardware_class": evidence.hardware_class,
+        "execution_environment_fingerprint": (
+            evidence.execution_environment_fingerprint
+        ),
+        "dtype": evidence.dtype,
+        "quantization": evidence.quantization,
+        "context": evidence.context,
+        "concurrency": evidence.concurrency,
+        "tensor_parallel": evidence.tensor_parallel,
+        "policy_version": evidence.policy_version,
+    }
+    fields.update(overrides)
+    return covers(evidence, **fields)  # type: ignore[arg-type]
+
+
+def test_same_capability_different_model_is_not_reused() -> None:
+    ampere = _pass(model="A40", capability="cc-8.6")
+    other = _fingerprint("RTX A6000")
+    assert ampere.hardware_class == "cc-8.6"
+    assert not _covers(ampere, execution_environment_fingerprint=other)
+
+
+def test_same_material_fingerprint_can_be_reused() -> None:
+    evidence = _pass(model="A40")
+    assert _covers(evidence, context=1024, concurrency=1)
+
+
+def test_ada_models_do_not_share_proof() -> None:
+    from machi.model.environment import execution_environment_fingerprint
+
+    large = execution_environment_fingerprint(
+        vendor="nvidia",
+        accelerator_model="L40S",
+        capability="8.9",
+        runtime_capability="runtime-a",
+        generation_id="fgen",
+    )
+    small = execution_environment_fingerprint(
+        vendor="nvidia",
+        accelerator_model="L4",
+        capability="8.9",
+        runtime_capability="runtime-a",
+        generation_id="fgen",
+    )
+    evidence = _pass(model="L40S", capability="cc-8.9", environment=large)
+    assert not _covers(evidence, execution_environment_fingerprint=small)
+
+
+def test_changed_generation_runtime_revision_and_envelopes_refuse_reuse() -> None:
+    evidence = _pass()
+    assert not _covers(evidence, generation_id="fgen_other")
+    assert not _covers(
+        evidence,
+        execution_environment_fingerprint=_fingerprint("A40", runtime="runtime-b"),
+    )
+    assert not _covers(evidence, revision="rev-2")
+    assert not _covers(evidence, dtype="float16")
+    assert not _covers(evidence, quantization="awq")
+    assert not _covers(evidence, context=evidence.context + 1)
+    assert not _covers(evidence, concurrency=evidence.concurrency + 1)
+
+
+def test_historical_qualification_does_not_cover() -> None:
+    from machi.kernel.schema import to_dict
+    from machi.model.qualification import HistoricalQualificationEvidence
+
+    evidence = _pass()
+    payload = to_dict(evidence)
+    payload["schema_version"] = 1
+    payload.pop("execution_environment_fingerprint")
+    historical = HistoricalQualificationEvidence(
+        qualification_id=evidence.qualification_id,
+        artifact_id=evidence.artifact_id,
+        immutable_revision=evidence.immutable_revision,
+        generation_id=evidence.generation_id,
+        engine=evidence.engine,
+        engine_version=evidence.engine_version,
+        backend=evidence.backend,
+        hardware_class=evidence.hardware_class,
+        dtype=evidence.dtype,
+        quantization=evidence.quantization,
+        context=evidence.context,
+        concurrency=evidence.concurrency,
+        tensor_parallel=evidence.tensor_parallel,
+        policy_version=evidence.policy_version,
+        outcome=evidence.outcome,
+        failure=evidence.failure,
+        load_seconds=evidence.load_seconds,
+        ttft_seconds=evidence.ttft_seconds,
+        tokens_per_second=evidence.tokens_per_second,
+        peak_vram_bytes=evidence.peak_vram_bytes,
+        peak_ram_bytes=evidence.peak_ram_bytes,
+        measured=evidence.measured,
+        observed_at=evidence.observed_at,
+    )
+    assert historical.schema_version == 1
+    assert payload["schema_version"] == 1
+    assert "execution_environment_fingerprint" not in payload
+    assert type(historical) is HistoricalQualificationEvidence
 
 
 def test_policy_is_one_at_a_time_and_three_per_campaign() -> None:

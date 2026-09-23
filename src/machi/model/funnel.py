@@ -108,6 +108,7 @@ def evaluate_funnel(
     engine_version: str,
     backend: str,
     hardware_class: str,
+    execution_environment_fingerprint: str = "exe_unspecified",
     observed_at: dt.datetime,
     refine: Callable[[ServingEstimate], ServingEstimate] | None = None,
 ) -> FunnelResult:
@@ -168,6 +169,7 @@ def evaluate_funnel(
             engine_version=engine_version,
             backend=backend,
             hardware_class=hardware_class,
+            execution_environment_fingerprint=execution_environment_fingerprint,
             dtype=dtype,
             quantization=metadata.quantization.value,
             context=context,

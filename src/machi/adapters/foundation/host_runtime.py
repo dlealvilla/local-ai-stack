@@ -26,6 +26,7 @@ def observe_host_runtime(
     library_roots: tuple[Path, ...] | None = None,
     glibc_text: str | None = None,
     rocminfo_text: str | None = None,
+    driver_text: str | None = None,
 ) -> HostRuntimeFacts:
     """Observe ROCm, glibc, gfx, and recipe sonames. Missing facts stay unset."""
     if sys.platform != "linux" and version_text is None and library_roots is None:
@@ -41,6 +42,7 @@ def observe_host_runtime(
         accelerator_architecture=architecture,
         present_libraries=present,
         library_prefix=prefix,
+        driver_line=driver_text,
     )
 
 

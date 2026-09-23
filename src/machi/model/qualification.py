@@ -63,8 +63,8 @@ def default_qualification_policy() -> QualificationPolicy:
 
 @contract(kind="model.qualification", version=1)
 @dataclass(frozen=True, slots=True)
-class QualificationEvidence(Contract):
-    """Cached execution result for one qualification identity."""
+class HistoricalQualificationEvidence(Contract):
+    """Older evidence. It has no execution environment and does not cover."""
 
     qualification_id: str = meaning("identity of this evidence")
     artifact_id: str = meaning("warehouse artifact, or unresolved token")
@@ -94,6 +94,44 @@ class QualificationEvidence(Contract):
         object.__setattr__(
             self, "observed_at", require_utc(self.observed_at, what="observed_at")
         )
+
+
+@contract(kind="model.qualification", version=2)
+@dataclass(frozen=True, slots=True)
+class QualificationEvidence(Contract):
+    """Cached execution result for one qualification identity."""
+
+    qualification_id: str = meaning("identity of this evidence")
+    artifact_id: str = meaning("warehouse artifact, or unresolved token")
+    immutable_revision: str = meaning("exact model revision")
+    generation_id: str = meaning("foundation generation")
+    engine: str = meaning("runtime engine")
+    engine_version: str = meaning("runtime version")
+    backend: str = meaning("cuda or rocm")
+    hardware_class: str = meaning("capability class, not a host name")
+    execution_environment_fingerprint: str = meaning(
+        "material accelerator environment; not a device uuid"
+    )
+    dtype: str = meaning("execution dtype")
+    quantization: str = meaning("quantization token")
+    context: int = meaning("qualified context envelope")
+    concurrency: int = meaning("qualified concurrency envelope")
+    tensor_parallel: int = meaning("qualified tensor parallel")
+    policy_version: str = meaning("policy that defined the probe")
+    outcome: QualificationOutcome = meaning("pass, model failure, or host failure")
+    failure: str = meaning("typed reason, or none")
+    load_seconds: Maybe[float] = meaning("measured load time when recorded")
+    ttft_seconds: Maybe[float] = meaning("measured time to first token")
+    tokens_per_second: Maybe[float] = meaning("measured generation rate")
+    peak_vram_bytes: Maybe[int] = meaning("measured accelerator peak")
+    peak_ram_bytes: Maybe[int] = meaning("measured host peak")
+    measured: bool = meaning("true only for figures from a real probe")
+    observed_at: dt.datetime = meaning("when this evidence was recorded; UTC")
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "observed_at", require_utc(self.observed_at, what="observed_at")
+        )
         for name, value in (
             ("qualification", self.qualification_id),
             ("artifact", self.artifact_id),
@@ -103,6 +141,7 @@ class QualificationEvidence(Contract):
             ("version", self.engine_version),
             ("backend", self.backend),
             ("hardware", self.hardware_class),
+            ("environment", self.execution_environment_fingerprint),
             ("dtype", self.dtype),
             ("quantization", self.quantization),
             ("policy", self.policy_version),
@@ -124,6 +163,7 @@ def qualification_identity(
     engine_version: str,
     backend: str,
     hardware_class: str,
+    execution_environment_fingerprint: str,
     dtype: str,
     quantization: str,
     context: int,
@@ -139,6 +179,7 @@ def qualification_identity(
         engine_version,
         backend,
         hardware_class,
+        execution_environment_fingerprint,
         dtype,
         quantization,
         str(context),
@@ -158,6 +199,7 @@ def covers(
     engine_version: str,
     backend: str,
     hardware_class: str,
+    execution_environment_fingerprint: str,
     dtype: str,
     quantization: str,
     context: int,
@@ -166,6 +208,8 @@ def covers(
     policy_version: str,
 ) -> bool:
     """A pass covers only the same identity at or below its envelopes."""
+    if evidence.schema_version != 2:
+        return False
     if evidence.outcome is not QualificationOutcome.PASS:
         return False
     same = (
@@ -175,6 +219,8 @@ def covers(
         and evidence.engine_version == engine_version
         and evidence.backend == backend
         and evidence.hardware_class == hardware_class
+        and evidence.execution_environment_fingerprint
+        == execution_environment_fingerprint
         and evidence.dtype == dtype
         and evidence.quantization == quantization
         and evidence.tensor_parallel == tensor_parallel
@@ -320,6 +366,7 @@ class QualificationRequest:
     engine_version: str
     backend: str
     hardware_class: str
+    execution_environment_fingerprint: str
     dtype: str
     quantization: str
     context: int

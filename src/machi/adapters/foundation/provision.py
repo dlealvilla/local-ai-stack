@@ -119,6 +119,20 @@ class ManagedVllmProvisioner:
                 settings=settings,
                 observed_at=when,
             )
+        if (
+            candidate.backend is AcceleratorBackend.ROCM
+            and candidate.native_status == "realize"
+        ):
+            return self._failed(
+                candidate,
+                requirement,
+                settings,
+                capacity_evidence_id,
+                selection_id,
+                when,
+                FailureCode.PREREQUISITE_BLOCKED,
+                "managed userspace is not realized",
+            )
         generation_id = f"fgen_{secrets.token_hex(8)}"
         root = state_root / "foundation" / "generations" / generation_id
         root.mkdir(parents=True, exist_ok=False)

@@ -36,9 +36,24 @@ ROCM700_ARCHS = frozenset(
         "gfx1201",
     }
 )
+# Sonames DT_NEEDED by the pinned vLLM 0.18.0+rocm700 and HIP torch wheels.
+# Libraries shipped inside those wheels are not listed.
 ROCM700_LIBS = (
-    "libamdhip64.so",
-    "librocblas.so",
+    "libamdhip64.so.7",
+    "libhiprtc.so.7",
+    "librocblas.so.5",
+    "librocsolver.so.0",
+    "libMIOpen.so.1",
+    "libhipblas.so.3",
+    "libhipfft.so.0",
+    "libhiprand.so.1",
+    "libhipsparse.so.4",
+    "libhipsolver.so.1",
+    "libhipsparselt.so.0",
+    "libhipblaslt.so.1",
+    "librccl.so.1",
+    "libroctx64.so.4",
+    "libmpi.so.40",
     "libmpi_cxx.so.40",
 )
 ROCM_SOURCE = "https://wheels.vllm.ai/rocm/0.18.0/rocm700"

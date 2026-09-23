@@ -50,6 +50,7 @@ from machi.model.contracts import (
     SelectionProvenance,
     WeightFormat,
 )
+from machi.model.environment import execution_environment_fingerprint
 from machi.model.qualification import (
     POLICY_VERSION as QUALIFICATION_POLICY,
 )
@@ -332,12 +333,26 @@ def _inputs(
         ),
         deployable=deployable,
         qualification=qualification,
+        execution_environment_fingerprint=(
+            qualification.execution_environment_fingerprint
+        ),
+    )
+
+
+def _environment(generation: str) -> str:
+    return execution_environment_fingerprint(
+        vendor="nvidia",
+        accelerator_model="fixture",
+        capability="unspecified",
+        runtime_capability="fixture-runtime",
+        generation_id=generation,
     )
 
 
 def _qualification(
     definition: ModelDefinition, generation: str, backend: str
 ) -> QualificationEvidence:
+    environment = _environment(generation)
     identity = qualification_identity(
         revision=definition.immutable_revision,
         generation_id=generation,
@@ -345,6 +360,7 @@ def _qualification(
         engine_version="0.18.0",
         backend=backend,
         hardware_class="unspecified",
+        execution_environment_fingerprint=environment,
         dtype="bfloat16",
         quantization="none",
         context=8192,
@@ -361,6 +377,7 @@ def _qualification(
         engine_version="0.18.0",
         backend=backend,
         hardware_class="unspecified",
+        execution_environment_fingerprint=environment,
         dtype="bfloat16",
         quantization="none",
         context=8192,

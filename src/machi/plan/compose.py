@@ -74,6 +74,7 @@ class PlanInputs:
     deployable: DeployableModels
     qualification: QualificationEvidence
     hardware_class: str = "unspecified"
+    execution_environment_fingerprint: str = ""
     probe: bool = False
 
 
@@ -280,6 +281,7 @@ def _qualified(
         ),
         backend=backend_name,
         hardware_class=inputs.hardware_class,
+        execution_environment_fingerprint=inputs.execution_environment_fingerprint,
         dtype=dtype,
         quantization=definition.quantization.value,
         context=context,
@@ -445,6 +447,7 @@ def _fingerprint(inputs: PlanInputs) -> str:
         inputs.qualification.qualification_id,
         inputs.deployable.snapshot_id,
         inputs.hardware_class,
+        inputs.execution_environment_fingerprint,
         "probe" if inputs.probe else "deploy",
         inputs.available.input_token,
         inputs.available.foundation_id,

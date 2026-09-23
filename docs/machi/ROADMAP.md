@@ -483,7 +483,9 @@ selectable; container unsupported is FILTERED not selected.
 
 **Physical:** NVIDIA CUDA passed on an A40. AMD MI300X / gfx942
 qualification of the then-approved native vLLM recipe is deferred.
-No model download and no server. llama.cpp/MLX remain deferred.
+Userspace may be a verified existing install or a managed prefix.
+The host kernel and `amdgpu` driver stay on the host. No model
+download and no server. llama.cpp/MLX remain deferred.
 
 See [M5.md](M5.md) and [M5-PHYSICAL.md](M5-PHYSICAL.md).
 

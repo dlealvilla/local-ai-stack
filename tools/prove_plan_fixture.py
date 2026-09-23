@@ -46,6 +46,7 @@ from machi.model.contracts import (
     SelectionProvenance,
     WeightFormat,
 )
+from machi.model.environment import execution_environment_fingerprint
 from machi.model.qualification import (
     POLICY_VERSION,
     DeployableMember,
@@ -214,6 +215,13 @@ def main() -> int:
         capacity_evidence_id="cev_prove",
         reason="fixture",
     )
+    environment = execution_environment_fingerprint(
+        vendor="nvidia",
+        accelerator_model="fixture",
+        capability="unspecified",
+        runtime_capability="fixture-runtime",
+        generation_id="fgen_prove",
+    )
     identity = qualification_identity(
         revision="commit-prove",
         generation_id="fgen_prove",
@@ -221,6 +229,7 @@ def main() -> int:
         engine_version="0.18.0",
         backend="cuda",
         hardware_class="unspecified",
+        execution_environment_fingerprint=environment,
         dtype="bfloat16",
         quantization="none",
         context=4096,
@@ -237,6 +246,7 @@ def main() -> int:
         engine_version="0.18.0",
         backend="cuda",
         hardware_class="unspecified",
+        execution_environment_fingerprint=environment,
         dtype="bfloat16",
         quantization="none",
         context=4096,
@@ -282,6 +292,7 @@ def main() -> int:
             ),
             deployable=deployable,
             qualification=qualification,
+            execution_environment_fingerprint=environment,
         ),
         build_vllm_recipe,
     )

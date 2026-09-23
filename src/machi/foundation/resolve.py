@@ -32,7 +32,7 @@ from machi.foundation.policy import (
     ROCM_SOURCE,
     TRANSIENT_BYTES,
 )
-from machi.foundation.recipe import HostRuntimeFacts, rocm700_refusal
+from machi.foundation.recipe import HostRuntimeFacts, rocm700_userspace
 from machi.kernel.unresolved import NOT_PROVIDED, Maybe, is_resolved
 
 
@@ -75,10 +75,12 @@ def resolve_candidate(
             "no discrete NVIDIA or AMD accelerator was observed",
         )
     host = host_runtime or HostRuntimeFacts()
+    host_status = "not_applicable"
+    host_matched = False
     if chosen is AcceleratorBackend.ROCM:
-        refusal = rocm700_refusal(host, python_version=python_version)
-        if refusal is not None:
-            code_text, reason = refusal
+        kind, detail = rocm700_userspace(host, python_version=python_version)
+        if kind == "refuse" and detail is not None:
+            code_text, reason = detail
             status = "not_checked"
             if code_text == FailureCode.PREREQUISITE_BLOCKED.value:
                 absent = [
@@ -93,6 +95,8 @@ def resolve_candidate(
                 backend=chosen,
                 evidence=_rocm_evidence(host, status=status, matched=False),
             )
+        host_status = "satisfied" if kind == "verified" else "realize"
+        host_matched = kind == "verified"
     if prerequisite_ready is False:
         return _refused(
             FailureCode.PREREQUISITE_BLOCKED,
@@ -113,7 +117,7 @@ def resolve_candidate(
         )
     spec, source = _package(chosen)
     evidence = (
-        _rocm_evidence(host, status="satisfied", matched=True)
+        _rocm_evidence(host, status=host_status, matched=host_matched)
         if chosen is AcceleratorBackend.ROCM
         else _cuda_evidence()
     )

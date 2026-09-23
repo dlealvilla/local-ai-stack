@@ -24,6 +24,7 @@ class HostRuntimeFacts:
     accelerator_architecture: str | None = None
     present_libraries: frozenset[str] = frozenset()
     library_prefix: str = "none"
+    driver_line: str | None = None
 
 
 def version_line(text: str) -> tuple[int, int] | None:
@@ -45,52 +46,40 @@ def glibc_satisfies(observed: str, minimum: tuple[int, int]) -> bool:
     return line >= minimum
 
 
-def rocm700_refusal(
+def rocm700_userspace(
     host: HostRuntimeFacts,
     *,
     python_version: str,
-) -> tuple[str, str] | None:
-    """Return (failure value, reason) or None when rocm700 may be installed.
+) -> tuple[str, tuple[str, str] | None]:
+    """Return verified, realize, or refuse.
 
-    The failure value is the FailureCode value. Callers map it.
+    Missing userspace is ``realize`` once gfx and glibc match. An observed
+    userspace must still match the recipe line and sonames. Driver-line
+    policy is not decided here.
     """
     if python_version != DEFAULT_PYTHON:
         return (
-            "package_resolution_failed",
+            "refuse",
             (
-                f"requested python {python_version}; artifact requires "
-                f"{DEFAULT_PYTHON}; variant {ROCM700_VARIANT}; "
-                f"vllm {DEFAULT_VLLM}"
-            ),
-        )
-    observed = host.rocm_version
-    if observed is None:
-        return (
-            "driver_or_backend_incompatible",
-            (
-                f"rocm version was not observed; required {ROCM700_VARIANT} "
-                f"rocm {ROCM700_LINE[0]}.{ROCM700_LINE[1]}; vllm {DEFAULT_VLLM}"
-            ),
-        )
-    line = version_line(observed)
-    if line != ROCM700_LINE:
-        shown = observed.strip() or "unparsed"
-        return (
-            "driver_or_backend_incompatible",
-            (
-                f"observed rocm {shown}; required {ROCM700_VARIANT} "
-                f"rocm {ROCM700_LINE[0]}.{ROCM700_LINE[1]}; vllm {DEFAULT_VLLM}; "
-                "wheel variant does not match the host"
+                "package_resolution_failed",
+                (
+                    f"requested python {python_version}; artifact requires "
+                    f"{DEFAULT_PYTHON}; variant {ROCM700_VARIANT}; "
+                    f"vllm {DEFAULT_VLLM}"
+                ),
             ),
         )
     architecture = host.accelerator_architecture
     if architecture is None or architecture not in ROCM700_ARCHS:
         shown = architecture or "unobserved"
         return (
-            "driver_or_backend_incompatible",
+            "refuse",
             (
-                f"observed accelerator {shown}; variant {ROCM700_VARIANT} "
-                f"does not list it; vllm {DEFAULT_VLLM}"
+                "driver_or_backend_incompatible",
+                (
+                    f"observed accelerator {shown}; variant {ROCM700_VARIANT} "
+                    f"does not list it; vllm {DEFAULT_VLLM}"
+                ),
             ),
         )
     glibc = host.glibc_version
@@ -98,20 +87,57 @@ def rocm700_refusal(
         shown = glibc or "unobserved"
         minimum = f"{ROCM700_GLIBC[0]}.{ROCM700_GLIBC[1]}"
         return (
-            "driver_or_backend_incompatible",
+            "refuse",
             (
-                f"observed glibc {shown}; required glibc >= {minimum}; "
-                f"variant {ROCM700_VARIANT}; vllm {DEFAULT_VLLM}"
+                "driver_or_backend_incompatible",
+                (
+                    f"observed glibc {shown}; required glibc >= {minimum}; "
+                    f"variant {ROCM700_VARIANT}; vllm {DEFAULT_VLLM}"
+                ),
+            ),
+        )
+    observed = host.rocm_version
+    if observed is None:
+        return ("realize", None)
+    line = version_line(observed)
+    if line != ROCM700_LINE:
+        shown = observed.strip() or "unparsed"
+        return (
+            "refuse",
+            (
+                "driver_or_backend_incompatible",
+                (
+                    f"observed rocm {shown}; required {ROCM700_VARIANT} "
+                    f"rocm {ROCM700_LINE[0]}.{ROCM700_LINE[1]}; "
+                    f"vllm {DEFAULT_VLLM}; "
+                    "wheel variant does not match the host"
+                ),
             ),
         )
     missing = [name for name in ROCM700_LIBS if name not in host.present_libraries]
     if missing:
         joined = ",".join(missing)
+        shown = joined if len(joined) <= 160 else f"{len(missing)} sonames"
         return (
-            "prerequisite_blocked",
+            "refuse",
             (
-                f"missing {joined}; observed rocm {observed.strip()}; "
-                f"required {ROCM700_VARIANT}; vllm {DEFAULT_VLLM}"
+                "prerequisite_blocked",
+                (
+                    f"missing {shown}; observed rocm {observed.strip()}; "
+                    f"required {ROCM700_VARIANT}; vllm {DEFAULT_VLLM}"
+                ),
             ),
         )
-    return None
+    return ("verified", None)
+
+
+def rocm700_refusal(
+    host: HostRuntimeFacts,
+    *,
+    python_version: str,
+) -> tuple[str, str] | None:
+    """Return a hard refusal. Realize is not a refusal."""
+    kind, detail = rocm700_userspace(host, python_version=python_version)
+    if kind != "refuse" or detail is None:
+        return None
+    return detail

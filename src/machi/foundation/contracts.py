@@ -17,6 +17,7 @@ from machi.kernel.unresolved import Maybe
 
 _TOKEN_MAX = 80
 _REASON_MAX = 240
+_LIBRARY_MAX = 512
 _MAX_SETTINGS = 24
 
 
@@ -121,9 +122,9 @@ class FoundationSetting(Contract):
 
     def __post_init__(self) -> None:
         _bounded(self.name, what="name", maximum=_TOKEN_MAX)
-        _bounded(self.value, what="value", maximum=_REASON_MAX)
+        _bounded(self.value, what="value", maximum=_LIBRARY_MAX)
         _bounded(self.reason, what="reason", maximum=_REASON_MAX)
-        _bounded(self.allowed_values, what="allowed", maximum=_REASON_MAX)
+        _bounded(self.allowed_values, what="allowed", maximum=_LIBRARY_MAX)
         if self.mutability not in {"runtime", "restart_required"}:
             raise ValidationError("setting mutability is not supported")
         _bounded(self.invalidation, what="invalidation", maximum=_TOKEN_MAX)
@@ -187,7 +188,7 @@ class RuntimeRecipe(Contract):
             what="architectures",
             maximum=_REASON_MAX,
         )
-        _bounded(self.native_libraries, what="libraries", maximum=_REASON_MAX)
+        _bounded(self.native_libraries, what="libraries", maximum=_LIBRARY_MAX)
 
 
 @contract(kind="foundation.requirement", version=1)
@@ -229,7 +230,9 @@ class FoundationCandidate(Contract):
     observed_glibc: Maybe[str] = meaning("glibc version read from the host")
     accelerator_architecture: Maybe[str] = meaning("gfx name when observed")
     native_libraries: str = meaning("required sonames, or none")
-    native_status: str = meaning("satisfied, missing, or not_applicable")
+    native_status: str = meaning(
+        "satisfied, realize, missing, or not_applicable"
+    )
     native_library_prefix: str = meaning("managed linker prefix, or none")
     support: SupportState = meaning("resolution outcome before provision")
     failure: FailureCode = meaning("none when the candidate is usable")
@@ -241,8 +244,8 @@ class FoundationCandidate(Contract):
         _bounded(self.package_source, what="source", maximum=_REASON_MAX)
         _bounded(self.variant, what="variant", maximum=32)
         _bounded(self.required_rocm, what="required rocm", maximum=16)
-        _bounded(self.native_libraries, what="libraries", maximum=_REASON_MAX)
-        _bounded(self.native_status, what="native status", maximum=_REASON_MAX)
+        _bounded(self.native_libraries, what="libraries", maximum=_LIBRARY_MAX)
+        _bounded(self.native_status, what="native status", maximum=_LIBRARY_MAX)
         _bounded(self.native_library_prefix, what="library prefix", maximum=_REASON_MAX)
         _bounded(self.reason, what="reason", maximum=_REASON_MAX)
 

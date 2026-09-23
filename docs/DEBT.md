@@ -2514,11 +2514,14 @@ Subsystem:    foundation
 Authorizes:   NO
 What:         Physically qualify the current approved AMD native-vLLM
               recipe on a real SSH-reachable Linux MI300X / gfx942
-              host. The host must already match that recipe. Machi
-              then creates the managed Python environment, installs
-              the exact artifact, verifies import, version, HIP or
-              backend, and the API entrypoint, and reuses the
-              generation. No remote repair, no model load, no server.
+              host. The host must provide the kernel, firmware,
+              `amdgpu` module, GPU, `/dev/kfd`, and `/dev/dri`.
+              Userspace is either verified in place or realized under
+              Machi-owned storage. Machi then creates the managed
+              Python environment, installs the exact artifact,
+              verifies import, version, HIP or backend, and the API
+              entrypoint, and reuses the generation. No remote
+              repair, no model load, no server.
 Why now:      The provider is implemented. ROCm 6.1 is rejected
               before install. A compatible acceptance host was not
               available. That is not permission to call AMD
@@ -2535,6 +2538,40 @@ Retire when:  the then-approved recipe reaches Foundation `READY`
               on MI300X / gfx942 under the rules above, and public
               or commercial AMD support is still withheld until that
               evidence is recorded
+Status:       OPEN
+
+### M-5-AMD-02 — OCI runtime image from the owned userspace manifest
+Label:        DEFERRED
+Owner stage:  Foundation
+Subsystem:    foundation
+Authorizes:   NO
+What:         A later image builder may package the same component
+              set recorded by the managed ROCm prefix. No image is
+              built now. No container executor is installed.
+Why now:      The native prefix is the default provider. The manifest
+              is the input a future builder would copy.
+To make real: an image build that consumes the owned manifest and
+              still does not own admission or serving.
+Retire when:  that builder exists, or the native prefix remains the
+              only provider and this seam is explicitly dropped
+Status:       OPEN
+
+### M-5-AMD-03 — Managed ROCm prefix bytes are unmeasured
+Label:        PROVISIONAL
+Owner stage:  Foundation
+Subsystem:    foundation
+Authorizes:   NO
+What:         The 12 GiB persistent budget is the Python generation,
+              not the ROCm prefix. Required component sizes are
+              unknown, so realization refuses instead of assuming
+              the prefix fits.
+Why now:      Publishing an invented gigabyte figure would authorize
+              storage the host has not been shown to have.
+To make real: measure the prefix, the generation, and the transient
+              staging directory on a host that can install the
+              recipe, then set the SAFE requirement to that sum.
+Retire when:  a measured prefix footprint is recorded and capacity
+              checks use it
 Status:       OPEN
 
 ### M-9-01 — Deferred witness composer and further serve depth
