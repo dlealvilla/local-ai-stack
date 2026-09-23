@@ -31,7 +31,7 @@ from machi.model.qualification import (
     DeployableModels,
     QualificationEvidence,
     covers,
-    member_ids,
+    select_id,
 )
 from machi.plan.contracts import (
     DeploymentConfiguration,
@@ -91,6 +91,7 @@ class ServingDraft:
     context_provenance: PlanProvenance
     concurrency: int
     concurrency_provenance: PlanProvenance
+    qualification_id: str
     fingerprint: str
 
 
@@ -210,6 +211,7 @@ def _draft(inputs: PlanInputs, token: str) -> ServingDraft | PlanFailure:
         context_provenance=context[1],
         concurrency=concurrency[0],
         concurrency_provenance=concurrency[1],
+        qualification_id=inputs.qualification.qualification_id,
         fingerprint="",
     )
 
@@ -265,7 +267,8 @@ def _qualified(
     """User plans require coverage. A probe plan is how that coverage is earned."""
     if inputs.probe:
         return None
-    if definition.model_id not in member_ids(inputs.deployable):
+    member = select_id(inputs.deployable, definition.model_id)
+    if member is None or member.immutable_revision != definition.immutable_revision:
         return PlanFailure.QUALIFICATION_REQUIRED
     evidence = inputs.qualification
     backend = inputs.foundation.backend

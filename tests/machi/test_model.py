@@ -40,6 +40,7 @@ from machi.model.contracts import (
     ModelSourceKind,
     ProviderQualification,
     QuantizationKind,
+    SelectionProvenance,
 )
 from machi.model.evaluate import evaluate_source, select_entry, snapshot_for
 from machi.model.events import model_events
@@ -52,6 +53,7 @@ from machi.model.predicates import (
     PredicateSupport,
     RuntimePredicate,
 )
+from machi.model.qualification import DeployableMember, DeployableModels
 from machi.model.source import SourceFileInfo, SourceView
 
 FIXED = dt.datetime(2026, 9, 22, 12, 0, tzinfo=dt.UTC)
@@ -349,10 +351,87 @@ def test_snapshot_changes_when_foundation_or_capacity_changes() -> None:
     assert len(first.entries) == 1
 
 
+def _deployable(
+    entry: AvailableModelEntry, *, revision: str | None = None
+) -> DeployableModels:
+    return DeployableModels(
+        snapshot_id="dep_test",
+        capacity_snapshot_id="cev_test",
+        members=(
+            DeployableMember(
+                model_id=entry.definition.model_id,
+                immutable_revision=revision or entry.definition.immutable_revision,
+                qualification_id="qev_test",
+                total_required_vram_bytes=1000,
+            ),
+        ),
+        observed_at=FIXED,
+    )
+
+
+def test_selection_outside_deployable_models_is_refused() -> None:
+    entry = _entry()
+    empty = DeployableModels(
+        snapshot_id="dep_empty",
+        capacity_snapshot_id="cev_test",
+        members=(),
+        observed_at=FIXED,
+    )
+    with pytest.raises(ValidationError, match="deployable"):
+        select_entry(
+            entry,
+            empty,
+            foundation_id="fgen_test",
+            capacity_evidence_id="cev_test",
+        )
+    with pytest.raises(ValidationError, match="deployable"):
+        select_entry(
+            entry,
+            _deployable(entry, revision="other-revision"),
+            foundation_id="fgen_test",
+            capacity_evidence_id="cev_test",
+            provenance=SelectionProvenance.ADMINISTRATOR_SELECTED,
+        )
+
+
+def test_unsupported_attention_does_not_fetch_weights(tmp_path: Path) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fetch(_destination: Path, relative: tuple[str, ...]) -> None:
+        calls.append(relative)
+
+    payload = json.dumps(
+        {
+            "model_type": "llama",
+            "architectures": [ARCH],
+            "torch_dtype": "bfloat16",
+            "max_position_embeddings": 2048,
+            "hidden_size": 16,
+            "num_attention_heads": 4,
+            "num_key_value_heads": 4,
+            "num_hidden_layers": 2,
+        }
+    )
+    result = store_view(
+        tmp_path,
+        _view(config=payload),
+        source_kind=ModelSourceKind.HUB,
+        fetch=fetch,
+        runtime=_runtime(),
+        capacity=_envelope(10_000_000),
+        accelerator_safe_bytes=10_000_000,
+        observed_at=FIXED,
+    )
+    assert result.artifact is None
+    assert result.failure is ModelFailure.ATTENTION_CONFIGURATION_UNSUPPORTED
+    assert calls == []
+
+
 def test_selection_records_the_assessment_and_does_not_start_a_runtime() -> None:
     entry = _entry()
     chosen = select_entry(
         entry,
+        _deployable(entry),
         foundation_id="fgen_test",
         capacity_evidence_id="cev_test",
     )

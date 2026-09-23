@@ -193,6 +193,7 @@ def _settings() -> tuple[PlanSetting, ...]:
         setting("gpu_memory_utilization", "0.90"),
         setting("dtype", "float32"),
         setting("quantization", "none"),
+        setting("qualification_id", "qev_serve"),
     )
 
 
@@ -352,6 +353,38 @@ def test_authorization_refuses_without_a_live_reservation(tmp_path: Path) -> Non
     assert runtime.launches == 0
 
 
+def test_serve_refuses_a_plan_without_qualification_coverage(tmp_path: Path) -> None:
+    (
+        service,
+        _manager,
+        configuration,
+        reservation,
+        runtime,
+        artifact,
+        selection,
+        generation,
+        model_path,
+    ) = _world(tmp_path)
+    bare = replace(
+        configuration,
+        settings=tuple(
+            item for item in configuration.settings if item.name != "qualification_id"
+        ),
+    )
+    started = service.start(
+        bare,
+        reservation.reservation_id,
+        selection,
+        generation,
+        artifact,
+        model_path=model_path,
+        artifact_verified=True,
+    )
+    assert started.outcome is ServeOutcome.REFUSED
+    assert started.failure is ServeFailure.PLAN_RESERVATION_MISMATCH
+    assert runtime.launches == 0
+
+
 def test_lifecycle_proof_and_release_order(tmp_path: Path) -> None:
     (
         service,
@@ -374,6 +407,7 @@ def test_lifecycle_proof_and_release_order(tmp_path: Path) -> None:
         artifact_verified=True,
     )
     assert started.outcome is ServeOutcome.READY
+    assert not is_resolved(started.proof)
     assert is_resolved(started.instance)
     assert started.instance.state is InstanceState.READY
     assert not hasattr(started.instance, "pid")

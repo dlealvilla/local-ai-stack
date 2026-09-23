@@ -515,6 +515,43 @@ def test_staleness_names_the_changed_input() -> None:
     )
 
 
+def test_backend_environment_and_revision_do_not_reuse_coverage() -> None:
+    inputs = _inputs()
+    decision = _plan(inputs)
+    configuration, _request = _ok(decision)
+    rocm = replace(inputs.foundation, backend=AcceleratorBackend.ROCM)
+    assert (
+        assess_plan(
+            configuration,
+            replace(inputs, foundation=rocm),
+            build_vllm_recipe,
+        )
+        is not PlanFailure.NONE
+    )
+    assert (
+        assess_plan(
+            configuration,
+            replace(inputs, execution_environment_fingerprint="exe_other"),
+            build_vllm_recipe,
+        )
+        is not PlanFailure.NONE
+    )
+    shifted = replace(inputs.available.entries[0].definition, dtype="float16")
+    entry = replace(inputs.available.entries[0], definition=shifted)
+    available = replace(inputs.available, entries=(entry,))
+    assert _plan(replace(inputs, available=available)).failure is (
+        PlanFailure.QUALIFICATION_DOES_NOT_COVER
+    )
+    member = replace(
+        inputs.deployable.members[0],
+        immutable_revision="revision-not-covered",
+    )
+    deployable = replace(inputs.deployable, members=(member,))
+    assert _plan(replace(inputs, deployable=deployable)).failure is (
+        PlanFailure.QUALIFICATION_REQUIRED
+    )
+
+
 def test_refusals_cover_model_foundation_and_capacity() -> None:
     missing = _plan(_inputs(omit_artifact=True))
     assert missing.failure is PlanFailure.MODEL_ARTIFACT_NOT_STORED

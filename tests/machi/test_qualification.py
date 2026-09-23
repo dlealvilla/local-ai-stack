@@ -665,6 +665,9 @@ def test_changed_generation_runtime_revision_and_envelopes_refuse_reuse() -> Non
     assert not _covers(evidence, quantization="awq")
     assert not _covers(evidence, context=evidence.context + 1)
     assert not _covers(evidence, concurrency=evidence.concurrency + 1)
+    assert not _covers(evidence, tensor_parallel=evidence.tensor_parallel + 1)
+    assert not _covers(evidence, engine_version="0.18.1")
+    assert not _covers(evidence, backend="rocm")
 
 
 def test_historical_qualification_does_not_cover() -> None:

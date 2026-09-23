@@ -17,6 +17,7 @@ def build_vllm_recipe(draft: ServingDraft) -> RuntimeRecipe:
         else "undetermined",
         quantization=draft.definition.quantization.value,
         artifact_id=draft.artifact.artifact_id,
+        qualification_id=draft.qualification_id,
         context_provenance=draft.context_provenance,
         concurrency_provenance=draft.concurrency_provenance,
     )
@@ -29,6 +30,7 @@ def vllm_recipe(
     dtype: str,
     quantization: str,
     artifact_id: str,
+    qualification_id: str,
     context_provenance: PlanProvenance,
     concurrency_provenance: PlanProvenance,
 ) -> RuntimeRecipe:
@@ -96,6 +98,12 @@ def vllm_recipe(
             artifact_id,
             PlanProvenance.DERIVED,
             "warehouse artifact id, not a cache path",
+        ),
+        _setting(
+            "qualification_id",
+            qualification_id,
+            PlanProvenance.DERIVED,
+            "coverage required before this plan",
         ),
     )
     return RuntimeRecipe(

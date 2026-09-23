@@ -365,6 +365,11 @@ class ServeService:
                 ServeFailure.UNSUPPORTED_SERVE_PROVIDER,
                 "remote code stays refused",
             )
+        if not settings.get("qualification_id"):
+            return refused(
+                ServeFailure.PLAN_RESERVATION_MISMATCH,
+                "plan has no qualification coverage",
+            )
         if settings.get("tensor_parallel_size") != "1":
             return refused(
                 ServeFailure.UNSUPPORTED_SERVE_PROVIDER,

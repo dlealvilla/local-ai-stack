@@ -70,6 +70,53 @@ def status() -> None:
     print((CACHE / "STATE.json").read_text(encoding="utf-8"))
 
 
+def publish_step(source: Path) -> None:
+    """Publish development-only step progress. Does not change the instruction."""
+    if not source.is_file():
+        raise SystemExit(f"step status file not found: {source}")
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not payload.get("step_id"):
+        raise SystemExit("step status must be an object with step_id")
+    fetch_control()
+    with tempfile.TemporaryDirectory(prefix="machi-handoff-") as tmp:
+        worktree = Path(tmp) / "control"
+        run(
+            "git",
+            "worktree",
+            "add",
+            "--detach",
+            str(worktree),
+            f"{REMOTE}/{CONTROL_BRANCH}",
+        )
+        try:
+            target = worktree / "control" / "STEP-STATUS.json"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            run("git", "add", "control/STEP-STATUS.json", cwd=worktree)
+            changed = run("git", "status", "--porcelain", cwd=worktree, capture=True)
+            if not changed.strip():
+                print("step status unchanged; nothing to publish")
+                return
+            run(
+                "git",
+                "-c",
+                "user.name=Machi Cursor Handoff",
+                "-c",
+                "user.email=machi-handoff@local.invalid",
+                "commit",
+                "-m",
+                f"control: step {payload['step_id']} {payload.get('status', '')}",
+                cwd=worktree,
+            )
+            run("git", "push", REMOTE, f"HEAD:{CONTROL_BRANCH}", cwd=worktree)
+            print(f"published_step={payload['step_id']} status={payload.get('status')}")
+        finally:
+            run("git", "worktree", "remove", "--force", str(worktree))
+
+
 def publish_pasteback(source: Path) -> None:
     if not source.is_file():
         raise SystemExit(f"paste-back file not found: {source}")
@@ -99,7 +146,13 @@ def publish_pasteback(source: Path) -> None:
                 encoding="utf-8",
             )
 
-            run("git", "add", "control/LATEST-PASTEBACK.md", "control/STATE.json", cwd=worktree)
+            run(
+                "git",
+                "add",
+                "control/LATEST-PASTEBACK.md",
+                "control/STATE.json",
+                cwd=worktree,
+            )
             changed = run("git", "status", "--porcelain", cwd=worktree, capture=True)
             if not changed.strip():
                 print("paste-back unchanged; nothing to publish")
@@ -134,6 +187,8 @@ def main() -> None:
     sub.add_parser("status")
     pub = sub.add_parser("publish-pasteback")
     pub.add_argument("path", type=Path)
+    step = sub.add_parser("publish-step")
+    step.add_argument("path", type=Path)
     args = parser.parse_args()
 
     if args.command == "sync":
@@ -142,6 +197,8 @@ def main() -> None:
         status()
     elif args.command == "publish-pasteback":
         publish_pasteback(args.path)
+    elif args.command == "publish-step":
+        publish_step(args.path)
 
 
 if __name__ == "__main__":

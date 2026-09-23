@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 
 from machi.capacity.contracts import CapacityEnvelope
+from machi.kernel.errors import ValidationError
 from machi.kernel.unresolved import NOT_PROVIDED, is_resolved
 from machi.model.compat import RuntimeView, assess, requirement_for, weights_exceed
 from machi.model.contracts import (
@@ -18,6 +19,7 @@ from machi.model.contracts import (
 from machi.model.files import plan_with_index_text
 from machi.model.identity import input_token, model_id
 from machi.model.metadata import commercial_use, normalize_config
+from machi.model.qualification import DeployableModels, select_id
 from machi.model.source import SourceView
 
 
@@ -117,12 +119,23 @@ def snapshot_for(
 
 def select_entry(
     entry: AvailableModelEntry,
+    deployable: DeployableModels,
     *,
     foundation_id: str,
     capacity_evidence_id: str,
     provenance: SelectionProvenance = SelectionProvenance.ADMINISTRATOR_SELECTED,
 ) -> ModelSelection:
-    """Record a choice. This does not acquire or start anything."""
+    """Record a choice that is already in the current deployable set.
+
+    Administrator, product, curated, and forced provenance all use this
+    gate. The choice does not acquire or start anything.
+    """
+    member = select_id(deployable, entry.definition.model_id)
+    if (
+        member is None
+        or member.immutable_revision != entry.definition.immutable_revision
+    ):
+        raise ValidationError("selection is outside current deployable models")
     return ModelSelection(
         selection_id=f"msel_{entry.definition.model_id[-8:]}",
         model_id=entry.definition.model_id,
