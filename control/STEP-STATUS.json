@@ -1,14 +1,16 @@
 {
   "attempt": 1,
   "branch": "automation/inference-program",
-  "end_sha": null,
+  "end_sha": "765aab67208cd1fde399db83be0e4254308597e0",
+  "fix_iterations": 1,
   "instruction_id": "MACHI-INFERENCE-EXEC-005-001",
   "lab_run_ids": [],
-  "latest_gate": "schema design",
-  "next_transition": null,
+  "latest_gate": "acceptance lab suite",
+  "next_transition": "MACHI-INF-03-N1-AMPERE",
   "physical_run_ids": [],
+  "schema_version": 2,
   "start_sha": "96bc4303c4b4af48cfb6326b89edd951fa043911",
-  "status": "RUNNING",
+  "status": "PASS",
   "step_id": "MACHI-INF-02-EMPIRICAL-LAB",
   "step_name": "Build the empirical lab evidence spine"
 }
