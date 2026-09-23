@@ -2552,6 +2552,29 @@ Retire when:  a witness composer reads those stored records, or a
               later serve decision names restart and usage
 Status:       OPEN
 
+### M-9-02 — Pinned vLLM cannot execute the stored tiny Llama
+Label:        DEFERRED
+Owner stage:  Serve
+Subsystem:    serve
+Authorizes:   NO
+What:         `hf-internal-testing/tiny-random-LlamaForCausalLM`
+              revision `9fb191250dd56d0ba7ec9785a025ed29c03d5998`
+              has hidden size 16 and 4 attention heads, so the head
+              dimension is 4. vLLM 0.18.0 on NVIDIA selects flex
+              attention, which crashes with a kernel error that the
+              head dimension must be at least 16. Flash attention
+              requires a multiple of 8. Triton attention requires at
+              least 32. Eager mode does not avoid the crash.
+Why now:      NVIDIA-N1 L5 reached a healthy loopback server and then
+              a completion request returned HTTP 500. The process was
+              stopped and the reservation released. No token was
+              produced.
+Retire when:  one real completion of this exact artifact succeeds on
+              the pinned runtime, or an authorized decision replaces
+              the artifact or the vLLM pin and the new candidate is
+              proven on its own SHA
+Status:       OPEN
+
 ### M-8-01 — Deferred enforcement beyond single-host accounting
 Label:        DEFERRED
 Owner stage:  Admit Tier 3

@@ -697,7 +697,7 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M6 Model | KEEP | 1 | Closed at Tier 2. NVIDIA artifact path accepted. AMD foundation qualification remains `M-5-AMD-01` |
 | M7 Plan | KEEP | 1 | Physically accepted on NVIDIA. Plan is not admission and not launch |
 | M8 Admit | KEEP | 1 | Physically accepted on NVIDIA as logical reservation authority. Serve is not started |
-| M9 Serve | KEEP | 1 | Local native vLLM serve. Physical inference is not run. Witness composer remains deferred |
+| M9 Serve | KEEP | 1 | Local native vLLM serve. NVIDIA-N1 L5 inference did not pass (`M-9-02`). Witness composer remains deferred |
 | OllamaExecutionMacropath | REPOSITION | 1 exit | Compatibility fallback after the vLLM path. Not before Capacity |
 | Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |
 | Dynamo | DEFER | 2 | Fabric family. No integration until the evidence in strategy |

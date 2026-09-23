@@ -46,8 +46,10 @@ AMD foundation qualification remains `M-5-AMD-01` and is a
 separate lane. **Plan** is physically accepted on NVIDIA and
 does not admit or serve. **Admit** is physically accepted on NVIDIA as logical
 reservation authority. **Serve** is locally implemented for one
-native vLLM instance. Physical inference is not run. Do not start
-another serving path unless the task says so.
+native vLLM instance. NVIDIA-N1 L5 was attempted and did not pass:
+the stored tiny Llama has head dimension 4, and pinned vLLM 0.18
+cannot complete a token (`M-9-02`). Do not start another serving
+path unless the task says so.
 
 The product spine is still the priority: one real inference path, thin
 end to end, before lab comparisons, Dynamo, optimizers, memory, or
