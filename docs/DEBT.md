@@ -2624,6 +2624,23 @@ Retire when:  a later decision names the topology or planner and
               Admit can already reserve the single-accelerator case
 Status:       OPEN
 
+### M-6-03 — Empirical vLLM qualification is not yet executed
+Label:        DEFERRED
+Owner stage:  Model
+Subsystem:    model
+Authorizes:   NO
+What:         A real one-token probe on the verified vLLM generation.
+              The local funnel, predicate classification, queue, and
+              cache contracts exist. Tests use a fake probe. llmfit
+              and Accelerate are not estimators in this path.
+Why now:      Architecture recognition admitted a head-size-4 Llama
+              that vLLM 0.18 could not execute. The new gate refuses
+              that shape before qualification. No external artifact
+              has a `model.qualification` pass on hardware.
+Retire when:  one candidate is qualified on NVIDIA-N1 with the new
+              identity, or the lead chooses not to run that probe
+Status:       OPEN
+
 ### M-6-01 — Deferred model catalog, conversion, and training
 Label:        DEFERRED
 Owner stage:  Model Tier 3

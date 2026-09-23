@@ -899,13 +899,15 @@ by copy. The generic model package does not import the hub client.
 
 **Inputs:** Foundation selection and runtime capability, Capacity
 envelope, an explicit source reference, model policy.  
-**Outputs:** ModelDefinition, ModelRequirement, AvailableModels,
-ModelSelection, ModelArtifact.  
+**Outputs:** ModelDefinition, ModelRequirement, evaluated
+`model.available` snapshot, DeployableModels, QualificationQueue,
+QualificationEvidence, ModelSelection, ModelArtifact.  
 **Preconditions:** a Foundation identity and a Capacity snapshot for a
 non-conditional storage decision. Inspection does not require a
 download.  
-**Success:** an exact revision is assessed, and an explicit acquire
-promotes a verified warehouse copy.  
+**Success:** an exact revision is assessed. Deployable membership
+requires a qualification pass and a fit against one current capacity
+snapshot. An explicit acquire promotes a verified warehouse copy.  
 **Blocked:** unknown architecture, refused remote code, insufficient
 SAFE storage, failed integrity, gated access without a credential.  
 **State owned:** warehouse manifests and stored files. A hub cache

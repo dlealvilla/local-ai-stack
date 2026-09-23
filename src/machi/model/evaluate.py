@@ -55,6 +55,7 @@ def evaluate_source(
         requirement=requirement,
         weights_exceed_accelerator=exceed,
         license_blocks=license_blocks,
+        metadata=meta,
     )
     logical = model_id(source_kind, view.repository)
     definition = ModelDefinition(

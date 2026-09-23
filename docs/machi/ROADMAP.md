@@ -694,7 +694,7 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M3 Steward | KEEP | 1 | Ownership before capacity. Accepted at Tier 2 |
 | M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization. Accepted at Tier 2 |
 | M5 Foundation | MODIFY | 1 | Development closed. NVIDIA CUDA qualified. AMD ROCm implemented, qualification deferred (`M-5-AMD-01`) |
-| M6 Model | KEEP | 1 | Closed at Tier 2. NVIDIA artifact path accepted. AMD foundation qualification remains `M-5-AMD-01` |
+| M6 Model | KEEP | 1 | Warehouse path accepted. Deployable membership now requires runtime qualification. Physical qualification is not run (`M-6-03`) |
 | M7 Plan | KEEP | 1 | Physically accepted on NVIDIA. Plan is not admission and not launch |
 | M8 Admit | KEEP | 1 | Physically accepted on NVIDIA as logical reservation authority. Serve is not started |
 | M9 Serve | KEEP | 1 | Local native vLLM serve. NVIDIA-N1 L5 inference did not pass (`M-9-02`). Witness composer remains deferred |

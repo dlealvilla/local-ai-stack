@@ -26,6 +26,13 @@ class NormalizedMetadata:
     base_model: Maybe[str]
     derivation: DerivationKind
     config_sha256: Maybe[str]
+    hidden_size: Maybe[int]
+    attention_heads: Maybe[int]
+    key_value_heads: Maybe[int]
+    explicit_head_dim: Maybe[int]
+    derived_head_dim: Maybe[int]
+    layer_count: Maybe[int]
+    sliding_window: bool
 
 
 _ALLOWED = frozenset({"apache-2.0", "mit", "bsd-2-clause", "bsd-3-clause"})
@@ -57,6 +64,13 @@ def normalize_config(text: str | None) -> NormalizedMetadata:
             base_model=NOT_PROVIDED,
             derivation=DerivationKind.UNKNOWN,
             config_sha256=NOT_PROVIDED,
+            hidden_size=NOT_PROVIDED,
+            attention_heads=NOT_PROVIDED,
+            key_value_heads=NOT_PROVIDED,
+            explicit_head_dim=NOT_PROVIDED,
+            derived_head_dim=NOT_PROVIDED,
+            layer_count=NOT_PROVIDED,
+            sliding_window=False,
         )
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     try:
@@ -74,6 +88,10 @@ def normalize_config(text: str | None) -> NormalizedMetadata:
     parameters = _positive_int(raw.get("num_parameters"))
     base = raw.get("_name_or_path")
     remote = "auto_map" in raw
+    hidden = _positive_int(raw.get("hidden_size"))
+    heads = _positive_int(raw.get("num_attention_heads"))
+    explicit = _positive_int(raw.get("head_dim"))
+    derived = _derived_head(hidden, heads, explicit)
     return NormalizedMetadata(
         architecture=architecture if architecture else NOT_PROVIDED,
         dtype=dtype if isinstance(dtype, str) and dtype else NOT_PROVIDED,
@@ -84,6 +102,13 @@ def normalize_config(text: str | None) -> NormalizedMetadata:
         base_model=base if isinstance(base, str) and base else NOT_PROVIDED,
         derivation=derivation,
         config_sha256=digest,
+        hidden_size=hidden if hidden is not None else NOT_PROVIDED,
+        attention_heads=heads if heads is not None else NOT_PROVIDED,
+        key_value_heads=_kv_heads(raw, heads),
+        explicit_head_dim=explicit if explicit is not None else NOT_PROVIDED,
+        derived_head_dim=derived if derived is not None else NOT_PROVIDED,
+        layer_count=_layers(raw),
+        sliding_window=_positive_int(raw.get("sliding_window")) is not None,
     )
 
 
@@ -98,6 +123,13 @@ def _empty(digest: str, *, remote: bool) -> NormalizedMetadata:
         base_model=NOT_PROVIDED,
         derivation=DerivationKind.UNKNOWN,
         config_sha256=digest,
+        hidden_size=NOT_PROVIDED,
+        attention_heads=NOT_PROVIDED,
+        key_value_heads=NOT_PROVIDED,
+        explicit_head_dim=NOT_PROVIDED,
+        derived_head_dim=NOT_PROVIDED,
+        layer_count=NOT_PROVIDED,
+        sliding_window=False,
     )
 
 
@@ -125,6 +157,32 @@ def _quantization(raw: dict[str, object]) -> tuple[QuantizationKind, DerivationK
     if method:
         return QuantizationKind.OTHER, DerivationKind.QUANTIZED
     return QuantizationKind.UNKNOWN, DerivationKind.UNKNOWN
+
+
+def _derived_head(
+    hidden: int | None, heads: int | None, explicit: int | None
+) -> int | None:
+    if explicit is not None:
+        return explicit
+    if hidden is None or heads is None or hidden % heads != 0:
+        return None
+    return hidden // heads
+
+
+def _kv_heads(raw: dict[str, object], heads: int | None) -> Maybe[int]:
+    declared = _positive_int(raw.get("num_key_value_heads"))
+    if declared is not None:
+        return declared
+    if heads is not None:
+        return heads
+    return NOT_PROVIDED
+
+
+def _layers(raw: dict[str, object]) -> Maybe[int]:
+    count = _positive_int(raw.get("num_hidden_layers"))
+    if count is None:
+        count = _positive_int(raw.get("n_layer"))
+    return count if count is not None else NOT_PROVIDED
 
 
 def _positive_int(value: object) -> int | None:

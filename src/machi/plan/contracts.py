@@ -43,6 +43,8 @@ class PlanFailure(StrEnum):
     STALE_CAPACITY_INPUT = "stale_capacity_input"
     STALE_POLICY_INPUT = "stale_policy_input"
     STALE_PREFERENCE_INPUT = "stale_preference_input"
+    QUALIFICATION_REQUIRED = "qualification_required"
+    QUALIFICATION_DOES_NOT_COVER = "qualification_does_not_cover"
 
 
 class PlanProvenance(StrEnum):

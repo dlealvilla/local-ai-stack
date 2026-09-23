@@ -47,6 +47,11 @@ from machi.model.files import plan_acquisition
 from machi.model.identity import artifact_id, model_id
 from machi.model.metadata import normalize_config
 from machi.model.policy import default_model_settings
+from machi.model.predicates import (
+    PredicateRule,
+    PredicateSupport,
+    RuntimePredicate,
+)
 from machi.model.source import SourceFileInfo, SourceView
 
 FIXED = dt.datetime(2026, 9, 22, 12, 0, tzinfo=dt.UTC)
@@ -67,6 +72,7 @@ def _runtime(
         foundation_id=foundation_id,
         provider_qualification=qualification,
         capability_known=known,
+        predicates=_predicates(),
     )
 
 
@@ -133,7 +139,34 @@ def _config(
         body["quantization_config"] = {"quant_method": quant}
     if base is not None:
         body["_name_or_path"] = base
+    body["hidden_size"] = 576
+    body["num_attention_heads"] = 9
+    body["num_key_value_heads"] = 3
+    body["num_hidden_layers"] = 2
     return json.dumps(body)
+
+
+def _predicates() -> tuple[RuntimePredicate, ...]:
+    return (
+        RuntimePredicate(
+            name="flash",
+            subject="head_size",
+            support=PredicateSupport.FINITE,
+            rule=PredicateRule.MULTIPLE_OF,
+            parameter=8,
+            ceiling=256,
+            value="",
+        ),
+        RuntimePredicate(
+            name="dtype",
+            subject="dtype",
+            support=PredicateSupport.FINITE,
+            rule=PredicateRule.EQUALS,
+            parameter=NOT_PROVIDED,
+            ceiling=NOT_PROVIDED,
+            value="bfloat16",
+        ),
+    )
 
 
 def _view(

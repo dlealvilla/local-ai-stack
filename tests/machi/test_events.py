@@ -10,16 +10,18 @@ from typing import Any
 import pytest
 
 import machi.admit.events as admit_events_module
-import machi.serve.events as serve_events_module
-import machi.serve.native as serve_native_module
 import machi.capacity.events as capacity_events_module
 import machi.discover.events as discover_events_module
 import machi.foundation.events as foundation_events_module
 import machi.install.events as install_events_module
 import machi.kernel.store_proof as store_proof_module
 import machi.model.events as model_events_module
+import machi.model.predicates as model_predicates_module
+import machi.model.qualification as model_qualification_module
 import machi.plan.events as plan_events_module
 import machi.prerequisites as prerequisites_module
+import machi.serve.events as serve_events_module
+import machi.serve.native as serve_native_module
 import machi.steward.events as steward_events_module
 from machi.kernel.alive import KernelAlivePayload, kernel_alive
 from machi.kernel.clock import FixedClock
@@ -166,6 +168,10 @@ def test_schema_fingerprint_matches_committed_golden() -> None:
     assert steward_events_module.OCCUPANCY_TYPE == "steward.occupancy.observed"
     assert foundation_events_module.INSPECTED_TYPE == "foundation.inspected"
     assert model_events_module.INSPECTED_TYPE == "model.inspected"
+    assert model_predicates_module.RuntimePredicate.kind == "model.runtime_predicate"
+    assert (
+        model_qualification_module.QualificationEvidence.kind == "model.qualification"
+    )
     assert plan_events_module.CREATED_TYPE == "plan.created"
     assert admit_events_module.COMPLETED_TYPE == "admit.completed"
     assert serve_events_module.STARTED_TYPE == "serve.started"

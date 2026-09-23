@@ -48,8 +48,10 @@ does not admit or serve. **Admit** is physically accepted on NVIDIA as logical
 reservation authority. **Serve** is locally implemented for one
 native vLLM instance. NVIDIA-N1 L5 was attempted and did not pass:
 the stored tiny Llama has head dimension 4, and pinned vLLM 0.18
-cannot complete a token (`M-9-02`). Do not start another serving
-path unless the task says so.
+cannot complete a token (`M-9-02`). Model deployable membership
+now requires runtime qualification; that probe has not been run on
+hardware (`M-6-03`). Do not start another serving path unless the
+task says so.
 
 The product spine is still the priority: one real inference path, thin
 end to end, before lab comparisons, Dynamo, optimizers, memory, or

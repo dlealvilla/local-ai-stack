@@ -46,6 +46,14 @@ from machi.model.contracts import (
     SelectionProvenance,
     WeightFormat,
 )
+from machi.model.qualification import (
+    POLICY_VERSION,
+    DeployableMember,
+    DeployableModels,
+    QualificationEvidence,
+    QualificationOutcome,
+    qualification_identity,
+)
 from machi.plan.compose import PlanInputs, compose_plan
 from machi.plan.contracts import PlanFailure, PlanPreference
 
@@ -206,6 +214,58 @@ def main() -> int:
         capacity_evidence_id="cev_prove",
         reason="fixture",
     )
+    identity = qualification_identity(
+        revision="commit-prove",
+        generation_id="fgen_prove",
+        engine="vllm",
+        engine_version="0.18.0",
+        backend="cuda",
+        hardware_class="unspecified",
+        dtype="bfloat16",
+        quantization="none",
+        context=4096,
+        concurrency=16,
+        tensor_parallel=1,
+        policy_version=POLICY_VERSION,
+    )
+    qualification = QualificationEvidence(
+        qualification_id=identity,
+        artifact_id="mart_prove",
+        immutable_revision="commit-prove",
+        generation_id="fgen_prove",
+        engine="vllm",
+        engine_version="0.18.0",
+        backend="cuda",
+        hardware_class="unspecified",
+        dtype="bfloat16",
+        quantization="none",
+        context=4096,
+        concurrency=16,
+        tensor_parallel=1,
+        policy_version=POLICY_VERSION,
+        outcome=QualificationOutcome.PASS,
+        failure="none",
+        load_seconds=NOT_PROVIDED,
+        ttft_seconds=NOT_PROVIDED,
+        tokens_per_second=NOT_PROVIDED,
+        peak_vram_bytes=NOT_PROVIDED,
+        peak_ram_bytes=NOT_PROVIDED,
+        measured=False,
+        observed_at=FIXED,
+    )
+    deployable = DeployableModels(
+        snapshot_id="dep_prove",
+        capacity_snapshot_id="cap_prove",
+        members=(
+            DeployableMember(
+                model_id="mdl_prove",
+                immutable_revision="commit-prove",
+                qualification_id=identity,
+                total_required_vram_bytes=1000,
+            ),
+        ),
+        observed_at=FIXED,
+    )
     decision = compose_plan(
         PlanInputs(
             selection=selection,
@@ -220,6 +280,8 @@ def main() -> int:
                 concurrency=NOT_PROVIDED,
                 accelerator_count=1,
             ),
+            deployable=deployable,
+            qualification=qualification,
         ),
         build_vllm_recipe,
     )

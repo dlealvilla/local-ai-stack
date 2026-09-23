@@ -962,17 +962,20 @@ def _model_runtime(
     capability_known = False
     if runtime_python is not None:
         with tempfile.TemporaryDirectory() as tmp:
-            architectures, quantizations = query_runtime(
+            architectures, quantizations, predicates = query_runtime(
                 runtime_python,
                 Path(tmp) / "runtime.json",
             )
         capability_known = bool(architectures)
+    else:
+        predicates = ()
     return RuntimeView(
         architectures=architectures,
         quantizations=quantizations,
         foundation_id=foundation_id,
         provider_qualification=ProviderQualification(qualification),
         capability_known=capability_known,
+        predicates=predicates,
     )
 
 

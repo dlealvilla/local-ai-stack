@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from tests.machi.architecture import (
     admit_boundary_violations,
-    serve_boundary_violations,
     binder_ownership_violations,
     capacity_boundary_violations,
     discover_boundary_violations,
@@ -21,6 +20,7 @@ from tests.machi.architecture import (
     registry_boundary_violations,
     run_boundary_violations,
     scan,
+    serve_boundary_violations,
     source_root,
     steward_boundary_violations,
     store_boundary_violations,

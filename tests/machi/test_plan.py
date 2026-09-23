@@ -50,6 +50,16 @@ from machi.model.contracts import (
     SelectionProvenance,
     WeightFormat,
 )
+from machi.model.qualification import (
+    POLICY_VERSION as QUALIFICATION_POLICY,
+)
+from machi.model.qualification import (
+    DeployableMember,
+    DeployableModels,
+    QualificationEvidence,
+    QualificationOutcome,
+    qualification_identity,
+)
 from machi.plan.compose import PlanInputs, ServingDraft, compose_plan
 from machi.plan.contracts import (
     DeploymentConfiguration,
@@ -279,6 +289,22 @@ def _inputs(
         entries=(entry,),
         observed_at=FIXED,
     )
+    backend = foundation.backend
+    backend_name = backend.value if isinstance(backend, AcceleratorBackend) else "cuda"
+    qualification = _qualification(definition, identity, backend_name)
+    deployable = DeployableModels(
+        snapshot_id="dep_plan",
+        capacity_snapshot_id="cap_plan",
+        members=(
+            DeployableMember(
+                model_id=definition.model_id,
+                immutable_revision=definition.immutable_revision,
+                qualification_id=qualification.qualification_id,
+                total_required_vram_bytes=1000,
+            ),
+        ),
+        observed_at=FIXED,
+    )
     selection = ModelSelection(
         selection_id="msel_plan",
         model_id=definition.model_id,
@@ -304,6 +330,52 @@ def _inputs(
             concurrency=NOT_PROVIDED,
             accelerator_count=1,
         ),
+        deployable=deployable,
+        qualification=qualification,
+    )
+
+
+def _qualification(
+    definition: ModelDefinition, generation: str, backend: str
+) -> QualificationEvidence:
+    identity = qualification_identity(
+        revision=definition.immutable_revision,
+        generation_id=generation,
+        engine="vllm",
+        engine_version="0.18.0",
+        backend=backend,
+        hardware_class="unspecified",
+        dtype="bfloat16",
+        quantization="none",
+        context=8192,
+        concurrency=16,
+        tensor_parallel=1,
+        policy_version=QUALIFICATION_POLICY,
+    )
+    return QualificationEvidence(
+        qualification_id=identity,
+        artifact_id="mart_plan",
+        immutable_revision=definition.immutable_revision,
+        generation_id=generation,
+        engine="vllm",
+        engine_version="0.18.0",
+        backend=backend,
+        hardware_class="unspecified",
+        dtype="bfloat16",
+        quantization="none",
+        context=8192,
+        concurrency=16,
+        tensor_parallel=1,
+        policy_version=QUALIFICATION_POLICY,
+        outcome=QualificationOutcome.PASS,
+        failure="none",
+        load_seconds=NOT_PROVIDED,
+        ttft_seconds=NOT_PROVIDED,
+        tokens_per_second=NOT_PROVIDED,
+        peak_vram_bytes=NOT_PROVIDED,
+        peak_ram_bytes=NOT_PROVIDED,
+        measured=False,
+        observed_at=FIXED,
     )
 
 

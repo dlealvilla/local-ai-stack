@@ -14,7 +14,7 @@ from machi.foundation.contracts import (
     RuntimeCapability,
     SupportState,
 )
-from machi.kernel.unresolved import NOT_PROVIDED, Unresolved
+from machi.kernel.unresolved import NOT_PROVIDED, Unresolved, is_resolved
 from machi.model.contracts import (
     ArtifactLifecycle,
     AvailableModelEntry,
@@ -26,6 +26,12 @@ from machi.model.contracts import (
     ModelRequirement,
     ModelSelection,
     ProviderQualification,
+)
+from machi.model.qualification import (
+    DeployableModels,
+    QualificationEvidence,
+    covers,
+    member_ids,
 )
 from machi.plan.contracts import (
     DeploymentConfiguration,
@@ -65,6 +71,9 @@ class PlanInputs:
     capability: RuntimeCapability | None
     envelope: CapacityEnvelope
     preference: PlanPreference
+    deployable: DeployableModels
+    qualification: QualificationEvidence
+    hardware_class: str = "unspecified"
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +178,9 @@ def _draft(inputs: PlanInputs, token: str) -> ServingDraft | PlanFailure:
     concurrency = _concurrency(inputs.preference)
     if isinstance(concurrency, PlanFailure):
         return concurrency
+    covered = _qualified(inputs, definition, context[0], concurrency[0])
+    if covered is not None:
+        return covered
     device = _device(inputs.envelope)
     if isinstance(device, PlanFailure):
         return device
@@ -239,6 +251,39 @@ def _model(
         return PlanFailure.FOUNDATION_NOT_QUALIFIED
     if state is not CompatibilityState.COMPATIBLE:
         return PlanFailure.MODEL_CONDITION_UNRESOLVED
+    return None
+
+
+def _qualified(
+    inputs: PlanInputs,
+    definition: ModelDefinition,
+    context: int,
+    concurrency: int,
+) -> PlanFailure | None:
+    if definition.model_id not in member_ids(inputs.deployable):
+        return PlanFailure.QUALIFICATION_REQUIRED
+    evidence = inputs.qualification
+    backend = inputs.foundation.backend
+    backend_name = backend.value if is_resolved(backend) else "unresolved"
+    dtype = definition.dtype if isinstance(definition.dtype, str) else "undetermined"
+    if not covers(
+        evidence,
+        revision=definition.immutable_revision,
+        generation_id=_foundation_identity(inputs),
+        engine=inputs.foundation.engine.value,
+        engine_version=(
+            inputs.capability.version if inputs.capability is not None else "absent"
+        ),
+        backend=backend_name,
+        hardware_class=inputs.hardware_class,
+        dtype=dtype,
+        quantization=definition.quantization.value,
+        context=context,
+        concurrency=concurrency,
+        tensor_parallel=1,
+        policy_version=evidence.policy_version,
+    ):
+        return PlanFailure.QUALIFICATION_DOES_NOT_COVER
     return None
 
 
@@ -393,6 +438,9 @@ def _fingerprint(inputs: PlanInputs) -> str:
         artifact.lifecycle.value if artifact is not None else "absent",
         capability.version if capability is not None else "absent",
         capability.import_state.value if capability is not None else "absent",
+        inputs.qualification.qualification_id,
+        inputs.deployable.snapshot_id,
+        inputs.hardware_class,
         inputs.available.input_token,
         inputs.available.foundation_id,
     ]

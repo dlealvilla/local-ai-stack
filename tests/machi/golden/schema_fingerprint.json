@@ -3426,6 +3426,105 @@
       }
     }
   },
+  "model.deployable@1": {
+    "python": "DeployableModels",
+    "fields": {
+      "snapshot_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this deployable set"
+      },
+      "capacity_snapshot_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "current capacity this set used"
+      },
+      "members": {
+        "type": "tuple[DeployableMember, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime-qualified and feasible"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this set was produced; UTC"
+      }
+    }
+  },
+  "model.deployable_member@1": {
+    "python": "DeployableMember",
+    "fields": {
+      "model_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "candidate identity"
+      },
+      "immutable_revision": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact revision"
+      },
+      "qualification_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "pass evidence"
+      },
+      "total_required_vram_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "estimate used for feasibility"
+      }
+    }
+  },
+  "model.exclusion@1": {
+    "python": "ModelExclusion",
+    "fields": {
+      "model_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "candidate identity"
+      },
+      "stage": {
+        "type": "FunnelStage",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "funnel stage that excluded it"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed reason"
+      },
+      "evidence": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "short factual note"
+      }
+    }
+  },
   "model.file@1": {
     "python": "ModelFileRecord",
     "fields": {
@@ -3478,6 +3577,250 @@
       }
     }
   },
+  "model.qualification@1": {
+    "python": "QualificationEvidence",
+    "fields": {
+      "qualification_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this evidence"
+      },
+      "artifact_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse artifact, or unresolved token"
+      },
+      "immutable_revision": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact model revision"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation"
+      },
+      "engine": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime engine"
+      },
+      "engine_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime version"
+      },
+      "backend": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cuda or rocm"
+      },
+      "hardware_class": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capability class, not a host name"
+      },
+      "dtype": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "execution dtype"
+      },
+      "quantization": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "quantization token"
+      },
+      "context": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualified context envelope"
+      },
+      "concurrency": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualified concurrency envelope"
+      },
+      "tensor_parallel": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualified tensor parallel"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "policy that defined the probe"
+      },
+      "outcome": {
+        "type": "QualificationOutcome",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "pass, model failure, or host failure"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed reason, or none"
+      },
+      "load_seconds": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured load time when recorded"
+      },
+      "ttft_seconds": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured time to first token"
+      },
+      "tokens_per_second": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured generation rate"
+      },
+      "peak_vram_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured accelerator peak"
+      },
+      "peak_ram_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "measured host peak"
+      },
+      "measured": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "true only for figures from a real probe"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this evidence was recorded; UTC"
+      }
+    }
+  },
+  "model.qualification_policy@1": {
+    "python": "QualificationPolicy",
+    "fields": {
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualification policy identity"
+      },
+      "concurrency": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "empirical runs at once"
+      },
+      "max_candidates": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "campaign bound"
+      }
+    }
+  },
+  "model.qualification_queue@1": {
+    "python": "QualificationQueue",
+    "fields": {
+      "queue_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this order"
+      },
+      "members": {
+        "type": "tuple[QueueMember, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "feasible, not yet qualified"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ordering policy"
+      }
+    }
+  },
+  "model.queue_member@1": {
+    "python": "QueueMember",
+    "fields": {
+      "model_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "candidate identity"
+      },
+      "rank": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "zero-based qualification order"
+      },
+      "reasons": {
+        "type": "tuple[str, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inspectable ordering factors"
+      }
+    }
+  },
   "model.requirement@1": {
     "python": "ModelRequirement",
     "fields": {
@@ -3501,6 +3844,60 @@
         "nullable": false,
         "may_be_unresolved": true,
         "meaning": "weight file bytes, not serving VRAM"
+      }
+    }
+  },
+  "model.runtime_predicate@1": {
+    "python": "RuntimePredicate",
+    "fields": {
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "predicate source, such as a backend name"
+      },
+      "subject": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what the predicate constrains"
+      },
+      "support": {
+        "type": "PredicateSupport",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "finite, vacuous, or unresolved"
+      },
+      "rule": {
+        "type": "PredicateRule",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how parameter applies"
+      },
+      "parameter": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "rule parameter when the predicate is finite"
+      },
+      "ceiling": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "upper bound for a multiple_of rule"
+      },
+      "value": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "equals-rule token, or empty"
       }
     }
   },

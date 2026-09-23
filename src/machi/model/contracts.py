@@ -130,6 +130,7 @@ class ModelFailure(StrEnum):
     INTEGRITY_FAILED = "integrity_failed"
     LOCAL_IMPORT_INVALID = "local_import_invalid"
     RUNTIME_CAPABILITY_UNRESOLVED = "runtime_capability_unresolved"
+    ATTENTION_CONFIGURATION_UNSUPPORTED = "attention_configuration_unsupported"
     INTERRUPTED = "interrupted"
 
 

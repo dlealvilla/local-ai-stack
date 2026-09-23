@@ -15,6 +15,12 @@ from machi.model.contracts import (
     QuantizationKind,
     WeightFormat,
 )
+from machi.model.metadata import NormalizedMetadata
+from machi.model.predicates import (
+    RuntimePredicate,
+    StructuralVerdict,
+    structural_verdict,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +32,7 @@ class RuntimeView:
     foundation_id: str
     provider_qualification: ProviderQualification
     capability_known: bool
+    predicates: tuple[RuntimePredicate, ...] = ()
 
 
 def requirement_for(sizes: tuple[int | None, ...]) -> ModelRequirement:
@@ -75,6 +82,7 @@ def assess(
     requirement: ModelRequirement,
     weights_exceed_accelerator: bool | None,
     license_blocks: bool = False,
+    metadata: NormalizedMetadata | None = None,
 ) -> ModelCompatibility:
     """Compose technical fit and policy. Qualification is a caveat, not a ban."""
     if requires_remote_code:
@@ -135,6 +143,23 @@ def assess(
             runtime,
             "installed engine does not list this quantization",
         )
+    structural = _structural(metadata, runtime.predicates)
+    if structural is StructuralVerdict.UNSUPPORTED:
+        return _result(
+            CompatibilityState.UNSUPPORTED,
+            ModelFailure.ATTENTION_CONFIGURATION_UNSUPPORTED,
+            CompatibilityState.UNSUPPORTED,
+            CompatibilityState.COMPATIBLE,
+            runtime,
+            "no finite runtime predicate supports this attention shape",
+        )
+    if structural is StructuralVerdict.UNRESOLVED:
+        return _caveat(
+            runtime,
+            CompatibilityState.CONDITIONALLY_COMPATIBLE,
+            ModelFailure.NONE,
+            "attention support is unresolved",
+        )
     fits = storage_fits(capacity, requirement)
     if fits is False:
         return _result(
@@ -185,6 +210,15 @@ def assess(
             "architecture, format, and storage match this snapshot",
         )
     return _apply_license(result, license_blocks)
+
+
+def _structural(
+    metadata: NormalizedMetadata | None,
+    predicates: tuple[RuntimePredicate, ...],
+) -> StructuralVerdict:
+    if metadata is None:
+        return StructuralVerdict.UNRESOLVED
+    return structural_verdict(metadata, predicates)
 
 
 def weights_exceed(
