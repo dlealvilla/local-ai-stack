@@ -24,6 +24,7 @@ from machi.adapters.discover.native_memory import NativeMemoryObserver
 from machi.adapters.discover.native_mount import NativeMountObserver
 from machi.adapters.discover.native_os_arch import NativeOSArchitectureObserver
 from machi.adapters.foundation.host_runtime import observe_host_runtime
+from machi.adapters.foundation.process import NativeProcessRunner
 from machi.adapters.foundation.provision import ManagedVllmProvisioner
 from machi.adapters.foundation.uv_tool import ManagedUv
 from machi.adapters.journal.jsonl import JsonlJournal
@@ -44,6 +45,9 @@ from machi.adapters.model.warehouse import cache_root
 from machi.adapters.persistence.file_store import FileStore
 from machi.adapters.plan.vllm import build_vllm_recipe
 from machi.adapters.prerequisites.amd_smi import AmdSmiPrerequisiteAdapter
+from machi.adapters.serve.endpoint import choose_port
+from machi.adapters.serve.log import StoreServeLog
+from machi.adapters.serve.vllm import VllmServeProvider
 from machi.adapters.steward.native import NativeSteward, RootClaim
 from machi.admit.contracts import AdmissionDecision
 from machi.admit.policy import POLICY_VERSION as ADMIT_POLICY_VERSION
@@ -68,7 +72,13 @@ from machi.discover.ports import (
     MountObserver,
     OSArchitectureObserver,
 )
-from machi.foundation.contracts import FailureCode, FoundationSet, ProvisionMode
+from machi.foundation.contracts import (
+    FailureCode,
+    FoundationSelection,
+    FoundationSet,
+    ManagedGeneration,
+    ProvisionMode,
+)
 from machi.foundation.events import foundation_events
 from machi.foundation.policy import BACKEND_CHOICES, default_foundation_settings
 from machi.foundation.resolve import resolve_candidate
@@ -100,7 +110,7 @@ from machi.install.registry import RegistrySeed
 from machi.install.run import InstallRunStore
 from machi.kernel.alive import kernel_alive
 from machi.kernel.build import identity as build_identity
-from machi.kernel.clock import FixedClock
+from machi.kernel.clock import FixedClock, SystemClock
 from machi.kernel.errors import (
     MachiError,
     NotFoundError,
@@ -116,6 +126,7 @@ from machi.kernel.unresolved import Maybe, is_resolved
 from machi.model.compat import RuntimeView
 from machi.model.contracts import (
     AvailableModels,
+    ModelArtifact,
     ModelFailure,
     ModelSourceKind,
     ProviderQualification,
@@ -125,7 +136,7 @@ from machi.model.events import acquisition_events, model_events
 from machi.model.policy import DEFAULT_TIMEOUT, default_model_settings
 from machi.plan.compose import PlanInputs
 from machi.plan.compose import compose_plan as compose_plan_domain
-from machi.plan.contracts import PlanDecision, PlanFailure
+from machi.plan.contracts import DeploymentConfiguration, PlanDecision, PlanFailure
 from machi.plan.policy import (
     ACCELERATOR_COUNT,
     DEFAULT_CONCURRENCY,
@@ -141,6 +152,10 @@ from machi.prerequisites.contracts import (
 from machi.prerequisites.policy import default_prerequisite_policy, policy_with_mode
 from machi.prerequisites.ports import PrerequisiteAdapter
 from machi.prerequisites.service import PrerequisiteReadiness
+from machi.serve.contracts import ServeDecision
+from machi.serve.policy import BIND_SCOPE, ServePolicy
+from machi.serve.policy import POLICY_VERSION as SERVE_POLICY_VERSION
+from machi.serve.service import ServeService
 from machi.steward.contracts import (
     GenerationHint,
     OccupancyMap,
@@ -1196,6 +1211,40 @@ def _acquire_hub(ns: argparse.Namespace) -> int:
     return _finish_store(ns, stored, observed)
 
 
+def start_serving(
+    configuration: DeploymentConfiguration,
+    reservation_id: str,
+    selection: FoundationSelection,
+    generation: ManagedGeneration,
+    artifact: ModelArtifact,
+    *,
+    model_path: Path,
+    store: FileStore,
+    state_root: Path,
+    artifact_verified: bool,
+) -> ServeDecision:
+    """Start the reserved vLLM runtime. This does not admit or provision."""
+    validate_registry(module_prefix="machi.")
+    service = ServeService(
+        StoreServeLog(store),
+        VllmServeProvider(NativeProcessRunner(), SystemClock()),
+        ResourceManager(StoreReservationLog(store), FileAdmissionLock(store.root)),
+        ServePolicy(),
+        SystemClock(),
+        state_root,
+        choose_port,
+    )
+    return service.start(
+        configuration,
+        reservation_id,
+        selection,
+        generation,
+        artifact,
+        model_path=model_path,
+        artifact_verified=artifact_verified,
+    )
+
+
 def admit_resources(
     decision: PlanDecision,
     capacity: CapacityEnvelope,
@@ -1591,6 +1640,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     admit_sub = admit.add_subparsers(dest="admit_command", required=True)
     admit_sub.add_parser("policy", help="print the admission policy version")
+
+    serve = sub.add_parser(
+        "serve",
+        help="show the serving policy; this command does not start a runtime",
+    )
+    serve_sub = serve.add_subparsers(dest="serve_command", required=True)
+    serve_sub.add_parser("policy", help="print the native vLLM serve bounds")
     inspect = admit_sub.add_parser(
         "inspect",
         help="print stored holds; does not admit, release, or serve",
@@ -2086,6 +2142,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"policy   {ADMIT_POLICY_VERSION}")
             print("accel    1")
             print("serve    false")
+            return 0
+        if ns.command == "serve" and ns.serve_command == "policy":
+            print(f"policy   {SERVE_POLICY_VERSION}")
+            print(f"bind     {BIND_SCOPE}")
+            print("provider vllm")
+            print("executor native_process")
+            print("pid      false")
+            print("witness  deferred")
             return 0
         if ns.command == "admit" and ns.admit_command == "inspect":
             return _inspect_reservations(Path(ns.store_dir))

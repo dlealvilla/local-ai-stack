@@ -1028,36 +1028,51 @@ See [M8.md](M8.md).
 
 **ID:** 9  
 **Name:** Serve  
-**Purpose:** Materialize the admitted configuration and prove a
-request.  
-**Short Description:** Instance, executor, readiness, request
-inference, reconcile, usage emission.
+**Purpose:** Start the reserved runtime and prove one request.  
+**Short Description:** Instance, native executor, readiness, one
+request, stop, reconcile.
 
 **Components:** 9.1 Instance, 9.2 Execute, 9.3 Readiness, 9.4
 Request inference, 9.5 Reconcile, 9.6 Usage.
 
-**Adapters:** NativeProcessExecutor, vLLM runtime (argv, HTTP,
-readiness). Core does not import subprocess.
+**Adapters:** `NativeProcessRunner` spawn/poll/terminate, and a vLLM
+provider for argv and HTTP. The generic serve package does not import
+vLLM or call subprocess. There is no macropath type.
+`FoundationSelection` remains the path choice.
 
-**Inputs:** CURRENT configuration, ADMITTED reservation.  
-**Outputs:** ServingInstance, ReadinessProof, InferenceProof.  
-**Preconditions:** Admit PASS.  
-**Success:** request inference PASS; model identity matches.  
-**Blocked:** readiness timeout (stop process, keep reservation);
-inference fail.  
-**State owned:** instance, endpoint, desired vs observed vs health.  
-**Persistence:** instance records; **not** prompts/responses.  
-**Side effects:** process, GPU memory, loopback port, capture files.  
-**Downstream:** Witness, future Gateway.  
-**Re-entry:** restart uses same reservation.  
-**Idempotence:** start is not; reconcile is.  
-**Invalidated by:** STALE plan (must not start).  
-**Recompute:** none for inference proof (immutable).  
-**Telemetry:** lifecycle; `inference.completed` purpose=request.  
-**Independent test:** purpose filter; identity cookie.  
+**Inputs:** current DeploymentConfiguration, a reservation M8 marks
+`execution_authorized`, a READY native vLLM generation, and a verified
+stored artifact.  
+**Outputs:** ServingInstance and InferenceProof.
+`DeploymentWitness` stays a later Kernel projection.  
+**Preconditions:** reservation still reserved and matched.  
+**Success:** runtime readiness, then one structurally valid request,
+then a confirmed stop.  
+**Blocked:** missing or released reservation, foundation not READY,
+artifact mismatch, port conflict, exit before ready, readiness
+timeout.  
+**State owned:** ServingInstance, transitions, native process
+evidence, inference proofs.  
+**Persistence:** exclusive Store create. Transitions overlay the
+instance. The generic instance has no pid.  
+**Side effects:** one loopback process and bounded logs.  
+**Downstream:** an operator may call M8 release only after Serve
+reports the process dead.  
+**Re-entry:** a new service reads the store and will not adopt
+another pid.  
+**Idempotence:** a live ready instance is not started twice. A second
+stop converges.  
+**Invalidated by:** a reservation that no longer authorizes the plan.  
+**Recompute:** return to Plan or Admit. Serve does not retune.  
+**Telemetry:** `serve.started`, `serve.ready`, `serve.failed`,
+`serve.stopped`, `inference.completed`, `inference.failed`.
+No prompts, paths, or addresses.  
+**Independent test:** upstream blocks do not import Serve. A bare
+plan does not launch.  
 **Cumulative:** M0→M9.  
-**Lessons:** runtime-owned readiness; capture lifetime; IPC path
-cleanup on stop.
+**Lessons:** process existence is not readiness. Stop is not release.
+
+See [M9.md](M9.md).
 
 ---
 

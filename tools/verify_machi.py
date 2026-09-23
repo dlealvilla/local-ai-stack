@@ -1467,6 +1467,22 @@ def main() -> int:
     if "admit_ok " not in admitted.stdout:
         raise SystemExit("installed admit package did not reserve a fixture")
 
+    serve_policy = run([str(machi), "serve", "policy"], env=env)
+    print(serve_policy.stdout, end="")
+    if "policy   m9.serve.1" not in serve_policy.stdout:
+        raise SystemExit("serve policy version missing")
+    if "bind     loopback" not in serve_policy.stdout:
+        raise SystemExit("serve did not bind loopback")
+    if "pid      false" not in serve_policy.stdout:
+        raise SystemExit("generic serve required a pid")
+    if "api_server" in serve_policy.stdout:
+        raise SystemExit("serve policy launched a server")
+    serve_proof = Path(__file__).resolve().parent / "prove_serve_fixture.py"
+    served = run([str(python), str(serve_proof)], env=env)
+    print(served.stdout, end="")
+    if "serve_ok " not in served.stdout:
+        raise SystemExit("installed serve package did not finish a probe lifecycle")
+
     print("verify_ok")
     return 0
 

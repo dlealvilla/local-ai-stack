@@ -98,8 +98,8 @@ Names are examples; the catalogue is owned by Kernel 0.3.
 - `model.funnel.completed` / `model.selected` / `model.acquired`
 - `plan.created` / `plan.stale`
 - `admit.completed` / `admit.rejected` / `admit.released` / `admit.reconciliation_detected`
-- `serve.started` / `serve.ready` / `serve.stopped` / `serve.restarted`
-- `inference.completed` (purpose in payload: `request` | `readiness`)
+- `serve.started` / `serve.ready` / `serve.failed` / `serve.stopped`
+- `inference.completed` (purpose `request`) / `inference.failed`
 - `witness.composed`
 - `observability.dropped`
 

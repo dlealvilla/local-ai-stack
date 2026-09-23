@@ -45,8 +45,9 @@ implemented and not production-qualified (`M-5-AMD-01`). **Model** is accepted a
 AMD foundation qualification remains `M-5-AMD-01` and is a
 separate lane. **Plan** is physically accepted on NVIDIA and
 does not admit or serve. **Admit** is physically accepted on NVIDIA as logical
-reservation authority. It does not enforce cgroups or start a
-process. Do not start Serve unless the task says so.
+reservation authority. **Serve** is locally implemented for one
+native vLLM instance. Physical inference is not run. Do not start
+another serving path unless the task says so.
 
 The product spine is still the priority: one real inference path, thin
 end to end, before lab comparisons, Dynamo, optimizers, memory, or

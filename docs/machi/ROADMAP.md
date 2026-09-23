@@ -593,8 +593,8 @@ rejects or waits per policy (v0: reject).
 **Non-goals:** start, cgroups, GPU partitions, multi-host placement,
 lease expiry, and preemption.
 
-**Unlocks:** Serve, after a new depth and provider decision.
-Physically accepted on one NVIDIA host as logical admission.
+**Unlocks:** Serve. Physically accepted on one NVIDIA host as
+logical admission.
 
 ---
 
@@ -628,10 +628,14 @@ selection; Witness OVERALL PASS; manual intervention NONE for the
 happy path.
 
 **Non-goals:** llama.cpp, Admin UI, Knowledge, multi-instance,
-streaming, public bind.
+streaming, public bind, Ollama, and a distributed fabric.
 
-**Unlocks:** outer product attachment (Admin, Knowledge, more
-runtimes) without moving truth into the UI.
+**Status:** local native vLLM candidate. Physical inference is not
+run. `DeploymentWitness` remains deferred. The generic instance does
+not require a pid.
+
+**Unlocks:** outer product attachment after a physical inference
+proof. More runtimes wait for a provider decision.
 
 ---
 
@@ -693,7 +697,7 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M6 Model | KEEP | 1 | Closed at Tier 2. NVIDIA artifact path accepted. AMD foundation qualification remains `M-5-AMD-01` |
 | M7 Plan | KEEP | 1 | Physically accepted on NVIDIA. Plan is not admission and not launch |
 | M8 Admit | KEEP | 1 | Physically accepted on NVIDIA as logical reservation authority. Serve is not started |
-| M9 Serve | KEEP | 1 | One real request path. Comparative campaigns are Stage 2 |
+| M9 Serve | KEEP | 1 | Local native vLLM serve. Physical inference is not run. Witness composer remains deferred |
 | OllamaExecutionMacropath | REPOSITION | 1 exit | Compatibility fallback after the vLLM path. Not before Capacity |
 | Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |
 | Dynamo | DEFER | 2 | Fabric family. No integration until the evidence in strategy |

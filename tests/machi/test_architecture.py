@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from tests.machi.architecture import (
     admit_boundary_violations,
+    serve_boundary_violations,
     binder_ownership_violations,
     capacity_boundary_violations,
     discover_boundary_violations,
@@ -95,6 +96,10 @@ def test_model_stores_artifacts_without_loading_them() -> None:
 
 def test_admit_reserves_without_serving() -> None:
     assert admit_boundary_violations(source_root()) == []
+
+
+def test_serve_starts_only_a_reserved_runtime() -> None:
+    assert serve_boundary_violations(source_root()) == []
 
 
 def test_plan_requests_admission_without_reserving_it() -> None:

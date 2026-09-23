@@ -2110,6 +2110,51 @@
       }
     }
   },
+  "inference.completed@1": {
+    "python": "InferenceCompletedPayload",
+    "fields": {
+      "proof_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "proof identity"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance"
+      },
+      "purpose": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "request"
+      }
+    }
+  },
+  "inference.failed@1": {
+    "python": "InferenceFailedPayload",
+    "fields": {
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed failure"
+      }
+    }
+  },
   "install.bound@1": {
     "python": "InstallBoundPayload",
     "fields": {
@@ -5583,6 +5628,462 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "verification diagnosis"
+      }
+    }
+  },
+  "serve.decision@1": {
+    "python": "ServeDecision",
+    "fields": {
+      "outcome": {
+        "type": "ServeOutcome",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what serve did"
+      },
+      "failure": {
+        "type": "ServeFailure",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none when the outcome succeeded"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "short explanation"
+      },
+      "instance": {
+        "type": "ServingInstance | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "instance when one exists"
+      },
+      "proof": {
+        "type": "InferenceProof | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "proof when one was recorded"
+      }
+    }
+  },
+  "serve.failed@1": {
+    "python": "ServeFailedPayload",
+    "fields": {
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance identity, or none before launch"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed failure"
+      }
+    }
+  },
+  "serve.inference@1": {
+    "python": "InferenceProof",
+    "fields": {
+      "proof_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this proof"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance that served the request"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan fingerprint"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reservation"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation"
+      },
+      "artifact_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "model artifact"
+      },
+      "request_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "protocol request kind"
+      },
+      "status_code": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "protocol status"
+      },
+      "completion_tokens": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "token count when the runtime reported one"
+      },
+      "structurally_valid": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "response had the expected structure"
+      },
+      "failure": {
+        "type": "ServeFailure",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none when the proof succeeded"
+      }
+    }
+  },
+  "serve.instance@1": {
+    "python": "ServingInstance",
+    "fields": {
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this deployment"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan this instance serves"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan fingerprint at start"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reservation that authorized the start"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified foundation generation"
+      },
+      "artifact_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified warehouse artifact"
+      },
+      "serve_provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime provider, such as vllm"
+      },
+      "executor_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "executor kind, such as native_process"
+      },
+      "endpoint_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "logical endpoint identity"
+      },
+      "state": {
+        "type": "InstanceState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "lifecycle"
+      },
+      "health": {
+        "type": "HealthState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness, separate from process existence"
+      },
+      "evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider evidence record"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "serve policy that started this instance"
+      }
+    }
+  },
+  "serve.native_exit@1": {
+    "python": "NativeProcessExit",
+    "fields": {
+      "exit_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this exit record"
+      },
+      "evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "process evidence that ended"
+      },
+      "returncode": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "exit status when the parent could read it"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stopped, exited, or timeout"
+      }
+    }
+  },
+  "serve.native_process@1": {
+    "python": "NativeProcessEvidence",
+    "fields": {
+      "evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this process evidence"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance this process belongs to"
+      },
+      "pid": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "operating-system process id"
+      },
+      "process_stamp": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "start stamp that detects pid reuse"
+      },
+      "identity_token": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "token passed to that process"
+      },
+      "argv_fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "fingerprint of the argument list, not the list"
+      },
+      "python_basename": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "interpreter file name, not its directory"
+      },
+      "bind_scope": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "loopback; not an address"
+      },
+      "port": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "local port"
+      },
+      "started_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the process was spawned; UTC"
+      }
+    }
+  },
+  "serve.ready@1": {
+    "python": "ServeReadyPayload",
+    "fields": {
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance identity"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan"
+      }
+    }
+  },
+  "serve.started@1": {
+    "python": "ServeStartedPayload",
+    "fields": {
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance identity"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "authorizing reservation"
+      }
+    }
+  },
+  "serve.stopped@1": {
+    "python": "ServeStoppedPayload",
+    "fields": {
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance that stopped"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reservation still held until release"
+      }
+    }
+  },
+  "serve.transition@1": {
+    "python": "ServeTransition",
+    "fields": {
+      "transition_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this step"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance that moved"
+      },
+      "sequence": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "order of steps for this instance"
+      },
+      "state": {
+        "type": "InstanceState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "state after this step"
+      },
+      "health": {
+        "type": "HealthState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "readiness after this step"
       }
     }
   },

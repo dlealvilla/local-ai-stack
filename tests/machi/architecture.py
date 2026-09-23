@@ -24,6 +24,7 @@ TIERS: dict[str, int] = {
     "model": 2,
     "plan": 2,
     "admit": 2,
+    "serve": 2,
     "adapters": 3,
     "main": 4,
 }
@@ -80,16 +81,23 @@ CROSS_IMPORT_FORBIDDEN: frozenset[tuple[str, str]] = frozenset(
         ("plan", "admit"),
         ("prerequisites", "admit"),
         ("admit", "prerequisites"),
+        ("kernel", "serve"),
+        ("install", "serve"),
+        ("discover", "serve"),
+        ("steward", "serve"),
+        ("capacity", "serve"),
+        ("foundation", "serve"),
+        ("model", "serve"),
+        ("plan", "serve"),
+        ("admit", "serve"),
+        ("prerequisites", "serve"),
+        ("serve", "prerequisites"),
     }
 )
 
 FORBIDDEN_TOP_LEVEL = frozenset({"kultrun"})
 
-FUTURE_PACKAGES = frozenset(
-    {
-        "serve",
-    }
-)
+FUTURE_PACKAGES: frozenset[str] = frozenset()
 
 KERNEL_POLICY_TOKENS = (
     "MACHI_STATE_ROOT",
@@ -1350,6 +1358,43 @@ ADMIT_DOMAIN_FORBIDDEN = (
     "from machi.serve",
     "from machi.adapters",
 )
+
+
+SERVE_DOMAIN_FORBIDDEN = (
+    "import vllm",
+    "from vllm",
+    "ollama",
+    "dynamo",
+    "subprocess",
+    "class macropath",
+)
+
+
+def serve_boundary_violations(root: Path) -> list[str]:
+    """Serve starts a reserved runtime. It does not own admission or a path type."""
+    found: list[str] = []
+    domain = root / "serve"
+    if not domain.is_dir():
+        return ["serve domain is missing"]
+    for path in sorted(domain.rglob("*.py")):
+        text = path.read_text(encoding="utf-8").lower()
+        for token in SERVE_DOMAIN_FORBIDDEN:
+            if token in text:
+                found.append(f"{path.name} must not contain {token!r}")
+    instance = (domain / "contracts.py").read_text(encoding="utf-8")
+    body = instance.split("class ServingInstance", 1)[-1].split("class ", 1)[0]
+    if "pid" in body:
+        found.append("generic ServingInstance must not require pid")
+    provider = root / "adapters" / "serve" / "vllm.py"
+    provider_text = provider.read_text(encoding="utf-8")
+    if "vllm.entrypoints.openai.api_server" not in provider_text:
+        found.append("vLLM command must live in the serve adapter")
+    if "trust-remote-code" in provider_text:
+        found.append("vLLM adapter must not pass trust-remote-code")
+    main_text = (root / "main.py").read_text(encoding="utf-8")
+    if "def start_serving" not in main_text:
+        found.append("composition must expose serve")
+    return found
 
 
 def admit_boundary_violations(root: Path) -> list[str]:

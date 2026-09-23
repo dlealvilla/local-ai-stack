@@ -2537,6 +2537,21 @@ Retire when:  the then-approved recipe reaches Foundation `READY`
               evidence is recorded
 Status:       OPEN
 
+### M-9-01 — Deferred witness composer and further serve depth
+Label:        DEFERRED
+Owner stage:  Serve
+Subsystem:    serve
+Authorizes:   NO
+What:         The Kernel `DeploymentWitness` projection, automatic
+              restart, usage metrics beyond the inference event,
+              more than one serving instance, and a public endpoint.
+Why now:      Native M9 stores the plan, reservation, instance, and
+              inference proof. It does not compose a witness or
+              restart a dead process.
+Retire when:  a witness composer reads those stored records, or a
+              later serve decision names restart and usage
+Status:       OPEN
+
 ### M-8-01 — Deferred enforcement beyond single-host accounting
 Label:        DEFERRED
 Owner stage:  Admit Tier 3
