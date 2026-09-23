@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -134,6 +135,8 @@ from machi.model.contracts import (
 from machi.model.evaluate import evaluate_source, snapshot_for
 from machi.model.events import acquisition_events, model_events
 from machi.model.policy import DEFAULT_TIMEOUT, default_model_settings
+from machi.model.qualification import QualificationEvidence, QualificationRequest
+from machi.model.qualify_map import evidence_for_probe
 from machi.plan.compose import PlanInputs
 from machi.plan.compose import compose_plan as compose_plan_domain
 from machi.plan.contracts import DeploymentConfiguration, PlanDecision, PlanFailure
@@ -152,7 +155,7 @@ from machi.prerequisites.contracts import (
 from machi.prerequisites.policy import default_prerequisite_policy, policy_with_mode
 from machi.prerequisites.ports import PrerequisiteAdapter
 from machi.prerequisites.service import PrerequisiteReadiness
-from machi.serve.contracts import ServeDecision
+from machi.serve.contracts import InstanceState, ServeDecision, ServeOutcome
 from machi.serve.policy import BIND_SCOPE, ServePolicy
 from machi.serve.policy import POLICY_VERSION as SERVE_POLICY_VERSION
 from machi.serve.service import ServeService
@@ -1245,6 +1248,82 @@ def start_serving(
         artifact,
         model_path=model_path,
         artifact_verified=artifact_verified,
+    )
+
+
+def qualify_reserved(
+    configuration: DeploymentConfiguration,
+    reservation_id: str,
+    selection: FoundationSelection,
+    generation: ManagedGeneration,
+    artifact: ModelArtifact,
+    request: QualificationRequest,
+    *,
+    model_path: Path,
+    store: FileStore,
+    state_root: Path,
+    artifact_verified: bool,
+    peak_vram_bytes: int | None = None,
+    peak_ram_bytes: int | None = None,
+) -> QualificationEvidence:
+    """Run one reserved vLLM proof and persist qualification evidence.
+
+    This is not catalogue discovery. The caller already chose the candidate.
+    """
+    validate_registry(module_prefix="machi.")
+    service = ServeService(
+        StoreServeLog(store),
+        VllmServeProvider(NativeProcessRunner(), SystemClock()),
+        ResourceManager(StoreReservationLog(store), FileAdmissionLock(store.root)),
+        ServePolicy(),
+        SystemClock(),
+        state_root,
+        choose_port,
+    )
+    started_at = time.monotonic()
+    started = service.start(
+        configuration,
+        reservation_id,
+        selection,
+        generation,
+        artifact,
+        model_path=model_path,
+        artifact_verified=artifact_verified,
+    )
+    load_seconds = time.monotonic() - started_at
+    ready = started.outcome is ServeOutcome.READY
+    proved = None
+    generate_seconds = None
+    if ready and is_resolved(started.instance):
+        prove_started = time.monotonic()
+        proved = service.prove(started.instance.instance_id)
+        generate_seconds = time.monotonic() - prove_started
+    instance = started.instance if is_resolved(started.instance) else None
+    if proved is not None and is_resolved(proved.instance):
+        instance = proved.instance
+    if instance is not None and instance.state is not InstanceState.STOPPED:
+        service.stop(instance.instance_id)
+        service.release_after_stop(instance.instance_id)
+    tokens = None
+    failure = started.failure.value
+    proved_ok = proved is not None and proved.outcome is ServeOutcome.PROVEN
+    if proved is not None:
+        failure = proved.failure.value
+        proof = proved.proof
+        if is_resolved(proof) and isinstance(proof.completion_tokens, int):
+            tokens = proof.completion_tokens
+    return evidence_for_probe(
+        request,
+        artifact_id=artifact.artifact_id,
+        ready=ready,
+        proved=proved_ok and isinstance(tokens, int) and tokens > 0,
+        failure=failure,
+        completion_tokens=tokens,
+        load_seconds=load_seconds,
+        generate_seconds=generate_seconds,
+        peak_vram_bytes=peak_vram_bytes,
+        peak_ram_bytes=peak_ram_bytes,
+        observed_at=dt.datetime.now(dt.UTC),
     )
 
 

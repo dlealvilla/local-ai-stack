@@ -74,6 +74,7 @@ class PlanInputs:
     deployable: DeployableModels
     qualification: QualificationEvidence
     hardware_class: str = "unspecified"
+    probe: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,6 +261,9 @@ def _qualified(
     context: int,
     concurrency: int,
 ) -> PlanFailure | None:
+    """User plans require coverage. A probe plan is how that coverage is earned."""
+    if inputs.probe:
+        return None
     if definition.model_id not in member_ids(inputs.deployable):
         return PlanFailure.QUALIFICATION_REQUIRED
     evidence = inputs.qualification
@@ -441,6 +445,7 @@ def _fingerprint(inputs: PlanInputs) -> str:
         inputs.qualification.qualification_id,
         inputs.deployable.snapshot_id,
         inputs.hardware_class,
+        "probe" if inputs.probe else "deploy",
         inputs.available.input_token,
         inputs.available.foundation_id,
     ]

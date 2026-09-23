@@ -19,7 +19,7 @@ from machi.capacity.contracts import (
 )
 from machi.capacity.policy import default_capacity_settings
 from machi.capacity.sonar import not_attempted
-from machi.kernel.unresolved import NOT_PROVIDED
+from machi.kernel.unresolved import NOT_PROVIDED, is_resolved
 from machi.model.compat import RuntimeView
 from machi.model.contracts import (
     CompatibilityState,
@@ -454,6 +454,68 @@ def test_domain_does_not_hardcode_the_failed_shape(tmp_path: Path) -> None:
     assert "import vllm" not in text
     assert "llmfit" not in text
     assert "accelerate" not in text
+
+
+def test_probe_plan_does_not_require_prior_coverage() -> None:
+    inputs = _inputs(
+        preference=PlanPreference(
+            context_length=2048,
+            concurrency=1,
+            accelerator_count=1,
+        )
+    )
+    narrowed = replace(inputs.qualification, context=1024, concurrency=1)
+    refused = compose_plan(replace(inputs, qualification=narrowed), build_vllm_recipe)
+    assert refused.failure is PlanFailure.QUALIFICATION_DOES_NOT_COVER
+    probe = compose_plan(
+        replace(inputs, qualification=narrowed, probe=True),
+        build_vllm_recipe,
+    )
+    assert probe.failure is PlanFailure.NONE
+
+
+def test_probe_mapping_requires_a_token_and_keeps_host_faults() -> None:
+    from machi.model.qualification import QualificationRequest
+    from machi.model.qualify_map import evidence_for_probe, probe_outcome
+
+    assert probe_outcome(ready=True, proved=False, failure="inference_failed") is (
+        QualificationOutcome.FAIL_MODEL
+    )
+    assert probe_outcome(ready=False, proved=False, failure="readiness_timeout") is (
+        QualificationOutcome.FAIL_HOST
+    )
+    request = QualificationRequest(
+        model_id="mdl",
+        immutable_revision="rev",
+        generation_id="fgen",
+        engine="vllm",
+        engine_version="0.18.0",
+        backend="cuda",
+        hardware_class="8.6",
+        dtype="bfloat16",
+        quantization="none",
+        context=128,
+        concurrency=1,
+        tensor_parallel=1,
+        policy_version=POLICY_VERSION,
+    )
+    evidence = evidence_for_probe(
+        request,
+        artifact_id="mart",
+        ready=True,
+        proved=True,
+        failure="none",
+        completion_tokens=4,
+        load_seconds=1.5,
+        generate_seconds=0.5,
+        peak_vram_bytes=100,
+        peak_ram_bytes=200,
+        observed_at=FIXED,
+    )
+    assert evidence.outcome is QualificationOutcome.PASS
+    assert evidence.measured is True
+    assert evidence.tokens_per_second == 8.0
+    assert not is_resolved(evidence.ttft_seconds)
 
 
 def test_policy_is_one_at_a_time_and_three_per_campaign() -> None:
