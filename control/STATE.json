@@ -7,6 +7,9 @@
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
     "bundle": "control/OLLAMA-BUNDLE-05-SERVE.md",
+    "bundle_04_exact_context_qualification": false,
+    "bundle_04_physical_functional_pass": true,
+    "bundle_04_review": "control/OLLAMA-BUNDLE-04-LEAD-REVIEW.md",
     "carry_forward": "explicit_ollama_num_ctx_then_physical_requalification",
     "chunks": 6,
     "comparative_analytics": "required",
@@ -37,15 +40,12 @@
       "ollama": "ollama_authoritative_machi_shadow"
     },
     "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md",
-    "bundle_04_review": "control/OLLAMA-BUNDLE-04-LEAD-REVIEW.md",
-    "bundle_04_physical_functional_pass": true,
-    "bundle_04_exact_context_qualification": false,
-    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger",
     "serve_authorization_decision": "A_refined_accepted",
-    "serve_authorization_decision_record": "control/OLLAMA-SERVE-AUTH-DECISION.md"
+    "serve_authorization_decision_record": "control/OLLAMA-SERVE-AUTH-DECISION.md",
+    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger"
   },
   "published_instruction_id": "MACHI-OLLAMA-BUNDLE-05-SERVE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "READY"
+  "status": "PASTEBACK_PUBLISHED"
 }
