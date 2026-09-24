@@ -330,6 +330,49 @@ collective-intelligence policy, and the administrator/user product experience.
 These may use libraries internally, but the governing concepts and strategic
 decisions remain Kultrun-owned.
 
+
+### Product Vision Alignment is mandatory
+
+No industry standard, library, open-source project, provider, or bespoke design
+is acceptable merely because it is technically strong. Every material solution
+must also fit the wider Kultrun product vision and architectural constitution.
+
+The evaluation must explicitly test alignment with the current product goals,
+including where relevant:
+
+- self-hosted and customer-controlled operation;
+- privacy by architecture and local customer content by default;
+- offline and air-gapped viability;
+- replaceable providers and avoidance of accidental mandatory dependencies;
+- provider-, hardware-, OS-, and runtime-neutral core contracts;
+- clear separation between Kultrun-owned meaning and provider-owned mechanics;
+- conservative safety and truthful unresolved/refusal states;
+- reproducible installation, ownership and lifecycle management;
+- strong provenance, evidence, explainability and auditability;
+- non-technical administrator experience and low operational burden;
+- enterprise security, permissions and governance;
+- ability to evolve toward Company Brain, Team Brain, memory, knowledge,
+  organisational intelligence and multi-workload coordination;
+- compatibility with the product's commercial/licensing direction;
+- the current strategic stage and exoskeleton-first sequencing.
+
+A solution that is best in isolation may therefore be rejected if it pulls the
+architecture away from these goals.
+
+For every Industry Solution Selection Gate, include a **Product Vision
+Alignment** assessment for each viable option:
+- ALIGNED;
+- ALIGNED_WITH_CONDITIONS;
+- MISALIGNED.
+
+Any MISALIGNED option should normally be removed from the feasible set unless
+the Lead explicitly decides to revise the Product Vision itself.
+
+Alignment is not a vague score. Cite the exact product principles affected,
+describe the consequence, and identify whether the tension is temporary,
+mitigable through an adapter/boundary, or structural.
+
+
 ### Industry Solution Selection Gate
 
 Do not automatically choose when there is a material strategic choice.
