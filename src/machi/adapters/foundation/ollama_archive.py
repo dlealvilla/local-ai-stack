@@ -461,8 +461,7 @@ def _extract(
                             "archive extracted size exceeds the extraction bound"
                         )
                     outbound.write(chunk)
-            mode = 0o755 if relative.as_posix() == _REQUIRED_BINARY else 0o644
-            destination.chmod(mode)
+            destination.chmod(_member_mode(relative, member.mode))
     finally:
         _close_tar(handle, process)
     binary = prefix / "bin" / "ollama"
@@ -669,6 +668,13 @@ def _reject_member(member: tarfile.TarInfo) -> None:
         reason = individual_member_refusal(member.size)
         if reason is not None:
             raise ValidationError(reason)
+
+
+def _member_mode(relative: PurePosixPath, recorded: int) -> int:
+    """Keep an executable bit. Never copy setuid, setgid, or sticky."""
+    if relative.as_posix() == _REQUIRED_BINARY or recorded & 0o111:
+        return 0o755
+    return 0o644
 
 
 def _require_contained_symlink(relative: PurePosixPath, linkname: str) -> None:

@@ -157,6 +157,15 @@ def _soname_archive() -> bytes:
         link.type = tarfile.SYMTYPE
         link.linkname = "libggml.so.0"
         handle.addfile(link)
+        runner = b"runner"
+        server = tarfile.TarInfo("lib/ollama/llama-server")
+        server.size = len(runner)
+        server.mode = 0o755
+        handle.addfile(server, io.BytesIO(runner))
+        privileged = tarfile.TarInfo("lib/ollama/privileged")
+        privileged.size = len(runner)
+        privileged.mode = 0o4755
+        handle.addfile(privileged, io.BytesIO(runner))
     return buffer.getvalue()
 
 
@@ -544,6 +553,11 @@ def test_contained_soname_symlink_is_preserved(tmp_path: Path) -> None:
     assert link.readlink() == Path("libggml.so.0")
     assert link.read_bytes() == b"library"
     assert not (installed.prefix / "bin" / "ollama").is_symlink()
+    server = installed.prefix / "lib" / "ollama" / "llama-server"
+    privileged = installed.prefix / "lib" / "ollama" / "privileged"
+    assert server.stat().st_mode & 0o777 == 0o755
+    assert privileged.stat().st_mode & 0o777 == 0o755
+    assert not privileged.stat().st_mode & 0o4000
 
 
 def test_missing_safe_bytes_refuses(tmp_path: Path) -> None:
