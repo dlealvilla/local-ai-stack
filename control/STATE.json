@@ -5,28 +5,24 @@
   "instruction_id": "MACHI-OLLAMA-BUNDLE-04-PHYSICAL-AUTH-001",
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
+    "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
+    "bundle": "control/OLLAMA-BUNDLE-04-PHYSICAL-AUTH.md",
+    "carry_forward": "preload_initial_load_duration_metric_truth",
     "chunks": 6,
     "comparative_analytics": "required",
     "current_chunk": 3,
     "decision_gate": "control/OLLAMA-CHUNK-03-DECISION-GATE.md",
     "decision_record": "control/OLLAMA-CHUNK-03-DUAL-QUALIFIER-DECISION.md",
+    "direction_levels": "binding_recommended_delegated",
+    "execution_bundle_policy": "control/EXECUTION-BUNDLE-POLICY.md",
+    "instruction_style": "product_first_functional_scope_actions_qa_then_technical_constraints",
     "integration_branch": "automation/ollama-macropath",
     "lead_review": "control/OLLAMA-CHUNK-03-LOCAL-LEAD-REVIEW.md",
+    "local_acceptance": "control/OLLAMA-CHUNK-03-LOCAL-ACCEPTED.md",
     "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
     "next_action": "lead_review_bundle_04",
-    "program_id": "MACHI-OLLAMA-MACROPATH-001",
-    "qualifier_authority": {
-      "native_vllm": "machi_native_authoritative",
-      "ollama": "ollama_authoritative_machi_shadow"
-    },
-    "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md",
-    "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
-    "local_acceptance": "control/OLLAMA-CHUNK-03-LOCAL-ACCEPTED.md",
-    "execution_bundle_policy": "control/EXECUTION-BUNDLE-POLICY.md",
-    "carry_forward": "preload_initial_load_duration_metric_truth",
-    "bundle": "control/OLLAMA-BUNDLE-04-PHYSICAL-AUTH.md",
     "package_slices": [
       "real_api_and_timing",
       "physical_qualification",
@@ -35,11 +31,15 @@
       "conditional_residency_seam_and_authorization_gate"
     ],
     "physical_server": "conditional_after_local_gates",
-    "instruction_style": "product_first_functional_scope_actions_qa_then_technical_constraints",
-    "direction_levels": "binding_recommended_delegated"
+    "program_id": "MACHI-OLLAMA-MACROPATH-001",
+    "qualifier_authority": {
+      "native_vllm": "machi_native_authoritative",
+      "ollama": "ollama_authoritative_machi_shadow"
+    },
+    "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md"
   },
-  "published_instruction_id": "MACHI-OLLAMA-CHUNK-03-CORRECTION-003",
+  "published_instruction_id": "MACHI-OLLAMA-BUNDLE-04-PHYSICAL-AUTH-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "READY"
+  "status": "PASTEBACK_PUBLISHED"
 }
