@@ -1,269 +1,216 @@
 SERVER NEEDED NEXT: NO
 
-Instruction: MACHI-OLLAMA-CHUNK-02-001
+Instruction: MACHI-OLLAMA-CHUNK-02-CLOSEOUT-002
 Program: MACHI-OLLAMA-MACROPATH-001
-Chunk: 2 of 6
+Chunk: 2 of 6 — CLOSEOUT
 
-STATUS=OLLAMA_CHUNK_2_PASS
+STATUS=OLLAMA_CHUNK_2_CLOSEOUT_PASS
 
 TL;DR
 
-- Ollama is a Foundation engine. AUTO still selects vLLM and still refuses when vLLM is unsupported.
-- The frozen stable pin is Ollama 0.34.3, Linux amd64 archive sha256 e83a089fd0cd2f79ee2933cca2085846a2065f497adbc6467c402177c68423f9.
-- Verified-existing and a Machi-owned prefix are both implemented. The prefix stays under the state root. The official installer is not used.
-- A verified daemon is not a loaded model and not InferenceProof.
-- The official Linux binary was not executed here. That limit is M-5-OLLAMA-03.
-- Local API bypass is recorded as M-5-OLLAMA-01. ResourceManager does not hard-stop other local processes.
+- The review gaps are closed: the source is on GitHub, isolated verification prints verify_ok, and archive realization streams to disk.
+- The frozen pin is still Ollama 0.34.3, sha256 e83a089fd0cd2f79ee2933cca2085846a2065f497adbc6467c402177c68423f9.
+- A recipe checksum identifies the artifact. The source URL is provenance and is not required to realize a local archive.
+- The hosted Runtime Artifact Registry is documented as post-spine work and was not built.
+- AUTO fallback, model pull, load, and inference were not started.
 
 ARCHITECTURE MAP
 
 ```text
-explicit Ollama request
-  -> pinned stable recipe
-  -> verified-existing observation
-     or owned prefix under state-root/foundation/environments
-  -> loopback daemon, cloud disabled
-  -> GET /api/version
-  -> RuntimeCapability with serving unsupported
-  -> generation id
+local archive path
+  -> owned staging file
+  -> SHA-256
+  -> streamed decompress
+  -> preflight, then bounded extract
+  -> promote a new generation
 ```
 
 WHAT JUST HAPPENED
 
-The substrate, tests, and canonical status notes were committed locally as 073c5daf0baf319abc8b4d0f3f415999aeadf67f. No model was pulled. No GPU server was created.
+Closeout commit 45b1734936164393c7434ddd09640c7c05e5fb7b was pushed to origin/automation/ollama-macropath. The recovery checkpoint was not moved.
 
 WHERE WE ARE
 
-Native vLLM behavior is unchanged. Plan still refuses an Ollama capability. The remote integration branch has not been moved.
+Chunk 2 can be reviewed from GitHub. Chunk 3 has not started.
 
 WHAT'S NEXT
 
-Lead review. Chunk 3 does not start from this result.
+Lead review before any model-binding work.
 
 HANDOFF
 
 ```text
-PAST     Chunk 1 tunnel decision
-PRESENT  local daemon substrate, both providers
-NEXT     lead review before model binding
+PAST     local-only substrate at 073c5da
+PRESENT  pushed closeout with verify_ok
+NEXT     lead review
 ```
 
-==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 ====================
+==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 CLOSEOUT ====================
 
 ## A. STATUS
 
-STATUS=OLLAMA_CHUNK_2_PASS
+STATUS=OLLAMA_CHUNK_2_CLOSEOUT_PASS
 
-No physical server was created. No model weights were downloaded. No model was loaded. No inference was run. AUTO fallback was not activated. Chunk 3 was not started.
+No physical server was created. No model weights were downloaded. No model was loaded. No inference was run. Chunk 3 was not started. AUTO fallback stays inactive.
 
-## B. Starting SHA / branch / recovery checkpoint
+## B. Starting local/origin SHA and recovery checkpoint
 
-- Started from origin/automation/ollama-macropath at 6e17f4a817d1571e0a708decec405ceda0282c7f.
-- Local branch automation/ollama-macropath is now 073c5daf0baf319abc8b4d0f3f415999aeadf67f.
-- That commit is not pushed. origin/automation/ollama-macropath is still 6e17f4a817d1571e0a708decec405ceda0282c7f.
-- origin/checkpoint/native-vllm-partial-pass-2026-09-24 is still 6e17f4a817d1571e0a708decec405ceda0282c7f. It was not moved.
+- Local start: 073c5daf0baf319abc8b4d0f3f415999aeadf67f on automation/ollama-macropath
+- Origin start: 6e17f4a817d1571e0a708decec405ceda0282c7f
+- Recovery checkpoint origin/checkpoint/native-vllm-partial-pass-2026-09-24 remains 6e17f4a817d1571e0a708decec405ceda0282c7f
 
-## C. Stable Ollama release selected and official provenance/checksum evidence
+## C. Changes since prior Chunk-2 paste-back
 
-Read on 2026-09-24 from the GitHub releases API and the release checksum file.
+- Serve fixture now carries real qualification coverage.
+- Managed archive realization stages, hashes, streams, bounds, and promotes.
+- A small .tar.zst fixture exercises that path.
+- Runtime environment id ignores the delivery URL.
+- Foundation metrics live in a reusable contract module.
+- Product vision, strategy, roadmap, and architecture include the accepted post-spine registry wording without dropping the Chunk-2 Ollama status.
 
-- Latest release tag: v0.34.3
-- draft: false
-- prerelease: false
-- Asset: ollama-linux-amd64.tar.zst
-- Size: 1427391999 bytes
-- sha256sum.txt line: e83a089fd0cd2f79ee2933cca2085846a2065f497adbc6467c402177c68423f9
-- GitHub asset digest: the same sha256
-- Source URL: https://github.com/ollama/ollama/releases/download/v0.34.3/ollama-linux-amd64.tar.zst
-- Checksum URL: https://github.com/ollama/ollama/releases/download/v0.34.3/sha256sum.txt
-- Software license at that tag: MIT
-- A different stable tag, a draft, or a prerelease is refused. The generation does not follow a later channel read.
+## D. Serve verifier qualification fix
 
-## D. Repository architecture audit
+tools/prove_serve_fixture.py builds a QualificationEvidence PASS whose id comes from qualification_identity, plus a DeployableModels member for mdl_serve at rev-serve. It refuses to continue unless covers() is true for the fixture context and concurrency. The plan settings include that qualification_id. Admit and Serve then use that same configuration. The product check that a plan without qualification_id is refused was not removed, and Serve was not given a verifier exception.
 
-- FoundationEngine was vLLM-only. It now has an ollama value. No new macropath type was added.
-- FoundationCandidate, FoundationSettings, and the vLLM provisioner still describe the Python/vLLM path. Ollama does not reuse those fields with dummy values.
-- Plan still returns not ready unless the capability engine is vLLM. Serve was not edited.
-- Foundation readiness for vLLM is still an import check. Ollama readiness is a separate daemon fact. One generation is not assumed to be one model-serving process.
-- The Ollama path does not require a safetensors warehouse.
-- ResourceManager was not given a second implementation.
-- The foundation domain still may not spawn processes or call model routes. The adapter owns the process and the version request.
+The fixture completed with serve_ok sin_5c22adc1d8920043 inside the isolated wheel run.
 
-## E. Files/contracts changed
+## E. Archive realization design before/after
 
-- src/machi/foundation/contracts.py — FoundationEngine.OLLAMA
-- src/machi/foundation/ollama.py — recipe, generation, raw evidence, metrics, assessment
-- src/machi/foundation/__init__.py — registers the new contracts
-- src/machi/adapters/foundation/ollama_runtime.py — prefix install and daemon lifecycle
-- tests/machi/test_ollama_foundation.py
-- tests/machi/architecture.py — the domain may name the engine and still may not pull or infer
-- tests/machi/golden/schema_fingerprint.json — six new contract kinds
-- docs/STRATEGY.md, docs/machi/ARCHITECTURE.md, docs/machi/M5.md, docs/machi/ROADMAP.md, docs/DEBT.md
+Before: install accepted bytes, and zstd decompression returned the whole tar in memory through the process stdout buffer.
 
-New contract kinds: foundation.metric@1, foundation.metric_set@1, foundation.ollama_recipe@1, foundation.ollama_raw@1, foundation.ollama_generation@1, foundation.ollama_substrate@1.
-
-## F. FoundationEngine/provider design
-
-FoundationEngine.OLLAMA is the engine value. The family stays direct. The executor stays native_process. The first lane records AcceleratorBackend.CUDA. AMD, Docker, Windows, and macOS are not selected.
-
-AUTO is unchanged: inspect_foundation still resolves native vLLM and does not substitute Ollama.
-
-Two provider modes exist:
-
-- verified_existing, after an executed binary, exact version, private endpoint, cloud disabled, and /api/version
-- managed_prefix, after a checksummed extract under the state root and the same daemon checks
-
-A process name, PATH entry, systemd unit, or container tag is refused.
-
-## G. Verified-existing implementation and tests
-
-assess_existing accepts only identified_by=executed_binary and a path that is not a bare command name. The version text must parse to 0.34.3. Prerelease text is unsupported. A public or unspecified bind is refused. Cloud enabled and cloud unknown are refused. A missing API is "daemon api is unavailable". An API version other than the pin is "daemon version does not match the executable". An install that can auto-update is refused. Nothing on the host is repaired.
-
-Tests cover the pass, the refusals above, and a schema round trip. The round trip keeps engine ollama and server_launch unsupported.
-
-## H. Managed-prefix relocatability result
-
-The official v0.34.3 installer extracts ollama-linux-amd64.tar.zst into a prefix such as /usr. That destination is the installer's choice. The archive members are bin/ollama and lib/ollama relative to the extract root.
-
-v0.34.3 ml/path.go looks for lib/ollama next to the executable and at ../lib/ollama. A tree extracted under a Machi-owned directory satisfies that layout. No relocation patch is required.
-
-This workspace is macOS, so the Linux binary was not executed. Fixture archives with the same layout were extracted and started. M-5-OLLAMA-03 records that limit. The result is not DECISION_REQUIRED_MANAGED_PREFIX.
-
-## I. Managed-prefix implementation and ownership
-
-The prefix is:
+After:
 
 ```text
-<state-root>/foundation/environments/<id>/ollama/
-  bin/ollama
-  lib/ollama/
-  models/          empty
-  logs/
-  config/server.json
-  .ollama/server.json
-<state-root>/foundation/environments/<id>/manifest.json
+caller-supplied local archive
+  -> copy into foundation/staging/<attempt>/artifact.bin while hashing
+  -> refuse on checksum mismatch before any install directory is created
+  -> stream zstd -d into payload.tar, or copy a plain tar
+  -> preflight member metadata and declared sizes
+  -> stream extraction under the same byte bound
+  -> write the owned generation only inside staging
+  -> rename that generation into foundation/environments/<id>
 ```
 
-The manifest records owner machi, owned true, the recipe id, and the archive sha256. A second install of the same checksum reuses the tree. A different checksum is refused and does not overwrite. Checksum mismatch writes nothing. Members that are absolute, contain .., or are links are refused and the partial tree is removed. A footprint larger than the supplied safe byte limit is removed. The models directory is refused if it already contains a file. The environment does not include OLLAMA_API_KEY. OLLAMA_HOST is 127.0.0.1 only. OLLAMA_MODELS points at the owned models directory. OLLAMA_NO_CLOUD is 1. server.json sets disable_ollama_cloud true.
+A verified generation that already exists is reused or refused from its manifest. It is not extracted over. Failed staging is removed only when it carries the Machi ownership marker and sits under foundation/staging.
 
-The official zstd asset is inflated with the zstd tool into memory and then extracted under the prefix. Tests use an uncompressed tar, so that tool path was not exercised on the 1.4 GB asset.
+## F. Streaming/preflight security controls
 
-## J. Daemon lifecycle semantics
+- Digest is checked on the staged file before decompression or execution.
+- Absolute members and .. are refused.
+- Symlinks and hardlinks are refused.
+- Members that are neither files nor directories are refused.
+- Declared size and bytes actually written are both capped.
+- The caller-supplied safe_bytes value is that cap. When it is absent, an 8 GiB safety ceiling applies. That ceiling does not authorize capacity.
+- Cleanup deletes only a marked staging directory.
+- Checksum mismatch leaves no environment directory.
 
-START runs the owned executable with --version, then argv serve. VERIFY polls GET /api/version only. STOP signals the process this object spawned. RESTART stops and starts the same prefix. A pid this object did not spawn is not signaled.
+## G. Real .tar.zst fixture evidence
 
-Foundation verification requires the pinned version, a loopback endpoint, cloud disabled, and a matching /api/version. RuntimeCapability.server_launch stays unsupported. The assessment reason says model residency is not claimed. This is not ReadinessProof and not InferenceProof.
+tests/machi/test_ollama_foundation.py compresses a small layout archive with the zstd tool and passes that file through OllamaRuntime.install. The same test covers checksum mismatch, a ../ member, a symlink member, a 1-byte extraction bound, staging removal, and an already promoted generation whose marker file is unchanged. The official 1.4 GB archive was not downloaded.
 
-Tests start a fixture process, read only /api/version, restart it, stop it, and leave models empty.
+## H. Artifact identity vs delivery-source audit
 
-## K. Foundation identity/fingerprint/invalidation
+runtime_environment_id hashes recipe id, version, and sha256. It does not hash source_url or checksum_url. A test realizes a recipe whose source URL is offline-bundle:customer and gets the same environment id as the upstream URL. install reads a local path. It does not fetch a URL.
 
-The generation id is a hash of recipe id, provider mode, version, artifact sha256 or the token unresolved, execution-environment fingerprint, cloud mode, and endpoint. Changing provider mode changes the id. qualification_identity changes with that id, so later qualification evidence cannot cover the old generation. The fingerprint is an input. Foundation does not import Model to compute it.
+## I. Future Runtime Artifact Registry compatibility result
 
-Verified-existing without a measured binary hash stores artifact sha256 as unresolved, and the metric availability is UNRESOLVED.
+The hosted registry was not built. No package manager, catalog domain, or network downloader was added. The consumer-side split is in place: recipe identity and checksum are independent of the byte-delivery location, and realization consumes an already-present local archive. A later mirror, customer import, or offline bundle can supply that file without changing the generation id.
 
-## L. Security boundary and explicit debt
+## J. Canonical Product Vision/Strategy/Roadmap/Architecture reconciliation
 
-The daemon is bound to 127.0.0.1. Cloud is disabled in the owned environment. No cloud API key is read or stored. M-5-OLLAMA-01 says another local process can still call the loopback API. Machi does not claim ResourceManager prevents that.
+Reconciled from docs/post-spine-artifact-registry-vision into this branch without reverting Chunk-2 text:
 
-## M. Foundation analytics schema/adapter and availability states
+- docs/PRODUCT_VISION.md section 5.12.1: registry after the spine, separate from the Model Warehouse, three delivery modes, identity independent of location, hosted service outside the current spine.
+- docs/STRATEGY.md: post-spine workstream, parallel with Stage 2, gate before scaled Stage 3, not a dependency of current Ollama work.
+- docs/machi/ARCHITECTURE.md: hosted registry is out of core; core may consume identities, recipes, provenance, and local staging.
+- docs/machi/ROADMAP.md: registry row is DEFER. The Ollama row still says the substrate is local and AUTO fallback is not implemented.
+- docs/machi/M5.md: checksum and version are the artifact identity; the source URL is provenance.
 
-FoundationMetric carries name, value, availability, unit, source, and privacy operational. Availability values are observed, derived, estimated, hidden_internal, not_exposed, not_applicable, unsupported, and unresolved.
+## K. Foundation generic-wording audit
 
-The substrate records engine, provider mode, version, checksum, install duration, footprint bytes, startup duration, verify duration, loopback bind, cloud disabled, lifecycle, and failure reason. Missing durations and the verified-existing footprint are unresolved, not zero. OllamaRawEvidence keeps the version text and checksum apart from the normalized rows. No prompt or response text is stored.
+FoundationSelection's description now says family plus engine. The vLLM settings, recipe, and resolver text stay vLLM-specific. RuntimeCapability version 1 field meanings still say vLLM; that remains M-5-OLLAMA-02. Ollama recipe, cloud mode, and endpoint stay on the Ollama contracts.
 
-## N. Qualification-path compatibility check
+## L. Analytics vocabulary audit
 
-A normal deployment still needs DeployableModels coverage. An existing probe plan skips that coverage so a qualification run can earn it. That probe still requires a vLLM capability, so an Ollama probe is not active. The generic reservation records can cite a plan once a later chunk allows this engine on a probe. No second ResourceManager is needed, and no Admit contract was changed. Chunk 2 does not load a model to discover fit.
+foundation.metric and foundation.metric_set moved to src/machi/foundation/metrics.py. Each metric still has name, value, unit, availability, source, and privacy. Availability still distinguishes observed, derived, estimated, hidden_internal, not_exposed, not_applicable, unsupported, and unresolved. No analytics warehouse was added.
 
-## O. Canonical doc updates
+## M. Targeted/full test results
 
-- STRATEGY no longer says hosts lack vLLM product code. It records the partial NVIDIA result and that AUTO fallback is target policy only.
-- ARCHITECTURE says an explicit Ollama substrate can be verified and AUTO does not select it.
-- M5 describes the substrate, the loopback and cloud rules, and the two debts.
-- ROADMAP says the substrate exists and that pull, Serve, and AUTO fallback do not.
-- DEBT adds M-5-OLLAMA-01, M-5-OLLAMA-02, and M-5-OLLAMA-03.
+- tests/machi/test_ollama_foundation.py: 11 passed, including the zstd cases and the daemon restart fixture
+- tools/prove_serve_fixture.py: serve_ok
+- tests/machi: exit 0, 508 tests
 
-## P. Local test/gate results
+## N. Ruff/mypy/architecture results
 
-- tests/machi/test_ollama_foundation.py: 9 passed
-- tests/machi: exit 0, 506 tests
-- ruff check src/machi tests/machi: passed
-- mypy --strict src/machi: 159 files, no issues
-- Architecture boundary tests are inside tests/machi and passed
+- ruff check src/machi tests/machi tools/prove_serve_fixture.py: passed
+- mypy --strict src/machi: 160 files, no issues
+- Architecture checks ran inside tests/machi and passed
 
-Isolated wheel verification did not print verify_ok. tools/verify_machi.py reached admit and serve policy, then tools/prove_serve_fixture.py exited with "serve did not become ready: plan_reservation_mismatch". That fixture never sets qualification_id. Serve has refused a plan without that setting since 96bc430, which is an ancestor of this commit. The Ollama files do not change that fixture. Serve unit tests in tests/machi passed.
+## O. Clean wheel build ID + SHA256
 
-## Q. Packaging/wheel SHA if built
-
-Built from clean commit 073c5daf0baf319abc8b4d0f3f415999aeadf67f.
+Built from clean commit 45b1734936164393c7434ddd09640c7c05e5fb7b.
 
 - artifact: dist/machi/machi-0.1.0-py3-none-any.whl
-- build id: 0.1.0+073c5daf0baf
+- build id: 0.1.0+45b173493616
 - clean_source: true
-- size: 283016
-- sha256: 4f887ab47ef4472351cc397112495e8b7fea92aa4cbf5532c970fd637dbbb2e0
+- size: 284675
+- sha256: d82d6196b27b3f8820c303cc22518dd1368e4e93c916b4c8c85c7588f72b729b
 
-## R. Strategic checks 1–10
+## P. Isolated-wheel verify_ok evidence
 
-1. Yes. The adapter starts the Ollama executable and reads its version API. It does not reimplement the runner, store format, or scheduler.
-2. Yes. The generation id is the recipe, provider mode, version, checksum, environment fingerprint, cloud mode, and endpoint.
-3. Yes, for the owned prefix. Extraction is confined to the state root. /usr, systemd, and a new host user are not used. The official Linux binary itself has not been run.
-4. Yes. Probe plans already exist to earn coverage before DeployableModels membership. This chunk does not open that probe for Ollama.
-5. No. Daemon verification leaves server launch unsupported and does not claim model residency.
-6. No. M-5-OLLAMA-01 states the loopback bypass. Enforcement is not claimed.
-7. Yes. Shared metric names use explicit availability. Unmeasured values stay unresolved. Raw version text is kept separately.
-8. The engine enum value is the generic seam. Recipe, digest, cloud mode, and endpoint live on Ollama contracts. RuntimeCapability version 1 text still says vLLM; M-5-OLLAMA-02 records that.
-9. Yes. A later engine can use the same family-plus-engine selection, reservation, and metric availability. Ollama serve flags stay in the adapter.
-10. Yes. This is a local substrate pass for the frozen pin and fixture lifecycle. It is not a GPU qualification, not a Linux execution of the official archive, and not an inference pass.
+.venv/bin/python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl exited 0. The final lines were:
 
-## S. Decisions made within bounded authority
+```text
+serve_ok sin_5c22adc1d8920043
+verify_ok
+```
 
-- Froze v0.34.3 because it was the latest non-draft, non-prerelease release on the official channel at execution time.
-- Treated the Linux archive as prefix-relative from the installer and ml/path.go, and implemented the owned prefix.
-- Kept AUTO fail-closed.
-- Left Plan and Serve behavior unchanged.
-- Recorded unverified Linux execution as debt instead of calling the fixture a physical Linux proof.
+## Q. Debts retained/added/closed
 
-## T. DECISION_REQUIRED items
+Retained and still open:
 
-None. Managed prefix relocation is possible from the official layout, so this is not DECISION_REQUIRED_MANAGED_PREFIX.
+- M-5-OLLAMA-01 local API bypass
+- M-5-OLLAMA-02 RuntimeCapability v1 wording
+- M-5-OLLAMA-03 official Linux binary not executed from the owned prefix
 
-## U. Debt added
+No debt was closed. The synthetic zstd test does not execute the published 1.4 GB archive, so M-5-OLLAMA-03 stays open. No new debt entry was required.
 
-- M-5-OLLAMA-01 — loopback API is not hard isolation. Authorizes nothing.
-- M-5-OLLAMA-02 — RuntimeCapability v1 wording still names vLLM. Authorizes nothing.
-- M-5-OLLAMA-03 — the pinned Linux archive has not been executed from an owned prefix. Authorizes nothing.
+## R. Exact support claim after closeout
+
+This closeout is a local package pass for the Ollama foundation substrate. Verified-existing and the owned prefix are implemented. Archive realization streams and enforces checksum, path, link, and size limits. Isolated wheel verification passed. This is not a GPU qualification, not an execution of the official Linux archive, not model inference, and not AUTO fallback.
+
+## S. Final local HEAD
+
+45b1734936164393c7434ddd09640c7c05e5fb7b on automation/ollama-macropath
+
+## T. Final origin HEAD and equality proof
+
+After git push and git fetch:
+
+- LOCAL=45b1734936164393c7434ddd09640c7c05e5fb7b
+- ORIGIN=45b1734936164393c7434ddd09640c7c05e5fb7b
+
+origin/automation/ollama-macropath moved 6e17f4a..45b1734. The recovery checkpoint was not updated.
+
+## U. Working-tree state
+
+Clean except untracked docs/machi/proposals/, which was not committed.
 
 ## V. Exact proposed Chunk-3 scope
 
-Do not start it from this result. If accepted, Chunk 3 is the model and specialist-feasibility bridge from the program:
+Do not start it from this result. If accepted, Chunk 3 binds a Machi model identity to an Ollama digest, applies coarse filters before any pull, and records specialist fit evidence only under a future qualification reservation. Normal DeployableModels membership stays after that evidence. No ordinary deployment load, no inference path, and no AUTO activation.
 
-- bind a Machi model identity to an Ollama digest, not a floating tag
-- keep license and provenance decisions with Machi
-- account for the owned model directory without treating it as the vLLM warehouse
-- apply coarse filters before any pull
-- record specialist fit evidence only under a future qualification reservation
-- keep normal DeployableModels membership after that evidence, not before it
-- invalidate evidence when the Ollama generation id changes
-- add funnel, pull, and fit metrics with explicit availability
+## W. Final status
 
-No ordinary deployment load, no inference product path, and no AUTO activation.
-
-## W. Exact branch/HEAD/final state
-
-- Local HEAD: 073c5daf0baf319abc8b4d0f3f415999aeadf67f on automation/ollama-macropath
-- origin/automation/ollama-macropath: 6e17f4a817d1571e0a708decec405ceda0282c7f
-- origin/checkpoint/native-vllm-partial-pass-2026-09-24: 6e17f4a817d1571e0a708decec405ceda0282c7f
-- Untracked docs/machi/proposals/ was not committed
-- Working tree has no product modifications besides those untracked notes
+OLLAMA_CHUNK_2_CLOSEOUT_PASS
 
 NO_MODEL_WEIGHTS_DOWNLOADED
 NO_MODEL_LOADED
 NO_INFERENCE_RUN
 NO_SERVER_CREATED
 AUTO_FALLBACK_NOT_ACTIVATED
+CHUNK_3_NOT_STARTED
 
-STOP — OLLAMA CHUNK 2 PASS. WAIT FOR LEAD REVIEW.
+STOP — OLLAMA CHUNK 2 CLOSEOUT COMPLETE. WAIT FOR LEAD REVIEW.
 
-==================== END PASTE BACK — OLLAMA CHUNK 2 ====================
+==================== END PASTE BACK — OLLAMA CHUNK 2 CLOSEOUT ====================
