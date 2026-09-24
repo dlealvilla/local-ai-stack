@@ -1,31 +1,18 @@
 {
   "attempt": 1,
   "branch": "automation/inference-program",
-  "build": "0.1.0+96bc4303c4b4",
-  "compute_capability": "8.9",
   "end_sha": "6e17f4a817d1571e0a708decec405ceda0282c7f",
-  "fingerprint": "exe_9fc7dd60f1cafcfdb9772ea9b755337f",
-  "generation_id": "fgen_071b23a5b1db1192",
-  "hourly_usd": 1.09,
   "instruction_id": "MACHI-INFERENCE-EXEC-005-001",
-  "lab_run_ids": [
-    "ecase_n2_135m",
-    "ecase_n2_360m",
-    "ecase_n2_tiny"
-  ],
-  "latest_gate": "real inference, stop, restart, re-infer",
-  "next_transition": "MACHI-INF-05-NATIVE-VLLM-CLOSE",
+  "latest_gate": "report",
+  "n1": "ENVIRONMENT_BLOCKED",
+  "n2": "PASS NVIDIA L40S",
+  "next_program": "OllamaExecutionMacropath Provider Selection Gate",
   "physical_run_ids": [
     "o2k1u11gp1fnuy"
   ],
-  "pod_id": "o2k1u11gp1fnuy",
-  "pod_terminated": true,
-  "region": "US-MO-1",
-  "sku": "NVIDIA L40S",
-  "start_sha": "765aab67208cd1fde399db83be0e4254308597e0",
+  "program_status": "NATIVE_VLLM_PARTIAL_PHYSICAL_PASS",
+  "start_sha": "6e17f4a817d1571e0a708decec405ceda0282c7f",
   "status": "PASS",
-  "step_id": "MACHI-INF-04-N2-ADA",
-  "step_name": "N2 Ada multi-model physical qualification",
-  "vram_mib": 46068,
-  "wheel_sha256": "31c8059f47de7c44eeb59489afe9887309cc9fc2cec4a1acff54972e8371d8f4"
+  "step_id": "MACHI-INF-05-NATIVE-VLLM-CLOSE",
+  "step_name": "Native vLLM production-inference closure"
 }
