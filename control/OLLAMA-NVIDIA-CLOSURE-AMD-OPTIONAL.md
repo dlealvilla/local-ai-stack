@@ -43,3 +43,32 @@ Do not convert NVIDIA closure into:
 - vendor-neutral physical support.
 
 AMD remains an explicit open coverage lane.
+
+
+## Post-closure clarification — managed ROCm userspace
+
+The AMD acceptance lane must not require a prebuilt cloud ROCm userspace image
+as a blanket prerequisite.
+
+Machi's native AMD Foundation is intended to provision the pinned
+ROCm-compatible vLLM/PyTorch userspace inside a Machi-owned managed generation.
+
+Future AMD preflight should require only genuine host/provider prerequisites
+such as supported AMD hardware, usable host driver/kernel/device access,
+compatible OS/glibc, vendor visibility/inspection where required, and native
+shared-library prerequisites that the current pinned recipe cannot itself
+supply.
+
+Once those are present, acceptance should exercise Machi's own managed ROCm
+provisioner.
+
+A missing prebuilt "ROCm 7 image" by itself is therefore not a valid AMD product
+failure or support refusal.
+
+If provisioning reveals missing native libraries, classify each one explicitly
+as:
+1. a legitimate host-owned prerequisite; or
+2. a dependency Machi should own/provision.
+
+This clarification does not alter the Bundle-07 `NO_STOCK` outcome because no
+AMD Pod was available or created.
