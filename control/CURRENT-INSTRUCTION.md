@@ -10,6 +10,156 @@
 **AUTO fallback:** FORBIDDEN  
 **Chunk 5/6:** FORBIDDEN except physical evidence explicitly described here
 
+
+======================================================================
+PRODUCT PURPOSE / FUNCTIONAL OUTCOME
+======================================================================
+
+This package is not merely an Ollama API integration exercise.
+
+Its product purpose is to move Kultrun from a locally simulated Ollama
+qualification path to a **real, evidence-backed second execution macropath**
+that can be compared with native/vLLM under the same Machi control philosophy.
+
+When this package succeeds, Kultrun should be able to truthfully say:
+
+- a real Ollama-backed model can be discovered from Ollama's own catalog;
+- Machi can authorize a bounded qualification attempt without surrendering
+  global resource authority;
+- Ollama can apply its own specialist fit/scheduler logic inside that
+  authorization;
+- Machi can independently shadow-evaluate the same case;
+- Kultrun can prove which exact Ollama model digest was loaded and produced a
+  real token;
+- Kultrun can persist comparative evidence between Machi's estimate, Ollama's
+  fit decision, and the real inference outcome;
+- the qualification cleans up safely before resources are returned;
+- the next Serve-layer design can be grounded in real provider behavior rather
+  than speculation.
+
+This directly supports the Product Vision by:
+- keeping the product self-hosted and customer-controlled;
+- reusing Ollama rather than duplicating its specialist scheduler;
+- preserving Machi/Kultrun ownership of product policy, global authorization,
+  evidence, and support claims;
+- keeping providers replaceable behind stable concepts;
+- building the empirical evidence base needed for future model/runtime
+  selection without silently auto-retuning policy in Stage 1;
+- preserving a path to offline/air-gapped operation;
+- improving the future administrator experience by making model/runtime status
+  explainable rather than opaque.
+
+The package must **not** turn Ollama into the global resource authority, merge
+the native and Ollama model catalogs, or claim production-grade Ollama Serve.
+
+======================================================================
+FUNCTIONAL SCOPE
+======================================================================
+
+IN SCOPE:
+1. real loopback Ollama v0.34.3 API interaction;
+2. truthful provider timing and identity evidence;
+3. one small real Ollama model qualification on disposable NVIDIA hardware;
+4. Machi shadow evaluation of the same authorized case;
+5. durable comparative analytics;
+6. safe cleanup/re-entry proof;
+7. if physical qualification succeeds, the minimum residency-observation seam
+   needed to reason about future long-lived Serve;
+8. a product/architecture assessment of the long-lived authorization shape.
+
+OUT OF SCOPE:
+- general Ollama model marketplace/product acquisition;
+- production multi-model Ollama serving;
+- automatic fallback activation;
+- broad routing policy;
+- UI;
+- learned/automatic policy retuning;
+- cross-customer telemetry;
+- private Ollama scheduler integration;
+- full Chunk 4/5/6 implementation.
+
+======================================================================
+DELIVERY ACTIONS / HOW TO WORK THIS PACKAGE
+======================================================================
+
+Treat this as one coherent delivery cycle:
+
+1. **Inspect and reconcile**
+   Confirm repository truth, accepted architecture, exact v0.34.3 API behavior,
+   and the current physical-lab rules.
+
+2. **Build**
+   Implement the missing real adapter/timing/residency mechanics needed for the
+   functional outcome. Cursor owns the coding-level design unless an accepted
+   invariant requires a specific shape.
+
+3. **Local QA**
+   Prove the real adapter behavior, timing semantics, identity rules, privacy,
+   native regression safety, packaging, and isolated installation.
+
+4. **Physical acceptance**
+   Use one positively owned disposable NVIDIA host and run the real
+   qualification campaign.
+
+5. **Evidence and analytics**
+   Persist and inspect the actual comparison between Machi shadow, Ollama fit,
+   and real inference.
+
+6. **Fix defects**
+   If the accepted architecture is clear and the implementation fails, fix the
+   product code locally, rebuild, redeploy, and rerun the affected acceptance.
+   Do not escalate ordinary bugs as architecture decisions.
+
+7. **Architecture amendment gate**
+   If physical evidence shows that the accepted authority model itself is wrong
+   or incomplete—especially around long-lived Serve/residency—stop with a
+   structured decision package rather than silently changing the architecture.
+
+8. **Close the package**
+   Update docs/debt/evidence, push the exact accepted source, and state the
+   precise support claim.
+
+======================================================================
+QA / ACCEPTANCE INTENT
+======================================================================
+
+Success is not "the tests are green."
+
+Success means we can demonstrate, with reproducible evidence, that:
+- the managed Ollama Foundation is the expected frozen generation;
+- the selected Ollama model identity is exact and stable;
+- Machi authorized the qualification resources;
+- Ollama made the provider-specific fit/load decision;
+- a real token came from the expected digest;
+- Machi's independent shadow result was recorded without influencing Ollama;
+- the comparison analytics are durable and semantically honest;
+- cleanup returned the system to a truthful resource state;
+- native/vLLM behavior still works;
+- any next Serve decision is based on observed provider behavior.
+
+======================================================================
+FIX VS ARCHITECTURAL AMENDMENT
+======================================================================
+
+Fix autonomously and continue when:
+- an adapter parses an API response incorrectly;
+- timeout/error handling is wrong;
+- tests expose a coding defect;
+- evidence fields are wired incorrectly;
+- cleanup/retry behavior fails while the intended authority model remains clear;
+- a bounded internal refactor improves correctness without changing semantics.
+
+STOP for Lead/product decision when a correction would:
+- change which subsystem is authoritative;
+- change a core contract/ontology used across macropaths;
+- introduce a new mandatory dependency or provider;
+- merge model catalogs;
+- alter privacy/security posture;
+- change customer-facing support claims materially;
+- require private Ollama scheduler coupling;
+- change the accepted long-lived ResourceManager/Serve philosophy.
+
+
 Read first:
 - `control/EXECUTION-BUNDLE-POLICY.md`
 - `control/CORE-VS-COMMODITY-POLICY.md`
