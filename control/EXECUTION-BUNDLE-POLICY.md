@@ -258,3 +258,96 @@ Cursor owns, within those constraints:
 Do not prescribe line-by-line code or unnecessary implementation recipes unless
 repository truth, an external API, a safety invariant, or prior failure makes
 that specificity necessary.
+
+
+## 11. Binding constraints vs technical recommendations vs delegated choices
+
+Lead instructions should clearly distinguish three levels of direction.
+
+### A. BINDING — product / architecture / policy
+
+These are requirements Cursor must not change without a decision gate.
+
+Examples:
+- Product Vision;
+- authority boundaries;
+- privacy/security posture;
+- provider-selection decisions;
+- resource-admission authority;
+- model/catalog ownership;
+- evidence/provenance rules;
+- supported deployment semantics;
+- licensing/commercial constraints;
+- accepted cross-macropath behavior;
+- safety and physical-lab limits.
+
+Use language such as:
+- **MUST**
+- **MUST NOT**
+- **BINDING**
+- **ACCEPTED ARCHITECTURE**
+- **DECISION GATE**
+
+### B. RECOMMENDED — technical direction with rationale
+
+The Lead may recommend a technical approach when it appears likely to be the
+best fit, especially where repository knowledge, prior failures, provider API
+facts, maintainability, portability, or product strategy give a strong reason.
+
+These recommendations are **not automatically binding**.
+
+Cursor should:
+1. inspect repository truth;
+2. assess whether the recommendation is still the smallest/correct approach;
+3. follow it when it fits;
+4. choose a materially better bounded implementation when justified;
+5. explain any meaningful deviation in the paste-back.
+
+Use language such as:
+- **RECOMMENDED**
+- **PREFERRED**
+- **LIKELY BEST FIT**
+- **STARTING DIRECTION**
+- **CURSOR MAY DEVIATE WITH EVIDENCE**
+
+A recommendation becomes binding only when the instruction explicitly says it
+protects an accepted invariant or external/API truth.
+
+### C. DELEGATED — implementation choice
+
+These are coding and local-design decisions Cursor owns.
+
+Examples:
+- private helper layout;
+- class/function decomposition;
+- ordinary refactors;
+- internal naming;
+- test fixture shape;
+- standard-library technique;
+- bounded retry implementation;
+- local error-handling structure;
+- routine performance/maintainability improvements.
+
+Cursor should make these decisions without returning for approval.
+
+## 12. The grey-area rule
+
+When a technical choice sits between architecture and implementation, use this
+test:
+
+**If choosing differently would change what the product means, what it promises,
+who is authoritative, what data leaves the customer, what providers are
+supported, or what evidence can be trusted -> treat it as architectural and
+STOP.**
+
+**If choosing differently changes only how the accepted behavior is implemented
+while preserving semantics and support claims -> Cursor owns the choice.**
+
+For grey-area decisions that are important but not architectural:
+- the Lead should state a recommendation and rationale;
+- Cursor should validate it against repository/provider truth;
+- Cursor may choose another bounded approach;
+- the paste-back must record the choice and why;
+- Lead review may amend it in the next bundle if needed.
+
+Do not force a decision gate merely because the Lead has a technical preference.
