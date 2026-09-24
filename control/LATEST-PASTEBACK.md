@@ -1,208 +1,207 @@
 SERVER NEEDED NEXT: NO
 
-Instruction: MACHI-OLLAMA-CHUNK-02-CLOSEOUT-002
+Instruction: MACHI-OLLAMA-CHUNK-02-FINAL-005
 Program: MACHI-OLLAMA-MACROPATH-001
-Chunk: 2 of 6 — CLOSEOUT
+Chunk: 2 of 6 — INDUSTRY-PATTERN FINAL HARDENING
 
-STATUS=OLLAMA_CHUNK_2_CLOSEOUT_PASS
+STATUS=OLLAMA_CHUNK_2_INDUSTRY_FINAL_PASS
 
 TL;DR
 
-- The review gaps are closed: the source is on GitHub, isolated verification prints verify_ok, and archive realization streams to disk.
-- The frozen pin is still Ollama 0.34.3, sha256 e83a089fd0cd2f79ee2933cca2085846a2065f497adbc6467c402177c68423f9.
-- A recipe checksum identifies the artifact. The source URL is provenance and is not required to realize a local archive.
-- The hosted Runtime Artifact Registry is documented as post-spine work and was not built.
-- AUTO fallback, model pull, load, and inference were not started.
+- No solution decision was required. Each hardening item had one accepted industry fit, and none was misaligned with the Product Vision.
+- Provisioning now refuses when SAFE bytes are missing, and the peak covers the staged archive plus the extracted generation.
+- Qualification identity no longer includes the loopback port. A partial executable hash cannot mint reusable qualification evidence.
+- Isolated verification printed verify_ok. Origin matches local HEAD a71c78f46fc70265167d915a367e43105441b6c4.
 
 ARCHITECTURE MAP
 
 ```text
-local archive path
-  -> owned staging file
-  -> SHA-256
-  -> streamed decompress
-  -> preflight, then bounded extract
-  -> promote a new generation
+explicit SAFE bytes
+  -> stage and hash the local archive
+  -> stream pass 1: preflight
+  -> stream pass 2: extract
+  -> fsync and rename the generation
+  -> atomic registry update
 ```
 
 WHAT JUST HAPPENED
 
-Closeout commit 45b1734936164393c7434ddd09640c7c05e5fb7b was pushed to origin/automation/ollama-macropath. The recovery checkpoint was not moved.
+The industry-pattern hardening is on origin/automation/ollama-macropath. The recovery checkpoint was not moved. Chunk 3 did not start.
 
 WHERE WE ARE
 
-Chunk 2 can be reviewed from GitHub. Chunk 3 has not started.
+Chunk 2 foundation identity and storage accounting are stable enough for a later qualification chunk to consume.
 
 WHAT'S NEXT
 
-Lead review before any model-binding work.
+Lead review.
 
 HANDOFF
 
 ```text
-PAST     local-only substrate at 073c5da
-PRESENT  pushed closeout with verify_ok
-NEXT     lead review
+PAST     closeout 45b1734
+PRESENT  industry final a71c78f
+NEXT     lead review before Chunk 3
 ```
 
-==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 CLOSEOUT ====================
+==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 INDUSTRY FINAL ====================
 
 ## A. STATUS
 
-STATUS=OLLAMA_CHUNK_2_CLOSEOUT_PASS
+STATUS=OLLAMA_CHUNK_2_INDUSTRY_FINAL_PASS
 
-No physical server was created. No model weights were downloaded. No model was loaded. No inference was run. Chunk 3 was not started. AUTO fallback stays inactive.
+NO_SOLUTION_DECISION_REQUIRED
 
-## B. Starting local/origin SHA and recovery checkpoint
+No physical server was created. No model was pulled, loaded, or used for inference. AUTO fallback stayed inactive. Chunk 3 was not started.
 
-- Local start: 073c5daf0baf319abc8b4d0f3f415999aeadf67f on automation/ollama-macropath
-- Origin start: 6e17f4a817d1571e0a708decec405ceda0282c7f
-- Recovery checkpoint origin/checkpoint/native-vllm-partial-pass-2026-09-24 remains 6e17f4a817d1571e0a708decec405ceda0282c7f
+## B. Industry-practice fit confirmation table
 
-## C. Changes since prior Chunk-2 paste-back
+| Section | Fit | Ring | Product Vision Alignment | Decision |
+|---|---|---|---|---|
+| 1. Explicit persistent and transient storage | ALIGNS_WITH_BOUNDED_ADAPTATION | A commodity | ALIGNED | NO_SOLUTION_DECISION_REQUIRED |
+| 2. Immutable generation and atomic index | ALIGNS | A commodity | ALIGNED | NO_SOLUTION_DECISION_REQUIRED |
+| 3. Content-addressed qualification identity | ALIGNS_WITH_BOUNDED_ADAPTATION | C product core, mechanics only | ALIGNED | NO_SOLUTION_DECISION_REQUIRED |
+| 4. Secure archive extraction | ALIGNS | A commodity | ALIGNED | NO_SOLUTION_DECISION_REQUIRED |
+| 5. Explicit decompressor provider | ALIGNS_WITH_BOUNDED_ADAPTATION | A commodity, later Ring B delivery | ALIGNED_WITH_CONDITIONS | NO_SOLUTION_DECISION_REQUIRED |
 
-- Serve fixture now carries real qualification coverage.
-- Managed archive realization stages, hashes, streams, bounds, and promotes.
-- A small .tar.zst fixture exercises that path.
-- Runtime environment id ignores the delivery URL.
-- Foundation metrics live in a reusable contract module.
-- Product vision, strategy, roadmap, and architecture include the accepted post-spine registry wording without dropping the Chunk-2 Ollama status.
+Section 1 uses Machi SAFE capacity as the authority. Unknown capacity refuses. That is the bounded adaptation of the Kubernetes/TUF size pattern.
 
-## D. Serve verifier qualification fix
+Section 3 keeps qualification meaning in Machi. The port is operational evidence. The identity formula was specified by the binding industry note, so it was not a new product choice.
 
-tools/prove_serve_fixture.py builds a QualificationEvidence PASS whose id comes from qualification_identity, plus a DeployableModels member for mdl_serve at rev-serve. It refuses to continue unless covers() is true for the fixture context and concurrency. The plan settings include that qualification_id. Admit and Serve then use that same configuration. The product check that a plan without qualification_id is refused was not removed, and Serve was not given a verifier exception.
+Section 4 keeps a custom member allowlist. Python's tar extraction filter would not preserve the explicit declared-versus-written byte account this chunk requires. The instruction already treats that stricter allowlist as the appropriate fit.
 
-The fixture completed with serve_ok sin_5c22adc1d8920043 inside the isolated wheel run.
+Section 5 uses SystemZstdDecompressor as the first adapter, which the instruction named. It is aligned only while the host tool is preflighted, refused when missing, and recorded as debt until a pinned helper or an in-process decoder replaces it. An apt/dnf install and a silent in-process library choice were not taken. Both would have been a different product dependency.
 
-## E. Archive realization design before/after
+TUF and SLSA were recorded as the future registry baseline only. They were not implemented. That documentation choice is ALIGNED_WITH_CONDITIONS: the standards fit provenance and rollback protection, and building them now would skip the spine.
 
-Before: install accepted bytes, and zstd decompression returned the whole tar in memory through the process stdout buffer.
+No option was MISALIGNED. No Product Vision change is required.
 
-After:
+## C. Starting/final SHA
+
+- Start: 45b1734936164393c7434ddd09640c7c05e5fb7b
+- Final local and origin: a71c78f46fc70265167d915a367e43105441b6c4
+- Recovery checkpoint remains 6e17f4a817d1571e0a708decec405ceda0282c7f
+
+## D. Peak transient-storage accounting and formula
+
+Missing safe_bytes refuses with insufficient_capacity. There is no 8 GiB fallback.
 
 ```text
-caller-supplied local archive
-  -> copy into foundation/staging/<attempt>/artifact.bin while hashing
-  -> refuse on checksum mismatch before any install directory is created
-  -> stream zstd -d into payload.tar, or copy a plain tar
-  -> preflight member metadata and declared sizes
-  -> stream extraction under the same byte bound
-  -> write the owned generation only inside staging
-  -> rename that generation into foundation/environments/<id>
+peak = staged_compressed_bytes
+     + declared_extracted_bytes
+     + 65536 metadata overhead
 ```
 
-A verified generation that already exists is reused or refused from its manifest. It is not extracted over. Failed staging is removed only when it carries the Machi ownership marker and sits under foundation/staging.
+The overhead covers the cloud config, generation manifest, and registry transaction. Provisioning refuses before extraction when peak exceeds the supplied SAFE bound. After extraction, staged bytes plus the written generation must still fit that bound.
 
-## F. Streaming/preflight security controls
+## E. Two-pass streaming implementation
 
-- Digest is checked on the staged file before decompression or execution.
-- Absolute members and .. are refused.
-- Symlinks and hardlinks are refused.
-- Members that are neither files nor directories are refused.
-- Declared size and bytes actually written are both capped.
-- The caller-supplied safe_bytes value is that cap. When it is absent, an 8 GiB safety ceiling applies. That ceiling does not authorize capacity.
-- Cleanup deletes only a marked staging directory.
-- Checksum mismatch leaves no environment directory.
+Pass 1 stream-decompresses the verified staged artifact, or rereads a plain tar, and inspects members and declared sizes. Pass 2 opens that same staged artifact again and extracts. No payload.tar is written. A counting zstd provider observed two opens on the synthetic .tar.zst fixture.
 
-## G. Real .tar.zst fixture evidence
+## F. Secure extraction controls/limits
 
-tests/machi/test_ollama_foundation.py compresses a small layout archive with the zstd tool and passes that file through OllamaRuntime.install. The same test covers checksum mismatch, a ../ member, a symlink member, a 1-byte extraction bound, staging removal, and an already promoted generation whose marker file is unchanged. The official 1.4 GB archive was not downloaded.
+Extraction starts in a fresh owned directory. Only regular files and directories are accepted. Absolute paths, .., symlinks, hardlinks, and special members are refused. Destinations are resolved and must stay inside the prefix. Limits are 10000 members, 240-character names, and 2 GiB for one member, plus the SAFE aggregate. File modes are 0644, or 0755 for bin/ollama. Setuid, setgid, and ownership restoration are not applied. The bin/ollama and lib/ollama layout is required before promotion.
 
-## H. Artifact identity vs delivery-source audit
+## G. Immutable-generation/atomic-index transaction
 
-runtime_environment_id hashes recipe id, version, and sha256. It does not hash source_url or checksum_url. A test realizes a recipe whose source URL is offline-bundle:customer and gets the same environment id as the upstream URL. install reads a local path. It does not fetch a URL.
+The generation manifest is written inside staging. Files and the generation directory are fsynced. Promotion is a same-filesystem rename into a new environment id. The registry is then written to a temp file, fsynced, replaced, and the parent directory is fsynced. An existing verified generation is not modified in place.
 
-## I. Future Runtime Artifact Registry compatibility result
+## H. Crash/failure-injection behavior
 
-The hosted registry was not built. No package manager, catalog domain, or network downloader was added. The consumer-side split is in place: recipe identity and checksum are independent of the byte-delivery location, and realization consumes an already-present local archive. A later mirror, customer import, or offline bundle can supply that file without changing the generation id.
+Promotion failure removes only the marked staging directory and does not create an environment. Registry temp, write, fsync, and replace failures return promoted_unregistered and reconcile_required. The new owned generation remains. unregistered_owned_generations reports it. A previously promoted generation is left intact.
 
-## J. Canonical Product Vision/Strategy/Roadmap/Architecture reconciliation
+## I. Managed qualification identity
 
-Reconciled from docs/post-spine-artifact-registry-vision into this branch without reverting Chunk-2 text:
+The generation id hashes recipe id, provider mode, version, archive digest, identity strength archive, execution-environment fingerprint, and the security class loopback_cloud_disabled. It does not hash the port or the source URL. qualification_reusable is true for that archive identity.
 
-- docs/PRODUCT_VISION.md section 5.12.1: registry after the spine, separate from the Model Warehouse, three delivery modes, identity independent of location, hosted service outside the current spine.
-- docs/STRATEGY.md: post-spine workstream, parallel with Stage 2, gate before scaled Stage 3, not a dependency of current Ollama work.
-- docs/machi/ARCHITECTURE.md: hosted registry is out of core; core may consume identities, recipes, provenance, and local staging.
-- docs/machi/ROADMAP.md: registry row is DEFER. The Ollama row still says the substrate is local and AUTO fallback is not implemented.
-- docs/machi/M5.md: checksum and version are the artifact identity; the source URL is provenance.
+## J. Verified-existing runtime-closure identity/evidence strength
 
-## K. Foundation generic-wording audit
+When bin/ollama and an adjacent lib/ollama tree of regular files can be hashed, strength is runtime_closure and qualification_reusable is true. A lone executable is partial_executable and is not reusable qualification evidence. A missing file is absent and is not reusable. The executable hash is not stored as the archive digest. Two loopback ports for the same closure keep one generation id. Changing library bytes changes the digest.
 
-FoundationSelection's description now says family plus engine. The vLLM settings, recipe, and resolver text stay vLLM-specific. RuntimeCapability version 1 field meanings still say vLLM; that remains M-5-OLLAMA-02. Ollama recipe, cloud mode, and endpoint stay on the Ollama contracts.
+## K. Decompressor provider/prerequisite behavior
 
-## L. Analytics vocabulary audit
+SystemZstdDecompressor preflights zstd --version without a shell. A missing or unusable tool returns prerequisite_blocked. The tool name and version are manifest provenance, not qualification identity. Plain tar does not require zstd. Nothing is installed with a package manager.
 
-foundation.metric and foundation.metric_set moved to src/machi/foundation/metrics.py. Each metric still has name, value, unit, availability, source, and privacy. Availability still distinguishes observed, derived, estimated, hidden_internal, not_exposed, not_applicable, unsupported, and unresolved. No analytics warehouse was added.
+## L. Future TUF/SLSA registry-documentation update and governance reconciliation
 
-## M. Targeted/full test results
+Product vision section 5.12.1 now says the future registry should use TUF-style signed target metadata, content-addressed artifacts, and SLSA or in-toto provenance where published. Mirrors do not become identity.
 
-- tests/machi/test_ollama_foundation.py: 11 passed, including the zstd cases and the daemon restart fixture
-- tools/prove_serve_fixture.py: serve_ok
-- tests/machi: exit 0, 508 tests
+The accepted governance text from docs/core-vs-commodity-decision-policy is now in this branch:
 
-## N. Ruff/mypy/architecture results
+- Product vision 5.2.1: Reuse the Industry; Own the Product, three rings, Product Vision Alignment, and the Industry Solution Selection Gate
+- Strategy: Build versus integrate
+- Architecture 4.1: the same gates, including the Provider Selection Gate relationship
+- Roadmap: research before invention
 
-- ruff check src/machi tests/machi tools/prove_serve_fixture.py: passed
-- mypy --strict src/machi: 160 files, no issues
-- Architecture checks ran inside tests/machi and passed
+Newer Ollama status text was kept.
 
-## O. Clean wheel build ID + SHA256
+## M. Files changed
 
-Built from clean commit 45b1734936164393c7434ddd09640c7c05e5fb7b.
+- src/machi/adapters/foundation/ollama_archive.py
+- src/machi/adapters/foundation/ollama_runtime.py
+- src/machi/foundation/ollama.py
+- src/machi/foundation/contracts.py
+- tests/machi/test_ollama_foundation.py
+- tests/machi/golden/schema_fingerprint.json
+- docs/PRODUCT_VISION.md
+- docs/STRATEGY.md
+- docs/machi/ARCHITECTURE.md
+- docs/machi/ROADMAP.md
+- docs/machi/M5.md
+- docs/DEBT.md
+
+## N. Tests/gates
+
+- tests/machi/test_ollama_foundation.py passed, including peak, two-pass, security, transaction, identity, and decompressor cases
+- tests/machi: exit 0, 514 tests
+- ruff check src/machi tests/machi: passed
+- mypy --strict src/machi: 161 files, no issues
+- Architecture checks passed inside the suite
+
+## O. Wheel build ID/SHA256
 
 - artifact: dist/machi/machi-0.1.0-py3-none-any.whl
-- build id: 0.1.0+45b173493616
+- build id: 0.1.0+a71c78f46fc7
+- commit: a71c78f46fc70265167d915a367e43105441b6c4
 - clean_source: true
-- size: 284675
-- sha256: d82d6196b27b3f8820c303cc22518dd1368e4e93c916b4c8c85c7588f72b729b
+- size: 287989
+- sha256: d3a0a5a756ff2d8f8f7b070467c9e6fa3d2f1764721d36e0d8548ff49bbc2b84
 
-## P. Isolated-wheel verify_ok evidence
+## P. Isolated verify_ok
 
-.venv/bin/python tools/verify_machi.py dist/machi/machi-0.1.0-py3-none-any.whl exited 0. The final lines were:
+tools/verify_machi.py exited 0. The final lines were:
 
 ```text
 serve_ok sin_5c22adc1d8920043
 verify_ok
 ```
 
-## Q. Debts retained/added/closed
+## Q. Debts
 
-Retained and still open:
+Still open: M-5-OLLAMA-01 local API bypass, M-5-OLLAMA-02 capability wording, M-5-OLLAMA-03 official Linux binary not executed.
 
-- M-5-OLLAMA-01 local API bypass
-- M-5-OLLAMA-02 RuntimeCapability v1 wording
-- M-5-OLLAMA-03 official Linux binary not executed from the owned prefix
+Added: M-5-OLLAMA-04. The system zstd helper is not yet a pinned Machi artifact. It authorizes nothing.
 
-No debt was closed. The synthetic zstd test does not execute the published 1.4 GB archive, so M-5-OLLAMA-03 stays open. No new debt entry was required.
+## R. Exact support claim
 
-## R. Exact support claim after closeout
+This is a local package hardening of the Ollama foundation substrate. SAFE capacity must be explicit. Qualification identity is content-addressed and port-independent. Partial verified-existing identity is not reusable qualification evidence. This is not a GPU qualification, not an execution of the official 1.4 GB archive, and not inference.
 
-This closeout is a local package pass for the Ollama foundation substrate. Verified-existing and the owned prefix are implemented. Archive realization streams and enforces checksum, path, link, and size limits. Isolated wheel verification passed. This is not a GPU qualification, not an execution of the official Linux archive, not model inference, and not AUTO fallback.
+## S. Local/origin equality
 
-## S. Final local HEAD
+After push and fetch:
 
-45b1734936164393c7434ddd09640c7c05e5fb7b on automation/ollama-macropath
+- LOCAL=a71c78f46fc70265167d915a367e43105441b6c4
+- ORIGIN=a71c78f46fc70265167d915a367e43105441b6c4
 
-## T. Final origin HEAD and equality proof
+The push was 45b1734..a71c78f. The working tree is clean except untracked docs/machi/proposals/.
 
-After git push and git fetch:
+## T. Proposed Chunk-3 start
 
-- LOCAL=45b1734936164393c7434ddd09640c7c05e5fb7b
-- ORIGIN=45b1734936164393c7434ddd09640c7c05e5fb7b
+Do not start it from this result. If accepted, Chunk 3 binds a Machi model identity to an Ollama digest, applies coarse filters before pull, and records specialist evidence only under a qualification reservation. It must consume this generation id and must not treat a partial executable hash as reusable coverage.
 
-origin/automation/ollama-macropath moved 6e17f4a..45b1734. The recovery checkpoint was not updated.
+## U. Final status
 
-## U. Working-tree state
-
-Clean except untracked docs/machi/proposals/, which was not committed.
-
-## V. Exact proposed Chunk-3 scope
-
-Do not start it from this result. If accepted, Chunk 3 binds a Machi model identity to an Ollama digest, applies coarse filters before any pull, and records specialist fit evidence only under a future qualification reservation. Normal DeployableModels membership stays after that evidence. No ordinary deployment load, no inference path, and no AUTO activation.
-
-## W. Final status
-
-OLLAMA_CHUNK_2_CLOSEOUT_PASS
+OLLAMA_CHUNK_2_INDUSTRY_FINAL_PASS
 
 NO_MODEL_WEIGHTS_DOWNLOADED
 NO_MODEL_LOADED
@@ -211,6 +210,6 @@ NO_SERVER_CREATED
 AUTO_FALLBACK_NOT_ACTIVATED
 CHUNK_3_NOT_STARTED
 
-STOP — OLLAMA CHUNK 2 CLOSEOUT COMPLETE. WAIT FOR LEAD REVIEW.
+STOP — OLLAMA CHUNK 2 INDUSTRY FINAL COMPLETE. WAIT FOR LEAD REVIEW.
 
-==================== END PASTE BACK — OLLAMA CHUNK 2 CLOSEOUT ====================
+==================== END PASTE BACK — OLLAMA CHUNK 2 INDUSTRY FINAL ====================
