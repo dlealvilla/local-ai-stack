@@ -172,6 +172,32 @@ Reconcile into the accepted Runtime Artifact Registry vision that the future hos
 
 Do not implement TUF/SLSA/registry services now.
 
+# 7A. Reconcile governance documentation into the product branch
+
+The accepted governance wording currently lives on:
+`docs/core-vs-commodity-decision-policy`.
+
+Before final push, reconcile that branch's accepted changes into
+`automation/ollama-macropath` without overwriting newer Ollama-specific
+documentation.
+
+Required canonical documents:
+- `docs/PRODUCT_VISION.md`
+- `docs/STRATEGY.md`
+- `docs/machi/ARCHITECTURE.md`
+- `docs/machi/ROADMAP.md`
+
+The final product branch must contain:
+- Reuse the Industry; Own the Product;
+- the three-ring Core-vs-Commodity classification;
+- Industry Solution Selection Gate;
+- Provider Selection Gate relationship;
+- mandatory Product Vision Alignment;
+- ALIGNED / ALIGNED_WITH_CONDITIONS / MISALIGNED semantics.
+
+Do not merge the side branch mechanically if it would revert newer product
+truth. Reconcile meaning, then test the resulting branch.
+
 # 8. Preserve accepted scope
 
 No change to:
@@ -208,7 +234,7 @@ Then push exact clean HEAD to `origin/automation/ollama-macropath` and prove loc
 ==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 INDUSTRY FINAL ====================
 
 A. STATUS  
-B. Industry-practice fit confirmation table (sections 1–5)  
+B. Industry-practice fit confirmation table (sections 1–5), including Ring classification and Product Vision Alignment for each material option  
 C. Starting/final SHA  
 D. Peak transient-storage accounting and formula  
 E. Two-pass streaming implementation  
@@ -218,7 +244,7 @@ H. Crash/failure-injection behavior
 I. Managed qualification identity  
 J. Verified-existing runtime-closure identity/evidence strength  
 K. Decompressor provider/prerequisite behavior  
-L. Future TUF/SLSA registry-documentation update  
+L. Future TUF/SLSA registry-documentation update + canonical Core-vs-Commodity/Product-Vision governance reconciliation  
 M. Files changed  
 N. Tests/gates  
 O. Wheel build ID/SHA256  
