@@ -408,3 +408,34 @@ The active next execution package is
 `MACHI-OLLAMA-BUNDLE-05-SERVE-001`, covering context-true requalification,
 provider Plan/Admit, bounded Ollama Serve, exact identity proof,
 STOP/restart/re-entry/release, and one physical acceptance campaign.
+
+
+---
+
+## Bundle 05 Lead review and Bundle 06
+
+Bundle 05 physically demonstrated the intended provider-backed Plan -> Admit ->
+Serve -> STOP -> restart -> Serve -> STOP -> release lifecycle on one A40, but
+Lead review did not close the source because three control-plane obligations
+remain:
+
+1. Serve must verify the actual current verified Foundation generation and
+   execution environment, not a boolean readiness assertion.
+2. Physical evidence must distinguish runtime-environment identity (`renv`)
+   from hardware/environment-bound Foundation generation identity (`fgen`).
+3. Kernel K-03 schema-evolution/readback obligations must be satisfied for the
+   Ollama qualification v1 -> current change and any other shipped version
+   bumps.
+
+The active package is
+`MACHI-OLLAMA-BUNDLE-06-CLOSURE-FALLBACK-001`.
+
+After those corrections and a short physical reproof, the package may implement
+the first bounded local AUTO fallback control-plane seam under the already
+accepted policy:
+- healthy/supported vLLM preferred;
+- Ollama fallback only when vLLM is unavailable by policy;
+- explicit runtime choices fail closed;
+- fallback is a fresh Foundation -> model -> Plan -> Admit -> Serve chain, not a
+  hidden Serve retry;
+- no cross-catalog model equivalence.
