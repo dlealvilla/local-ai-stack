@@ -1,12 +1,12 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "none_wait_for_next_bundled_instruction",
-  "expected_pasteback_instruction_id": null,
-  "instruction_id": "MACHI-OLLAMA-BUNDLE-05-LEAD-REVIEW",
+  "expected_cursor_action": "sync_correct_identity_schema_reconcile_reproof_and_implement_bounded_auto_fallback",
+  "expected_pasteback_instruction_id": "MACHI-OLLAMA-BUNDLE-06-CLOSURE-FALLBACK-001",
+  "instruction_id": "MACHI-OLLAMA-BUNDLE-06-CLOSURE-FALLBACK-001",
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
-    "bundle": "control/OLLAMA-BUNDLE-05-SERVE.md",
+    "bundle": "control/OLLAMA-BUNDLE-06-CLOSURE-FALLBACK.md",
     "bundle_04_exact_context_qualification": false,
     "bundle_04_physical_functional_pass": true,
     "bundle_04_review": "control/OLLAMA-BUNDLE-04-LEAD-REVIEW.md",
@@ -25,13 +25,13 @@
     "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
-    "next_action": "lead_publish_bundle_06_corrections_plus_adjacent_chunk6_work",
+    "next_action": "lead_review_bundle_06",
     "package_slices": [
-      "context_truth",
-      "provider_plan_and_admit",
-      "ollama_serve",
-      "physical_requalification_and_serve",
-      "stop_restart_release_reentry"
+      "foundation_identity_closure",
+      "schema_migration_k03",
+      "serve_reconciliation",
+      "physical_corrected_reproof",
+      "bounded_auto_fallback_control_plane"
     ],
     "physical_server": "conditional_after_local_gates",
     "program_id": "MACHI-OLLAMA-MACROPATH-001",
@@ -50,10 +50,11 @@
       "serve_must_verify_actual_foundation_generation_and_environment",
       "reconcile_renv_runtime_environment_vs_fgen_foundation_generation_evidence",
       "satisfy_k03_schema_migration_and_v1_readback"
-    ]
+    ],
+    "auto_fallback_scope": "local_control_plane_only_no_physical_live_failover_claim"
   },
-  "published_instruction_id": "MACHI-OLLAMA-BUNDLE-05-SERVE-001",
+  "published_instruction_id": "MACHI-OLLAMA-BUNDLE-06-CLOSURE-FALLBACK-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "HOLD_CORRECTIONS_REQUIRED"
+  "status": "READY"
 }
