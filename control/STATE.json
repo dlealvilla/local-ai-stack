@@ -1,25 +1,19 @@
 {
-  "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "sync_apply_solution_selection_then_harden_ollama_chunk_2",
-  "expected_pasteback_instruction_id": "MACHI-OLLAMA-CHUNK-02-FINAL-005",
-  "instruction_id": "MACHI-OLLAMA-CHUNK-02-FINAL-005",
-  "program": {
-    "chunks": 6,
-    "core_vs_commodity_policy": "control/CORE-VS-COMMODITY-POLICY.md",
-    "current_chunk": 2,
-    "docs_policy_branch": "docs/core-vs-commodity-decision-policy",
-    "docs_policy_reconciliation": "required_into_automation_ollama_macropath",
-    "industry_practice_basis": "control/OLLAMA-CHUNK-02-INDUSTRY-PRACTICES.md",
-    "integration_branch": "automation/ollama-macropath",
-    "name": "ollama-execution-macropath",
-    "next_action": "lead_review_before_chunk_3",
-    "product_vision_alignment": "mandatory",
-    "program_id": "MACHI-OLLAMA-MACROPATH-001",
-    "program_spec": "control/OLLAMA-MACROPATH-PROGRAM.md",
-    "recovery_branch": "checkpoint/native-vllm-partial-pass-2026-09-24"
-  },
-  "published_instruction_id": "MACHI-OLLAMA-CHUNK-02-FINAL-005",
   "schema": "machi.lead_handoff.v1",
+  "instruction_id": "MACHI-OLLAMA-CHUNK-02-CORRECTION-006",
+  "status": "READY",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "control_branch": "control/machi-handoff",
+  "expected_cursor_action": "sync_fix_ollama_chunk_2_surgical_correctness_push_publish",
+  "expected_pasteback_instruction_id": "MACHI-OLLAMA-CHUNK-02-CORRECTION-006",
+  "program": {
+    "program_id": "MACHI-OLLAMA-MACROPATH-001",
+    "name": "ollama-execution-macropath",
+    "chunks": 6,
+    "current_chunk": 2,
+    "integration_branch": "automation/ollama-macropath",
+    "recovery_branch": "checkpoint/native-vllm-partial-pass-2026-09-24",
+    "lead_review": "control/OLLAMA-CHUNK-02-LEAD-FINAL-REVIEW.md",
+    "next_action": "lead_review_before_chunk_3"
+  }
 }
