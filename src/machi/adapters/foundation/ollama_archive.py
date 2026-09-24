@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -20,8 +21,15 @@ _CHUNK = 1024 * 1024
 _MAX_MEMBERS = 10_000
 _MAX_NAME = 240
 _MAX_MEMBER = 2 * 1024 * 1024 * 1024
-_METADATA_OVERHEAD = 64 * 1024
+_CLOUD_CONFIG = '{"disable_ollama_cloud": true}\n'
+_CONFIG_BYTES = len(_CLOUD_CONFIG.encode()) * 2
+_MANIFEST_BUDGET = 4096
 _REQUIRED_BINARY = "bin/ollama"
+_STDERR_LIMIT = 4096
+
+
+class RegistryCorruptError(Exception):
+    """The environment index is not a list of id strings."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,7 +114,7 @@ class SystemZstdDecompressor:
         return subprocess.Popen(
             [path, "-d", "-c", str(source)],
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
         )
 
 
@@ -125,25 +133,67 @@ def observe_runtime_identity(executable: Path) -> tuple[str, str]:
     return _hash_files(files), "runtime_closure"
 
 
-def unregistered_owned_generations(state_root: Path) -> tuple[str, ...]:
-    """Owned generations whose index does not cite them."""
+@dataclass(frozen=True, slots=True)
+class RegistryInspection:
+    """Index state. A corrupt file is not treated as an empty index."""
+
+    corrupt: bool
+    reason: str
+    unregistered: tuple[str, ...]
+
+
+def individual_member_refusal(size: int) -> str | None:
+    """Per-member ceiling. Aggregate size is not judged here."""
+    if size < 0 or size > _MAX_MEMBER:
+        return "archive member size exceeds the extraction bound"
+    return None
+
+
+def generated_metadata_budget() -> int:
+    """Manifest and cloud-config bytes we ourselves write. Not the registry."""
+    return _CONFIG_BYTES + _MANIFEST_BUDGET
+
+
+def projected_registry_temp_bytes(current: list[str], environment_id: str) -> int:
+    """Bytes of the temp file written beside the existing index."""
+    identifiers = list(current)
+    if environment_id not in identifiers:
+        identifiers.append(environment_id)
+    return len(_registry_payload(identifiers))
+
+
+def provisioning_peak(
+    *,
+    staged_bytes: int,
+    declared_bytes: int,
+    metadata_bytes: int,
+    registry_temp_bytes: int,
+) -> int:
+    """Owned bytes present together before the staged archive is removed."""
+    return staged_bytes + declared_bytes + metadata_bytes + registry_temp_bytes
+
+
+def inspect_environment_index(state_root: Path) -> RegistryInspection:
+    """Read the index without raising. Corruption stays visible."""
     base = state_root / "foundation" / "environments"
     if not base.is_dir():
-        return ()
-    registered = set(_read_registry(base / "registry.json"))
+        return RegistryInspection(False, "none", ())
+    try:
+        registered = set(_read_registry(base / "registry.json"))
+    except RegistryCorruptError:
+        return RegistryInspection(True, "environment index is corrupt", ())
     found: list[str] = []
     for child in sorted(base.iterdir()):
-        if not child.is_dir():
-            continue
-        manifest = child / "manifest.json"
-        if not manifest.is_file():
-            continue
-        text = manifest.read_text(encoding="utf-8")
-        if '"owned":true' not in text.replace(" ", ""):
+        if not child.is_dir() or not _owned_manifest(child / "manifest.json"):
             continue
         if child.name not in registered:
             found.append(child.name)
-    return tuple(found)
+    return RegistryInspection(False, "none", tuple(found))
+
+
+def unregistered_owned_generations(state_root: Path) -> tuple[str, ...]:
+    """Owned generations whose valid index does not cite them."""
+    return inspect_environment_index(state_root).unregistered
 
 
 def realize_prefix(
@@ -192,6 +242,16 @@ def realize_prefix(
             )
         environment_id = runtime_environment_id(recipe)
         final = _owned_root(state_root, environment_id)
+        try:
+            current_ids = _read_registry(
+                state_root / "foundation" / "environments" / "registry.json"
+            )
+        except RegistryCorruptError:
+            return PrefixRefusal(
+                FailureCode.VERIFICATION_FAILED,
+                SupportState.RECONCILE_REQUIRED,
+                "environment index is corrupt",
+            )
         if final.exists():
             return _reuse_or_refuse(final, final / "ollama", recipe)
         zstd = _is_zstd(staged)
@@ -203,7 +263,13 @@ def realize_prefix(
             evidence = checked
         declared = _preflight(staged, zstd, tool)
         staged_size = staged.stat().st_size
-        peak = staged_size + declared + _METADATA_OVERHEAD
+        registry_temp = projected_registry_temp_bytes(current_ids, environment_id)
+        peak = provisioning_peak(
+            staged_bytes=staged_size,
+            declared_bytes=declared,
+            metadata_bytes=generated_metadata_budget(),
+            registry_temp_bytes=registry_temp,
+        )
         if peak > safe_bytes:
             return PrefixRefusal(
                 FailureCode.INSUFFICIENT_CAPACITY,
@@ -223,7 +289,8 @@ def realize_prefix(
             evidence,
         )
         footprint = _tree_bytes(generation)
-        if staged_size + footprint > safe_bytes or written > declared:
+        occupied = staged_size + footprint + registry_temp
+        if occupied > safe_bytes or written > declared:
             raise ValidationError("safe storage does not cover the provisioning peak")
         _fsync_tree(generation)
         if faults.fail_promote:
@@ -232,6 +299,13 @@ def realize_prefix(
         generation.replace(final)
         try:
             _register(state_root, environment_id, faults.registry_fault)
+        except RegistryCorruptError:
+            return PrefixRefusal(
+                FailureCode.VERIFICATION_FAILED,
+                SupportState.RECONCILE_REQUIRED,
+                "environment index is corrupt",
+                environment_id,
+            )
         except OSError:
             return PrefixRefusal(
                 FailureCode.PROMOTED_UNREGISTERED,
@@ -270,7 +344,7 @@ def _preflight(
             _reject_member(member)
             if member.isfile():
                 declared += member.size
-            if count > _MAX_MEMBERS or declared > _MAX_MEMBER:
+            if count > _MAX_MEMBERS:
                 raise ValidationError("archive member count exceeds the limit")
     finally:
         _close_tar(handle, process)
@@ -351,11 +425,32 @@ def _close_tar(
         return
     if process.stdout is not None:
         process.stdout.close()
+    stderr = _drain_stderr(process)
     try:
-        process.wait(timeout=5)
+        code = process.wait(timeout=5)
     except subprocess.TimeoutExpired:
         process.kill()
-        process.wait(timeout=5)
+        code = process.wait(timeout=5)
+    if code != 0:
+        detail = stderr.decode("utf-8", errors="replace").strip()[:160]
+        message = "zstd decompressor exited without success"
+        if detail:
+            message = f"{message}: {detail}"
+        raise ValidationError(message)
+
+
+def _drain_stderr(process: subprocess.Popen[bytes]) -> bytes:
+    if process.stderr is None:
+        return b""
+    kept = bytearray()
+    while True:
+        piece = process.stderr.read(1024)
+        if not piece:
+            break
+        if len(kept) < _STDERR_LIMIT:
+            kept.extend(piece[: _STDERR_LIMIT - len(kept)])
+    process.stderr.close()
+    return bytes(kept)
 
 
 def _reject_member(member: tarfile.TarInfo) -> None:
@@ -366,8 +461,10 @@ def _reject_member(member: tarfile.TarInfo) -> None:
         raise ValidationError("archive links are refused")
     if not member.isdir() and not member.isfile():
         raise ValidationError("archive special members are refused")
-    if member.isfile() and (member.size < 0 or member.size > _MAX_MEMBER):
-        raise ValidationError("archive member size exceeds the extraction bound")
+    if member.isfile():
+        reason = individual_member_refusal(member.size)
+        if reason is not None:
+            raise ValidationError(reason)
 
 
 def _relative_name(name: str) -> PurePosixPath:
@@ -444,7 +541,7 @@ def _hash_files(files: list[Path]) -> str:
 
 
 def _write_cloud_config(prefix: Path) -> None:
-    payload = '{"disable_ollama_cloud": true}\n'
+    payload = _CLOUD_CONFIG
     for relative in ("config/server.json", ".ollama/server.json"):
         path = prefix / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -458,8 +555,6 @@ def _write_manifest(
     footprint: int,
     evidence: DecompressorEvidence | None,
 ) -> None:
-    import json
-
     payload = {
         "environment_id": environment_id,
         "recipe_id": recipe.recipe_id,
@@ -475,19 +570,19 @@ def _write_manifest(
     }
     path = generation / "manifest.json"
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    if len(text.encode()) > _MANIFEST_BUDGET:
+        raise ValidationError("generation manifest exceeds its budget")
     path.write_text(text, encoding="utf-8")
 
 
 def _register(state_root: Path, environment_id: str, fault: str | None) -> None:
-    import json
-
     directory = state_root / "foundation" / "environments"
     directory.mkdir(parents=True, exist_ok=True)
     registry = directory / "registry.json"
     current = _read_registry(registry)
     if environment_id not in current:
         current.append(environment_id)
-    payload = json.dumps(current, indent=2) + "\n"
+    payload = _registry_payload(current).decode()
     temporary = directory / f".registry-{os.getpid()}.tmp"
     try:
         if fault == "temp":
@@ -513,15 +608,30 @@ def _register(state_root: Path, environment_id: str, fault: str | None) -> None:
             temporary.unlink()
 
 
-def _read_registry(path: Path) -> list[str]:
-    import json
+def _registry_payload(identifiers: list[str]) -> bytes:
+    return (json.dumps(identifiers, indent=2) + "\n").encode()
 
+
+def _read_registry(path: Path) -> list[str]:
     if not path.is_file():
         return []
-    loaded = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(loaded, list):
-        return []
-    return [str(item) for item in loaded]
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RegistryCorruptError("environment index is corrupt") from exc
+    wrong_shape = not isinstance(loaded, list) or any(
+        not isinstance(item, str) for item in loaded
+    )
+    if wrong_shape:
+        raise RegistryCorruptError("environment index is corrupt")
+    return list(loaded)
+
+
+def _owned_manifest(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    text = path.read_text(encoding="utf-8")
+    return '"owned":true' in text.replace(" ", "")
 
 
 def _fsync_tree(root: Path) -> None:
@@ -573,8 +683,6 @@ def _owned_root(state_root: Path, environment_id: str) -> Path:
 def _reuse_or_refuse(
     root: Path, prefix: Path, recipe: OllamaRuntimeRecipe
 ) -> InstalledPrefix | PrefixRefusal:
-    import json
-
     manifest_path = root / "manifest.json"
     if not manifest_path.is_file():
         return PrefixRefusal(

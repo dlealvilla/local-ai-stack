@@ -8,6 +8,7 @@ import io
 import json
 import socket
 import subprocess
+import sys
 import tarfile
 from dataclasses import replace
 from pathlib import Path
@@ -641,3 +642,159 @@ def test_registry_faults_leave_the_generation_for_reconciliation(
         assert isinstance(result, PrefixRefusal)
         assert result.failure is FailureCode.PROMOTED_UNREGISTERED
         assert result.environment_id in unregistered_owned_generations(root / "state")
+
+
+def test_aggregate_size_is_not_the_per_member_ceiling() -> None:
+    from machi.adapters.foundation.ollama_archive import (
+        _MAX_MEMBER,
+        generated_metadata_budget,
+        individual_member_refusal,
+        provisioning_peak,
+    )
+
+    half = _MAX_MEMBER // 2 + 1
+    assert half <= _MAX_MEMBER
+    assert half + half > _MAX_MEMBER
+    assert individual_member_refusal(half) is None
+    assert individual_member_refusal(_MAX_MEMBER + 1) is not None
+    peak = provisioning_peak(
+        staged_bytes=32,
+        declared_bytes=half + half,
+        metadata_bytes=generated_metadata_budget(),
+        registry_temp_bytes=64,
+    )
+    assert peak > 1_000
+    small_peak = provisioning_peak(
+        staged_bytes=32,
+        declared_bytes=100,
+        metadata_bytes=generated_metadata_budget(),
+        registry_temp_bytes=64,
+    )
+    assert small_peak < SAFE_BYTES
+
+
+def test_registry_temp_bytes_are_part_of_the_safe_peak(tmp_path: Path) -> None:
+    from machi.adapters.foundation.ollama_archive import (
+        generated_metadata_budget,
+        projected_registry_temp_bytes,
+        provisioning_peak,
+    )
+
+    archive = _archive()
+    path = _file(tmp_path, archive, "small.tar")
+    recipe = _recipe(archive)
+    environment_id = runtime_environment_id(recipe)
+    identifiers = [f"renv_{index:05d}_{'x' * 40}" for index in range(1500)]
+    registry_temp = projected_registry_temp_bytes(identifiers, environment_id)
+    assert registry_temp > 65_536
+    with tarfile.open(path, "r:") as handle:
+        declared = sum(member.size for member in handle.getmembers() if member.isfile())
+    metadata = generated_metadata_budget()
+    staged = path.stat().st_size
+    peak = provisioning_peak(
+        staged_bytes=staged,
+        declared_bytes=declared,
+        metadata_bytes=metadata,
+        registry_temp_bytes=registry_temp,
+    )
+    state = tmp_path / "state"
+    directory = state / "foundation" / "environments"
+    directory.mkdir(parents=True)
+    registry = directory / "registry.json"
+    registry.write_text(
+        json.dumps(identifiers, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    original = registry.read_bytes()
+    short = OllamaRuntime().install(
+        state,
+        path,
+        recipe,
+        safe_bytes=peak - 1,
+    )
+    assert isinstance(short, PrefixRefusal)
+    assert short.failure is FailureCode.INSUFFICIENT_CAPACITY
+    assert registry.read_bytes() == original
+    installed = OllamaRuntime().install(
+        state,
+        path,
+        recipe,
+        safe_bytes=peak,
+    )
+    assert isinstance(installed, InstalledPrefix)
+
+
+def test_nonzero_decompressor_exit_fails_provisioning(tmp_path: Path) -> None:
+    from machi.adapters.foundation.ollama_archive import DecompressorEvidence
+
+    tar_bytes = _archive()
+    tar_path = _file(tmp_path, tar_bytes, "layout.tar")
+    staged = _file(tmp_path, b"\x28\xb5\x2f\xfdnot-zstd", "fake.tar.zst")
+    recipe = _recipe(staged.read_bytes())
+
+    class FailingDecode(SystemZstdDecompressor):
+        def preflight(self) -> DecompressorEvidence:
+            return DecompressorEvidence("zstd", "fake")
+
+        def open_stream(self, source: Path) -> subprocess.Popen[bytes]:
+            del source
+            code = (
+                "import sys\n"
+                "sys.stdout.buffer.write(open(sys.argv[1], 'rb').read())\n"
+                "sys.stderr.buffer.write(b'decompressor failed\\n')\n"
+                "raise SystemExit(1)\n"
+            )
+            return subprocess.Popen(
+                [sys.executable, "-c", code, str(tar_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+    refused = OllamaRuntime().install(
+        tmp_path / "state",
+        staged,
+        recipe,
+        safe_bytes=SAFE_BYTES,
+        decompressor=FailingDecode(),
+    )
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.failure is FailureCode.PACKAGE_INSTALL_FAILED
+    assert "exited without success" in refused.reason
+    assert "decompressor failed" in refused.reason
+    assert not (tmp_path / "state" / "foundation" / "environments").exists()
+
+
+def test_corrupt_registry_is_a_typed_refusal(tmp_path: Path) -> None:
+    from machi.adapters.foundation.ollama_archive import inspect_environment_index
+
+    archive = _archive()
+    path = _file(tmp_path, archive, "next.tar")
+    recipe = _recipe(archive)
+    state = tmp_path / "state"
+    kept = state / "foundation" / "environments" / "renv_kept"
+    kept.mkdir(parents=True)
+    marker = kept / "manifest.json"
+    marker.write_text(
+        '{"owned": true, "environment_id": "renv_kept"}\n',
+        encoding="utf-8",
+    )
+    registry = state / "foundation" / "environments" / "registry.json"
+    registry.write_text("{not-json", encoding="utf-8")
+    original_registry = registry.read_bytes()
+    original_marker = marker.read_bytes()
+    refused = OllamaRuntime().install(state, path, recipe, safe_bytes=SAFE_BYTES)
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.failure is FailureCode.VERIFICATION_FAILED
+    assert refused.support is SupportState.RECONCILE_REQUIRED
+    assert refused.reason == "environment index is corrupt"
+    assert registry.read_bytes() == original_registry
+    assert marker.read_bytes() == original_marker
+    inspection = inspect_environment_index(state)
+    assert inspection.corrupt is True
+    assert inspection.reason == "environment index is corrupt"
+    registry.write_text('{"ids": []}\n', encoding="utf-8")
+    shaped = OllamaRuntime().install(state, path, recipe, safe_bytes=SAFE_BYTES)
+    assert isinstance(shaped, PrefixRefusal)
+    assert shaped.reason == "environment index is corrupt"
+    assert registry.read_text(encoding="utf-8") == '{"ids": []}\n'
+    assert marker.read_bytes() == original_marker
