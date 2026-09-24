@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "instruction_id": "MACHI-OLLAMA-BUNDLE-05-SERVE-001",
+  "status": "OLLAMA_AUTHORIZED_SERVE_PASS",
+  "branch": "automation/ollama-macropath",
+  "physical_source_sha": "9285af1057de2ed06f5d11090ee1459a1787ae1b",
+  "build_id": "0.1.0+9285af1057de",
+  "wheel_sha256": "40fb7420db7687a24a13f5ce1883582270e7cadbac4b78af809cd66e7b06e2a4",
+  "host": {
+    "sku": "NVIDIA A40",
+    "region": "EU-SE-1",
+    "cloud": "SECURE",
+    "compute_capability": "8.6",
+    "driver": "580.159.04",
+    "cuda": "13.0",
+    "hourly_usd": 0.49,
+    "pod_id": "tt6xs8su1zhn9o",
+    "pod_terminated": true,
+    "generation_id": "renv_ceedac1939fecd21",
+    "fingerprint": "exe_7efc404ce831bb9bbfa4606bcfbfe224",
+    "safe_host_bytes": 49463128064,
+    "safe_accelerator_bytes": 48037363712
+  },
+  "model": {
+    "tag": "smollm2:135m-instruct-q8_0",
+    "digest": "2d470404841a51320639b2c2418c7ad8643cccbbcb88c2a242b211ae83bf46a9",
+    "context": 2048,
+    "runner_context": 2048,
+    "qualification": "PASS",
+    "serve_reservation_id": "rsv_c35b573fb7806719",
+    "plan_id": "plan_2484830f9776b44b"
+  },
+  "l40s_secure": "OUT",
+  "same_host_as_bundle_04": false
+}
