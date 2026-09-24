@@ -16,8 +16,8 @@ Read and execute exactly:
 - `control/OLLAMA-CHUNK-02-CLOSED.md`
 - authoritative product/architecture docs and current source
 
-Independently inspect the repository and frozen Ollama v0.34.3 source/API.
-Do not rubber-stamp the Lead's preliminary preference.
+Existing native qualification precedent is binding evidence: `PlanInputs.probe=True` and checkpoint `MACHI-6-N1-QUALIFICATION.json` show that qualification already reuses reserved vLLM Serve through the normal ResourceManager. Independently inspect that path plus the frozen Ollama v0.34.3 source/API.
+Do not rubber-stamp the Lead's preliminary preference, but do not treat the qualification-admission problem as Ollama-specific or ignore the accepted native probe-plan precedent.
 
 Publish the required decision package and STOP.
 
