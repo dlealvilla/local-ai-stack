@@ -1,18 +1,19 @@
 {
-  "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "sync_execute_five_steps_publish_pasteback",
-  "expected_pasteback_instruction_id": "MACHI-INFERENCE-EXEC-005-001",
-  "instruction_id": "MACHI-INFERENCE-EXEC-005-001",
-  "program": {
-    "automation_root_branch": "automation/inference-program",
-    "name": "native-vllm-five-step",
-    "next_program_after_review": "OllamaExecutionMacropath Provider Selection Gate",
-    "recovery_branch": "checkpoint/pre-automation-inference-2026-09-23",
-    "scope": "funnel hardening, empirical lab evidence, Ampere multi-model, Ada multi-model, native vLLM production-inference closure",
-    "steps": 5
-  },
-  "published_instruction_id": "MACHI-INFERENCE-EXEC-005-001",
   "schema": "machi.lead_handoff.v1",
+  "instruction_id": "MACHI-OLLAMA-CHUNK-01-001",
+  "status": "READY",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "control_branch": "control/machi-handoff",
+  "expected_cursor_action": "sync_review_ollama_chunk_1_publish_pasteback",
+  "expected_pasteback_instruction_id": "MACHI-OLLAMA-CHUNK-01-001",
+  "program": {
+    "program_id": "MACHI-OLLAMA-MACROPATH-001",
+    "name": "ollama-execution-macropath",
+    "chunks": 6,
+    "current_chunk": 1,
+    "integration_branch": "automation/ollama-macropath",
+    "recovery_branch": "checkpoint/native-vllm-partial-pass-2026-09-24",
+    "program_spec": "control/OLLAMA-MACROPATH-PROGRAM.md",
+    "next_action": "lead_review_before_chunk_2"
+  }
 }
