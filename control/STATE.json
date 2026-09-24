@@ -1,8 +1,8 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "sync_implement_dual_qualifier_comparative_analytics_local_push_publish",
-  "expected_pasteback_instruction_id": "MACHI-OLLAMA-CHUNK-03-DUAL-QUALIFIER-002",
-  "instruction_id": "MACHI-OLLAMA-CHUNK-03-DUAL-QUALIFIER-002",
+  "expected_cursor_action": "sync_fix_chunk_3_dual_qualifier_correctness_push_publish",
+  "expected_pasteback_instruction_id": "MACHI-OLLAMA-CHUNK-03-CORRECTION-003",
+  "instruction_id": "MACHI-OLLAMA-CHUNK-03-CORRECTION-003",
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "chunks": 6,
@@ -14,16 +14,17 @@
     "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
-    "next_action": "lead_review_chunk_3_local_before_physical",
+    "next_action": "lead_review_chunk_3_correction_before_physical",
     "program_id": "MACHI-OLLAMA-MACROPATH-001",
     "qualifier_authority": {
       "native_vllm": "machi_native_authoritative",
       "ollama": "ollama_authoritative_machi_shadow"
     },
-    "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md"
+    "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md",
+    "lead_review": "control/OLLAMA-CHUNK-03-LOCAL-LEAD-REVIEW.md"
   },
   "published_instruction_id": "MACHI-OLLAMA-CHUNK-03-DUAL-QUALIFIER-002",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "READY"
 }
