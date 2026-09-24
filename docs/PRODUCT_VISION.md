@@ -550,6 +550,69 @@ virtualization/pass-through, unavailable physical storage or capacity.
 Kultrun detects, evaluates, and explains. It cannot software-provision
 these into existence.
 
+
+### 5.12.1 Post-spine Runtime Artifact Registry and software supply chain
+
+After the installation-to-inference spine is dependable, Kultrun should build a
+first-class **Runtime Artifact Registry / Software Supply Chain** for the
+software components it is responsible for provisioning.
+
+This is not the Model Warehouse and must remain a separate domain. The Model
+Warehouse stores AI model artifacts and derived model assets. The Runtime
+Artifact Registry distributes and verifies software needed to realize supported
+platform capabilities, such as:
+
+- Kultrun/Machi installation artifacts;
+- inference-runtime binaries and archives;
+- managed interpreters;
+- approved runtime wheels and packages;
+- runtime-owned native libraries;
+- helper binaries and provisioning components;
+- reproducible environment bundles and offline installation bundles.
+
+The registry should make a supported environment reproducible without requiring
+installation success to depend on multiple unrelated upstream websites remaining
+available forever.
+
+Each approved software artifact should have a stable identity and retain at
+least:
+
+- exact version or revision;
+- content digest and, where available, upstream signature;
+- source and provenance;
+- platform and architecture;
+- compressed and installed size where known;
+- license and attribution;
+- redistribution policy;
+- dependency or recipe relationship;
+- lifecycle/support state;
+- SBOM or equivalent supply-chain evidence where practical.
+
+Artifact delivery should support three policy modes:
+
+1. **Mirrored** — Kultrun may lawfully retain and serve an approved copy.
+2. **Pinned upstream** — Kultrun retains identity, provenance and digest while
+   acquisition occurs from an approved upstream source.
+3. **Customer-provided / customer-mirrored** — the customer imports or mirrors
+   the exact approved artifact, including for restricted or air-gapped sites.
+
+Runtime recipes must depend on artifact identity, not on one delivery location.
+A customer-internal mirror, a future Kultrun-hosted registry, an offline bundle,
+or an approved upstream source should therefore be interchangeable delivery
+providers for the same verified recipe.
+
+Security requirements are strict: no "latest" downloads at execution time;
+downloads are staged before use; integrity is verified before execution;
+extraction is bounded to Kultrun-owned storage; unsafe archive paths and links
+are rejected; active generations are not mutated in place; and upgrades create
+new verified generations before promotion.
+
+The hosted registry is a **post-spine productization capability**, not a reason
+to delay the current inference spine. The spine should first establish stable
+artifact identity, provenance, recipe, ownership, local staging and verification
+contracts. The registry later becomes a delivery layer behind those contracts.
+
+
 ---
 
 # 6. TOP-LEVEL SYSTEM ARCHITECTURE
