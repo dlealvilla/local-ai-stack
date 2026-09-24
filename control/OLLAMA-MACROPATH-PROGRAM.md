@@ -339,3 +339,17 @@ implementations. Product-core semantics remain Kultrun-owned.
 When 2+ materially credible solutions remain, or when build-vs-integrate affects
 core architecture/product semantics, implementation must stop for a Lead/product
 decision. The Provider Selection Gate remains a specialized form of this rule.
+
+
+---
+
+## Chunk 2 closure
+
+Chunk 2 — Ollama Runtime Substrate / Foundation is closed at
+`180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6`.
+
+Closure evidence and exact support boundaries are in
+`control/OLLAMA-CHUNK-02-CLOSED.md`.
+
+Chunk 3 has not started. It must build the Model + Specialist Feasibility Bridge
+on the accepted immutable Foundation identity and qualification funnel.
