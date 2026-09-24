@@ -38,6 +38,38 @@ them is the ontology of the product.
 
 ---
 
+
+## Build versus integrate
+
+Kultrun is a philosophy, product, control layer, and set of owned semantics; it
+is not a mandate to reimplement the software industry underneath it.
+
+Use this decision hierarchy:
+
+```text
+established standard
+  -> mature library / open-source implementation
+    -> replaceable provider or adapter
+      -> smallest bounded custom implementation
+        -> bespoke subsystem only for demonstrated product value or a real gap
+```
+
+The closer a capability is to commodity infrastructure, the stronger the
+presumption against invention. The closer it is to Kultrun's differentiating
+core, the more deliberately Kultrun must own the semantics and the decision.
+
+A **material choice between credible industry solutions is a decision gate, not
+an implementation detail**. When two or more viable solutions differ in
+security, portability, licensing, deployment shape, ownership, commercial
+strategy, control boundaries, or long-term reversibility, implementation stops
+until the alternatives and trade-offs are reviewed. The same applies to
+build-versus-integrate decisions close to the product core.
+
+This extends the existing provider-selection discipline. It does not require a
+meeting for routine commodity choices where current research identifies one
+clear best-practice fit with no material architectural consequence.
+
+
 ## Two tracks
 
 **Product track.** Ship something dependable enough that an
