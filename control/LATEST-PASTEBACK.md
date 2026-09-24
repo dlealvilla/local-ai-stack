@@ -1,179 +1,111 @@
-==================== BEGIN PASTE BACK — OLLAMA BUNDLE 05 SERVE ====================
+==================== BEGIN PASTE BACK — OLLAMA BUNDLE 06 ====================
 
-A. STATUS / slices completed
-Context-truth correction, provider Plan/Admit, bounded Ollama Serve, local gates, physical requalification at context 2048, physical Plan → Admit → Serve, digest proof, STOP/restart/re-infer/STOP/release/refusal, evidence, docs, and checkpoint.
-AUTO fallback, multi-model serving, and UI were not started.
+A. STATUS / actions executed
+Executed `MACHI-OLLAMA-BUNDLE-06-CLOSURE-FALLBACK-001` from `ebfabe56b2ae09b916e5e70ea4d2b1c028f48af6`.
+Closed the provider Serve identity check, separated `renv_` from `fgen_`, added sequential schema migration with FileStore rewrite-on-read, hardened STOP reconciliation, ran local gates, re-proved the corrected chain on one owned NVIDIA A40, and implemented local AUTO preference. Did not start physical live failover, model translation, AMD, Dynamo, or UI work.
 
-B. Starting/final source SHA
-Starting integration HEAD: ea9cb26a6034eeaca1058d6635ee4008fc833bed
-Physical passing source: 9285af1057de2ed06f5d11090ee1459a1787ae1b
-Final source HEAD: ebfabe56b2ae09b916e5e70ea4d2b1c028f48af6
-Branch: automation/ollama-macropath
-The final SHA adds the evidence note and checkpoint record. The host ran the preceding source.
+B. Starting SHA / physical passing SHA / final SHA
+Starting integration HEAD: `ebfabe56b2ae09b916e5e70ea4d2b1c028f48af6`
+Physical passing source: `9813f72797875f21eaf68e43bb570784d8c37580`
+Physical wheel: `0.1.0+9813f7279787` SHA256 `6e8068c81eeb2c3e124487c568c468c1d599d7948990403654a5594df1e1461b` size 327666
+Final source: `92555da8e3465cd1596098eb33579d31e1a12ae6`
+Final wheel: `0.1.0+92555da8e346` SHA256 `f6e94a0f7969237461435af32b2cac0ee089dd4b3c847e0c7f1970e4e919b759` size 327667
+The final commit adds the physical record and program status only. It does not change Python. `origin/automation/ollama-macropath` equals the final SHA.
 
 C. Product outcome achieved
-On this exact A40 host, Machi qualified smollm2:135m-instruct-q8_0 at context 2048, created a provider-backed plan without a warehouse artifact, admitted it on the shared ResourceManager ledger, served a real token with digest proof before and after, stopped without releasing the reservation, restarted and proved again, stopped, released, and refused a later start.
+A provider Plan/Serve deployment on the tested A40 was bound to the verified foundation generation `fgen_66a0af2ac4ba618c` and digest `2d470404841a51320639b2c2418c7ad8643cccbbcb88c2a242b211ae83bf46a9`. Historical qualification v1 stays readable and does not cover a current plan. Local AUTO prefers healthy/supported native vLLM and selects an independent Ollama chain only when native vLLM is unavailable by policy.
 
-D. Accepted Option-A implementation shape and any deviation from recommendation
-Sibling contracts: ProviderDeploymentConfiguration, ProviderResourceRequest, and ProviderPlanDecision. They do not reuse artifact_id, immutable_revision, or dtype.
-Admission is admit_provider on the existing ResourceManager. It writes the existing ResourceReservation and uses the same fit accounting.
-Serve evidence is ProviderServingInstance and ProviderInferenceProof, not ServingInstance.artifact_id.
-Deviation from the recommended file layout: the architecture check forbids the token "ollama" inside src/machi/serve. The generic lifecycle is ProviderServeService. The Ollama HTTP adapter and the qualification-coverage gate are in adapters/serve/ollama.py. Binding semantics are unchanged.
+D. renv vs fgen reconciliation result
+`renv_` is `runtime_environment_id()` of the managed artifact. `fgen_` is `ollama_generation_id()` on the verified substrate. Bundle 05 qualification and Plan cited `renv_ceedac1939fecd21` as the generation. That was the runtime-environment id, read from the code path, not from the prose. The corrected path records both. New provider plans refuse a generation id that does not start with `fgen_` and refuse a foundation id that starts with `renv_`. Serve refuses a verified runtime id that is not an `fgen_`. Historical records that already stored `renv_` still decode.
 
-E. Context-truth correction
-Preload and the token probe send options.num_ctx equal to the requested context.
-Unload does not send num_ctx.
-OllamaQualificationEvidence is schema version 2. context_binding is "requested" only after num_ctx was sent. A pass requires that binding.
-qualification_covers accepts only schema 2, binding requested, FIT, PASS, the same digest and generation, concurrency 1, and a requested context at or below the qualified context.
+The execution fingerprint cannot contain the `fgen_` it creates, because the generation hash includes the fingerprint. `runtime_bound_execution_fingerprint` names the `renv_` input as a runtime environment id and reuses the existing hasher. On this A40 that produced the same `exe_7efc404ce831bb9bbfa4606bcfbfe224` as Bundle 05. The plan generation is the separate `fgen_`.
 
-F. Qualification coverage semantics / old Bundle-04 evidence treatment
-docs/machi/OLLAMA-BUNDLE-04-PHYSICAL.md is marked historical provider-functional evidence. It is not exact context-2048 coverage, because that run did not send num_ctx and the runner used 8192.
-Version 1 evidence cannot cover a provider plan.
+E. Bundle-05 evidence disposition
+The A40 lifecycle in `docs/machi/OLLAMA-BUNDLE-05-PHYSICAL.md` remains provider-functional, including exact context 2048 and the STOP/restart/release sequence. It is not generation-bound. The checkpoint field that was labeled a generation is now `runtime_environment_id`, with `foundation_generation_id` `not_recorded`. Bundle 04 is labeled the same way. `checkpoint/ollama-authorized-serve-2026-09-24` was not moved and still points at `ebfabe56b2ae09b916e5e70ea4d2b1c028f48af6`.
 
-G. Provider-backed Plan/configuration identity
-The plan fingerprint is salted "provider-plan" and uses the digest, not the display tag.
-Fields include plan id, provider, display name, canonical digest, candidate id, foundation, generation, execution fingerprint, capacity evidence, accelerator, context, concurrency 1, qualification id, and settings.
-Bytes requested are the cited snapshot's full SAFE host and accelerator ceilings. Persistent bytes are 0 because the model is already local. That matches native single-accelerator reservation sizing and is not admit_probe.
+F. Serve actual-Foundation binding implementation
+`ProviderServeService.start` takes `VerifiedProviderRuntime` (provider, generation id, execution-environment fingerprint, ready). Before residency refresh it requires ready, the same provider, an `fgen_` generation equal to the plan, and the same execution fingerprint, plus the existing reservation and coverage checks. `start_ollama` builds that value from the already verified `OllamaAssessment`. Serve does not re-run Foundation verification and does not contain the Ollama token.
 
-H. ResourceRequest / one-ledger admission behavior
-admit_provider refuses a plan that is not planned, a stale capacity id, an unknown device, or a hold that does not fit beside existing reservations.
-A native hold and a provider hold are summed on the same ledger. Tests show a native reservation of part of the SAFE ceiling makes a full-ceiling provider request fail with insufficient host memory.
-execution_authorized_provider checks plan id, fingerprint, and accelerator identity. Residency is not consulted.
+G. Wrong/stale Foundation refusal QA
+Local tests refuse a wrong generation, a wrong execution fingerprint, an unready runtime, an unresolved assessment, the same digest on another generation, and a `renv_` runtime id, all before residency refresh. On the A40, after a proven stop, `service.start` with generation `fgen_stale_not_this_host` returned `foundation_mismatch`. The daemon was not edited. A later start after explicit release returned `reservation_released`.
 
-I. Native Plan/Admit regression proof
-Native DeploymentConfiguration, ResourceRequest, admit(), and ServeService were not retargeted.
-Full tests/machi, including the native admit and serve suites, passed after the provider path was added.
+H. Schema migration mechanism / Kernel behavior
+`register_upgrade` stores one step from version n to n+1. `from_dict` migrates before decode. Unknown kinds and versions fail closed. An upgrade must advance exactly one version and must not change kind. FileStore, on get of an older file, replaces that file with the current contract and appends one line to `_schema_migrations.jsonl` (kind, key, from version, to version). A second read does not append another line. The journal is not rewritten. In-memory `from_dict` does not rewrite the source file.
 
-J. Ollama Serve lifecycle implementation
-start_ollama requires qualification_covers for the plan digest, generation, context, and concurrency, then ProviderServeService.
-Start refreshes residency with num_ctx, then requires /api/ps expected_resident before an instance is recorded.
-Prove observes the digest, infers once at the plan context, then observes the same digest.
-STOP unloads and polls /api/ps until the digest is absent or a short bound expires. It does not call ResourceManager.release.
-A still-reserved plan can start again. A released reservation is refused.
+I. Ollama qualification v1 -> current migration truth
+Shipped v1 had no `context_binding` and no `provider_fit`. The upgrade sets `schema_version` 2, `context_binding` `not_sent`, and `provider_fit` `unresolved`. Digest, outcome, token proof, and the other recorded fields are copied. A migrated PASS stays a PASS and does not cover a provider plan, because coverage still requires schema 2, `context_binding` `requested`, and provider fit `FIT`. Current v2 evidence with `requested` and `FIT` still covers.
 
-K. Provider identity proof before/after inference
-Physical proof digest: 2d470404841a51320639b2c2418c7ad8643cccbbcb88c2a242b211ae83bf46a9
-Both the first and the restarted inference returned proven, which is recorded only when the digest is expected before and after the token.
-Output tokens on the first proof: 8.
+J. Inventory of all current versioned contract bumps
+Registered kinds above version 1 are only `model.qualification@2` and `model.ollama_qualification@2`. Both have a v1 to v2 upgrade. `model.qualification` v1 becomes v2 with `execution_environment_fingerprint` `not_recorded`, and `covers()` rejects that sentinel. No other kind has a shipped older persisted shape, so no other upgrade is registered.
 
-L. STOP vs reservation-release behavior
-First STOP outcome: stopped. Reservation rsv_c35b573fb7806719 state after that STOP: reserved.
-Release id: rel_72cfb9f0e2dc0a74. Outcome: released.
-A start after release was refused with reservation_released. Active reservations: none.
+K. K-03 disposition and evidence
+K-03 stays OPEN. The functional path now exists: registered upgrades, rewrite-on-read, and a migration note. The retire-when text required that path before the first schema bump. Those two bumps already shipped, so the timing condition cannot be met retroactively. The ledger says so. It is not marked RETIRED.
 
-M. Restart/re-entry behavior
-After the first STOP, start on the same reservation returned ready.
-The second inference returned proven.
-The second STOP returned stopped.
-The later start after release was refused.
+L. Provider STOP/reconciliation behavior
+STOP still unloads and polls for absence for a bounded time. If absence is not proved, the instance stays STOPPING, the reservation stays reserved, and success is not claimed. `reconcile()` re-reads only STOPPING instances. Absence becomes STOPPED without release. Wrong identity, unresolved provider state, or a still-resident digest is reported and does not become STOPPED. Release remains an explicit ResourceManager action. Local tests cover lagged absence and a wrong identity that stays STOPPING.
 
-N. Durable Serve/Inference proof and analytics
-Journal events included model.qualification.compared (evt_fbaa03f0eae61dee), serve.provider.ready, serve.provider.inference, and serve.provider.stopped for both cycles, then serve.provider.failed only for the post-release refusal.
-The inference payload is ProviderInferenceProof. It stores digest, token counts, generation seconds, tokens per second, and runtime-reported size_vram. It does not store prompt or response text.
-First proof: generation_seconds 0.057342, tokens/sec 139.5137944264239, size_vram 205384580, semantics runtime_reported.
+M. Local functional QA
+Targeted tests covered generation/fingerprint refusal, v1 readback and non-coverage, v2 coverage, migration idempotence, unknown version/kind, renv/fgen separation, STOP reconciliation without release, native and provider regression through the existing suite, and AUTO cases 1–9. `pytest tests/machi` passed on the physical source. One archive-progress test failed once under load with an empty extract and passed on rerun; it was not changed. Architecture checks are inside that suite. `ruff check` passed. `mypy --strict src/machi` passed, 177 files. Customer prompts are absent from the decision and proof records under test.
 
-O. Local QA / functional acceptance
-Context is present on preload and token bodies in the HTTP test.
-A wider context than the qualification is refused.
-Provider plan JSON has no artifact_id, immutable_revision, or dtype.
-Stale capacity is refused.
-Missing reservation does not serve.
-Wrong digest does not infer.
-Unload that leaves the model resident does not mark STOPPED and does not release.
-A digest that disappears on a later /api/ps read does stop, and the reservation stays reserved.
-Released reservation cannot restart.
+N. Candidate wheel build/SHA/isolated verify
+Physical candidate: clean source, `verify_ok`, SHA256 `6e8068c81eeb2c3e124487c568c468c1d599d7948990403654a5594df1e1461b`.
+Final docs candidate: clean source, `verify_ok`, SHA256 `f6e94a0f7969237461435af32b2cac0ee089dd4b3c847e0c7f1970e4e919b759`.
+Untracked `docs/machi/proposals/` stayed uncommitted and was parked only while the tree was required to be clean for the wheel.
 
-P. Candidate build ID/SHA256 / isolated verify_ok
-Physical wheel that passed on the host:
-build 0.1.0+9285af1057de
-SHA256 40fb7420db7687a24a13f5ce1883582270e7cadbac4b78af809cd66e7b06e2a4
-size 322420
-source 9285af1057de2ed06f5d11090ee1459a1787ae1b
-clean_source true
-isolated verify_ok.
-Final wheel after the evidence commit:
-build 0.1.0+ebfabe56b2ae
-SHA256 d2efb52f978ea938a17d3406eaef60880aef674e7e43531929c6447de115129f
-size 322422
-source ebfabe56b2ae09b916e5e70ea4d2b1c028f48af6
-clean_source true
-isolated verify_ok.
+O. RunPod preflight / owned Pod
+`runpodctl user` balance `15.5042969845`, spend limit 80, existing spend 0.113 per hour from resources that were not touched. Secure A40 stock was LOW at CUDA 13.0 in EU-SE-1 and CA-MTL-1, secure price $0.49 per hour. Created only `machi-b06-identity` (`34kxih08i7lo5x`), secure, CUDA 13.0, EU-SE-1, disk 40 GB, no network volume. No pre-existing pod was started, stopped, or terminated.
 
-Q. RunPod preflight / owned Pod
-Balance before create: 15.816683556 USD. Spend limit 80. Existing spend was not this pod.
-Secure L40S was out for CUDA 12.8 and 13.0. Two community L40S creates at the probed $0.79 rate did not place.
-Third create: secure NVIDIA A40, CUDA 13.0, EU-SE-1, returned cost 0.49 USD/hour, under 1.50.
-Pod tt6xs8su1zhn9o, name machi-ollama-bundle-05. No network volume. No other pod was changed.
-Image runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404. SSH only.
+P. Physical host / renv / fgen / execution fingerprint
+NVIDIA A40, compute 8.6, driver 580.159.03, host CUDA 13.0. SAFE host `49463128064`. SAFE accelerator `48037363712`. Runtime environment `renv_ceedac1939fecd21`. Foundation generation `fgen_66a0af2ac4ba618c`. Selection `fsel_66a0af2ac4ba618c`. Fingerprint `exe_7efc404ce831bb9bbfa4606bcfbfe224`. Daemon ready, version 0.34.3, cloud disabled.
 
-R. Physical host identity / managed Foundation
-NVIDIA A40, compute capability 8.6, driver 580.159.04, CUDA 13.0.
-SAFE host 49463128064. SAFE accelerator 48037363712.
-Managed prefix generation renv_ceedac1939fecd21. Support ready. Version 0.34.3. Cloud disabled.
-Fingerprint exe_7efc404ce831bb9bbfa4606bcfbfe224.
-Pinned archive sha256 e83a089fd0cd2f79ee2933cca2085846a2065f497adbc6467c402177c68423f9.
-System zstd remained a host tool. M-5-OLLAMA-04 stays open.
+Q. Context-2048 qualification result
+Tag `smollm2:135m-instruct-q8_0`. Digest `2d470404841a51320639b2c2418c7ad8643cccbbcb88c2a242b211ae83bf46a9`. Generation `fgen_66a0af2ac4ba618c`. Binding `requested`. Fit `FIT`. Outcome `PASS`. Runner `-c 2048` and `n_ctx_slot` 2048. Shadow unresolved. Classification `MACHI_UNRESOLVED`. `load_seconds` unresolved. Probe `qprb_8b4816fb997f0e11`, reservation `rsv_6c5fd204aba3b7f0`, release `rel_394957677b8c7802`. Event `evt_7a6e415a54a6d523`.
 
-S. Context-2048 physical requalification
-Cold qualification at context 2048, concurrency 1.
-Digest absent before. Provider FIT. Outcome PASS. Shadow unresolved. Cleanup released the qualification hold.
-Runner flag -c 2048. n_ctx_slot 2048. context_binding requested.
-load_seconds not_measured.
+R. Corrected provider Plan/Admit result
+Plan `plan_c84309834a08c096` cited `fgen_66a0af2ac4ba618c`, not the runtime environment id. Admission `admitted` as `rsv_bc98167eb167e0b5` on the same ResourceManager ledger, full cited SAFE host and accelerator bytes, persistent 0.
 
-T. Normal provider Plan/Admit physical result
-Plan failure none. Admission admitted.
-Reservation rsv_c35b573fb7806719. Plan plan_2484830f9776b44b.
-Accelerator bytes 48037363712. Host bytes 49463128064. Persistent bytes 0.
-This was admit_provider, not admit_probe.
+S. Corrected Serve exact runtime+digest proof
+Start ready, instance `pin_e4aba1a070c2a081`, generation `fgen_66a0af2ac4ba618c`. Proof `pprf_ca1bffebb777028f` proven. Same digest. 8 output tokens. 0.031081 seconds. 257.3919758051543 tokens per second. `size_vram` 205384580, runtime-reported. No prompt or response text stored.
 
-U. Real Serve inference proof
-Start ready. Proof proven. Same digest. 8 output tokens.
-size_vram 205384580, runtime-reported from /api/ps.
+T. STOP / absence / release proof
+STOP outcome `stopped`. Reservation still reserved at that point. Stale generation then refused with `foundation_mismatch`. Explicit release `rel_38c15f1aa140926c`. Later start refused `reservation_released`. Active reservations empty.
 
-V. STOP -> restart -> re-infer -> STOP -> release -> refusal proof
-stopped, reservation still reserved, restart ready, second proof proven, second stop stopped, release released, subsequent start refused with reservation_released, active list empty.
+U. Pod termination proof
+`delete-pod` for `34kxih08i7lo5x` returned 204. Subsequent `get-pod` returned 404.
 
-W. Physical analytics / residency / VRAM provenance
-Qualification comparison and provider serve events are in the journal named in N.
-VRAM is ollama.api.ps size_vram, semantics runtime_reported, not a measured peak.
-The first physical attempt's second STOP raced /api/ps and failed closed. The product now waits briefly for absence. The passing run used that fix. The reservation was not released by the failed STOP.
+V. AUTO fallback control-plane design
+`decide_runtime` in `foundation/fallback.py` records `foundation.runtime_choice` version 1, policy `m5.fallback.1`. AUTO selects vLLM when primary support is READY or SUPPORTED. AUTO selects Ollama only when primary is UNSUPPORTED, UNAVAILABLE, BLOCKED_BY_PREREQUISITE, INSUFFICIENT_CAPACITY, PROVISIONING_FAILED, or VERIFICATION_FAILED, and Ollama is READY or SUPPORTED. CONDITIONALLY_SUPPORTED and RECONCILE_REQUIRED do not fall back. Explicit modes do not consult the other engine. An Ollama AUTO selection sets recompute to `foundation,model,plan,admit,serve`. `execute_runtime_choice` dispatches to injected callables and does not retry inside Serve. `FoundationSelection` remains the macropath decision.
 
-X. Implementation defects found/fixed during run
-The second STOP observed the model still resident immediately after a successful keep_alive 0. Stop now polls /api/ps for absence and fails only if the digest remains. Local test covers both the lag and the still-resident refusal.
+W. AUTO healthy-vLLM preference proof
+AUTO with primary READY or SUPPORTED selects vLLM, recompute `none`, and the local test does not call the Ollama callable.
 
-Y. Architecture amendments encountered, if any
-None. Option A semantics were kept. The serve-package naming split is the deviation in D, forced by the existing boundary test, not a change of authority.
+X. AUTO vLLM-unavailable -> Ollama fresh-chain proof
+AUTO with primary UNSUPPORTED and Ollama READY selects Ollama and requires the full recompute chain. The local test composes a provider plan, admits it on the same ResourceManager, and starts provider Serve. The native reservation is released explicitly before that admission because a provider plan reserves the full cited SAFE ceiling. The fallback function itself does not release.
 
-Z. Exact support claim earned
-On this exact secure NVIDIA A40, driver 580.159.04, CUDA 13.0, Ollama 0.34.3 generation renv_ceedac1939fecd21, and digest 2d470404841a51320639b2c2418c7ad8643cccbbcb88c2a242b211ae83bf46a9 at context 2048 and concurrency 1, Machi created a provider-backed model-serving plan, admitted it through the same ResourceManager ledger as native workloads, served real Ollama inference with digest proof, stopped and restarted under the held reservation, and released resources explicitly.
-Not claimed: L40S or NVIDIA in general, other contexts or models, multi-model scheduling, local-process enforcement, AUTO fallback, a runtime winner, AMD, or UI readiness.
-This host is not the Bundle 04 L40S.
+Y. Explicit VLLM/OLLAMA fail-closed proof
+Explicit vLLM with primary UNAVAILABLE refuses and records fallback support `not_consulted`. Explicit Ollama with VERIFICATION_FAILED refuses and records primary support `not_consulted`. Executing a refusal raises. Neither available refuses. Unresolved Ollama support refuses.
 
-AA. Remaining debt / non-scope
-M-5-OLLAMA-01 loopback authentication stays open.
-M-5-OLLAMA-02 RuntimeCapability text stays open.
-M-5-OLLAMA-04 system zstd stays open.
-M-6-OLLAMA-01 stays open: Serve checks the digest and does not own Ollama's scheduler.
-Empty preload still omits load_duration, so load_seconds stays not_measured when the provider omits it.
-AUTO fallback, multi-model serving, and UI were not started.
+Z. Proof fallback does not reuse stale model/Plan/reservation/instance
+The local Ollama chain produced a different plan id, reservation id, and instance id from the native admission. Catalogs stay separate. No native model id is written into the provider digest.
 
-AB. Pod termination proof
-delete-pod tt6xs8su1zhn9o returned 204.
-get-pod tt6xs8su1zhn9o then returned 404.
+AA. Decisions/deviations from recommendations
+The recommended shapes were used: a small verified-runtime value, a per-kind upgrade registry, and a decision seam above Serve. The adapter owns the Ollama mapping because the serve package must not contain that token. v1 Ollama evidence gains `provider_fit` `unresolved` because that field did not exist; it is not set to FIT. K-03 was not retired. The fingerprint helper still feeds `renv_` into the existing hash slot under a name that says it is not an `fgen_`. Physical proof omitted the Bundle 05 restart/re-infer loop and kept start, proof, stop, stale refusal, release, and post-release refusal.
 
-AC. Final tests/package gates
-mypy --strict src/machi passed, 175 files.
-ruff check src/machi tests/machi passed.
-pytest tests/machi passed, including native admit/serve and the provider lifecycle tests.
-Both wheels above isolated-verified with verify_ok.
-docs/machi/proposals/ remains untracked.
+AB. Architecture amendments encountered, if any
+No product-policy amendment and no second macropath object. `docs/machi/ARCHITECTURE.md` now states the accepted AUTO rule and that `foundation.runtime_choice` is not a substitute for `FoundationSelection`. The roadmap status matches that scope and does not mark the macropath closed.
 
-AD. Local/origin equality / checkpoint
-Recorded after the push in the published control paste-back status.
-Recovery checkpoint branch: checkpoint/ollama-authorized-serve-2026-09-24 at the final source SHA.
-The native vLLM recovery checkpoint was not moved.
+AC. Exact support claim earned
+Machi can physically bind an Ollama provider Plan/Serve deployment to the actual verified Foundation generation and exact model digest on the tested NVIDIA environment, preserve historical provider qualification evidence across schema evolution without strengthening it, and locally enforce a deterministic AUTO policy that prefers healthy/supported native-vLLM and selects an independently valid Ollama fallback path only when the primary Foundation is unavailable by policy.
 
-AE. Final status
-STOP — OLLAMA BUNDLE 05 SERVE COMPLETE. WAIT FOR LEAD REVIEW.
+Not claimed: physical automatic live failover, runtime switching after arbitrary inference failure, automatic equivalent-model translation, NVIDIA-wide Ollama support, production HA, or multi-host/fleet fallback.
 
-==================== END PASTE BACK — OLLAMA BUNDLE 05 SERVE ====================
+AD. Remaining debt / Chunk-6 work not yet closed
+K-03 remains OPEN because the migration path landed after the first bumps. M-5-OLLAMA-01, M-5-OLLAMA-04, M-6-OLLAMA-01, M-6-03, M-9-02, and M-5-AMD-01 stay open. Model pull is still operator lab setup, not product acquisition. Physical AUTO failover is not implemented. The Ollama macropath is not fully closed.
+
+AE. Full final gates / local==origin / checkpoint
+`pytest tests/machi`, architecture checks, ruff, and strict mypy passed on the physical source. Both wheels were clean and `verify_ok`. Final HEAD `92555da8e3465cd1596098eb33579d31e1a12ae6` equals `origin/automation/ollama-macropath`. New recovery branch `checkpoint/ollama-generation-bound-serve-2026-09-24` points at that final SHA and was pushed. `checkpoint/ollama-authorized-serve-2026-09-24` remains `ebfabe56b2ae09b916e5e70ea4d2b1c028f48af6`. `checkpoint/native-vllm-partial-pass-2026-09-24` was not moved.
+
+AF. Final status
+STOP — OLLAMA BUNDLE 06 COMPLETE. WAIT FOR LEAD REVIEW.
+
+==================== END PASTE BACK — OLLAMA BUNDLE 06 ====================

@@ -6,10 +6,19 @@
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
+    "auto_fallback_scope": "local_control_plane_only_no_physical_live_failover_claim",
     "bundle": "control/OLLAMA-BUNDLE-06-CLOSURE-FALLBACK.md",
     "bundle_04_exact_context_qualification": false,
     "bundle_04_physical_functional_pass": true,
     "bundle_04_review": "control/OLLAMA-BUNDLE-04-LEAD-REVIEW.md",
+    "bundle_05_blockers": [
+      "serve_must_verify_actual_foundation_generation_and_environment",
+      "reconcile_renv_runtime_environment_vs_fgen_foundation_generation_evidence",
+      "satisfy_k03_schema_migration_and_v1_readback"
+    ],
+    "bundle_05_physical_lifecycle_pass": true,
+    "bundle_05_review": "control/OLLAMA-BUNDLE-05-LEAD-REVIEW.md",
+    "bundle_05_source_closed": false,
     "carry_forward": "explicit_ollama_num_ctx_then_physical_requalification",
     "chunks": 6,
     "comparative_analytics": "required",
@@ -42,19 +51,10 @@
     "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md",
     "serve_authorization_decision": "A_refined_accepted",
     "serve_authorization_decision_record": "control/OLLAMA-SERVE-AUTH-DECISION.md",
-    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger",
-    "bundle_05_review": "control/OLLAMA-BUNDLE-05-LEAD-REVIEW.md",
-    "bundle_05_physical_lifecycle_pass": true,
-    "bundle_05_source_closed": false,
-    "bundle_05_blockers": [
-      "serve_must_verify_actual_foundation_generation_and_environment",
-      "reconcile_renv_runtime_environment_vs_fgen_foundation_generation_evidence",
-      "satisfy_k03_schema_migration_and_v1_readback"
-    ],
-    "auto_fallback_scope": "local_control_plane_only_no_physical_live_failover_claim"
+    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger"
   },
   "published_instruction_id": "MACHI-OLLAMA-BUNDLE-06-CLOSURE-FALLBACK-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "READY"
+  "status": "PASTEBACK_PUBLISHED"
 }
