@@ -30,3 +30,27 @@ def execution_environment_fingerprint(
     if any(not part for part in parts[1:]):
         raise ValueError("execution environment fact is empty")
     return "exe_" + input_token(*parts)
+
+
+def runtime_bound_execution_fingerprint(
+    *,
+    vendor: str,
+    accelerator_model: str,
+    capability: str,
+    runtime_capability: str,
+    runtime_environment_id: str,
+) -> str:
+    """Environment hash that cites an renv_ artifact, not an fgen_ generation.
+
+    Provider foundation generations are derived from this fingerprint, so the
+    fingerprint cannot also contain the generation it creates.
+    """
+    if not runtime_environment_id.startswith("renv_"):
+        raise ValueError("runtime environment id must be an renv identity")
+    return execution_environment_fingerprint(
+        vendor=vendor,
+        accelerator_model=accelerator_model,
+        capability=capability,
+        runtime_capability=runtime_capability,
+        generation_id=runtime_environment_id,
+    )

@@ -6,6 +6,7 @@ import datetime as dt
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from tests.machi.test_plan import _inputs
 
 from machi.adapters.model.runtime_query import predicate_from_probe
@@ -519,6 +520,28 @@ def test_probe_mapping_requires_a_token_and_keeps_host_faults() -> None:
     assert evidence.measured is True
     assert evidence.tokens_per_second == 8.0
     assert not is_resolved(evidence.ttft_seconds)
+
+
+def test_runtime_environment_fingerprint_is_not_a_foundation_generation() -> None:
+    from machi.model.environment import runtime_bound_execution_fingerprint
+
+    bound = runtime_bound_execution_fingerprint(
+        vendor="nvidia",
+        accelerator_model="A40",
+        capability="8.6",
+        runtime_capability="0.34.3",
+        runtime_environment_id="renv_ceedac1939fecd21",
+    )
+    assert bound.startswith("exe_")
+    assert bound != "renv_ceedac1939fecd21"
+    with pytest.raises(ValueError, match="renv"):
+        runtime_bound_execution_fingerprint(
+            vendor="nvidia",
+            accelerator_model="A40",
+            capability="8.6",
+            runtime_capability="0.34.3",
+            runtime_environment_id="fgen_ollama",
+        )
 
 
 def _fingerprint(

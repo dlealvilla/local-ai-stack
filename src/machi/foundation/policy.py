@@ -1,4 +1,4 @@
-"""Default native-vLLM pins. The fallback runtime is not selected."""
+"""Default native-vLLM pins. AUTO fallback policy lives in fallback.py."""
 
 from __future__ import annotations
 

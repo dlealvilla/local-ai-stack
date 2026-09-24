@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from machi.adapters.model.ollama_api import OllamaApiError, OllamaModelApi
 from machi.adapters.model.ollama_residency import observe_residency
+from machi.foundation.contracts import FailureCode, SupportState
+from machi.foundation.ollama import OllamaAssessment
 from machi.model.provider_qualification import (
     OllamaQualificationEvidence,
     qualification_covers,
@@ -14,6 +16,7 @@ from machi.serve.provider import (
     ProviderObservation,
     ProviderServeDecision,
     ProviderServeService,
+    VerifiedProviderRuntime,
 )
 
 
@@ -67,10 +70,9 @@ def start_ollama(
     configuration: ProviderDeploymentConfiguration,
     reservation_id: str,
     qualification: OllamaQualificationEvidence,
-    *,
-    foundation_ready: bool,
+    assessment: OllamaAssessment,
 ) -> ProviderServeDecision:
-    """Require real qualification coverage, then the generic provider lifecycle."""
+    """Require coverage and the verified Foundation, then serve."""
     covered = qualification.qualification_id == configuration.qualification_id
     covered = covered and qualification_covers(
         qualification,
@@ -82,6 +84,30 @@ def start_ollama(
     return service.start(
         configuration,
         reservation_id,
-        foundation_ready=foundation_ready,
+        _verified_runtime(assessment),
         covered=covered,
+    )
+
+
+def _verified_runtime(assessment: OllamaAssessment) -> VerifiedProviderRuntime:
+    substrate = assessment.substrate
+    ready = (
+        assessment.support is SupportState.READY
+        and assessment.failure is FailureCode.NONE
+        and substrate is not None
+    )
+    if substrate is None:
+        return VerifiedProviderRuntime(
+            provider="ollama",
+            generation_id="unresolved",
+            execution_environment_fingerprint="unresolved",
+            ready=False,
+        )
+    return VerifiedProviderRuntime(
+        provider="ollama",
+        generation_id=substrate.generation.generation_id,
+        execution_environment_fingerprint=(
+            substrate.generation.execution_environment_fingerprint
+        ),
+        ready=ready,
     )

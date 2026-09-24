@@ -154,6 +154,10 @@ class OllamaFoundationGeneration(Contract):
             self, "created_at", require_utc(self.created_at, what="created_at")
         )
         _bounded(self.generation_id, what="generation", maximum=_TOKEN_MAX)
+        if not self.generation_id.startswith("fgen_"):
+            raise ValidationError(
+                "ollama foundation generation must be an fgen identity"
+            )
         _bounded(self.recipe_id, what="recipe", maximum=_TOKEN_MAX)
         _bounded(self.version, what="version", maximum=32)
         if self.artifact_sha256 != _UNRESOLVED:

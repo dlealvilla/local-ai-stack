@@ -2,6 +2,8 @@
 
 Historical provider-functional evidence. It is not exact context-2048
 coverage: `num_ctx` was not sent, and the runner selected context 8192.
+It is also not foundation-generation bound: `renv_ceedac1939fecd21` is
+the runtime-environment id, and no `fgen_` was recorded.
 Bundle 05 requalifies at an explicit context of 2048 before Serve.
 
 Instruction: `MACHI-OLLAMA-BUNDLE-04-PHYSICAL-AUTH-001`  
@@ -26,7 +28,9 @@ This is one host. It does not qualify Ollama as a class, NVIDIA as a vendor, or 
 | Device | `GPU-7b845265-a028-4a9f-8d6d-00489cc8e95d` |
 | SAFE host bytes | 187463127040 |
 | SAFE accelerator bytes | 48037363712 |
-| Foundation | ready, generation `renv_ceedac1939fecd21`, version 0.34.3, cloud disabled |
+| Runtime environment | `renv_ceedac1939fecd21` (artifact id, not a foundation generation) |
+| Foundation generation | not recorded |
+| Daemon | ready, version 0.34.3, cloud disabled |
 | Execution fingerprint | `exe_687af32c8cf62fa273355f81bbc01589` |
 | Wheel that ran | `0.1.0+e8bba2becd9b` SHA256 `907e42d9a61d98ca9bb330b7d3370154e483616206fbf2a18294ac2dc8d0415c` |
 | Archive | `e83a089fd0cd2f79ee2933cca2085846a2065f497adbc6467c402177c68423f9` |

@@ -388,7 +388,11 @@ persistence port, privacy, witness projection, health aggregation.
 `Store` is a Kernel port. The filesystem adapter is `FileStore` under
 `adapters/persistence`. The journal remains a separate port. Store is
 not event-sourced, does not choose its root, and does not implement
-RegistrySeed.
+RegistrySeed. A registered older contract version is upgraded when it
+is read. FileStore then replaces that one record with the current
+version and appends a migration note. The journal line is left as
+appended. Unknown kinds and versions fail closed. `K-03` stays open
+because this path landed after the first schema bumps.
 
 **Adapters:** persistence filesystem; disabled telemetry export.
 
@@ -893,14 +897,20 @@ compatibility fallback family is not implemented in this increment.
 NVIDIA Dynamo remains a deferred Stage-2 fabric family. None of these
 is an extra block, and none is the meaning of Foundation.
 
-**Product policy:** AUTO selects supported native vLLM. If that path
-is unsupported, the result is a typed refusal. Explicit vLLM fails
-closed. An explicit Ollama foundation substrate can be verified, and
-AUTO does not select it. The target, after Ollama qualifies on its
-own, is to prefer a supported healthy vLLM path and otherwise a
-supported Ollama path. Containers, system Python, and model download
-are outside this block. The local Ollama API has no Machi
-authentication boundary (`M-5-OLLAMA-01`).
+**Product policy:** AUTO prefers a healthy or supported native vLLM
+Foundation. AUTO may select Ollama only when native vLLM is unavailable
+by that policy (`UNSUPPORTED`, `UNAVAILABLE`, `BLOCKED_BY_PREREQUISITE`,
+`INSUFFICIENT_CAPACITY`, `PROVISIONING_FAILED`, `VERIFICATION_FAILED`).
+`CONDITIONALLY_SUPPORTED` and `RECONCILE_REQUIRED` are not treated as
+unavailable. Explicit vLLM and explicit Ollama fail closed and do not
+switch. A fallback selection records `foundation.runtime_choice` and
+requires a new Foundation, model view, Plan, admission, and Serve. It
+does not retry inside Serve and does not translate a native model into
+an Ollama model. `FoundationSelection` remains the macropath decision.
+This choice is local control-plane policy. It is not physical live
+failover. Containers, system Python, and model download are outside
+this block. The local Ollama API has no Machi authentication boundary
+(`M-5-OLLAMA-01`).
 
 **Qualification:** implementation and physical qualification are
 separate. NVIDIA CUDA is qualified. AMD ROCm native Foundation is

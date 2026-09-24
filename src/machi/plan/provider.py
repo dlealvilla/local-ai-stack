@@ -39,7 +39,9 @@ class ProviderDeploymentConfiguration(Contract):
     digest: str = meaning("immutable provider model digest")
     candidate_id: str = meaning("digest-derived candidate identity")
     foundation_id: str = meaning("foundation identity this plan cited")
-    generation_id: str = meaning("verified runtime generation")
+    generation_id: str = meaning(
+        "verified foundation generation (fgen_); not a runtime environment id"
+    )
     execution_environment_fingerprint: str = meaning(
         "material accelerator environment"
     )
@@ -94,7 +96,9 @@ class ProviderResourceRequest(Contract):
     plan_id: str = meaning("provider plan this request belongs to")
     fingerprint: str = meaning("same material token as the provider plan")
     foundation_id: str = meaning("foundation identity cited")
-    generation_id: str = meaning("runtime generation cited")
+    generation_id: str = meaning(
+        "verified foundation generation (fgen_); not a runtime environment id"
+    )
     capacity_evidence_id: str = meaning("capacity snapshot cited")
     digest: str = meaning("provider model digest cited")
     accelerator_count: int = meaning("accelerators requested")
@@ -275,6 +279,10 @@ def _refusal(inputs: ProviderPlanInputs) -> PlanFailure | None:
     if not inputs.foundation_ready:
         return PlanFailure.FOUNDATION_NOT_READY
     if not inputs.foundation_id or not inputs.generation_id:
+        return PlanFailure.FOUNDATION_MISMATCH
+    if not inputs.generation_id.startswith("fgen_"):
+        return PlanFailure.FOUNDATION_MISMATCH
+    if inputs.foundation_id.startswith("renv_"):
         return PlanFailure.FOUNDATION_MISMATCH
     if inputs.generation_id != inputs.qualification.generation_id:
         return PlanFailure.FOUNDATION_MISMATCH

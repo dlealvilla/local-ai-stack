@@ -273,10 +273,13 @@ def from_dict(data: Mapping[str, Any], *, extra: ExtraFields = "forbid") -> Cont
     unknown pair or a missing field is an error. Unexpected fields are
     refused by default (``extra='forbid'``). Journal readback uses
     ``extra='ignore'`` so additive envelope evolution does not drop a
-    historical line.
+    historical line. A registered older version is upgraded before decode.
     """
-    kind = data.get("kind")
-    version = data.get("schema_version")
+    from machi.kernel.migrate import migrate_document
+
+    document = migrate_document(data)
+    kind = document.get("kind")
+    version = document.get("schema_version")
     if not isinstance(kind, str):
         raise ValidationError("record has no 'kind'", got=_describe(data.get("kind")))
     if not isinstance(version, int) or isinstance(version, bool):
@@ -285,7 +288,7 @@ def from_dict(data: Mapping[str, Any], *, extra: ExtraFields = "forbid") -> Cont
             kind=kind,
             got=_describe(data.get("schema_version")),
         )
-    return _decode_contract(resolve(kind, version), data, path=kind, extra=extra)
+    return _decode_contract(resolve(kind, version), document, path=kind, extra=extra)
 
 
 def decode_as(contract_type: type[ContractT], data: Mapping[str, Any]) -> ContractT:

@@ -15,6 +15,8 @@ from machi.adapters.model.ollama_api import FakeOllamaApi
 from machi.adapters.model.ollama_qualifier import qualify_ollama
 from machi.adapters.serve.ollama import start_ollama
 from machi.admit.contracts import AdmissionFailure, AdmissionOutcome, ReservationState
+from machi.foundation.contracts import FailureCode, SupportState
+from machi.foundation.ollama import OllamaAssessment
 from machi.kernel.clock import FixedClock
 from machi.kernel.schema import to_dict
 from machi.kernel.unresolved import is_resolved
@@ -38,11 +40,43 @@ from machi.serve.provider import (
     ProviderObservation,
     ProviderServeService,
     ProviderServingInstance,
+    VerifiedProviderRuntime,
 )
 
 FIXED = dt.datetime(2026, 9, 24, 12, 0, tzinfo=dt.UTC)
 CLOCK = FixedClock(FIXED)
 DIGEST = "ab" * 32
+
+
+def _runtime(**changes: object) -> VerifiedProviderRuntime:
+    values: dict[str, object] = {
+        "provider": "ollama",
+        "generation_id": "fgen_ollama",
+        "execution_environment_fingerprint": "exe_ollama_fixture",
+        "ready": True,
+    }
+    values.update(changes)
+    return VerifiedProviderRuntime(
+        provider=str(values["provider"]),
+        generation_id=str(values["generation_id"]),
+        execution_environment_fingerprint=str(
+            values["execution_environment_fingerprint"]
+        ),
+        ready=bool(values["ready"]),
+    )
+
+
+def _begin(service, configuration, reservation_id, evidence, runtime=None):
+    chosen = _runtime() if runtime is None else runtime
+    covered = evidence.qualification_id == configuration.qualification_id
+    covered = covered and qualification_covers(
+        evidence,
+        digest=configuration.digest,
+        generation_id=configuration.generation_id,
+        context=configuration.context_length,
+        concurrency=configuration.concurrency,
+    )
+    return service.start(configuration, reservation_id, chosen, covered=covered)
 
 
 def _qualification(context: int = 2048):
@@ -59,15 +93,22 @@ def _qualification(context: int = 2048):
     )
 
 
-def _inputs(evidence, *, context: int = 2048, evidence_id: str = "cev_admit"):
+def _inputs(
+    evidence,
+    *,
+    context: int = 2048,
+    evidence_id: str = "cev_admit",
+    foundation_id: str = "fgen_ollama",
+    generation_id: str = "fgen_ollama",
+):
     return ProviderPlanInputs(
         display_name="tiny:latest",
         digest=DIGEST,
         candidate_id=candidate_id_for(DIGEST),
         qualification=evidence,
         envelope=_envelope(host=100, accel=100, storage=100, evidence=evidence_id),
-        foundation_id="fgen_ollama",
-        generation_id="fgen_ollama",
+        foundation_id=foundation_id,
+        generation_id=generation_id,
         foundation_ready=True,
         accelerator_identity="accel_0",
         execution_environment_fingerprint="exe_ollama_fixture",
@@ -142,6 +183,18 @@ class _Log:
         return tuple(self._proofs)
 
 
+def test_runtime_environment_id_cannot_be_the_plan_generation() -> None:
+    evidence = _qualification()
+    refused = compose_provider_plan(
+        _inputs(evidence, generation_id="renv_ceedac1939fecd21")
+    )
+    assert refused.failure is PlanFailure.FOUNDATION_MISMATCH
+    mismatched_foundation = compose_provider_plan(
+        _inputs(evidence, foundation_id="renv_ceedac1939fecd21")
+    )
+    assert mismatched_foundation.failure is PlanFailure.FOUNDATION_MISMATCH
+
+
 def test_requested_context_is_required_for_coverage() -> None:
     evidence = _qualification()
     assert evidence.schema_version == 2
@@ -209,18 +262,16 @@ def test_serve_stop_keeps_the_reservation_and_release_refuses_restart(
     configuration = decision.configuration
     assert isinstance(configuration, ProviderDeploymentConfiguration)
     bare = ProviderServeService(_Log(), _Port(), manager, CLOCK)
-    missing = start_ollama(
-        bare, configuration, "rsv_missing", evidence, foundation_ready=True
-    )
+    missing = _begin(bare, configuration, "rsv_missing", evidence, _runtime())
     assert missing.failure is ServeFailure.RESERVATION_REQUIRED
     journal = JsonlJournal(tmp_path / "journal")
     port = _Port()
     service = ProviderServeService(_Log(), port, manager, CLOCK, journal)
-    started = start_ollama(service,
+    started = _begin(
+        service,
         configuration,
         reservation.reservation_id,
         evidence,
-        foundation_ready=True,
     )
     assert started.outcome is ServeOutcome.READY
     assert port.contexts == [2048]
@@ -239,11 +290,11 @@ def test_serve_stop_keeps_the_reservation_and_release_refuses_restart(
     held = manager.get_reservation(reservation.reservation_id)
     assert held is not None
     assert held.state is ReservationState.RESERVED
-    restarted = start_ollama(service,
+    restarted = _begin(
+        service,
         configuration,
         reservation.reservation_id,
         evidence,
-        foundation_ready=True,
     )
     assert restarted.outcome is ServeOutcome.READY
     assert is_resolved(restarted.instance)
@@ -253,11 +304,11 @@ def test_serve_stop_keeps_the_reservation_and_release_refuses_restart(
     service.stop(restarted.instance.instance_id)
     released = manager.release(reservation.reservation_id)
     assert released.outcome is AdmissionOutcome.RELEASED
-    refused = start_ollama(service,
+    refused = _begin(
+        service,
         configuration,
         reservation.reservation_id,
         evidence,
-        foundation_ready=True,
     )
     assert refused.outcome is ServeOutcome.REFUSED
     assert refused.failure is ServeFailure.RESERVATION_RELEASED
@@ -280,11 +331,11 @@ def test_unload_failure_does_not_release_or_mark_stopped(tmp_path: Path) -> None
     service = ProviderServeService(
         _Log(), port, manager, CLOCK, absence_wait_seconds=0.2
     )
-    started = start_ollama(service,
+    started = _begin(
+        service,
         configuration,
         reservation.reservation_id,
         evidence,
-        foundation_ready=True,
     )
     assert is_resolved(started.instance)
     stopped = service.stop(started.instance.instance_id)
@@ -315,11 +366,11 @@ def test_wrong_digest_does_not_infer(tmp_path: Path) -> None:
 
     port = _Wrong()
     service = ProviderServeService(_Log(), port, manager, CLOCK)
-    started = start_ollama(service,
+    started = _begin(
+        service,
         configuration,
         reservation.reservation_id,
         evidence,
-        foundation_ready=True,
     )
     assert started.failure is ServeFailure.PROVIDER_RESIDENCY_MISMATCH
     assert port.inferred == 0
@@ -353,16 +404,184 @@ def test_stop_waits_until_the_digest_is_absent(tmp_path: Path) -> None:
 
     port = _Lag()
     service = ProviderServeService(_Log(), port, manager, CLOCK)
-    started = start_ollama(
+    started = _begin(
         service,
         configuration,
         reservation.reservation_id,
         evidence,
-        foundation_ready=True,
     )
     assert is_resolved(started.instance)
     stopped = service.stop(started.instance.instance_id)
     assert stopped.outcome is ServeOutcome.STOPPED
+    held = manager.get_reservation(reservation.reservation_id)
+    assert held is not None
+    assert held.state is ReservationState.RESERVED
+
+
+def _admitted(tmp_path: Path):
+    evidence = _qualification()
+    decision = compose_provider_plan(_inputs(evidence))
+    manager = _manager(tmp_path)
+    admitted = manager.admit_provider(decision, _envelope(), PlanFailure.NONE)
+    reservation = admitted.reservation
+    assert is_resolved(reservation)
+    configuration = decision.configuration
+    assert isinstance(configuration, ProviderDeploymentConfiguration)
+    return evidence, configuration, manager, reservation
+
+
+def test_wrong_generation_is_refused_before_residency(tmp_path: Path) -> None:
+    evidence, configuration, manager, reservation = _admitted(tmp_path)
+    port = _Port()
+    service = ProviderServeService(_Log(), port, manager, CLOCK)
+    refused = _begin(
+        service,
+        configuration,
+        reservation.reservation_id,
+        evidence,
+        _runtime(generation_id="fgen_other"),
+    )
+    assert refused.failure is ServeFailure.FOUNDATION_MISMATCH
+    assert port.contexts == []
+    assert port.inferred == 0
+    assert service.list_instances() == ()
+    environment = _begin(
+        service,
+        configuration,
+        reservation.reservation_id,
+        evidence,
+        _runtime(generation_id="renv_ceedac1939fecd21"),
+    )
+    assert environment.failure is ServeFailure.FOUNDATION_MISMATCH
+    assert port.contexts == []
+
+
+def test_wrong_execution_fingerprint_is_refused_before_residency(
+    tmp_path: Path,
+) -> None:
+    evidence, configuration, manager, reservation = _admitted(tmp_path)
+    port = _Port()
+    service = ProviderServeService(_Log(), port, manager, CLOCK)
+    refused = _begin(
+        service,
+        configuration,
+        reservation.reservation_id,
+        evidence,
+        _runtime(execution_environment_fingerprint="exe_other"),
+    )
+    assert refused.failure is ServeFailure.FOUNDATION_MISMATCH
+    assert port.contexts == []
+
+
+def test_unready_foundation_is_refused_before_residency(tmp_path: Path) -> None:
+    evidence, configuration, manager, reservation = _admitted(tmp_path)
+    port = _Port()
+    service = ProviderServeService(_Log(), port, manager, CLOCK)
+    refused = _begin(
+        service,
+        configuration,
+        reservation.reservation_id,
+        evidence,
+        _runtime(ready=False),
+    )
+    assert refused.failure is ServeFailure.FOUNDATION_NOT_READY
+    assert port.contexts == []
+    unresolved = start_ollama(
+        service,
+        configuration,
+        reservation.reservation_id,
+        evidence,
+        OllamaAssessment(
+            FailureCode.VERIFICATION_FAILED,
+            SupportState.VERIFICATION_FAILED,
+            "foundation is not verified",
+        ),
+    )
+    assert unresolved.failure is ServeFailure.FOUNDATION_NOT_READY
+    assert port.contexts == []
+
+
+def test_same_digest_on_the_wrong_foundation_does_not_serve(
+    tmp_path: Path,
+) -> None:
+    evidence, configuration, manager, reservation = _admitted(tmp_path)
+    assert configuration.digest == DIGEST
+    port = _Port()
+    service = ProviderServeService(_Log(), port, manager, CLOCK)
+    refused = _begin(
+        service,
+        configuration,
+        reservation.reservation_id,
+        evidence,
+        _runtime(generation_id="fgen_wrong_host"),
+    )
+    assert refused.failure is ServeFailure.FOUNDATION_MISMATCH
+    assert port.resident is False
+
+
+def test_stop_lag_reconciles_to_stopped_without_release(tmp_path: Path) -> None:
+    evidence, configuration, manager, reservation = _admitted(tmp_path)
+
+    class _Sticky(_Port):
+        def unload(self, name: str) -> str:
+            del name
+            return "none"
+
+    port = _Sticky()
+    service = ProviderServeService(_Log(), port, manager, CLOCK, absence_wait_seconds=0)
+    started = _begin(service, configuration, reservation.reservation_id, evidence)
+    assert is_resolved(started.instance)
+    stopped = service.stop(started.instance.instance_id)
+    assert stopped.failure is ServeFailure.PROVIDER_UNLOAD_FAILED
+    current = service.get_instance(started.instance.instance_id)
+    assert current is not None
+    assert current.state is InstanceState.STOPPING
+    port.resident = False
+    reconciled = service.reconcile()
+    assert len(reconciled) == 1
+    assert reconciled[0].outcome is ServeOutcome.STOPPED
+    finished = service.get_instance(started.instance.instance_id)
+    assert finished is not None
+    assert finished.state is InstanceState.STOPPED
+    held = manager.get_reservation(reservation.reservation_id)
+    assert held is not None
+    assert held.state is ReservationState.RESERVED
+    again = service.reconcile()
+    assert again == ()
+
+
+def test_reconcile_does_not_treat_wrong_identity_as_stopped(
+    tmp_path: Path,
+) -> None:
+    evidence, configuration, manager, reservation = _admitted(tmp_path)
+
+    class _Switch(_Port):
+        def __init__(self) -> None:
+            super().__init__()
+            self.mode = "expected_resident"
+
+        def unload(self, name: str) -> str:
+            del name
+            return "none"
+
+        def observe(self, name: str, digest: str) -> ProviderObservation:
+            del name
+            if self.mode == "expected_resident":
+                return ProviderObservation("expected_resident", digest, 1, None)
+            return ProviderObservation("wrong_identity", "cd" * 32, 1, None)
+
+    port = _Switch()
+    service = ProviderServeService(_Log(), port, manager, CLOCK, absence_wait_seconds=0)
+    started = _begin(service, configuration, reservation.reservation_id, evidence)
+    assert is_resolved(started.instance)
+    port.mode = "wrong_identity"
+    stopped = service.stop(started.instance.instance_id)
+    assert stopped.failure is ServeFailure.PROVIDER_UNLOAD_FAILED
+    reconciled = service.reconcile()
+    assert reconciled[0].failure is ServeFailure.PROVIDER_RESIDENCY_MISMATCH
+    current = service.get_instance(started.instance.instance_id)
+    assert current is not None
+    assert current.state is InstanceState.STOPPING
     held = manager.get_reservation(reservation.reservation_id)
     assert held is not None
     assert held.state is ReservationState.RESERVED

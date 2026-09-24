@@ -1,5 +1,12 @@
 # Ollama bundle 05 physical serve
 
+Provider-functional lifecycle on one NVIDIA A40. It is not
+foundation-generation bound. The value recorded below as the generation
+was `renv_ceedac1939fecd21`, which is the managed runtime-environment
+id. The Plan and qualification cited that id. The verified foundation
+generation (`fgen_`) was not recorded. Bundle 06 does not treat this
+run as generation-bound evidence.
+
 Instruction: `MACHI-OLLAMA-BUNDLE-05-SERVE-001`  
 Status: one NVIDIA A40 host, exact context 2048 qualification, and one authorized Serve lifecycle. Pod terminated.
 
@@ -20,8 +27,10 @@ This is one host. It does not qualify Ollama across NVIDIA, every context, or mo
 | Lifecycle | created `2026-09-24T11:14:34Z`, terminated after evidence, subsequent get returned 404 |
 | SAFE host bytes | 49463128064 |
 | SAFE accelerator bytes | 48037363712 |
-| Foundation | ready, generation `renv_ceedac1939fecd21`, version 0.34.3, cloud disabled |
-| Execution fingerprint | `exe_7efc404ce831bb9bbfa4606bcfbfe224` |
+| Runtime environment | `renv_ceedac1939fecd21` (artifact id, not a foundation generation) |
+| Foundation generation | not recorded. The run cited the runtime environment id |
+| Execution fingerprint | `exe_7efc404ce831bb9bbfa4606bcfbfe224` (hashed from the runtime environment id, not from an `fgen_`) |
+| Daemon | ready, version 0.34.3, cloud disabled |
 | Wheel | `0.1.0+9285af1057de` SHA256 `40fb7420db7687a24a13f5ce1883582270e7cadbac4b78af809cd66e7b06e2a4` |
 
 Secure L40S stock was out at CUDA 12.8 and 13.0. Community L40S at $0.79 did not place. This A40 is a different SKU from the Bundle 04 L40S, so the two runs are not a same-host comparison.

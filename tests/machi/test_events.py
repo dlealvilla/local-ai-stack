@@ -13,6 +13,7 @@ import machi.admit.events as admit_events_module
 import machi.capacity.events as capacity_events_module
 import machi.discover.events as discover_events_module
 import machi.foundation.events as foundation_events_module
+import machi.foundation.fallback as foundation_fallback_module
 import machi.install.events as install_events_module
 import machi.kernel.store_proof as store_proof_module
 import machi.model.comparison as model_comparison_module
@@ -174,6 +175,7 @@ def test_schema_fingerprint_matches_committed_golden() -> None:
     assert prerequisites_module is not None
     assert steward_events_module.OCCUPANCY_TYPE == "steward.occupancy.observed"
     assert foundation_events_module.INSPECTED_TYPE == "foundation.inspected"
+    assert foundation_fallback_module.RuntimeChoice.kind == "foundation.runtime_choice"
     assert model_events_module.INSPECTED_TYPE == "model.inspected"
     assert model_predicates_module.RuntimePredicate.kind == "model.runtime_predicate"
     assert (
@@ -202,8 +204,7 @@ def test_schema_fingerprint_matches_committed_golden() -> None:
     assert serve_events_module.STARTED_TYPE == "serve.started"
     assert serve_native_module.NativeProcessEvidence.kind == "serve.native_process"
     assert (
-        serve_provider_module.ProviderServingInstance.kind
-        == "serve.provider_instance"
+        serve_provider_module.ProviderServingInstance.kind == "serve.provider_instance"
     )
     assert JournalDefect.kind == "journal_defect"
     current = fingerprint(module_prefix="machi.")

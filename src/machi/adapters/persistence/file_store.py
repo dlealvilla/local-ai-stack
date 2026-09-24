@@ -156,6 +156,7 @@ class FileStore:
                 "refusing to repair",
                 key=key,
             )
+        original_version = payload.get("schema_version")
         try:
             loaded = from_dict(payload)
         except Exception as exc:
@@ -169,6 +170,12 @@ class FileStore:
                 expected=contract_type.kind,
                 found=getattr(loaded, "kind", None),
             )
+        if (
+            isinstance(original_version, int)
+            and not isinstance(original_version, bool)
+            and original_version != loaded.schema_version
+        ):
+            self._rewrite_current(dest, key, loaded, original_version)
         return loaded
 
     def _path(self, kind: str, key: str) -> Path:
@@ -186,6 +193,58 @@ class FileStore:
                 key=key,
             ) from exc
         return dest
+
+    def _rewrite_current(
+        self, dest: Path, key: str, record: Contract, from_version: int
+    ) -> None:
+        """Replace one migrated record, then append a migration note."""
+        document = to_dict(record)
+        document["record_key"] = key
+        payload = json.dumps(document, indent=2, sort_keys=True) + "\n"
+        temporary = dest.with_name(
+            f"{_TEMPORARY_PREFIX}{dest.name}.{secrets.token_hex(8)}"
+        )
+        try:
+            descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temporary.replace(dest)
+            _fsync_directory(dest.parent)
+        except OSError as exc:
+            raise PersistenceError(
+                "failed to rewrite the migrated record",
+                path=str(dest),
+            ) from exc
+        finally:
+            temporary.unlink(missing_ok=True)
+        self._note_migration(record.kind, key, from_version, record.schema_version)
+
+    def _note_migration(
+        self, kind: str, key: str, from_version: int, to_version: int
+    ) -> None:
+        path = self._root / "_schema_migrations.jsonl"
+        line = json.dumps(
+            {
+                "kind": kind,
+                "key": key,
+                "from_version": from_version,
+                "to_version": to_version,
+            },
+            sort_keys=True,
+        )
+        try:
+            self._root.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        except OSError as exc:
+            raise PersistenceError(
+                "failed to record the schema migration",
+                path=str(path),
+            ) from exc
 
 
 def _fsync_directory(path: Path) -> None:

@@ -159,6 +159,16 @@ class ProviderInferResult:
     generation_seconds: float | None
 
 
+@dataclass(frozen=True, slots=True)
+class VerifiedProviderRuntime:
+    """Identity taken from an already verified Foundation. Serve does not re-verify."""
+
+    provider: str
+    generation_id: str
+    execution_environment_fingerprint: str
+    ready: bool
+
+
 class ProviderRuntimePort(Protocol):
     """Public provider mechanics behind an already authorized plan."""
 
@@ -223,15 +233,15 @@ class ProviderServeService:
         self,
         configuration: ProviderDeploymentConfiguration,
         reservation_id_value: str,
+        runtime: VerifiedProviderRuntime,
         *,
-        foundation_ready: bool,
         covered: bool,
     ) -> ProviderServeDecision:
         """Establish residency only after the reservation authorizes this plan."""
         blocked = self._authorize(
             configuration,
             reservation_id_value,
-            foundation_ready=foundation_ready,
+            runtime,
             covered=covered,
         )
         if blocked is not None:
@@ -250,9 +260,7 @@ class ProviderServeService:
             return self._emit(
                 _refused(ServeFailure.PROVIDER_API_FAILED, "residency refresh failed")
             )
-        seen = self._provider.observe(
-            configuration.display_name, configuration.digest
-        )
+        seen = self._provider.observe(configuration.display_name, configuration.digest)
         if seen.state != "expected_resident":
             return self._emit(
                 _refused(
@@ -302,9 +310,7 @@ class ProviderServeService:
         before = self._provider.observe(instance.display_name, instance.digest)
         if before.state != "expected_resident":
             failed = self._mark(instance, InstanceState.FAILED, HealthState.UNREADY)
-            return self._emit(
-                _failed(failed, ServeFailure.PROVIDER_RESIDENCY_MISMATCH)
-            )
+            return self._emit(_failed(failed, ServeFailure.PROVIDER_RESIDENCY_MISMATCH))
         generated = self._provider.infer(
             instance.display_name, context=instance.context_length
         )
@@ -334,11 +340,41 @@ class ProviderServeService:
         self._provider.unload(instance.display_name)
         seen = self._absent(instance.display_name, instance.digest)
         if seen is None:
-            return self._emit(
-                _failed(stopping, ServeFailure.PROVIDER_UNLOAD_FAILED)
-            )
+            return self._emit(_failed(stopping, ServeFailure.PROVIDER_UNLOAD_FAILED))
         stopped = self._mark(stopping, InstanceState.STOPPED, HealthState.UNREADY)
         return self._emit(_stopped(stopped, "expected digest is absent"))
+
+    def reconcile(self) -> tuple[ProviderServeDecision, ...]:
+        """Re-read provider state after a lagged stop. This does not release."""
+        results: list[ProviderServeDecision] = []
+        for instance in self.list_instances():
+            if instance.state is not InstanceState.STOPPING:
+                continue
+            seen = self._provider.observe(instance.display_name, instance.digest)
+            if seen.state == "absent":
+                stopped = self._mark(
+                    instance, InstanceState.STOPPED, HealthState.UNREADY
+                )
+                results.append(
+                    self._emit(_stopped(stopped, "expected digest is now absent"))
+                )
+                continue
+            if seen.state == "wrong_identity":
+                results.append(
+                    self._emit(
+                        _failed(instance, ServeFailure.PROVIDER_RESIDENCY_MISMATCH)
+                    )
+                )
+                continue
+            if seen.state == "unresolved":
+                results.append(
+                    self._emit(_failed(instance, ServeFailure.PROVIDER_API_FAILED))
+                )
+                continue
+            results.append(
+                self._emit(_failed(instance, ServeFailure.PROVIDER_UNLOAD_FAILED))
+            )
+        return tuple(results)
 
     def get_instance(self, instance_id_value: str) -> ProviderServingInstance | None:
         for item in self.list_instances():
@@ -372,17 +408,39 @@ class ProviderServeService:
         self,
         configuration: ProviderDeploymentConfiguration,
         reservation_id_value: str,
+        runtime: VerifiedProviderRuntime,
         *,
-        foundation_ready: bool,
         covered: bool,
     ) -> ProviderServeDecision | None:
         if configuration.status is not PlanStatus.PLANNED:
             return _refused(
                 ServeFailure.PLAN_RESERVATION_MISMATCH, "plan is not current"
             )
-        if not foundation_ready:
+        if not runtime.ready:
             return _refused(
                 ServeFailure.FOUNDATION_NOT_READY, "foundation is not ready"
+            )
+        if runtime.provider != configuration.provider:
+            return _refused(
+                ServeFailure.FOUNDATION_MISMATCH, "provider does not match the plan"
+            )
+        if not runtime.generation_id.startswith("fgen_"):
+            return _refused(
+                ServeFailure.FOUNDATION_MISMATCH,
+                "verified foundation generation is not an fgen identity",
+            )
+        if runtime.generation_id != configuration.generation_id:
+            return _refused(
+                ServeFailure.FOUNDATION_MISMATCH,
+                "foundation generation does not match the plan",
+            )
+        if (
+            runtime.execution_environment_fingerprint
+            != configuration.execution_environment_fingerprint
+        ):
+            return _refused(
+                ServeFailure.FOUNDATION_MISMATCH,
+                "execution environment does not match the plan",
             )
         reservation = self._manager.get_reservation(reservation_id_value)
         if reservation is None:

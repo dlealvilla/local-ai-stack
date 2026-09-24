@@ -1993,6 +1993,74 @@
       }
     }
   },
+  "foundation.runtime_choice@1": {
+    "python": "RuntimeChoice",
+    "fields": {
+      "decision_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this control-plane choice"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "fallback policy that produced this choice"
+      },
+      "requested_mode": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "auto, vllm, or ollama; explicit modes do not switch"
+      },
+      "primary_support": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "native vLLM support consulted, or not_consulted"
+      },
+      "fallback_support": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ollama support consulted, or not_consulted"
+      },
+      "selected_engine": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "vllm, ollama, or none"
+      },
+      "outcome": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "selected or refused"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this path was selected or refused"
+      },
+      "recompute": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "downstream stages that must be rebuilt, or none"
+      }
+    }
+  },
   "foundation.runtime_recipe@1": {
     "python": "RuntimeRecipe",
     "fields": {
@@ -4005,7 +4073,7 @@
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "foundation generation"
+        "meaning": "verified foundation generation (fgen_); not a runtime environment id"
       },
       "engine_version": {
         "type": "str",
@@ -6128,7 +6196,7 @@
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "verified runtime generation"
+        "meaning": "verified foundation generation (fgen_); not a runtime environment id"
       },
       "execution_environment_fingerprint": {
         "type": "str",
@@ -6285,7 +6353,7 @@
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "runtime generation cited"
+        "meaning": "verified foundation generation (fgen_); not a runtime environment id"
       },
       "capacity_evidence_id": {
         "type": "str",

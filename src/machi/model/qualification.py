@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
 from machi.kernel.clock import require_utc
 from machi.kernel.errors import ValidationError
+from machi.kernel.migrate import register_upgrade
 from machi.kernel.schema import Contract, contract, meaning
 from machi.kernel.unresolved import Maybe
 from machi.model.identity import input_token
@@ -209,6 +210,8 @@ def covers(
 ) -> bool:
     """A pass covers only the same identity at or below its envelopes."""
     if evidence.schema_version != 2:
+        return False
+    if evidence.execution_environment_fingerprint == "not_recorded":
         return False
     if evidence.outcome is not QualificationOutcome.PASS:
         return False
@@ -465,3 +468,16 @@ def order_queue(
         members=members,
         policy_version=policy_version,
     )
+
+
+def _qualification_v1_to_v2(
+    document: Mapping[str, object],
+) -> dict[str, object]:
+    """Keep every recorded field. The environment was not observed."""
+    upgraded = dict(document)
+    upgraded["schema_version"] = 2
+    upgraded["execution_environment_fingerprint"] = "not_recorded"
+    return upgraded
+
+
+register_upgrade("model.qualification", 1, _qualification_v1_to_v2)

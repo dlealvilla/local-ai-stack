@@ -16,7 +16,9 @@
     "hourly_usd": 0.49,
     "pod_id": "tt6xs8su1zhn9o",
     "pod_terminated": true,
-    "generation_id": "renv_ceedac1939fecd21",
+    "runtime_environment_id": "renv_ceedac1939fecd21",
+    "foundation_generation_id": "not_recorded",
+    "identity_disposition": "provider_functional_not_generation_bound",
     "fingerprint": "exe_7efc404ce831bb9bbfa4606bcfbfe224",
     "safe_host_bytes": 49463128064,
     "safe_accelerator_bytes": 48037363712

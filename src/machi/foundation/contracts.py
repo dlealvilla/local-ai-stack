@@ -137,7 +137,7 @@ class FoundationSetting(Contract):
 @contract(kind="foundation.settings", version=1)
 @dataclass(frozen=True, slots=True)
 class FoundationSettings(Contract):
-    """Typed native-vLLM policy. The fallback runtime is not selected here."""
+    """Typed native-vLLM policy. Runtime choice lives in fallback.py."""
 
     python_version: str = meaning("managed interpreter version, not system Python")
     vllm_version: str = meaning("exact vLLM version pin")

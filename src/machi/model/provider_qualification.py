@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
 from machi.foundation.metrics import MetricAvailability
 from machi.kernel.clock import require_utc
 from machi.kernel.errors import ValidationError
+from machi.kernel.migrate import register_upgrade
 from machi.kernel.schema import Contract, contract, meaning
 from machi.kernel.unresolved import Maybe
 from machi.model.identity import input_token
@@ -36,12 +38,12 @@ class OllamaQualificationEvidence(Contract):
     qualification_id: str = meaning("identity of this provider result")
     digest: str = meaning("ollama model digest that was qualified")
     display_name: str = meaning("tag used to address the catalog entry")
-    generation_id: str = meaning("foundation generation")
+    generation_id: str = meaning(
+        "verified foundation generation (fgen_); not a runtime environment id"
+    )
     engine_version: str = meaning("ollama version")
     hardware_class: str = meaning("capability class, not a host name")
-    execution_environment_fingerprint: str = meaning(
-        "material accelerator environment"
-    )
+    execution_environment_fingerprint: str = meaning("material accelerator environment")
     context: int = meaning(
         "context requested from the provider as num_ctx; not an observed slot"
     )
@@ -101,12 +103,15 @@ class OllamaQualificationEvidence(Contract):
         if self.context < 1 or self.concurrency < 1:
             raise ValidationError("qualification envelope must be positive")
         if self.outcome is QualificationOutcome.PASS:
-            if self.context_binding != "requested":
-                raise ValidationError("a pass requires a requested context")
             if not self.token_proved:
                 raise ValidationError("a pass requires a counted output token")
-            if self.provider_fit is not ProviderFitState.FIT:
-                raise ValidationError("a pass requires provider fit")
+            if self.context_binding == "requested":
+                if self.provider_fit is not ProviderFitState.FIT:
+                    raise ValidationError("a pass requires provider fit")
+            elif self.provider_fit is not ProviderFitState.UNRESOLVED:
+                raise ValidationError(
+                    "historical evidence does not record provider fit"
+                )
 
 
 def ollama_qualification_id(
@@ -155,3 +160,17 @@ def qualification_covers(
     if evidence.concurrency != 1 or concurrency != 1:
         return False
     return 1 <= context <= evidence.context
+
+
+def _ollama_qualification_v1_to_v2(
+    document: Mapping[str, object],
+) -> dict[str, object]:
+    """Preserve the recorded result. v1 did not send num_ctx or a fit verdict."""
+    upgraded = dict(document)
+    upgraded["schema_version"] = 2
+    upgraded["context_binding"] = "not_sent"
+    upgraded["provider_fit"] = "unresolved"
+    return upgraded
+
+
+register_upgrade("model.ollama_qualification", 1, _ollama_qualification_v1_to_v2)
