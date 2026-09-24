@@ -1,11 +1,11 @@
 {
   "schema": "machi.lead_handoff.v1",
-  "instruction_id": "MACHI-OLLAMA-CHUNK-03-GATE-001",
-  "status": "READY",
+  "instruction_id": "MACHI-OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY-HOLD",
+  "status": "DECISION_REQUIRED",
   "source_repository": "dlealvilla/ai-stack",
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "sync_research_ollama_chunk_3_decision_gate_publish",
-  "expected_pasteback_instruction_id": "MACHI-OLLAMA-CHUNK-03-GATE-001",
+  "expected_cursor_action": "none_wait_for_qualifier_boundary_decision",
+  "expected_pasteback_instruction_id": null,
   "program": {
     "program_id": "MACHI-OLLAMA-MACROPATH-001",
     "name": "ollama-execution-macropath",
@@ -14,7 +14,9 @@
     "integration_branch": "automation/ollama-macropath",
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "decision_gate": "control/OLLAMA-CHUNK-03-DECISION-GATE.md",
-    "next_action": "lead_decision_before_chunk_3_implementation",
-    "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve"
+    "next_action": "lead_product_decide_ollama_specialist_integration",
+    "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
+    "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
+    "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md"
   }
 }
