@@ -305,3 +305,21 @@ These are now program-level requirements:
 - Choose and freeze the latest approved **stable** Ollama release at implementation time; do not adopt a prerelease without explicit Lead approval.
 - Both verified-existing and Machi-managed-prefix Foundation paths are desired. The managed path must remain inside Machi-owned state and must not silently mutate `/usr` or global systemd.
 - Normalize analytics behind a macropath adapter while retaining path-specific raw evidence and provenance.
+
+
+---
+
+## Future Runtime Artifact Registry / software supply-chain constraint
+
+The accepted future product direction is recorded in
+`control/RUNTIME-ARTIFACT-REGISTRY-VISION.md`.
+
+After the inference spine, Kultrun will build a runtime/software artifact
+supply chain separate from the Model Warehouse. Current macropath work must
+not build that hosted service now. It should preserve exact artifact identity,
+provenance, checksums, owned staging and verified realization, and avoid
+unnecessary coupling between a runtime recipe and one byte-delivery location.
+
+Mirrored vendor artifacts, pinned upstream artifacts, customer mirrors/imports
+and offline bundles should later be delivery providers for the same verified
+artifact identity and recipe.
