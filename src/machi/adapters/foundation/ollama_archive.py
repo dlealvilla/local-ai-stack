@@ -438,6 +438,12 @@ def _extract(
             if member.isdir():
                 destination.mkdir(parents=True, exist_ok=True)
                 continue
+            if member.issym():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if destination.exists() or destination.is_symlink():
+                    raise ValidationError("archive member collides")
+                destination.symlink_to(member.linkname)
+                continue
             source = handle.extractfile(member)
             if source is None:
                 raise ValidationError("archive member is unreadable")
@@ -651,15 +657,34 @@ def _close_tar(handle: tarfile.TarFile, child: _InactivityWatch | None) -> None:
 def _reject_member(member: tarfile.TarInfo) -> None:
     if len(member.name) > _MAX_NAME:
         raise ValidationError("archive member name exceeds the limit")
-    _relative_name(member.name)
-    if member.issym() or member.islnk():
-        raise ValidationError("archive links are refused")
+    relative = _relative_name(member.name)
+    if member.islnk():
+        raise ValidationError("archive hard links are refused")
+    if member.issym():
+        _require_contained_symlink(relative, member.linkname)
+        return
     if not member.isdir() and not member.isfile():
         raise ValidationError("archive special members are refused")
     if member.isfile():
         reason = individual_member_refusal(member.size)
         if reason is not None:
             raise ValidationError(reason)
+
+
+def _require_contained_symlink(relative: PurePosixPath, linkname: str) -> None:
+    """Allow a soname link only when its target stays inside the prefix."""
+    if (
+        not linkname
+        or len(linkname) > _MAX_NAME
+        or "\\" in linkname
+        or "\x00" in linkname
+    ):
+        raise ValidationError("archive link escapes the prefix")
+    target = PurePosixPath(linkname)
+    if target.is_absolute() or ".." in target.parts or not target.parts:
+        raise ValidationError("archive link escapes the prefix")
+    combined = relative.parent.joinpath(*target.parts)
+    _relative_name(combined.as_posix())
 
 
 def _relative_name(name: str) -> PurePosixPath:

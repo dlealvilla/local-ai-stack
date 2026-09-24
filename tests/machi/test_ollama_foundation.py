@@ -116,17 +116,46 @@ def _archive(*extra: tuple[str, bytes]) -> bytes:
     return buffer.getvalue()
 
 
+def _copy_archive(payload: bytes, handle: tarfile.TarFile) -> None:
+    with tarfile.open(fileobj=io.BytesIO(payload), mode="r:") as source:
+        for member in source.getmembers():
+            extracted = source.extractfile(member)
+            handle.addfile(member, extracted)
+
+
 def _linked_archive() -> bytes:
     buffer = io.BytesIO()
-    payload = _archive()
     with tarfile.open(fileobj=buffer, mode="w") as handle:
-        with tarfile.open(fileobj=io.BytesIO(payload), mode="r:") as source:
-            for member in source.getmembers():
-                extracted = source.extractfile(member)
-                handle.addfile(member, extracted)
+        _copy_archive(_archive(), handle)
         link = tarfile.TarInfo("bin/escape")
         link.type = tarfile.SYMTYPE
         link.linkname = "../outside"
+        handle.addfile(link)
+    return buffer.getvalue()
+
+
+def _hard_archive() -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as handle:
+        _copy_archive(_archive(), handle)
+        link = tarfile.TarInfo("bin/ollama-hard")
+        link.type = tarfile.LNKTYPE
+        link.linkname = "bin/ollama"
+        handle.addfile(link)
+    return buffer.getvalue()
+
+
+def _soname_archive() -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as handle:
+        _copy_archive(_archive(), handle)
+        body = b"library"
+        library = tarfile.TarInfo("lib/ollama/libggml.so.0")
+        library.size = len(body)
+        handle.addfile(library, io.BytesIO(body))
+        link = tarfile.TarInfo("lib/ollama/libggml.so")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "libggml.so.0"
         handle.addfile(link)
     return buffer.getvalue()
 
@@ -480,7 +509,13 @@ def test_zst_realization_rejects_bad_archives_without_touching_active(
         state, linked, _recipe(linked.read_bytes()), safe_bytes=SAFE_BYTES
     )
     assert isinstance(linked_result, PrefixRefusal)
-    assert linked_result.reason == "archive links are refused"
+    assert linked_result.reason == "archive link escapes the prefix"
+    hard = _zst(tmp_path, _hard_archive(), "hard.tar.zst")
+    hard_result = OllamaRuntime().install(
+        state, hard, _recipe(hard.read_bytes()), safe_bytes=SAFE_BYTES
+    )
+    assert isinstance(hard_result, PrefixRefusal)
+    assert hard_result.reason == "archive hard links are refused"
     bounded = OllamaRuntime().install(
         tmp_path / "bounded",
         compressed,
@@ -493,6 +528,22 @@ def test_zst_realization_rejects_bad_archives_without_touching_active(
     assert not (tmp_path / "bounded" / "foundation" / "staging").exists()
     assert marker.read_bytes() == b"keep-me"
     assert not any((tmp_path / "bounded").rglob("bin/ollama"))
+
+
+def test_contained_soname_symlink_is_preserved(tmp_path: Path) -> None:
+    compressed = _zst(tmp_path, _soname_archive(), "soname.tar.zst")
+    installed = OllamaRuntime().install(
+        tmp_path / "state",
+        compressed,
+        _recipe(compressed.read_bytes()),
+        safe_bytes=SAFE_BYTES,
+    )
+    assert isinstance(installed, InstalledPrefix)
+    link = installed.prefix / "lib" / "ollama" / "libggml.so"
+    assert link.is_symlink()
+    assert link.readlink() == Path("libggml.so.0")
+    assert link.read_bytes() == b"library"
+    assert not (installed.prefix / "bin" / "ollama").is_symlink()
 
 
 def test_missing_safe_bytes_refuses(tmp_path: Path) -> None:
