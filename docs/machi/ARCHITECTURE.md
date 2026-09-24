@@ -106,6 +106,27 @@ identity, qualification meaning, Plan/Serve invariants, evidence/witness
 semantics, and other product-defining control decisions—Machi owns the contract
 even when libraries or runtimes implement lower-level mechanics.
 
+
+### Product Vision Alignment Gate
+
+Every material architecture/provider/build-vs-integrate decision must be checked
+against the authoritative Product Vision before implementation.
+
+For each viable option record:
+- `ALIGNED`, `ALIGNED_WITH_CONDITIONS`, or `MISALIGNED`;
+- the exact Product Vision principles affected;
+- any effect on self-hosting, privacy, offline/air-gap, replaceability,
+  provider-neutral contracts, ownership, safety, evidence, administrator
+  simplicity, enterprise governance, commercial/licensing direction, and future
+  Company Brain capabilities;
+- whether any tension is temporary, adapter-contained, or structurally changes
+  the product.
+
+A technically superior option may still be rejected if it is structurally
+misaligned with the product. A MISALIGNED choice requires explicit Lead/product
+approval to revise the Product Vision; it is not an engineering default.
+
+
 ### Industry Solution Selection Gate
 
 Before code changes, stop for Lead/product decision when:
