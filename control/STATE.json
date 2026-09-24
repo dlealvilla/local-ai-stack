@@ -34,7 +34,8 @@
       "physical_reentry",
       "conditional_residency_seam_and_authorization_gate"
     ],
-    "physical_server": "conditional_after_local_gates"
+    "physical_server": "conditional_after_local_gates",
+    "instruction_style": "product_first_functional_scope_actions_qa_then_technical_constraints"
   },
   "published_instruction_id": "MACHI-OLLAMA-CHUNK-03-CORRECTION-003",
   "schema": "machi.lead_handoff.v1",
