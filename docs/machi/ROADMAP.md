@@ -22,7 +22,11 @@ build-vs-integrate choice affects core product semantics, architecture,
 security, licensing, portability, supportability, or commercial strategy,
 trigger the Industry Solution Selection Gate and wait for Lead/product
 decision. If there is no material choice, state `No solution decision required`
-and proceed.
+and proceed. Every material option must also pass Product Vision Alignment:
+explicitly check self-hosting, privacy, offline/air-gap, replaceability,
+provider-neutrality, ownership/safety/evidence, administrator simplicity,
+commercial direction, and long-term Company Brain compatibility. A technically
+strong but structurally misaligned option is not a default implementation.
 
 **Rule:** no attached product (Admin UI, Knowledge, marketplace)
 before the core exoskeleton can run Blocks 1–9. Observability is
