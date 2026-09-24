@@ -1,6 +1,6 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-**Instruction ID:** `MACHI-OLLAMA-CHUNK-02-FINAL-004`  
+**Instruction ID:** `MACHI-OLLAMA-CHUNK-02-FINAL-005`  
 **Program:** `MACHI-OLLAMA-MACROPATH-001`  
 **Chunk:** 2 of 6 — INDUSTRY-PATTERN FINAL HARDENING  
 **Starting canonical HEAD:** `45b1734936164393c7434ddd09640c7c05e5fb7b`  
@@ -9,11 +9,24 @@
 **Chunk 3:** FORBIDDEN
 
 Read first:
+- `control/CORE-VS-COMMODITY-POLICY.md`
 - `control/OLLAMA-CHUNK-02-INDUSTRY-PRACTICES.md`
 - `control/OLLAMA-CHUNK-02-LEAD-REVIEW-2.md`
 - `control/OLLAMA-CHUNK-01-DECISION.md`
 - `control/RUNTIME-ARTIFACT-REGISTRY-VISION.md`
 - current repository source/tests/docs
+
+# 0. Governing solution-selection rule
+
+Apply `control/CORE-VS-COMMODITY-POLICY.md` before implementation.
+
+For each problem in this instruction:
+1. classify it as Ring A commodity, Ring B enabling infrastructure, or Ring C product core;
+2. research established standards/libraries/projects where relevant;
+3. if one clear industry fit exists with no material product consequence, record `NO_SOLUTION_DECISION_REQUIRED` and use/adapt it;
+4. if 2+ materially credible alternatives remain, or the choice changes a core contract/authority boundary/strategic dependency, STOP with `DECISION_REQUIRED_INDUSTRY_SOLUTION_SELECTION` and present the decision package required by the policy.
+
+Do not silently choose between competing credible solutions merely to complete this chunk.
 
 # 1. Confirm industry-practice fit BEFORE editing
 
