@@ -1,8 +1,8 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "none_wait_for_bundled_next_instruction",
-  "expected_pasteback_instruction_id": null,
-  "instruction_id": "MACHI-OLLAMA-CHUNK-03-LOCAL-ACCEPTED",
+  "expected_cursor_action": "sync_execute_bundled_ollama_physical_qualification_and_conditional_residency_work",
+  "expected_pasteback_instruction_id": "MACHI-OLLAMA-BUNDLE-04-PHYSICAL-AUTH-001",
+  "instruction_id": "MACHI-OLLAMA-BUNDLE-04-PHYSICAL-AUTH-001",
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "chunks": 6,
@@ -15,7 +15,7 @@
     "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
-    "next_action": "lead_publish_bundled_physical_and_adjacent_work",
+    "next_action": "lead_review_bundle_04",
     "program_id": "MACHI-OLLAMA-MACROPATH-001",
     "qualifier_authority": {
       "native_vllm": "machi_native_authoritative",
@@ -25,10 +25,19 @@
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
     "local_acceptance": "control/OLLAMA-CHUNK-03-LOCAL-ACCEPTED.md",
     "execution_bundle_policy": "control/EXECUTION-BUNDLE-POLICY.md",
-    "carry_forward": "preload_initial_load_duration_metric_truth"
+    "carry_forward": "preload_initial_load_duration_metric_truth",
+    "bundle": "control/OLLAMA-BUNDLE-04-PHYSICAL-AUTH.md",
+    "package_slices": [
+      "real_api_and_timing",
+      "physical_qualification",
+      "comparative_evidence",
+      "physical_reentry",
+      "conditional_residency_seam_and_authorization_gate"
+    ],
+    "physical_server": "conditional_after_local_gates"
   },
   "published_instruction_id": "MACHI-OLLAMA-CHUNK-03-CORRECTION-003",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "CLOSED_LOCAL_WAITING_BUNDLED_NEXT_PACKAGE"
+  "status": "READY"
 }
