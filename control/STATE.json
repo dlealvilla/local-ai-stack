@@ -1,13 +1,13 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "none_wait_for_next_closure_bundle",
-  "expected_pasteback_instruction_id": null,
-  "instruction_id": "MACHI-OLLAMA-BUNDLE-06-LEAD-REVIEW",
+  "expected_cursor_action": "sync_execute_ollama_nvidia_closure_with_optional_amd_preflight_and_physical_auto_evidence",
+  "expected_pasteback_instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
+  "instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
     "auto_fallback_scope": "local_control_plane_only_no_physical_live_failover_claim",
-    "bundle": "control/OLLAMA-BUNDLE-06-CLOSURE-FALLBACK.md",
+    "bundle": "control/OLLAMA-BUNDLE-07-NVIDIA-CLOSURE.md",
     "bundle_04_exact_context_qualification": false,
     "bundle_04_physical_functional_pass": true,
     "bundle_04_review": "control/OLLAMA-BUNDLE-04-LEAD-REVIEW.md",
@@ -22,7 +22,7 @@
     "carry_forward": "explicit_ollama_num_ctx_then_physical_requalification",
     "chunks": 6,
     "comparative_analytics": "required",
-    "current_chunk": 3,
+    "current_chunk": 6,
     "decision_gate": "control/OLLAMA-CHUNK-03-DECISION-GATE.md",
     "decision_record": "control/OLLAMA-CHUNK-03-DUAL-QUALIFIER-DECISION.md",
     "direction_levels": "binding_recommended_delegated",
@@ -34,15 +34,16 @@
     "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
-    "next_action": "lead_publish_ollama_closure_bundle",
+    "next_action": "lead_review_bundle_07_closure",
     "package_slices": [
-      "foundation_identity_closure",
-      "schema_migration_k03",
-      "serve_reconciliation",
-      "physical_corrected_reproof",
-      "bounded_auto_fallback_control_plane"
+      "migration_durability_k03",
+      "runtime_choice_concrete_evidence",
+      "amd_optional_preflight",
+      "nvidia_physical_auto_and_matrix",
+      "comparative_closure",
+      "macropath_closure_decision"
     ],
-    "physical_server": "conditional_after_local_gates",
+    "physical_server": "nvidia_required_after_local_gates_amd_optional",
     "program_id": "MACHI-OLLAMA-MACROPATH-001",
     "qualifier_authority": {
       "native_vllm": "machi_native_authoritative",
@@ -59,10 +60,13 @@
       "schema_migration_audit_recoverability_k03",
       "runtime_choice_concrete_foundation_evidence_binding",
       "physical_auto_fallback_and_chunk6_closure"
-    ]
+    ],
+    "closure_scope": "nvidia_stage1",
+    "amd_closure_gate": false,
+    "amd_policy_record": "control/OLLAMA-NVIDIA-CLOSURE-AMD-OPTIONAL.md"
   },
-  "published_instruction_id": "MACHI-OLLAMA-BUNDLE-06-CLOSURE-FALLBACK-001",
+  "published_instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "ACCEPTED_WITH_CARRY_FORWARD"
+  "status": "READY"
 }
