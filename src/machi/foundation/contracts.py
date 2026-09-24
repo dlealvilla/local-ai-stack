@@ -28,9 +28,10 @@ class FoundationFamily(StrEnum):
 
 
 class FoundationEngine(StrEnum):
-    """Engine selected for this foundation. Only vLLM is this increment."""
+    """Engine selected for this foundation. vLLM stays the primary engine."""
 
     VLLM = "vllm"
+    OLLAMA = "ollama"
 
 
 class ExecutorKind(StrEnum):
@@ -230,9 +231,7 @@ class FoundationCandidate(Contract):
     observed_glibc: Maybe[str] = meaning("glibc version read from the host")
     accelerator_architecture: Maybe[str] = meaning("gfx name when observed")
     native_libraries: str = meaning("required sonames, or none")
-    native_status: str = meaning(
-        "satisfied, realize, missing, or not_applicable"
-    )
+    native_status: str = meaning("satisfied, realize, missing, or not_applicable")
     native_library_prefix: str = meaning("managed linker prefix, or none")
     support: SupportState = meaning("resolution outcome before provision")
     failure: FailureCode = meaning("none when the candidate is usable")

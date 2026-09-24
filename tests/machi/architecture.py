@@ -1202,17 +1202,19 @@ def capacity_boundary_violations(root: Path) -> list[str]:
 
 FOUNDATION_DOMAIN_FORBIDDEN = (
     "docker",
-    "ollama",
     "huggingface",
     "subprocess",
     "resourcemanager",
     "from machi.adapters",
     "from machi.prerequisites",
+    "/api/pull",
+    "/api/generate",
+    "/api/chat",
 )
 
 
 def foundation_boundary_violations(root: Path) -> list[str]:
-    """Foundation resolves and verifies vLLM. It does not serve or download models."""
+    """Foundation verifies a runtime. It does not serve or download models."""
     found: list[str] = []
     domain = root / "foundation"
     if not domain.is_dir():
@@ -1222,11 +1224,25 @@ def foundation_boundary_violations(root: Path) -> list[str]:
         for token in FOUNDATION_DOMAIN_FORBIDDEN:
             if token in text:
                 found.append(f"{path.name} must not contain {token!r}")
+    if 'OLLAMA = "ollama"' not in (domain / "contracts.py").read_text(encoding="utf-8"):
+        found.append("FoundationEngine must include the ollama engine")
+    if not (domain / "ollama.py").is_file():
+        found.append("ollama foundation substrate is missing")
     process = root / "adapters" / "foundation" / "process.py"
     if "subprocess" not in process.read_text(encoding="utf-8"):
         found.append("native process runner must own subprocess")
     if "shell=True" in process.read_text(encoding="utf-8"):
         found.append("native process runner must not use a shell")
+    runtime = root / "adapters" / "foundation" / "ollama_runtime.py"
+    if not runtime.is_file():
+        found.append("ollama runtime adapter is missing")
+    else:
+        runtime_text = runtime.read_text(encoding="utf-8")
+        for token in ("/api/pull", "/api/generate", "/api/chat", "OLLAMA_API_KEY"):
+            if token in runtime_text:
+                found.append(f"ollama runtime adapter must not contain {token}")
+        if "systemd" in runtime_text:
+            found.append("ollama runtime adapter must not register systemd")
     provision_path = root / "adapters" / "foundation" / "provision.py"
     provision = provision_path.read_text(encoding="utf-8")
     if "api_server" in provision and "entrypoints" not in provision:

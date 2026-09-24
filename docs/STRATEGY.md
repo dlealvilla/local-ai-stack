@@ -90,8 +90,11 @@ otherwise:
 
 Explicit `VLLM` selects vLLM and fails closed when vLLM is unsupported.
 Explicit `OLLAMA` selects Ollama and fails closed when Ollama is
-unsupported. This is future product policy. Current hosts do not yet
-ship vLLM product code. Steward is closed and does not select a path.
+unsupported. AUTO fallback is the target policy and is not active.
+Native vLLM product code is present. Physical NVIDIA qualification is
+partial: one L40S host passed two small models, and Ampere stock did
+not pass. Until Ollama qualifies on its own, an unsupported vLLM path
+stays a typed refusal. Steward is closed and does not select a path.
 
 Untracked notes under `docs/machi/proposals/` are not canonical. Where
 they disagree with this default, this document wins.

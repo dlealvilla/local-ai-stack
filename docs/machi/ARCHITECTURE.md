@@ -834,8 +834,12 @@ is an extra block, and none is the meaning of Foundation.
 
 **Product policy:** AUTO selects supported native vLLM. If that path
 is unsupported, the result is a typed refusal. Explicit vLLM fails
-closed. The Ollama fallback is not substituted. Containers, system
-Python, and model download are outside this block.
+closed. An explicit Ollama foundation substrate can be verified, and
+AUTO does not select it. The target, after Ollama qualifies on its
+own, is to prefer a supported healthy vLLM path and otherwise a
+supported Ollama path. Containers, system Python, and model download
+are outside this block. The local Ollama API has no Machi
+authentication boundary (`M-5-OLLAMA-01`).
 
 **Qualification:** implementation and physical qualification are
 separate. NVIDIA CUDA is qualified. AMD ROCm native Foundation is

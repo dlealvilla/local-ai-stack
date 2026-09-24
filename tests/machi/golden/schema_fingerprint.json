@@ -1657,6 +1657,295 @@
       }
     }
   },
+  "foundation.metric@1": {
+    "python": "FoundationMetric",
+    "fields": {
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable metric name"
+      },
+      "value": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "figure as text; unresolved when unknown"
+      },
+      "availability": {
+        "type": "MetricAvailability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how this figure was obtained"
+      },
+      "unit": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "text, seconds, bytes, or count"
+      },
+      "source": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider fact this figure came from"
+      },
+      "privacy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "operational; request text is not stored here"
+      }
+    }
+  },
+  "foundation.metric_set@1": {
+    "python": "FoundationMetricSet",
+    "fields": {
+      "metrics": {
+        "type": "tuple[FoundationMetric, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ordered foundation metrics"
+      }
+    }
+  },
+  "foundation.ollama_generation@1": {
+    "python": "OllamaFoundationGeneration",
+    "fields": {
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this daemon substrate"
+      },
+      "recipe_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "recipe this generation was verified against"
+      },
+      "provider_mode": {
+        "type": "OllamaProviderMode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified existing or managed"
+      },
+      "version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact runtime version"
+      },
+      "artifact_sha256": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "archive sha256, or unresolved"
+      },
+      "execution_environment_fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "accelerator environment this generation is bound to"
+      },
+      "cloud_mode": {
+        "type": "CloudMode",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cloud must be disabled for a happy path"
+      },
+      "endpoint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "private endpoint this generation serves"
+      },
+      "created_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this generation was recorded; UTC"
+      }
+    }
+  },
+  "foundation.ollama_raw@1": {
+    "python": "OllamaRawEvidence",
+    "fields": {
+      "provider_mode": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified existing or managed prefix"
+      },
+      "version_text": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "version text from the identified executable"
+      },
+      "api_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "version returned by the local version endpoint"
+      },
+      "artifact_sha256": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "archive sha256, or unresolved"
+      },
+      "cloud_mode": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "disabled, enabled, or unresolved"
+      },
+      "endpoint_class": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "loopback when the bind is private"
+      }
+    }
+  },
+  "foundation.ollama_recipe@1": {
+    "python": "OllamaRuntimeRecipe",
+    "fields": {
+      "recipe_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable id of this version and artifact"
+      },
+      "version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exact stable version, without a leading v"
+      },
+      "artifact_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "official archive file name"
+      },
+      "artifact_sha256": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "sha256 of the official archive"
+      },
+      "artifact_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "compressed archive size in bytes"
+      },
+      "source_url": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "release asset url with no credentials"
+      },
+      "checksum_url": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "official checksum file url"
+      },
+      "license_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "software license of the runtime"
+      },
+      "stable": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "true only for a non-prerelease pin"
+      }
+    }
+  },
+  "foundation.ollama_substrate@1": {
+    "python": "OllamaSubstrate",
+    "fields": {
+      "selection": {
+        "type": "FoundationSelection",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "macropath decision for this daemon"
+      },
+      "generation": {
+        "type": "OllamaFoundationGeneration",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "material daemon identity"
+      },
+      "capability": {
+        "type": "RuntimeCapability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime profile; serving stays unsupported"
+      },
+      "metrics": {
+        "type": "FoundationMetricSet",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized foundation metrics"
+      },
+      "raw": {
+        "type": "OllamaRawEvidence",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider evidence behind the metrics"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when verification finished; UTC"
+      }
+    }
+  },
   "foundation.requirement@1": {
     "python": "FoundationRequirement",
     "fields": {

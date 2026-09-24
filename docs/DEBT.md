@@ -2574,6 +2574,61 @@ Retire when:  a measured prefix footprint is recorded and capacity
               checks use it
 Status:       OPEN
 
+### M-5-OLLAMA-01 — Local API is not hard isolation
+Label:        DEFERRED
+Owner stage:  Foundation
+Subsystem:    foundation
+Authorizes:   NO
+What:         The Ollama daemon listens without Machi authentication.
+              Another process on the same host can call the loopback
+              API and bypass ResourceManager. Machi can govern only
+              the calls it routes.
+Why now:      The first substrate keeps the bind on loopback and
+              disables cloud. It does not solve multi-user isolation.
+To make real: an isolation boundary that prevents an arbitrary local
+              process from using the daemon outside a Machi
+              reservation, without widening the bind.
+Retire when:  that boundary is enforced, or a later security review
+              accepts loopback trust for the deployment model
+Status:       OPEN
+
+### M-5-OLLAMA-02 — RuntimeCapability v1 text still names vLLM
+Label:        PROVISIONAL
+Owner stage:  Foundation
+Subsystem:    foundation
+Authorizes:   NO
+What:         `RuntimeCapability` version 1 field meanings still say
+              vLLM. An Ollama substrate stores the Ollama version in
+              that same contract and sets the engine to `ollama`.
+Why now:      Bumping the contract was not required to add the engine
+              value. The Ollama generation record is the specific
+              identity.
+To make real: a provider-neutral capability schema version.
+Retire when:  readers no longer need the v1 wording to interpret an
+              Ollama capability
+Status:       OPEN
+
+### M-5-OLLAMA-03 — Official Linux prefix is not yet executed
+Label:        DEFERRED
+Owner stage:  Foundation
+Subsystem:    foundation
+Authorizes:   NO
+What:         Relocation is taken from the v0.34.3 Linux installer,
+              which extracts a prefix-relative archive, and from
+              `ml/path.go`, which looks for `lib/ollama` beside the
+              executable. This workspace did not run that Linux
+              binary. Fixture tests prove ownership, checksum, and
+              daemon lifecycle only.
+Why now:      The development host cannot execute the Linux archive.
+              Pretending that a fixture is the official binary would
+              overclaim the substrate.
+To make real: on a Linux host, unpack the pinned
+              `ollama-linux-amd64.tar.zst`, start it from the owned
+              prefix, and match `/api/version` to `0.34.3` with cloud
+              disabled and no `/usr` write.
+Retire when:  that host evidence is recorded
+Status:       OPEN
+
 ### M-9-01 — Deferred witness composer and further serve depth
 Label:        DEFERRED
 Owner stage:  Serve
