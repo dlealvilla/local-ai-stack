@@ -389,10 +389,14 @@ persistence port, privacy, witness projection, health aggregation.
 `adapters/persistence`. The journal remains a separate port. Store is
 not event-sourced, does not choose its root, and does not implement
 RegistrySeed. A registered older contract version is upgraded when it
-is read. FileStore then replaces that one record with the current
-version and appends a migration note. The journal line is left as
-appended. Unknown kinds and versions fail closed. `K-03` stays open
-because this path landed after the first schema bumps.
+is read. FileStore first records a migration intent, then replaces
+that one record, then marks the receipt complete. Those are separate
+files. A crash leaves the intent visible until a later read finishes
+the receipt. A complete receipt is not written before the current
+record is on disk, and a complete receipt does not upgrade a record
+that is still historical. The journal line is left as appended.
+Unknown kinds and versions fail closed. The path landed after the
+first schema bumps; that timing is recorded on `K-03`.
 
 **Adapters:** persistence filesystem; disabled telemetry export.
 
@@ -903,8 +907,9 @@ by that policy (`UNSUPPORTED`, `UNAVAILABLE`, `BLOCKED_BY_PREREQUISITE`,
 `INSUFFICIENT_CAPACITY`, `PROVISIONING_FAILED`, `VERIFICATION_FAILED`).
 `CONDITIONALLY_SUPPORTED` and `RECONCILE_REQUIRED` are not treated as
 unavailable. Explicit vLLM and explicit Ollama fail closed and do not
-switch. A fallback selection records `foundation.runtime_choice` and
-requires a new Foundation, model view, Plan, admission, and Serve. It
+switch. A fallback selection records `foundation.runtime_choice` with the
+Foundation selection and capacity evidence ids it actually consulted.
+It requires a new Foundation, model view, Plan, admission, and Serve. It
 does not retry inside Serve and does not translate a native model into
 an Ollama model. `FoundationSelection` remains the macropath decision.
 This choice is local control-plane policy. It is not physical live

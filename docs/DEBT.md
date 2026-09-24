@@ -62,9 +62,9 @@ a mutation. `K-29` and `K-34` start real work (storage reservation; the
 reference process) and are tolerable only because the API is loopback
 (`K-08`).
 
-Two carry hard conditions. `K-03` now has a registered upgrade path, but
-the first `schema_version` bumps shipped before that path, so the entry
-stays open. `K-08` — no authentication — must
+`K-03` is retired. The migration path landed after the first
+`schema_version` bumps; that missed timing stays in the entry history.
+`K-08` — no authentication — must
 retire before the Platform API is reachable off-host, because its current
 safety is a property of deployment rather than of the code.
 
@@ -102,37 +102,38 @@ Retire when:  A second writer process exists, or a lookup by anything
               (inventory) or Milestone 4.
 Status:       OPEN
 
-### K-03 — Schema migration landed after the first version bump
-Label:        PROVISIONAL
+### K-03 — Schema migration landed after the first version bump  ·  RETIRED
+Label:        PROVISIONAL → RETIRED
 Owner stage:  0.1
 Subsystem:    kernel / schema
 Authorizes:   NO
-What:         Unknown kinds and versions still fail closed. A registered
-              per-kind upgrade now reads version *n* and produces *n+1*.
-              FileStore rewrites that current record on read and appends
-              one migration note. The journal is not rewritten. Repeated
-              reads do not append another note. Upgrades copy recorded
-              fields and do not invent a stronger result.
-              Shipped bumps are `model.qualification` 2 and
-              `model.ollama_qualification` 2. Qualification v1 reads back
-              as v2 with `execution_environment_fingerprint`
-              `not_recorded` and does not cover. Ollama qualification v1
-              reads back as v2 with `context_binding` `not_sent` and
-              `provider_fit` `unresolved` and does not cover a provider
-              plan. No other contract kind has shipped a version above 1.
-              Those version-1 kinds have no historical predecessor to
-              migrate, so no upgrade is registered for them.
-Why now:      The functional path is present. The original retire-when
-              required it before the first bump. Those bumps already
-              shipped, so the timing condition cannot be met
-              retroactively.
-To make real: The upgrade path and rewrite-on-read store are implemented
-              for the two shipped bumps.
-Retire when:  Lead accepts that this functional path satisfies the entry
-              despite the missed timing, or replaces the retire-when
-              clause. This entry is not retired by the implementation
-              alone.
-Status:       OPEN
+What:         Unknown kinds and versions fail closed. A registered
+              per-kind upgrade reads version *n* and produces *n+1*.
+              FileStore records an intent, replaces the record, then
+              marks that receipt complete. The receipt and the record
+              are separate files. A later read finishes an open intent
+              and does not treat a complete receipt as proof when the
+              record is still historical. The journal is not rewritten.
+              Upgrades copy recorded fields and do not invent a stronger
+              result. Shipped bumps are `model.qualification` 2,
+              `model.ollama_qualification` 2, and
+              `foundation.runtime_choice` 2. Qualification v1 reads back
+              with `execution_environment_fingerprint` `not_recorded`
+              and does not cover. Ollama qualification v1 reads back
+              with `context_binding` `not_sent` and `provider_fit`
+              `unresolved` and does not cover a provider plan. Runtime
+              choice v1 reads back with concrete foundation ids
+              `not_recorded`.
+Why now:      The original retire-when required this path before the
+              first bump. Those bumps shipped first, so that timing
+              gate was missed and remains part of this history.
+              Bundle 07's lead authorization retires the entry because
+              the functional and durability requirements are met.
+To make real: Done for the shipped bumps. A kind that never persisted
+              an older version has no invented upgrade.
+Retire when:  Met by the recoverable intent/receipt path, with the
+              missed timing preserved above.
+Status:       RETIRED (Bundle 07, 2026-09-24)
 
 ### K-04 — Configuration records no provenance
 Label:        DEFERRED

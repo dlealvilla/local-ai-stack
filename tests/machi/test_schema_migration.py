@@ -9,8 +9,13 @@ import pytest
 from tests.machi.test_ollama_serve import _qualification
 from tests.machi.test_qualification import _covers, _pass
 
-from machi.adapters.persistence.file_store import FileStore
-from machi.kernel.errors import UnknownKindError, UnknownVersionError
+import machi.foundation.fallback as foundation_fallback_module
+from machi.adapters.persistence.file_store import FileStore, MigrationFault
+from machi.kernel.errors import (
+    PersistenceError,
+    UnknownKindError,
+    UnknownVersionError,
+)
 from machi.kernel.schema import from_dict, registered_contracts, to_dict
 from machi.model.provider_qualification import (
     ProviderFitState,
@@ -86,20 +91,25 @@ def test_store_rewrites_once_and_records_the_migration(tmp_path: Path) -> None:
     )
     store = FileStore(tmp_path)
     loaded = store.get(QualificationEvidence, "qev_hist")
+    receipt_path = (
+        tmp_path / "_schema_migration" / "model.qualification" / "qev_hist.json"
+    )
+    first = receipt_path.read_text(encoding="utf-8")
     again = store.get(QualificationEvidence, "qev_hist")
     assert loaded == again
     assert loaded.execution_environment_fingerprint == "not_recorded"
-    notes = (tmp_path / "_schema_migrations.jsonl").read_text(encoding="utf-8")
-    assert notes.count("\n") == 1
-    recorded = json.loads(notes)
+    recorded = json.loads(first)
     assert recorded == {
         "from_version": 1,
         "key": "qev_hist",
         "kind": "model.qualification",
+        "phase": "complete",
         "to_version": 2,
     }
-    assert PROMPT not in notes
-    assert "rev" not in notes
+    assert receipt_path.read_text(encoding="utf-8") == first
+    assert PROMPT not in first
+    assert "rev" not in first
+    assert not (tmp_path / "_schema_migrations.jsonl").exists()
 
 
 def test_in_memory_migration_does_not_rewrite_a_file(tmp_path: Path) -> None:
@@ -122,10 +132,99 @@ def test_unknown_version_and_kind_fail_closed() -> None:
 
 
 def test_only_shipped_schema_bumps_have_upgrade_paths() -> None:
+    assert foundation_fallback_module.RuntimeChoice.schema_version == 2
     bumped = sorted(
         f"{kind}@{version}" for kind, version in registered_contracts() if version > 1
     )
     assert bumped == [
+        "foundation.runtime_choice@2",
         "model.ollama_qualification@2",
         "model.qualification@2",
     ]
+
+
+def test_interrupted_migration_converges_without_a_false_receipt(
+    tmp_path: Path,
+) -> None:
+    payload = _historical_qualification()
+    payload["record_key"] = "qev_hist"
+    directory = tmp_path / "model.qualification"
+    directory.mkdir()
+    record = directory / "qev_hist.json"
+    record.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    original = record.read_text(encoding="utf-8")
+    intent_store = FileStore(tmp_path, migration_fault=MigrationFault(fail_intent=True))
+    with pytest.raises(PersistenceError, match="intent"):
+        intent_store.get(QualificationEvidence, "qev_hist")
+    assert record.read_text(encoding="utf-8") == original
+    assert not (tmp_path / "_schema_migration").exists()
+
+    record_store = FileStore(tmp_path, migration_fault=MigrationFault(fail_record=True))
+    with pytest.raises(PersistenceError, match="rewrite"):
+        record_store.get(QualificationEvidence, "qev_hist")
+    assert record.read_text(encoding="utf-8") == original
+    intent = json.loads(
+        (
+            tmp_path / "_schema_migration" / "model.qualification" / "qev_hist.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert intent["phase"] == "intent"
+
+    complete_store = FileStore(
+        tmp_path, migration_fault=MigrationFault(fail_complete=True)
+    )
+    with pytest.raises(PersistenceError, match="completion"):
+        complete_store.get(QualificationEvidence, "qev_hist")
+    migrated = json.loads(record.read_text(encoding="utf-8"))
+    assert migrated["schema_version"] == 2
+    open_receipt = json.loads(
+        (
+            tmp_path / "_schema_migration" / "model.qualification" / "qev_hist.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert open_receipt["phase"] == "intent"
+
+    healed = FileStore(tmp_path).get(QualificationEvidence, "qev_hist")
+    assert healed.schema_version == 2
+    finished = json.loads(
+        (
+            tmp_path / "_schema_migration" / "model.qualification" / "qev_hist.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert finished["phase"] == "complete"
+    again = FileStore(tmp_path).get(QualificationEvidence, "qev_hist")
+    assert again == healed
+    receipt_text = (
+        tmp_path / "_schema_migration" / "model.qualification" / "qev_hist.json"
+    ).read_text(encoding="utf-8")
+    assert receipt_text == json.dumps(finished, indent=2, sort_keys=True) + "\n"
+
+
+def test_complete_receipt_cannot_upgrade_a_historical_record(tmp_path: Path) -> None:
+    payload = _historical_qualification()
+    payload["record_key"] = "qev_hist"
+    directory = tmp_path / "model.qualification"
+    directory.mkdir(parents=True)
+    record = directory / "qev_hist.json"
+    record.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    receipt_dir = tmp_path / "_schema_migration" / "model.qualification"
+    receipt_dir.mkdir(parents=True)
+    (receipt_dir / "qev_hist.json").write_text(
+        json.dumps(
+            {
+                "from_version": 1,
+                "key": "qev_hist",
+                "kind": "model.qualification",
+                "phase": "complete",
+                "to_version": 2,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(PersistenceError, match="claims completion"):
+        FileStore(tmp_path).get(QualificationEvidence, "qev_hist")
+    assert json.loads(record.read_text(encoding="utf-8"))["schema_version"] == 1

@@ -1993,7 +1993,7 @@
       }
     }
   },
-  "foundation.runtime_choice@1": {
+  "foundation.runtime_choice@2": {
     "python": "RuntimeChoice",
     "fields": {
       "decision_id": {
@@ -2017,6 +2017,13 @@
         "may_be_unresolved": false,
         "meaning": "auto, vllm, or ollama; explicit modes do not switch"
       },
+      "primary_engine": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "vllm when consulted, otherwise not_consulted"
+      },
       "primary_support": {
         "type": "str",
         "optional": false,
@@ -2024,12 +2031,61 @@
         "may_be_unresolved": false,
         "meaning": "native vLLM support consulted, or not_consulted"
       },
+      "primary_failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "primary failure code, not_recorded, or not_consulted"
+      },
+      "primary_selection_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "primary FoundationSelection id, not_recorded, or not_consulted"
+      },
+      "primary_capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "primary capacity evidence id, not_recorded, or not_consulted"
+      },
+      "fallback_engine": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ollama when consulted, otherwise not_consulted"
+      },
       "fallback_support": {
         "type": "str",
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "ollama support consulted, or not_consulted"
+      },
+      "fallback_failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "fallback failure code, not_recorded, or not_consulted"
+      },
+      "fallback_selection_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "fallback FoundationSelection id, not_recorded, or not_consulted"
+      },
+      "fallback_capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "fallback capacity evidence id, not_recorded, or not_consulted"
       },
       "selected_engine": {
         "type": "str",
@@ -2058,6 +2114,13 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "downstream stages that must be rebuilt, or none"
+      },
+      "observed_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the consulted foundation evidence was observed, or not_recorded"
       }
     }
   },
