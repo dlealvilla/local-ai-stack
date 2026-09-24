@@ -29,7 +29,11 @@ explain the journey without logs.
 
 **Out of core (attach later):** Knowledge/RAG, teams, Team Brain,
 marketplace UX, licensing backends, public website, fleet,
-optimization products.
+optimization products, and the hosted Runtime Artifact Registry / software
+supply-chain service. Machi core may consume exact artifact identities,
+recipes, provenance and local staging contracts; the future registry is a
+delivery provider, not a local control-plane authority and not the Model
+Warehouse.
 
 **In core from day one:** observability (events, provenance, local
 metrics spine). Not the warehouse. Not the dashboard.
