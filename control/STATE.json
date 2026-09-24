@@ -17,6 +17,7 @@
     "industry_practice_basis": "control/OLLAMA-CHUNK-02-INDUSTRY-PRACTICES.md",
     "next_action": "lead_review_before_chunk_3",
     "core_vs_commodity_policy": "control/CORE-VS-COMMODITY-POLICY.md",
-    "docs_policy_branch": "docs/core-vs-commodity-decision-policy"
+    "docs_policy_branch": "docs/core-vs-commodity-decision-policy",
+    "product_vision_alignment": "mandatory"
   }
 }
