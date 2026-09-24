@@ -65,6 +65,14 @@ strategy, control boundaries, or long-term reversibility, implementation stops
 until the alternatives and trade-offs are reviewed. The same applies to
 build-versus-integrate decisions close to the product core.
 
+Every material option must also be tested against the Product Vision, not only
+against technical benchmarks. A technically attractive choice that undermines
+self-hosting, privacy, replaceability, offline operation, truthful control,
+enterprise governance, product simplicity, or the long-term Company Brain
+direction is not automatically a viable choice. The decision package must state
+which Product Vision principles each option supports, tensions with, or would
+require us to revise.
+
 This extends the existing provider-selection discipline. It does not require a
 meeting for routine commodity choices where current research identifies one
 clear best-practice fit with no material architectural consequence.
