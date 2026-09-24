@@ -1,149 +1,134 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-**Instruction ID:** `MACHI-OLLAMA-CHUNK-02-CORRECTION-006`  
+**Instruction ID:** `MACHI-OLLAMA-CHUNK-02-FREEZE-007`  
 **Program:** `MACHI-OLLAMA-MACROPATH-001`  
-**Chunk:** 2 of 6 — SURGICAL CORRECTION  
-**Starting canonical HEAD:** `a71c78f46fc70265167d915a367e43105441b6c4`  
+**Chunk:** 2 of 6 — FINAL FREEZE PATCH  
+**Starting HEAD:** `31dca110271805545cc2ba60c9095c25f357b27d`  
 **Physical server:** NO  
 **Model pull/load/inference:** FORBIDDEN  
 **Chunk 3:** FORBIDDEN
 
 Read:
-- `control/OLLAMA-CHUNK-02-LEAD-FINAL-REVIEW.md`
+- `control/OLLAMA-CHUNK-02-FREEZE-REVIEW.md`
 - `control/CORE-VS-COMMODITY-POLICY.md`
-- current source/tests/docs
+- current source/tests
 
-# 1. Preserve accepted architecture
+The prior correction PASS is accepted. Fix only the remaining freeze blockers.
 
-Do not redesign:
-- explicit SAFE capacity authority;
-- two-pass stream preflight/extraction;
-- immutable owned generations;
-- promoted-unregistered reconcile semantics;
-- qualification-stable content identity;
-- provisional SystemZstdDecompressor adapter;
-- Core-vs-Commodity / Product Vision Alignment governance.
+# 1. Pre-stage SAFE authorization
 
-This is a correctness patch only.
+Before creating the owned staging directory or marker:
+- read the source archive's current byte size;
+- validate the recipe-declared artifact size is coherent with the candidate;
+- require SAFE capacity to cover the initial bounded staging requirement;
+- if it cannot fit, refuse with INSUFFICIENT_CAPACITY and create no staging state.
 
-# 2. Separate per-member and aggregate archive limits
+During copy/hash:
+- enforce a maximum authorized byte count;
+- abort if source bytes exceed the expected/authorized size;
+- require final staged byte count to match the frozen recipe artifact size;
+- require SHA-256 to match as already implemented.
 
-Current bug:
-`_preflight` compares aggregate `declared` bytes with `_MAX_MEMBER`.
+Do not trust source stat alone against a file that can change during copy.
 
-Required:
-- retain an explicit per-member ceiling only for individual members;
-- aggregate declared bytes are governed by SAFE provisioning capacity, not the
-  per-member ceiling;
-- calculate projected peak before extraction using:
-  staged compressed bytes
-  + aggregate declared extraction bytes
-  + bounded generated manifest/config metadata
-  + projected registry transaction temp bytes;
-- refuse only when that peak exceeds explicit SAFE capacity or another
-  separately named archive-wide security bound that is justified and not
-  confused with the per-member bound.
+Add tests:
+- SAFE below source artifact size -> no staging directory/file created;
+- source grows or copy exceeds expected length -> bounded refusal;
+- artifact length mismatch with otherwise fixture-valid metadata -> refusal.
 
-If adding an archive-wide anti-bomb ceiling beyond SAFE capacity is considered,
-apply the Industry Solution Selection / Product Vision rule first. Do not invent
-one silently.
+# 2. Durable promotion ordering
 
-Tests must prove, without allocating multi-GiB payloads:
-- two individually valid members whose aggregate exceeds 2 GiB are not refused
-  merely because aggregate > per-member ceiling;
-- the same metadata is refused when SAFE peak does not cover it;
-- one individual member over the per-member ceiling is refused.
+After same-filesystem `generation.replace(final)`:
+- fsync `final.parent` immediately;
+- only after that begin registry/index transaction.
 
-Factor pure accounting/member-validation helpers if useful.
+Add a bounded injectable/test seam proving order:
+`rename -> parent fsync -> registry update`.
 
-# 3. Count registry transaction bytes truthfully
+A failure of parent fsync must not report successful installation or registered state.
 
-Before extraction/promotion, compute the projected registry update payload for
-this environment id.
+# 3. Invalid UTF-8 registry is corrupt registry
 
-Peak accounting must include the additional temporary registry bytes created by
-the atomic update.
+Catch invalid encoding as registry corruption alongside invalid JSON/wrong shape.
 
-The existing bounded metadata allowance may cover only bounded generated
-manifest/config transaction metadata whose maximum is genuinely controlled.
+Tests:
+- invalid UTF-8 registry -> typed VERIFICATION_FAILED + RECONCILE_REQUIRED;
+- inspection reports corrupt without exception;
+- bytes remain unchanged.
 
-Do not assume registry.json is <= 64 KiB unless a separate accepted bound exists.
+# 4. Deadlock-safe decompressor completion
 
-Add a test with a registry payload larger than the internal metadata allowance,
-without requiring large files, and prove SAFE accounting includes the projected
-temp bytes.
+Replace blocking stderr-drain-before-wait behavior with a standard bounded
+completion mechanism that cannot bypass timeout.
 
-# 4. Require successful decompressor completion
-
-For zstd streams:
-- wait for the child process;
-- non-zero exit is a typed provisioning failure;
-- capture bounded stderr for diagnostics;
+Requirements:
+- timeout is authoritative;
+- child is killed and reaped on timeout;
+- diagnostics remain bounded;
+- non-zero exit remains typed failure;
 - no shell;
-- ensure the process is reaped on success/failure/parse exception.
+- no unbounded in-memory output;
+- tar stream remains streaming.
 
-Add a fake/injected decompressor process case that emits enough tar bytes to
-exercise parsing but exits non-zero; install/preflight must fail.
+A small adapter-local helper is fine. Do not add a dependency or generic process framework.
 
-# 5. Malformed registry must be typed, not crash or become empty
+Tests:
+- successful zstd path;
+- non-zero exit with diagnostic;
+- child that emits valid/partial stream then hangs with stderr open -> bounded typed failure, not hang.
 
-Do not treat malformed registry JSON as an empty registry.
+# 5. Positive ownership proof for reconciliation
 
-Required behavior:
-- provisioning encountering corrupt registry state returns a typed
-  verification/reconcile refusal;
-- no new registry replaces the corrupted evidence automatically;
-- existing owned generations remain untouched;
-- reconciliation inspection either returns typed corrupt-registry evidence or
-  otherwise exposes the condition without an uncaught exception.
+Replace substring matching of manifest ownership with parsed proof:
+- JSON object;
+- `owner == "machi"`;
+- `owned is true`;
+- manifest environment_id equals containing directory name.
 
-Add malformed/wrong-shape registry tests.
+Malformed, spoofed-string, wrong-owner, or mismatched-id manifests are not
+positively owned and must not be returned by `unregistered_owned_generations`.
+
+No destructive cleanup is added.
 
 # 6. Gates
 
 Run:
 - targeted Ollama/Foundation tests;
-- new aggregate-vs-member accounting tests;
-- registry-size peak test;
-- decompressor non-zero test;
-- corrupt-registry tests;
+- all new freeze tests;
 - full tests/machi;
 - architecture tests;
 - ruff;
 - strict mypy;
 - clean wheel;
-- isolated-wheel verification ending `verify_ok`.
+- isolated wheel verification ending `verify_ok`.
 
-Then:
-- push exact clean final HEAD to `origin/automation/ollama-macropath`;
-- prove local == origin;
-- do not move recovery checkpoint;
-- do not begin Chunk 3.
+Then push exact clean HEAD to `origin/automation/ollama-macropath` and prove
+local == origin. Do not move recovery checkpoint. Do not begin Chunk 3.
 
-# 7. Mandatory paste-back
+# 7. Paste-back
 
-==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 CORRECTION ====================
+==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 FREEZE ====================
 
 A. STATUS  
 B. Starting/final SHA  
-C. Aggregate-vs-member bug before/after  
-D. Exact peak-storage formula after correction  
-E. Registry transaction byte accounting  
-F. Decompressor exit-status handling  
-G. Corrupt-registry behavior  
-H. Tests/gates  
-I. Wheel build ID/SHA256  
-J. Isolated verify_ok  
-K. Debts changed  
+C. Pre-stage SAFE authorization and bounded copy  
+D. Artifact length + digest verification  
+E. Promotion durability ordering  
+F. Invalid-UTF8 registry behavior  
+G. Deadlock-safe decompressor timeout behavior  
+H. Positive ownership-proof behavior  
+I. Tests/gates  
+J. Wheel build ID/SHA256  
+K. Isolated verify_ok  
 L. Local/origin equality  
-M. Exact support claim  
+M. Exact Chunk-2 support claim  
 N. Final status
 
-End:
-`STOP — OLLAMA CHUNK 2 CORRECTION COMPLETE. WAIT FOR LEAD REVIEW.`
+End exactly:
+`STOP — OLLAMA CHUNK 2 FREEZE PATCH COMPLETE. WAIT FOR LEAD REVIEW.`
 
 or typed FAIL / DECISION_REQUIRED.
 
-==================== END PASTE BACK — OLLAMA CHUNK 2 CORRECTION ====================
+==================== END PASTE BACK — OLLAMA CHUNK 2 FREEZE ====================
 
 Do not begin Chunk 3.
