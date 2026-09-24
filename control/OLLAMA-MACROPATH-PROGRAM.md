@@ -439,3 +439,32 @@ accepted policy:
 - fallback is a fresh Foundation -> model -> Plan -> Admit -> Serve chain, not a
   hidden Serve retry;
 - no cross-catalog model equivalence.
+
+
+---
+
+## Bundle 06 accepted / Bundle 07 NVIDIA closure
+
+Bundle 06 is accepted at
+`92555da8e3465cd1596098eb33579d31e1a12ae6` with one carry-forward Kernel
+migration-audit recoverability issue under K-03.
+
+Daniel/Lead has decided that AMD is not a closure gate for this Stage-1 Ollama
+campaign. The standing RunPod AMD preflight remains required, and an AMD attempt
+may run only when existing stock/image/cost/balance/runtime gates all pass.
+AMD unavailability or AMD-specific failure does not block truthful
+`CLOSED_NVIDIA_STAGE1` closure. AMD remains an open future cross-macropath
+qualification lane.
+
+The active package is
+`MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001`.
+
+It covers:
+- migration durability/K-03;
+- stronger concrete Foundation evidence in AUTO decisions;
+- NVIDIA physical healthy-primary AUTO evidence;
+- one safe physical fallback-selection attempt where possible;
+- a second positive Ollama model;
+- a meaningful negative/excluded case;
+- native-vLLM/Ollama comparative closure;
+- exact Stage-1 NVIDIA support boundary and final macropath closure decision.
