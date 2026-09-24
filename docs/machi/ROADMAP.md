@@ -701,6 +701,7 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M8 Admit | KEEP | 1 | Physically accepted on NVIDIA as logical reservation authority. Serve is not started |
 | M9 Serve | KEEP | 1 | Local native vLLM serve. NVIDIA-N1 L5 inference did not pass (`M-9-02`). Witness composer remains deferred |
 | OllamaExecutionMacropath | REPOSITION | 1 exit | Compatibility fallback after the vLLM path. Not before Capacity |
+| Runtime Artifact Registry / software supply chain | DEFER | post-spine, parallel with 2; gate before scaled 3 | Reproducible approved runtime/package delivery, mirrors, customer imports and offline bundles. Separate from Model Warehouse. Build after stable artifact/provenance/recipe contracts; do not widen current Ollama scope |
 | Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |
 | Dynamo | DEFER | 2 | Fabric family. No integration until the evidence in strategy |
 | Additional engines (llama.cpp, MLX, SGLang, TensorRT-LLM) | DEFER | 1–2 | Catalogue entries when a coverage gap is real |
