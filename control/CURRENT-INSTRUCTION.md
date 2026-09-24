@@ -28,6 +28,24 @@ For each problem in this instruction:
 
 Do not silently choose between competing credible solutions merely to complete this chunk.
 
+# 0A. Mandatory Product Vision Alignment
+
+For every material standard/library/project/provider/build-vs-integrate option
+considered under this instruction, add a Product Vision Alignment assessment:
+- `ALIGNED`
+- `ALIGNED_WITH_CONDITIONS`
+- `MISALIGNED`
+
+Explicitly test the option against the current Kultrun constitution, including
+self-hosting, privacy/local content, offline/air-gap, replaceability,
+provider-neutral core contracts, owned authority boundaries, safety/evidence,
+administrator simplicity, enterprise governance, commercial/licensing direction,
+and long-term Company Brain evolution.
+
+A technically good but structurally MISALIGNED option is not an automatic
+implementation. If adopting it would require changing the Product Vision, STOP
+with `DECISION_REQUIRED_PRODUCT_VISION_ALIGNMENT`.
+
 # 1. Confirm industry-practice fit BEFORE editing
 
 For each section 1–5 of `OLLAMA-CHUNK-02-INDUSTRY-PRACTICES.md`, inspect actual repository contracts and report one of:
