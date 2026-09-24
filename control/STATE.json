@@ -6,6 +6,8 @@
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
+    "amd_closure_gate": false,
+    "amd_policy_record": "control/OLLAMA-NVIDIA-CLOSURE-AMD-OPTIONAL.md",
     "auto_fallback_scope": "local_control_plane_only_no_physical_live_failover_claim",
     "bundle": "control/OLLAMA-BUNDLE-07-NVIDIA-CLOSURE.md",
     "bundle_04_exact_context_qualification": false,
@@ -19,8 +21,17 @@
     "bundle_05_physical_lifecycle_pass": true,
     "bundle_05_review": "control/OLLAMA-BUNDLE-05-LEAD-REVIEW.md",
     "bundle_05_source_closed": false,
+    "bundle_06_accepted": true,
+    "bundle_06_carry_forward": [
+      "schema_migration_audit_recoverability_k03",
+      "runtime_choice_concrete_foundation_evidence_binding",
+      "physical_auto_fallback_and_chunk6_closure"
+    ],
+    "bundle_06_checkpoint": "checkpoint/ollama-generation-bound-serve-2026-09-24",
+    "bundle_06_review": "control/OLLAMA-BUNDLE-06-LEAD-REVIEW.md",
     "carry_forward": "explicit_ollama_num_ctx_then_physical_requalification",
     "chunks": 6,
+    "closure_scope": "nvidia_stage1",
     "comparative_analytics": "required",
     "current_chunk": 6,
     "decision_gate": "control/OLLAMA-CHUNK-03-DECISION-GATE.md",
@@ -52,21 +63,10 @@
     "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md",
     "serve_authorization_decision": "A_refined_accepted",
     "serve_authorization_decision_record": "control/OLLAMA-SERVE-AUTH-DECISION.md",
-    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger",
-    "bundle_06_review": "control/OLLAMA-BUNDLE-06-LEAD-REVIEW.md",
-    "bundle_06_accepted": true,
-    "bundle_06_checkpoint": "checkpoint/ollama-generation-bound-serve-2026-09-24",
-    "bundle_06_carry_forward": [
-      "schema_migration_audit_recoverability_k03",
-      "runtime_choice_concrete_foundation_evidence_binding",
-      "physical_auto_fallback_and_chunk6_closure"
-    ],
-    "closure_scope": "nvidia_stage1",
-    "amd_closure_gate": false,
-    "amd_policy_record": "control/OLLAMA-NVIDIA-CLOSURE-AMD-OPTIONAL.md"
+    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger"
   },
   "published_instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "READY"
+  "status": "PASTEBACK_PUBLISHED"
 }
