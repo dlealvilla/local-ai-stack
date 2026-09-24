@@ -960,23 +960,30 @@ warehouse, selection.
 6.3 Requirement, 6.4 Select, 6.5 Warehouse.
 
 **Adapters:** Hugging Face Hub for one named repository; local import
-by copy. The generic model package does not import the hub client.
+by copy; an Ollama catalog and qualification adapter that stays on
+fixtures until a later physical acceptance. The generic model package
+does not import the hub client or the Ollama API.
 
 **Inputs:** Foundation selection and runtime capability, Capacity
 envelope, an explicit source reference, model policy.  
 **Outputs:** ModelDefinition, ModelRequirement, evaluated
 `model.available` snapshot, DeployableModels, QualificationQueue,
-QualificationEvidence, ModelSelection, ModelArtifact.  
+QualificationEvidence, ModelSelection, ModelArtifact. An Ollama
+candidate is a separate catalog record. It is not a ModelArtifact.  
 **Preconditions:** a Foundation identity and a Capacity snapshot for a
 non-conditional storage decision. Inspection does not require a
 download.  
 **Success:** an exact revision is assessed. Deployable membership
 requires a qualification pass and a fit against one current capacity
-snapshot. An explicit acquire promotes a verified warehouse copy.  
+snapshot. An explicit acquire promotes a verified warehouse copy.
+Native/vLLM qualification remains authoritative for that macropath.
+On the Ollama macropath, Ollama's own fit result is authoritative and
+Machi's evaluation is a shadow record used only for comparison.  
 **Blocked:** unknown architecture, refused remote code, insufficient
 SAFE storage, failed integrity, gated access without a credential.  
 **State owned:** warehouse manifests and stored files. A hub cache
-under the state root is not the inventory.  
+under the state root is not the inventory. The Ollama model store is
+not that warehouse.  
 **Persistence:** yes.  
 **Side effects:** copy or download only when acquire is requested.
 No weight load and no server.  
@@ -988,7 +995,9 @@ again.
 or policy change. Old snapshots are not rewritten.  
 **Recompute:** a new AvailableModels snapshot.  
 **Telemetry:** `model.inspected`, `model.selected`, acquisition
-outcome. No tokens, card bodies, or customer paths.  
+outcome, and a local `model.qualification_comparison` record.
+Comparison analytics do not retune policy in Stage 1. No tokens,
+card bodies, prompts, or customer paths.  
 **Independent test:** a branch name is not artifact identity; a
 partial staging directory is not stored.  
 **Cumulative:** M0→M6.  

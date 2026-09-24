@@ -3887,6 +3887,275 @@
       }
     }
   },
+  "model.ollama_candidate@1": {
+    "python": "OllamaCatalogCandidate",
+    "fields": {
+      "candidate_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "digest identity; not a warehouse artifact id"
+      },
+      "digest": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "sha256 of the provider model, without a tag"
+      },
+      "display_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "tag or reference name; not immutable proof"
+      },
+      "size_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "published model bytes, or unresolved"
+      },
+      "family": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "public family label, or unresolved"
+      },
+      "quantization_label": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "public quant label, or unresolved"
+      },
+      "format_label": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "public format label, or unresolved"
+      },
+      "context_length": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "public context when explicit"
+      },
+      "dtype": {
+        "type": "str | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "public dtype when explicit; never guessed"
+      },
+      "layer_count": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "public layer count when explicit"
+      },
+      "key_value_heads": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "public kv heads when explicit"
+      },
+      "head_dim": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "public head dimension when explicit"
+      }
+    }
+  },
+  "model.ollama_qualification@1": {
+    "python": "OllamaQualificationEvidence",
+    "fields": {
+      "qualification_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this provider result"
+      },
+      "digest": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ollama model digest that was qualified"
+      },
+      "display_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "tag used to address the catalog entry"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation"
+      },
+      "engine_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ollama version"
+      },
+      "hardware_class": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capability class, not a host name"
+      },
+      "execution_environment_fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "material accelerator environment"
+      },
+      "context": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualification context"
+      },
+      "concurrency": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualification concurrency"
+      },
+      "outcome": {
+        "type": "QualificationOutcome",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "pass, model failure, or host failure"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed provider failure, or none"
+      },
+      "authority": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ollama; shadow is not this authority"
+      },
+      "size_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider-reported model size"
+      },
+      "size_vram_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider-reported loaded vram"
+      },
+      "size_vram_availability": {
+        "type": "MetricAvailability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether size_vram was reported"
+      },
+      "size_vram_source": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ollama.api.ps or not_exposed"
+      },
+      "size_vram_semantics": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime_reported; not an observed peak"
+      },
+      "load_seconds": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider load duration"
+      },
+      "input_tokens": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "probe input tokens when exposed"
+      },
+      "output_tokens": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "probe output tokens when exposed"
+      },
+      "generation_seconds": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider generation duration"
+      },
+      "tokens_per_second": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "derived rate when both operands exist"
+      },
+      "token_proved": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "true only when a real output token was counted"
+      },
+      "unload_failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none, not_attempted, or a separate unload fault"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this result was recorded; UTC"
+      }
+    }
+  },
   "model.qualification@1": {
     "python": "HistoricalQualificationEvidence",
     "fields": {
@@ -4223,6 +4492,263 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "when this evidence was recorded; UTC"
+      }
+    }
+  },
+  "model.qualification_comparison@1": {
+    "python": "QualificationComparison",
+    "fields": {
+      "comparison_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this comparison"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "macropath"
+      },
+      "engine_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider version"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation"
+      },
+      "digest": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider model digest"
+      },
+      "display_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider display name"
+      },
+      "candidate_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized candidate"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot"
+      },
+      "hardware_class": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "hardware class"
+      },
+      "execution_environment_fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "execution environment"
+      },
+      "context": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "case context"
+      },
+      "concurrency": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "case concurrency"
+      },
+      "shadow_policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "shadow policy"
+      },
+      "shadow_fit": {
+        "type": "FitState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "machi shadow fit"
+      },
+      "shadow_reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "machi typed reason"
+      },
+      "shadow_accelerator_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "machi accelerator estimate"
+      },
+      "shadow_host_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "machi host estimate"
+      },
+      "shadow_storage_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "machi storage estimate"
+      },
+      "shadow_accelerator_availability": {
+        "type": "MetricAvailability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "availability of the machi accelerator estimate"
+      },
+      "provider_outcome": {
+        "type": "QualificationOutcome",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "authoritative outcome"
+      },
+      "provider_failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "authoritative failure"
+      },
+      "provider_size_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider reported size"
+      },
+      "provider_size_vram_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider size_vram"
+      },
+      "provider_size_vram_availability": {
+        "type": "MetricAvailability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "availability of size_vram"
+      },
+      "provider_size_vram_source": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "size_vram source"
+      },
+      "load_seconds": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider load seconds"
+      },
+      "input_tokens": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider input tokens"
+      },
+      "output_tokens": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider output tokens"
+      },
+      "generation_seconds": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider generation seconds"
+      },
+      "tokens_per_second": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "derived tokens per second"
+      },
+      "classification": {
+        "type": "ComparisonClass",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "agreement class"
+      },
+      "vram_semantics": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "estimate versus runtime-reported, or not comparable"
+      },
+      "vram_availability": {
+        "type": "MetricAvailability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether a vram delta exists"
+      },
+      "vram_delta_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "estimate minus runtime-reported"
+      },
+      "vram_ratio": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "estimate divided by runtime-reported"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the comparison was recorded; UTC"
       }
     }
   },
@@ -4590,6 +5116,123 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "inspectable records"
+      }
+    }
+  },
+  "model.shadow_evaluation@1": {
+    "python": "ShadowEvaluation",
+    "fields": {
+      "evaluation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this shadow result"
+      },
+      "candidate_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized provider candidate"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "macropath this shadow observed"
+      },
+      "digest": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider model digest"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot consulted"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "shadow policy identity"
+      },
+      "fit": {
+        "type": "FitState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "fit, no fit, or unresolved"
+      },
+      "accelerator_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "estimated accelerator bytes"
+      },
+      "host_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "estimated host bytes"
+      },
+      "storage_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "estimated incremental storage"
+      },
+      "accelerator_availability": {
+        "type": "MetricAvailability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the accelerator figure was obtained"
+      },
+      "host_availability": {
+        "type": "MetricAvailability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the host figure was obtained"
+      },
+      "storage_availability": {
+        "type": "MetricAvailability",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "how the storage figure was obtained"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed reason"
+      },
+      "provenance": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "estimator provenance"
+      },
+      "observed_at": {
+        "type": "datetime",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the shadow ran; UTC"
       }
     }
   },
@@ -5404,6 +6047,123 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "requested accelerators; only one is planned"
+      }
+    }
+  },
+  "plan.qualification_probe@1": {
+    "python": "QualificationProbe",
+    "fields": {
+      "probe_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this probe request"
+      },
+      "purpose": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualification; distinct from deployment"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime provider"
+      },
+      "candidate_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized candidate"
+      },
+      "digest": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider model digest"
+      },
+      "foundation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation identity"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot"
+      },
+      "accelerator_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "device this probe asks to hold"
+      },
+      "accelerator_memory_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE accelerator bytes requested"
+      },
+      "host_memory_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE host bytes requested"
+      },
+      "persistent_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "persistent bytes requested"
+      },
+      "transient_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "transient bytes requested"
+      },
+      "cpu_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "process slots requested"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "purpose-sensitive token of this probe"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan policy cited by the fingerprint"
       }
     }
   },

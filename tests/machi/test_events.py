@@ -15,10 +15,15 @@ import machi.discover.events as discover_events_module
 import machi.foundation.events as foundation_events_module
 import machi.install.events as install_events_module
 import machi.kernel.store_proof as store_proof_module
+import machi.model.comparison as model_comparison_module
 import machi.model.events as model_events_module
 import machi.model.predicates as model_predicates_module
+import machi.model.provider_candidate as model_provider_candidate_module
+import machi.model.provider_qualification as model_provider_qualification_module
 import machi.model.qualification as model_qualification_module
+import machi.model.shadow as model_shadow_module
 import machi.plan.events as plan_events_module
+import machi.plan.qualification_probe as plan_probe_module
 import machi.prerequisites as prerequisites_module
 import machi.serve.events as serve_events_module
 import machi.serve.native as serve_native_module
@@ -172,6 +177,20 @@ def test_schema_fingerprint_matches_committed_golden() -> None:
     assert (
         model_qualification_module.QualificationEvidence.kind == "model.qualification"
     )
+    assert (
+        model_provider_candidate_module.OllamaCatalogCandidate.kind
+        == "model.ollama_candidate"
+    )
+    assert model_shadow_module.ShadowEvaluation.kind == "model.shadow_evaluation"
+    assert (
+        model_provider_qualification_module.OllamaQualificationEvidence.kind
+        == "model.ollama_qualification"
+    )
+    assert (
+        model_comparison_module.QualificationComparison.kind
+        == "model.qualification_comparison"
+    )
+    assert plan_probe_module.QualificationProbe.kind == "plan.qualification_probe"
     assert plan_events_module.CREATED_TYPE == "plan.created"
     assert admit_events_module.COMPLETED_TYPE == "admit.completed"
     assert serve_events_module.STARTED_TYPE == "serve.started"

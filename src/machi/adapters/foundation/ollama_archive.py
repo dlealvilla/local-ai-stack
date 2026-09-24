@@ -523,13 +523,16 @@ class _ProgressReader:
                     self._ready.notify_all()
                 return
             with self._ready:
-                if getattr(self, "_closed"):
+                if self._stop_requested():
                     self._eof = True
                     self._ready.notify_all()
                     return
                 self._pending.extend(piece)
                 self._ready.notify_all()
             self._watch.note_progress()
+
+    def _stop_requested(self) -> bool:
+        return self._closed
 
     def read(self, size: int = -1) -> bytes:
         if size == 0:

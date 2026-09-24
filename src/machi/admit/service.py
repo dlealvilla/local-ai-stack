@@ -29,6 +29,7 @@ from machi.plan.contracts import (
     PlanStatus,
     ResourceRequest,
 )
+from machi.plan.qualification_probe import QualificationProbe
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +60,15 @@ class ResourceManager:
         """Reserve every requested dimension or reserve nothing."""
         with self._lock:
             return self._admit(decision, capacity, plan_currency)
+
+    def admit_probe(
+        self,
+        probe: QualificationProbe,
+        capacity: CapacityEnvelope,
+    ) -> AdmissionDecision:
+        """Reserve a qualification probe on the same ledger as deployment."""
+        with self._lock:
+            return self._admit_probe(probe, capacity)
 
     def release(self, reservation_id_value: str) -> AdmissionDecision:
         """Free one hold. A second release of the same hold converges."""
@@ -173,7 +183,12 @@ class ResourceManager:
                 AdmissionFailure.CAPACITY_UNRESOLVED,
                 "safe storage is unknown",
             )
-        sequence = _sequence(ledger, configuration)
+        sequence = _sequence(
+            ledger,
+            plan_id=configuration.plan_id,
+            fingerprint=configuration.fingerprint,
+            capacity_evidence_id=configuration.capacity_evidence_id,
+        )
         identity = reservation_id(
             plan_id=configuration.plan_id,
             fingerprint=configuration.fingerprint,
@@ -206,6 +221,95 @@ class ResourceManager:
             persistent_bytes=request.persistent_bytes,
             transient_bytes=request.transient_bytes,
             cpu_count=request.cpu_count,
+            policy_version=POLICY_VERSION,
+            state=ReservationState.RESERVED,
+        )
+        try:
+            stored, _created = self._log.create(identity, record)
+        except ConflictError:
+            return refused(
+                AdmissionFailure.RESERVATION_CONFLICT,
+                "an existing hold does not match this admission",
+            )
+        if not isinstance(stored, ResourceReservation):
+            return refused(
+                AdmissionFailure.RESERVATION_STATE_INVALID,
+                "store returned an unexpected record",
+            )
+        return _admitted(stored)
+
+    def _admit_probe(
+        self,
+        probe: QualificationProbe,
+        capacity: CapacityEnvelope,
+    ) -> AdmissionDecision:
+        if probe.capacity_evidence_id != capacity.evidence_id:
+            return refused(
+                AdmissionFailure.STALE_CAPACITY_INPUT,
+                "probe cites a different capacity snapshot",
+            )
+        ledger = self._ledger()
+        if _overcommitted(ledger.active, capacity):
+            return refused(
+                AdmissionFailure.CURRENT_CAPACITY_OVERCOMMITTED,
+                "existing holds already exceed safe capacity",
+            )
+        device = _device(capacity, probe.accelerator_identity)
+        if device is None:
+            return refused(
+                AdmissionFailure.ACCELERATOR_NOT_PRESENT,
+                "probe accelerator is not in this snapshot",
+            )
+        host = capacity.memory.safe_bytes
+        accel = device.safe_bytes
+        storage = _storage_ceiling(capacity)
+        if not isinstance(host, int) or not isinstance(accel, int):
+            return refused(
+                AdmissionFailure.CAPACITY_UNRESOLVED, "safe memory is unknown"
+            )
+        if (probe.persistent_bytes or probe.transient_bytes) and storage is None:
+            return refused(
+                AdmissionFailure.CAPACITY_UNRESOLVED,
+                "safe storage is unknown",
+            )
+        sequence = _sequence(
+            ledger,
+            plan_id=probe.probe_id,
+            fingerprint=probe.fingerprint,
+            capacity_evidence_id=probe.capacity_evidence_id,
+        )
+        identity = reservation_id(
+            plan_id=probe.probe_id,
+            fingerprint=probe.fingerprint,
+            request_id=probe.probe_id,
+            capacity_evidence_id=capacity.evidence_id,
+            sequence=sequence,
+        )
+        for existing in ledger.active:
+            if existing.reservation_id == identity:
+                return _admitted(existing)
+        fit = _fits(
+            ledger.active,
+            probe,
+            probe.accelerator_identity,
+            host,
+            accel,
+            storage,
+        )
+        if fit is not None:
+            return fit
+        record = ResourceReservation(
+            reservation_id=identity,
+            plan_id=probe.probe_id,
+            fingerprint=probe.fingerprint,
+            request_id=probe.probe_id,
+            capacity_evidence_id=capacity.evidence_id,
+            accelerator_identity=probe.accelerator_identity,
+            accelerator_memory_bytes=probe.accelerator_memory_bytes,
+            host_memory_bytes=probe.host_memory_bytes,
+            persistent_bytes=probe.persistent_bytes,
+            transient_bytes=probe.transient_bytes,
+            cpu_count=probe.cpu_count,
             policy_version=POLICY_VERSION,
             state=ReservationState.RESERVED,
         )
@@ -316,7 +420,7 @@ def _pair(
 
 def _fits(
     active: tuple[ResourceReservation, ...],
-    request: ResourceRequest,
+    request: ResourceRequest | QualificationProbe,
     accelerator_identity: str,
     host_safe: int,
     accelerator_safe: int,
@@ -405,12 +509,18 @@ def _storage_ceiling(capacity: CapacityEnvelope) -> int | None:
     return max(found)
 
 
-def _sequence(ledger: _Ledger, configuration: DeploymentConfiguration) -> int:
+def _sequence(
+    ledger: _Ledger,
+    *,
+    plan_id: str,
+    fingerprint: str,
+    capacity_evidence_id: str,
+) -> int:
     return sum(
         1
         for item in ledger.held
         if item.reservation_id in ledger.released_ids
-        and item.plan_id == configuration.plan_id
-        and item.fingerprint == configuration.fingerprint
-        and item.capacity_evidence_id == configuration.capacity_evidence_id
+        and item.plan_id == plan_id
+        and item.fingerprint == fingerprint
+        and item.capacity_evidence_id == capacity_evidence_id
     )

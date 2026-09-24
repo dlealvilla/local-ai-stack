@@ -2650,6 +2650,27 @@ Retire when:  realization no longer depends on an unmanaged host
               `zstd` binary
 Status:       OPEN
 
+### M-6-OLLAMA-01 — Ollama residency can move under a Serve hold
+Label:        DEFERRED
+Owner stage:  Serve
+Subsystem:    model
+Authorizes:   NO
+What:         Ollama may evict or keep a resident model on its own
+              schedule. Chunk 3 records that behavior as later Serve
+              authorization work. It does not constrain Ollama's
+              scheduler, and it does not treat a qualification unload
+              fault as a deployment policy.
+Why now:      A long-lived Machi reservation and Ollama's own
+              residency can disagree. Solving that inside qualification
+              would redesign scheduling before Serve exists for this
+              macropath.
+To make real: a Serve authorization rule for Ollama residency and
+              eviction that still uses the one ResourceManager ledger.
+Retire when:  that Serve boundary is specified and enforced, or an
+              explicit later decision accepts Ollama-managed residency
+              for the deployment model
+Status:       OPEN
+
 ### M-9-01 — Deferred witness composer and further serve depth
 Label:        DEFERRED
 Owner stage:  Serve
