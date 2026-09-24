@@ -367,3 +367,16 @@ contract shapes and returns the decision to the Lead/product owner.
 
 The initial Ollama representation path is also reviewed against the existing
 Machi Model Warehouse and Product Vision before implementation.
+
+
+---
+
+## Execution bundle 04
+
+The next active package is `MACHI-OLLAMA-BUNDLE-04-PHYSICAL-AUTH-001`.
+
+It uses the broader execution-bundle policy and spans adjacent microlayers:
+real public Ollama adapter/timing truth, first physical dual qualification,
+durable comparison evidence, bounded re-entry, and conditional provider-side
+residency work. It may reach a core long-lived Serve authorization decision
+gate but must not silently cross it.
