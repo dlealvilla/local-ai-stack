@@ -2627,7 +2627,11 @@ To make real: on a Linux host, unpack the pinned
               prefix, and match `/api/version` to `0.34.3` with cloud
               disabled and no `/usr` write.
 Retire when:  that host evidence is recorded
-Status:       OPEN
+Status:       RETIRED (Ollama bundle 04, 2026-09-24). Owned prefix
+              `renv_ceedac1939fecd21` on one NVIDIA L40S reported
+              `/api/version` 0.34.3 with cloud disabled. The binary
+              was not installed under `/usr`. System zstd remains
+              M-5-OLLAMA-04.
 
 ### M-5-OLLAMA-04 — External zstd helper is not a managed artifact
 Label:        DEFERRED
