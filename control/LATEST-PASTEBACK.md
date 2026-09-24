@@ -1,111 +1,104 @@
 SERVER NEEDED NEXT: NO
 
-Instruction: MACHI-OLLAMA-CHUNK-02-CORRECTION-006
+Instruction: MACHI-OLLAMA-CHUNK-02-FREEZE-007
 Program: MACHI-OLLAMA-MACROPATH-001
-Chunk: 2 of 6 — SURGICAL CORRECTION
+Chunk: 2 of 6 — FINAL FREEZE PATCH
 
-STATUS=OLLAMA_CHUNK_2_CORRECTION_PASS
+STATUS=OLLAMA_CHUNK_2_FREEZE_PASS
 
 TL;DR
 
-- Aggregate archive size is no longer judged against the 2 GiB per-member ceiling.
-- The SAFE peak now includes the real projected registry temp file, not a 64 KiB guess.
-- A decompressor that exits non-zero fails provisioning after the process is reaped.
-- A corrupt environment index is a typed reconcile refusal and is not rewritten.
+- Staging is refused before any owned directory exists when SAFE cannot hold the frozen artifact, or the observed length does not match the recipe.
+- The copy itself stops if the source grows past that authorized length, and the staged byte count must still match the recipe before the digest is accepted.
+- Parent-directory fsync now happens immediately after promotion and before the registry update.
+- Invalid UTF-8 is corrupt registry state. A hung decompressor is killed on a deadline. Reconciliation ownership is parsed JSON, not a substring.
 
 ARCHITECTURE MAP
 
 ```text
-per-member ceiling
-        !=
-SAFE peak
-  staged archive
-  + declared extraction
-  + manifest and config budget
-  + projected registry temp
+SAFE covers frozen artifact length
+  -> bounded copy and digest
+  -> extract and promote
+  -> fsync parent directory
+  -> registry update
 ```
 
 WHAT JUST HAPPENED
 
-The correction is on origin/automation/ollama-macropath at 31dca110271805545cc2ba60c9095c25f357b27d. The recovery checkpoint was not moved.
+The freeze patch is on origin/automation/ollama-macropath at 919ab7e547967d6f552507fea617646410b3f0bd. The recovery checkpoint was not moved.
 
 WHERE WE ARE
 
-Chunk 2 correctness items from the final review are fixed. Chunk 3 has not started.
+The accepted Chunk-2 architecture is unchanged. These are the last freeze blockers from the review.
 
 WHAT'S NEXT
 
-Lead review.
+Lead review. Chunk 3 has not started.
 
 HANDOFF
 
 ```text
-PAST     industry final a71c78f
-PRESENT  correction 31dca11
+PAST     correction 31dca11
+PRESENT  freeze 919ab7e
 NEXT     lead review
 ```
 
-==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 CORRECTION ====================
+==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 FREEZE ====================
 
 ## A. STATUS
 
-STATUS=OLLAMA_CHUNK_2_CORRECTION_PASS
+STATUS=OLLAMA_CHUNK_2_FREEZE_PASS
 
-No physical server was created. No model was pulled, loaded, or used for inference. AUTO fallback stayed inactive. Chunk 3 was not started. No archive-wide anti-bomb byte ceiling was added.
+No physical server was created. No model was pulled, loaded, or used for inference. AUTO fallback stayed inactive. Chunk 3 was not started.
 
 ## B. Starting/final SHA
 
-- Start: a71c78f46fc70265167d915a367e43105441b6c4
-- Final local and origin: 31dca110271805545cc2ba60c9095c25f357b27d
+- Start: 31dca110271805545cc2ba60c9095c25f357b27d
+- Final local and origin: 919ab7e547967d6f552507fea617646410b3f0bd
 - Recovery checkpoint remains 6e17f4a817d1571e0a708decec405ceda0282c7f
 
-## C. Aggregate-vs-member bug before/after
+## C. Pre-stage SAFE authorization and bounded copy
 
-Before, preflight refused when the running sum of member sizes exceeded the 2 GiB per-member ceiling, and it reported that as a member-count error.
+Before any staging directory or marker is created, the source length is compared with the recipe artifact size and with SAFE capacity. If SAFE is smaller than that frozen length, the result is insufficient_capacity and no staging path is created. During the copy, bytes past the authorized length abort the copy. A test seam that delivers extra bytes after a correctly sized stat is refused with "archive copy exceeded the authorized length", and no environment is created.
 
-After, each regular file is refused only when that file's own size exceeds 2 GiB. Two members that are each legal, but together larger than 2 GiB, are not refused by that ceiling. Their sum is refused only when the SAFE peak does not cover it. The proof uses the accounting helpers with those sizes and does not allocate multi-gigabyte payloads.
+## D. Artifact length + digest verification
 
-## D. Exact peak-storage formula after correction
+A source whose stat length differs from recipe.artifact_bytes is refused before staging, even when the digest of the real bytes would otherwise match. After the copy, the staged byte count must equal that frozen length, and the SHA-256 must still match. The stat result is not the only check.
 
-```text
-peak = staged_compressed_bytes
-     + aggregate_declared_extraction_bytes
-     + generated_metadata_budget
-     + projected_registry_temp_bytes
-```
+## E. Promotion durability ordering
 
-generated_metadata_budget is the two cloud-config files plus a 4096-byte manifest budget. The manifest writer refuses if the manifest exceeds that budget. There is no separate archive-wide size ceiling.
+After generation.replace, the parent directory is fsynced, and only then does the registry transaction start. A recorded seam shows the order rename, parent_fsync, registry. If that parent fsync fails, the result is promoted_unregistered, not a successful install, and the generation is not in the registry.
 
-## E. Registry transaction byte accounting
+## F. Invalid-UTF8 registry behavior
 
-projected_registry_temp_bytes is the exact UTF-8 length of the next registry JSON, including the new environment id. That temp file exists beside the current index during the atomic replace, so its full size is in the peak. A test built an index larger than 64 KiB, refused a SAFE value one byte below the peak, left that index unchanged, and accepted the same archive when SAFE equalled the peak.
+Invalid UTF-8 is caught with invalid JSON and wrong-shaped JSON. Provisioning returns verification_failed and reconcile_required with the reason "environment index is corrupt". The registry bytes are unchanged. inspect_environment_index reports corrupt without raising.
 
-## F. Decompressor exit-status handling
+## G. Deadlock-safe decompressor timeout behavior
 
-The zstd child uses a pipe for stderr, not a shell. After the tar stream is closed, the implementation drains stderr, waits, and kills the process on timeout. A non-zero exit is a package-install failure whose reason includes "zstd decompressor exited without success" and a bounded stderr excerpt. A fake decompressor that emitted a complete layout tar and then exited 1 failed provisioning and left no environment.
+A deadline timer kills the child even while tar parsing is blocked on its stdout. Stderr is drained on a side thread with a bounded join, so an open stderr pipe cannot postpone the wait. Timeout and non-zero exit are both package-install failures. The successful zstd path and the non-zero diagnostic path still pass. A child that writes a tar header and then sleeps with stderr open fails with "timed out" in well under three seconds.
 
-## G. Corrupt-registry behavior
+## H. Positive ownership-proof behavior
 
-Malformed JSON and a non-list JSON object both return verification_failed with reconcile_required and the reason "environment index is corrupt". The corrupt bytes are not replaced. An existing owned generation manifest is unchanged. inspect_environment_index reports corrupt without raising. A valid index still lists unregistered owned generations.
+unregistered_owned_generations now requires parsed JSON with owner machi, owned true, and environment_id equal to the directory name. A spoofed note containing the old substring, a wrong owner, a mismatched id, and malformed JSON are not treated as owned. No cleanup was added.
 
-## H. Tests/gates
+## I. Tests/gates
 
-- tests/machi/test_ollama_foundation.py passed, including the four new correction cases
-- tests/machi: exit 0, 518 tests
+- tests/machi/test_ollama_foundation.py passed, including the freeze cases
+- tests/machi: exit 0, 525 tests
 - ruff check src/machi tests/machi: passed
 - mypy --strict src/machi: 161 files, no issues
 - Architecture checks passed inside the suite
 
-## I. Wheel build ID/SHA256
+## J. Wheel build ID/SHA256
 
 - artifact: dist/machi/machi-0.1.0-py3-none-any.whl
-- build id: 0.1.0+31dca1102718
-- commit: 31dca110271805545cc2ba60c9095c25f357b27d
+- build id: 0.1.0+919ab7e54796
+- commit: 919ab7e547967d6f552507fea617646410b3f0bd
 - clean_source: true
-- size: 288925
-- sha256: a4a754b912668640cdf41704420932d559f8492cb2b71adab510e1d04935f168
+- size: 289800
+- sha256: e827153c52ef3914f968bdc84193fb2993bba47cd111ded4c85404e3b016e1b1
 
-## J. Isolated verify_ok
+## K. Isolated verify_ok
 
 tools/verify_machi.py exited 0. The final lines were:
 
@@ -114,26 +107,22 @@ serve_ok sin_5c22adc1d8920043
 verify_ok
 ```
 
-## K. Debts changed
-
-No debt entry was added or closed. M-5-OLLAMA-01 through M-5-OLLAMA-04 stay open.
-
 ## L. Local/origin equality
 
 After push and fetch:
 
-- LOCAL=31dca110271805545cc2ba60c9095c25f357b27d
-- ORIGIN=31dca110271805545cc2ba60c9095c25f357b27d
+- LOCAL=919ab7e547967d6f552507fea617646410b3f0bd
+- ORIGIN=919ab7e547967d6f552507fea617646410b3f0bd
 
-The push was a71c78f..31dca11. The working tree is clean except untracked docs/machi/proposals/.
+The push was 31dca11..919ab7e. The working tree is clean except untracked docs/machi/proposals/.
 
-## M. Exact support claim
+## M. Exact Chunk-2 support claim
 
-This is a local correctness patch on the accepted Ollama foundation substrate. Aggregate archive size is governed by the explicit SAFE peak. A corrupt environment index is refused instead of being treated as empty. This is not a GPU qualification, not model inference, and not AUTO fallback.
+This is the local freeze patch on the accepted Ollama foundation substrate. Staging is authorized before it is created. Promotion is fsynced before the index update. Corrupt indexes, including invalid UTF-8, stay untouched. This is not a GPU qualification, not model inference, and not AUTO fallback.
 
 ## N. Final status
 
-OLLAMA_CHUNK_2_CORRECTION_PASS
+OLLAMA_CHUNK_2_FREEZE_PASS
 
 NO_MODEL_WEIGHTS_DOWNLOADED
 NO_MODEL_LOADED
@@ -142,6 +131,6 @@ NO_SERVER_CREATED
 AUTO_FALLBACK_NOT_ACTIVATED
 CHUNK_3_NOT_STARTED
 
-STOP — OLLAMA CHUNK 2 CORRECTION COMPLETE. WAIT FOR LEAD REVIEW.
+STOP — OLLAMA CHUNK 2 FREEZE PATCH COMPLETE. WAIT FOR LEAD REVIEW.
 
-==================== END PASTE BACK — OLLAMA CHUNK 2 CORRECTION ====================
+==================== END PASTE BACK — OLLAMA CHUNK 2 FREEZE ====================
