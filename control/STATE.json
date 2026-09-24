@@ -11,6 +11,7 @@
     "decision_gate": "control/OLLAMA-CHUNK-03-DECISION-GATE.md",
     "decision_record": "control/OLLAMA-CHUNK-03-DUAL-QUALIFIER-DECISION.md",
     "integration_branch": "automation/ollama-macropath",
+    "lead_review": "control/OLLAMA-CHUNK-03-LOCAL-LEAD-REVIEW.md",
     "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
@@ -20,11 +21,10 @@
       "native_vllm": "machi_native_authoritative",
       "ollama": "ollama_authoritative_machi_shadow"
     },
-    "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md",
-    "lead_review": "control/OLLAMA-CHUNK-03-LOCAL-LEAD-REVIEW.md"
+    "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md"
   },
-  "published_instruction_id": "MACHI-OLLAMA-CHUNK-03-DUAL-QUALIFIER-002",
+  "published_instruction_id": "MACHI-OLLAMA-CHUNK-03-CORRECTION-003",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "READY"
+  "status": "PASTEBACK_PUBLISHED"
 }
