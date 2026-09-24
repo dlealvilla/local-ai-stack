@@ -1,8 +1,8 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "sync_execute_ollama_nvidia_closure_with_optional_amd_preflight_and_physical_auto_evidence",
-  "expected_pasteback_instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
-  "instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
+  "expected_cursor_action": "none_wait_for_next_company_brain_workstream",
+  "expected_pasteback_instruction_id": null,
+  "instruction_id": "MACHI-OLLAMA-NVIDIA-STAGE1-CLOSED",
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
@@ -45,7 +45,7 @@
     "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
-    "next_action": "lead_review_bundle_07_closure",
+    "next_action": "lead_select_next_company_brain_workstream",
     "package_slices": [
       "migration_durability_k03",
       "runtime_choice_concrete_evidence",
@@ -63,10 +63,17 @@
     "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md",
     "serve_authorization_decision": "A_refined_accepted",
     "serve_authorization_decision_record": "control/OLLAMA-SERVE-AUTH-DECISION.md",
-    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger"
+    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger",
+    "ollama_stage1_status": "CLOSED_NVIDIA_STAGE1",
+    "bundle_07_review": "control/OLLAMA-BUNDLE-07-LEAD-REVIEW.md",
+    "bundle_07_accepted": true,
+    "bundle_07_final_sha": "2c12f00286d6e7d6d524baa7a7787099e476bf08",
+    "bundle_07_checkpoint": "checkpoint/ollama-nvidia-stage1-2026-09-24",
+    "amd_status": "OPEN_FUTURE_CROSS_MACROPATH_QUALIFICATION",
+    "amd_preflight_model": "host_prerequisites_then_machi_managed_rocm_userspace"
   },
   "published_instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "CLOSED_NVIDIA_STAGE1_ACCEPTED"
 }
