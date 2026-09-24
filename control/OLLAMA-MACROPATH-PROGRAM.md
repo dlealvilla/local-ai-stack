@@ -285,3 +285,23 @@ At the end of every chunk explicitly ask:
 5. Are hidden/internal macropath details represented explicitly rather than as ambiguous missing data?
 6. Did any vLLM-specific assumption leak into a generic Machi contract?
 7. Does the design still leave a credible path for a much larger future Dynamo tunnel?
+
+
+---
+
+## Lead decision after Chunk 1
+
+Chunk 1 is accepted with the binding corrections recorded in `control/OLLAMA-CHUNK-01-DECISION.md`.
+
+These are now program-level requirements:
+
+- The Ollama path remains a continuous execution tunnel.
+- The strong model funnel remains, but runtime-specialist evidence may be obtained through a **bounded qualification reservation** before normal DeployableModels membership.
+- Normal deployment must never load merely to discover deployability.
+- Mutable Ollama tags are not sufficient served identity; exact digest binding and pre/post request verification are required.
+- Foundation readiness and deployment readiness are separate.
+- STOP does not imply ResourceReservation release.
+- The unauthenticated local Ollama API is an explicit enforcement/security debt for arbitrary local-process bypass; do not overclaim ResourceManager enforcement outside Machi-routed execution.
+- Choose and freeze the latest approved **stable** Ollama release at implementation time; do not adopt a prerelease without explicit Lead approval.
+- Both verified-existing and Machi-managed-prefix Foundation paths are desired. The managed path must remain inside Machi-owned state and must not silently mutate `/usr` or global systemd.
+- Normalize analytics behind a macropath adapter while retaining path-specific raw evidence and provenance.
