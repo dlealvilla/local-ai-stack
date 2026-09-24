@@ -1,19 +1,20 @@
 {
-  "schema": "machi.lead_handoff.v1",
-  "instruction_id": "MACHI-OLLAMA-CHUNK-01-001",
-  "status": "READY",
-  "source_repository": "dlealvilla/ai-stack",
   "control_branch": "control/machi-handoff",
   "expected_cursor_action": "sync_review_ollama_chunk_1_publish_pasteback",
   "expected_pasteback_instruction_id": "MACHI-OLLAMA-CHUNK-01-001",
+  "instruction_id": "MACHI-OLLAMA-CHUNK-01-001",
   "program": {
-    "program_id": "MACHI-OLLAMA-MACROPATH-001",
-    "name": "ollama-execution-macropath",
     "chunks": 6,
     "current_chunk": 1,
     "integration_branch": "automation/ollama-macropath",
-    "recovery_branch": "checkpoint/native-vllm-partial-pass-2026-09-24",
+    "name": "ollama-execution-macropath",
+    "next_action": "lead_review_before_chunk_2",
+    "program_id": "MACHI-OLLAMA-MACROPATH-001",
     "program_spec": "control/OLLAMA-MACROPATH-PROGRAM.md",
-    "next_action": "lead_review_before_chunk_2"
-  }
+    "recovery_branch": "checkpoint/native-vllm-partial-pass-2026-09-24"
+  },
+  "published_instruction_id": "MACHI-OLLAMA-CHUNK-01-001",
+  "schema": "machi.lead_handoff.v1",
+  "source_repository": "dlealvilla/ai-stack",
+  "status": "PASTEBACK_PUBLISHED"
 }
