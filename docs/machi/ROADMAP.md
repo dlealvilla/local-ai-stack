@@ -476,9 +476,13 @@ foundation. `FoundationSelection` names the family and the engine.
 Native process is first-class. Docker is optional and not implemented.
 `VllmExecutionMacropath` is PRIMARY. The Ollama runtime substrate is
 implemented for a verified-existing daemon and a Machi-owned prefix.
-AUTO still selects supported native vLLM and otherwise returns a typed
-refusal. Ollama model pull, Serve, and AUTO fallback are not
-implemented. Explicit vLLM fails closed. Dynamo stays a deferred
+AUTO prefers healthy or supported native vLLM. AUTO may select Ollama
+only when native vLLM is unavailable by the local policy in
+`foundation/fallback.py`. That choice is not physical live failover.
+Explicit vLLM and explicit Ollama fail closed. Ollama model pull is
+not a product acquisition feature. One NVIDIA A40 has a
+generation-bound Ollama Serve proof. The Ollama macropath is not fully
+closed. Dynamo stays a deferred
 Stage-2 family. None of these paths own host or admission truth.
 
 **Inputs:** HostProfile, CapacityEnvelope, HostMinimumVerdict PASS.
@@ -647,9 +651,12 @@ happy path.
 **Non-goals:** llama.cpp, Admin UI, Knowledge, multi-instance,
 streaming, public bind, Ollama, and a distributed fabric.
 
-**Status:** local native vLLM candidate. Physical inference is not
-run. `DeploymentWitness` remains deferred. The generic instance does
-not require a pid.
+**Status:** local native vLLM candidate. Physical native inference is
+not the passing NVIDIA-N1 proof (`M-9-02`). `DeploymentWitness` remains
+deferred. The generic instance does not require a pid. A separate
+provider path has one generation-bound Ollama Serve proof on an
+NVIDIA A40. That proof is not NVIDIA-wide and does not close the
+Ollama macropath.
 
 **Unlocks:** outer product attachment after a physical inference
 proof. More runtimes wait for a provider decision.
@@ -710,12 +717,12 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M2 Discover, including 2.4 Mounts and 2.5 PrerequisiteReadiness | KEEP | 1 | Host and mount truth; readiness is not discovery |
 | M3 Steward | KEEP | 1 | Ownership before capacity. Accepted at Tier 2 |
 | M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization. Accepted at Tier 2 |
-| M5 Foundation | MODIFY | 1 | Native vLLM increment closed. NVIDIA CUDA qualified. AMD qualification deferred (`M-5-AMD-01`). Ollama substrate is local and is not auto-selected |
+| M5 Foundation | MODIFY | 1 | Native vLLM increment closed. NVIDIA CUDA qualified. AMD qualification deferred (`M-5-AMD-01`). AUTO may select Ollama only when native vLLM is unavailable by policy. That is not physical failover |
 | M6 Model | KEEP | 1 | Warehouse path accepted. Deployable membership now requires runtime qualification. Physical qualification is not run (`M-6-03`) |
 | M7 Plan | KEEP | 1 | Physically accepted on NVIDIA. Plan is not admission and not launch |
 | M8 Admit | KEEP | 1 | Physically accepted on NVIDIA as logical reservation authority. Serve is not started |
 | M9 Serve | KEEP | 1 | Local native vLLM serve. NVIDIA-N1 L5 inference did not pass (`M-9-02`). Witness composer remains deferred |
-| OllamaExecutionMacropath | REPOSITION | 1 exit | Foundation substrate is local. AUTO fallback, model pull, and Serve are not implemented |
+| OllamaExecutionMacropath | REPOSITION | 1 exit | Generation-bound Serve is proven on one NVIDIA A40. Local AUTO preference is implemented. Model pull is not a product feature. Physical live failover is not implemented. The macropath is not fully closed |
 | Runtime Artifact Registry / software supply chain | DEFER | post-spine, parallel with 2; gate before scaled 3 | Reproducible approved runtime/package delivery, mirrors, customer imports and offline bundles. Separate from Model Warehouse. Build after stable artifact/provenance/recipe contracts; do not widen current Ollama scope |
 | Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |
 | Dynamo | DEFER | 2 | Fabric family. No integration until the evidence in strategy |
