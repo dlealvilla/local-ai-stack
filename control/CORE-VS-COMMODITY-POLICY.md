@@ -93,6 +93,41 @@ Then STOP and wait for explicit Lead/product decision.
 Do not manufacture a decision gate when there is no material choice. State:
 `NO_SOLUTION_DECISION_REQUIRED`.
 
+
+
+## Mandatory Product Vision Alignment
+
+Every material option must be evaluated against the authoritative Kultrun
+Product Vision, not only against technical quality or industry adoption.
+
+For each viable option, explicitly assess:
+- self-hosted/customer-controlled fit;
+- privacy/local-content fit;
+- offline and air-gapped fit;
+- replaceability and dependency lock-in;
+- provider/hardware/OS/runtime-neutral core fit;
+- Kultrun-owned meaning vs provider-owned mechanics;
+- safety and truthful unresolved/refusal behavior;
+- reproducibility, ownership and lifecycle fit;
+- provenance/evidence/explainability/auditability;
+- non-technical administrator experience and operational burden;
+- enterprise permissions/security/governance;
+- long-term Company Brain / Team Brain / knowledge / memory / coordination fit;
+- commercial and licensing direction;
+- current strategic stage and exoskeleton-first sequencing.
+
+Classify each option:
+- `ALIGNED`
+- `ALIGNED_WITH_CONDITIONS`
+- `MISALIGNED`
+
+A `MISALIGNED` option is normally removed from the feasible set. Selecting it
+requires an explicit Lead/product decision to revise the Product Vision itself.
+
+Do not reduce alignment to a score. Name the exact principle, consequence, and
+whether the tension is temporary, adapter-contained, or structural.
+
+
 ## Relationship to Provider Selection Gate
 
 The existing Provider Selection Gate remains mandatory for concrete
