@@ -353,3 +353,17 @@ Closure evidence and exact support boundaries are in
 
 Chunk 3 has not started. It must build the Model + Specialist Feasibility Bridge
 on the accepted immutable Foundation identity and qualification funnel.
+
+
+---
+
+## Chunk 3 decision gate
+
+Chunk 3 begins with `MACHI-OLLAMA-CHUNK-03-GATE-001` because qualification
+resource admission is a Product-Core control-plane decision.
+
+No implementation starts until the gate compares the qualification reservation
+contract shapes and returns the decision to the Lead/product owner.
+
+The initial Ollama representation path is also reviewed against the existing
+Machi Model Warehouse and Product Vision before implementation.
