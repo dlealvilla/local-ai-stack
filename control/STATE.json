@@ -18,6 +18,7 @@
     "next_action": "lead_review_before_chunk_3",
     "core_vs_commodity_policy": "control/CORE-VS-COMMODITY-POLICY.md",
     "docs_policy_branch": "docs/core-vs-commodity-decision-policy",
-    "product_vision_alignment": "mandatory"
+    "product_vision_alignment": "mandatory",
+    "docs_policy_reconciliation": "required_into_automation_ollama_macropath"
   }
 }
