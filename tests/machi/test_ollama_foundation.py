@@ -645,18 +645,43 @@ def test_registry_faults_leave_the_generation_for_reconciliation(
 
 
 def test_safe_below_artifact_size_creates_no_staging(tmp_path: Path) -> None:
+    from machi.adapters.foundation.ollama_archive import pre_stage_requirement
+
     archive = _archive()
     path = _file(tmp_path, archive, "short-safe.tar")
+    recipe = _recipe(archive)
+    state = tmp_path / "state"
+    required = pre_stage_requirement(len(archive))
+    assert required == len(archive) + len(b"machi")
+    refused = OllamaRuntime().install(
+        state,
+        path,
+        recipe,
+        safe_bytes=required - 1,
+    )
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.failure is FailureCode.INSUFFICIENT_CAPACITY
+    assert refused.reason == "safe storage does not cover the staged artifact"
+    assert not (state / "foundation" / "staging").exists()
+
+
+def test_safe_exactly_artifact_and_marker_passes_pre_stage(
+    tmp_path: Path,
+) -> None:
+    from machi.adapters.foundation.ollama_archive import pre_stage_requirement
+
+    archive = _archive()
+    path = _file(tmp_path, archive, "exact-safe.tar")
     recipe = _recipe(archive)
     state = tmp_path / "state"
     refused = OllamaRuntime().install(
         state,
         path,
         recipe,
-        safe_bytes=len(archive) - 1,
+        safe_bytes=pre_stage_requirement(len(archive)),
     )
     assert isinstance(refused, PrefixRefusal)
-    assert refused.failure is FailureCode.INSUFFICIENT_CAPACITY
+    assert refused.reason == "safe storage does not cover the provisioning peak"
     assert not (state / "foundation" / "staging").exists()
 
 
@@ -768,7 +793,7 @@ def test_hung_decompressor_fails_without_blocking(tmp_path: Path) -> None:
 
     class Hanging(SystemZstdDecompressor):
         def __init__(self) -> None:
-            super().__init__(timeout_seconds=0.4)
+            super().__init__(inactivity_seconds=0.4)
 
         def preflight(self) -> DecompressorEvidence:
             return DecompressorEvidence("zstd", "fake")
@@ -802,6 +827,57 @@ def test_hung_decompressor_fails_without_blocking(tmp_path: Path) -> None:
     assert refused.failure is FailureCode.PACKAGE_INSTALL_FAILED
     assert "timed out" in refused.reason
     assert elapsed < 3
+
+
+def test_slow_progress_outlasts_inactivity_interval(tmp_path: Path) -> None:
+    import time
+
+    from machi.adapters.foundation.ollama_archive import DecompressorEvidence
+
+    blob = b"p" * (64 * 1024)
+    tar_bytes = _archive(("lib/ollama/payload.bin", blob))
+    tar_path = _file(tmp_path, tar_bytes, "layout.tar")
+    staged = _file(tmp_path, b"\x28\xb5\x2f\xfdslow", "slow.tar.zst")
+    recipe = _recipe(staged.read_bytes())
+
+    class Slow(SystemZstdDecompressor):
+        def __init__(self) -> None:
+            super().__init__(inactivity_seconds=0.4)
+
+        def preflight(self) -> DecompressorEvidence:
+            return DecompressorEvidence("zstd", "fake")
+
+        def open_stream(self, source: Path) -> subprocess.Popen[bytes]:
+            del source
+            code = (
+                "import sys, time\n"
+                "data = open(sys.argv[1], 'rb').read()\n"
+                "step = 8192\n"
+                "for offset in range(0, len(data), step):\n"
+                "    try:\n"
+                "        sys.stdout.buffer.write(data[offset:offset + step])\n"
+                "        sys.stdout.buffer.flush()\n"
+                "    except BrokenPipeError:\n"
+                "        raise SystemExit(0)\n"
+                "    time.sleep(0.06)\n"
+            )
+            return subprocess.Popen(
+                [sys.executable, "-c", code, str(tar_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+    started = time.monotonic()
+    installed = OllamaRuntime().install(
+        tmp_path / "state",
+        staged,
+        recipe,
+        safe_bytes=SAFE_BYTES,
+        decompressor=Slow(),
+    )
+    elapsed = time.monotonic() - started
+    assert isinstance(installed, InstalledPrefix)
+    assert elapsed > 0.4
 
 
 def test_unregistered_generations_require_parsed_ownership(tmp_path: Path) -> None:

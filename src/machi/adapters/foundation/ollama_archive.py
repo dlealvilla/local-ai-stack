@@ -7,11 +7,14 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import tarfile
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import IO, cast
 
 from machi.foundation.contracts import FailureCode, SupportState
 from machi.foundation.ollama import OllamaRuntimeRecipe, runtime_environment_id
@@ -28,6 +31,9 @@ _CONFIG_BYTES = len(_CLOUD_CONFIG.encode()) * 2
 _MANIFEST_BUDGET = 4096
 _REQUIRED_BINARY = "bin/ollama"
 _STDERR_LIMIT = 4096
+_STREAM_WINDOW = 64 * 1024
+_MARKER_BYTES = len(_OWNER.encode("utf-8"))
+_DEFAULT_INACTIVITY_SECONDS = 30.0
 
 
 class RegistryCorruptError(Exception):
@@ -77,10 +83,12 @@ class SystemZstdDecompressor:
     """Stream an existing zstd tool. Does not install one."""
 
     def __init__(
-        self, executable: str | None = None, timeout_seconds: float = 5.0
+        self,
+        executable: str | None = None,
+        inactivity_seconds: float = _DEFAULT_INACTIVITY_SECONDS,
     ) -> None:
         self._executable = executable
-        self.timeout_seconds = timeout_seconds
+        self.inactivity_seconds = inactivity_seconds
 
     def preflight(self) -> DecompressorEvidence | PrefixRefusal:
         path = self._executable or shutil.which("zstd")
@@ -150,6 +158,11 @@ class RegistryInspection:
     unregistered: tuple[str, ...]
 
 
+def pre_stage_requirement(artifact_bytes: int) -> int:
+    """Frozen archive plus the staging marker written before the copy."""
+    return artifact_bytes + _MARKER_BYTES
+
+
 def individual_member_refusal(size: int) -> str | None:
     """Per-member ceiling. Aggregate size is not judged here."""
     if size < 0 or size > _MAX_MEMBER:
@@ -215,8 +228,6 @@ def realize_prefix(
     faults: InstallFaults | None = None,
 ) -> InstalledPrefix | PrefixRefusal:
     """Stage, verify, and promote one prefix. Missing SAFE bytes refuse."""
-    import time
-
     if safe_bytes is None:
         return PrefixRefusal(
             FailureCode.INSUFFICIENT_CAPACITY,
@@ -242,7 +253,7 @@ def realize_prefix(
             SupportState.PROVISIONING_FAILED,
             "artifact length does not match the frozen recipe",
         )
-    if safe_bytes < recipe.artifact_bytes:
+    if safe_bytes < pre_stage_requirement(recipe.artifact_bytes):
         return PrefixRefusal(
             FailureCode.INSUFFICIENT_CAPACITY,
             SupportState.INSUFFICIENT_CAPACITY,
@@ -461,86 +472,177 @@ def _open_tar(
     staged: Path,
     zstd: bool,
     tool: SystemZstdDecompressor,
-) -> tuple[tarfile.TarFile, _TimedChild | None]:
+) -> tuple[tarfile.TarFile, _InactivityWatch | None]:
     if not zstd:
         return tarfile.open(staged, "r|"), None
     process = tool.open_stream(staged)
     if process.stdout is None:
         process.kill()
         raise ValidationError("zstd decompressor produced no stream")
-    child = _TimedChild(process, tool.timeout_seconds)
-    return tarfile.open(fileobj=process.stdout, mode="r|"), child
+    child = _InactivityWatch(process, tool.inactivity_seconds)
+    stream = _ProgressReader(_pipe_reader(process.stdout), child)
+    return tarfile.open(fileobj=cast(IO[bytes], stream), mode="r|"), child
 
 
-class _TimedChild:
-    """Kills a decompressor when its deadline passes, even if a pipe stays open."""
+def _pipe_reader(stream: IO[bytes]) -> IO[bytes]:
+    """Raw pipe reads return as soon as decompressed bytes arrive."""
+    raw = getattr(stream, "raw", None)
+    if raw is not None and hasattr(raw, "read"):
+        return cast(IO[bytes], raw)
+    return stream
+
+
+class _ProgressReader:
+    """Bounded window over the child stream. Each arrival is progress."""
+
+    def __init__(self, raw: IO[bytes], watch: _InactivityWatch) -> None:
+        self._raw = raw
+        self._watch = watch
+        self._pending = bytearray()
+        self._eof = False
+        self._closed = False
+        self._ready = threading.Condition()
+        self._thread = threading.Thread(target=self._pump, daemon=True)
+        self._thread.start()
+
+    def _pump(self) -> None:
+        while True:
+            with self._ready:
+                while len(self._pending) >= _STREAM_WINDOW and not self._closed:
+                    self._ready.wait()
+                if self._closed:
+                    return
+                room = _STREAM_WINDOW - len(self._pending)
+            try:
+                piece = self._raw.read(room)
+            except (OSError, ValueError):
+                piece = b""
+            if not piece:
+                with self._ready:
+                    self._eof = True
+                    self._ready.notify_all()
+                return
+            with self._ready:
+                if getattr(self, "_closed"):
+                    self._eof = True
+                    self._ready.notify_all()
+                    return
+                self._pending.extend(piece)
+                self._ready.notify_all()
+            self._watch.note_progress()
+
+    def read(self, size: int = -1) -> bytes:
+        if size == 0:
+            return b""
+        with self._ready:
+            while not self._pending and not self._eof:
+                self._ready.wait()
+            if size < 0 or size > len(self._pending):
+                size = len(self._pending)
+            data = bytes(self._pending[:size])
+            del self._pending[:size]
+            self._ready.notify_all()
+            return data
+
+    def close(self) -> None:
+        with self._ready:
+            self._closed = True
+            self._ready.notify_all()
+        with contextlib.suppress(OSError):
+            self._raw.close()
+        self._thread.join(timeout=1)
+
+
+class _InactivityWatch:
+    """Kill a live child only after a stretch with no decompressed bytes."""
 
     def __init__(
-        self, process: subprocess.Popen[bytes], timeout_seconds: float
+        self, process: subprocess.Popen[bytes], inactivity_seconds: float
     ) -> None:
         self.process = process
-        self.timeout_seconds = timeout_seconds
+        self.inactivity_seconds = inactivity_seconds
         self.timed_out = False
-        self._timer = threading.Timer(timeout_seconds, self._expire)
-        self._timer.daemon = True
-        self._timer.start()
+        self._last_progress = time.monotonic()
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._stderr = bytearray()
+        self._stderr_thread = threading.Thread(target=self._drain_stderr, daemon=True)
+        self._stderr_thread.start()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
 
-    def _expire(self) -> None:
-        self.timed_out = True
-        with contextlib.suppress(OSError):
-            self.process.kill()
+    def note_progress(self) -> None:
+        with self._lock:
+            self._last_progress = time.monotonic()
 
-    def cancel(self) -> None:
-        self._timer.cancel()
+    def stderr_text(self) -> bytes:
+        with self._lock:
+            return bytes(self._stderr)
+
+    def _drain_stderr(self) -> None:
+        stream = self.process.stderr
+        if stream is None:
+            return
+        while True:
+            piece = stream.read(1024)
+            if not piece:
+                break
+            with self._lock:
+                room = _STDERR_LIMIT - len(self._stderr)
+                if room > 0:
+                    self._stderr.extend(piece[:room])
+
+    def _run(self) -> None:
+        poll = min(0.05, max(self.inactivity_seconds / 5, 0.01))
+        while not self._stop.wait(poll):
+            if self.process.poll() is not None:
+                return
+            with self._lock:
+                idle = time.monotonic() - self._last_progress
+            if idle < self.inactivity_seconds:
+                continue
+            self.timed_out = True
+            with contextlib.suppress(OSError):
+                self.process.kill()
+            return
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=1)
+
+    def join_stderr(self) -> None:
+        self._stderr_thread.join(timeout=1)
 
 
-def _close_tar(handle: tarfile.TarFile, child: _TimedChild | None) -> None:
-    handle.close()
+def _close_tar(handle: tarfile.TarFile, child: _InactivityWatch | None) -> None:
     if child is None:
+        handle.close()
         return
+    with contextlib.suppress(OSError, tarfile.TarError, ValueError):
+        handle.close()
     process = child.process
     if process.stdout is not None:
-        process.stdout.close()
-    child.cancel()
-    stderr = _read_stderr_bounded(process)
+        with contextlib.suppress(OSError):
+            process.stdout.close()
+    child.stop()
     try:
-        code = process.wait(timeout=child.timeout_seconds)
+        code = process.wait(timeout=child.inactivity_seconds)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=5)
-        raise ValidationError("zstd decompressor timed out") from None
+        child.timed_out = True
+        code = -1
+    child.join_stderr()
     if child.timed_out:
         raise ValidationError("zstd decompressor timed out")
-    if code != 0:
-        detail = stderr.decode("utf-8", errors="replace").strip()[:160]
-        message = "zstd decompressor exited without success"
-        if detail:
-            message = f"{message}: {detail}"
-        raise ValidationError(message)
-
-
-def _read_stderr_bounded(process: subprocess.Popen[bytes]) -> bytes:
-    """Drain stderr on another thread so a stuck pipe cannot hide the deadline."""
-    if process.stderr is None:
-        return b""
-    kept: list[bytes] = []
-
-    def _read() -> None:
-        buffer = bytearray()
-        assert process.stderr is not None
-        while True:
-            piece = process.stderr.read(1024)
-            if not piece:
-                break
-            room = _STDERR_LIMIT - len(buffer)
-            if room > 0:
-                buffer.extend(piece[:room])
-        kept.append(bytes(buffer))
-
-    thread = threading.Thread(target=_read, daemon=True)
-    thread.start()
-    thread.join(1)
-    return kept[0] if kept else b""
+    # Closing a finished stream signals the producer. That is not a decode failure.
+    if code in (0, -signal.SIGPIPE, 128 + signal.SIGPIPE):
+        return
+    detail = child.stderr_text().decode("utf-8", errors="replace").strip()
+    message = "zstd decompressor exited without success"
+    if detail:
+        message = f"{message}: {detail[:160]}"
+    raise ValidationError(message)
 
 
 def _reject_member(member: tarfile.TarInfo) -> None:
