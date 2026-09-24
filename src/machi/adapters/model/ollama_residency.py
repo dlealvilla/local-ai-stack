@@ -75,11 +75,13 @@ def observe_residency(
 
 
 def refresh_residency(
-    api: OllamaModelApi, *, name: str, digest: str
+    api: OllamaModelApi, *, name: str, digest: str, context: int
 ) -> ResidencyObservation:
-    """Ask the provider to keep the model, then read /api/ps."""
+    """Ask the provider to keep the model at the requested context."""
+    if context < 1:
+        return _unresolved("requested context is not positive")
     try:
-        api.preload(name)
+        api.preload(name, context=context)
     except OllamaApiError:
         return _unresolved("residency refresh failed")
     return observe_residency(api, name=name, digest=digest)

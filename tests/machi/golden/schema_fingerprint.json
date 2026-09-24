@@ -3976,7 +3976,7 @@
       }
     }
   },
-  "model.ollama_qualification@1": {
+  "model.ollama_qualification@2": {
     "python": "OllamaQualificationEvidence",
     "fields": {
       "qualification_id": {
@@ -4033,7 +4033,7 @@
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "qualification context"
+        "meaning": "context requested from the provider as num_ctx; not an observed slot"
       },
       "concurrency": {
         "type": "int",
@@ -4041,6 +4041,13 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "qualification concurrency"
+      },
+      "context_binding": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "requested when num_ctx was sent; not_sent cannot cover a plan"
       },
       "outcome": {
         "type": "QualificationOutcome",
@@ -6064,6 +6071,280 @@
       }
     }
   },
+  "plan.provider_configuration@1": {
+    "python": "ProviderDeploymentConfiguration",
+    "fields": {
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this provider plan"
+      },
+      "status": {
+        "type": "PlanStatus",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "planned; stale is a later comparison"
+      },
+      "provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime provider; ollama in this increment"
+      },
+      "display_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "catalog address; not the immutable identity"
+      },
+      "digest": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "immutable provider model digest"
+      },
+      "candidate_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "digest-derived candidate identity"
+      },
+      "foundation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation identity this plan cited"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified runtime generation"
+      },
+      "execution_environment_fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "material accelerator environment"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot cited"
+      },
+      "accelerator_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "accelerators this plan requests"
+      },
+      "accelerator_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity device identity"
+      },
+      "context_length": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "serving context sent as num_ctx"
+      },
+      "concurrency": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded in-flight sequences"
+      },
+      "qualification_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider qualification that covers this plan"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan policy that produced this result"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "deterministic token of the material inputs"
+      },
+      "settings": {
+        "type": "tuple[PlanSetting, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective serving settings"
+      }
+    }
+  },
+  "plan.provider_decision@1": {
+    "python": "ProviderPlanDecision",
+    "fields": {
+      "decision_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this decision"
+      },
+      "failure": {
+        "type": "PlanFailure",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none when a provider plan was produced"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this result was produced"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "token of the inputs, including refusals"
+      },
+      "configuration": {
+        "type": "ProviderDeploymentConfiguration | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "planned provider configuration, or unresolved when refused"
+      },
+      "request": {
+        "type": "ProviderResourceRequest | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider resource request, or unresolved when refused"
+      }
+    }
+  },
+  "plan.provider_resource_request@1": {
+    "python": "ProviderResourceRequest",
+    "fields": {
+      "request_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this request"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider plan this request belongs to"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "same material token as the provider plan"
+      },
+      "foundation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation identity cited"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime generation cited"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "capacity snapshot cited"
+      },
+      "digest": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider model digest cited"
+      },
+      "accelerator_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "accelerators requested"
+      },
+      "accelerator_memory_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE accelerator budget requested"
+      },
+      "host_memory_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE host memory budget requested"
+      },
+      "persistent_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse bytes; zero for an already-local model"
+      },
+      "transient_bytes": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "extra staging bytes for serving"
+      },
+      "cpu_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "process slots requested"
+      }
+    }
+  },
   "plan.qualification_probe@1": {
     "python": "QualificationProbe",
     "fields": {
@@ -7599,6 +7880,266 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "when the process was spawned; UTC"
+      }
+    }
+  },
+  "serve.provider_decision@1": {
+    "python": "ProviderServeDecision",
+    "fields": {
+      "outcome": {
+        "type": "ServeOutcome",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "what provider serve did"
+      },
+      "failure": {
+        "type": "ServeFailure",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none when the outcome succeeded"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "short explanation"
+      },
+      "instance": {
+        "type": "ProviderServingInstance | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "instance when one exists"
+      },
+      "proof": {
+        "type": "ProviderInferenceProof | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "proof when one was recorded"
+      }
+    }
+  },
+  "serve.provider_inference@1": {
+    "python": "ProviderInferenceProof",
+    "fields": {
+      "proof_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this proof"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance that served the request"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider plan"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider plan fingerprint"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reservation"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation"
+      },
+      "digest": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider digest proved before and after the request"
+      },
+      "request_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider request kind"
+      },
+      "input_tokens": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "prompt tokens when the provider reported them"
+      },
+      "output_tokens": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "output tokens when the provider reported them"
+      },
+      "generation_seconds": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "provider generation duration"
+      },
+      "tokens_per_second": {
+        "type": "float | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "derived rate when both operands exist"
+      },
+      "size_vram_bytes": {
+        "type": "int | Unresolved",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": true,
+        "meaning": "runtime-reported resident vram"
+      },
+      "size_vram_semantics": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime_reported; not an observed peak"
+      },
+      "structurally_valid": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "the provider returned a countable result"
+      },
+      "failure": {
+        "type": "ServeFailure",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none when the proof succeeded"
+      }
+    }
+  },
+  "serve.provider_instance@1": {
+    "python": "ProviderServingInstance",
+    "fields": {
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of this deployment"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider plan this instance serves"
+      },
+      "fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider plan fingerprint at start"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reservation that authorized the start"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "verified foundation generation"
+      },
+      "digest": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "immutable provider model digest"
+      },
+      "display_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "catalog address used to reach that digest"
+      },
+      "serve_provider": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime provider"
+      },
+      "context_length": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "context sent as num_ctx"
+      },
+      "concurrency": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "concurrency this instance serves"
+      },
+      "state": {
+        "type": "InstanceState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "lifecycle"
+      },
+      "health": {
+        "type": "HealthState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "residency readiness, separate from authorization"
+      },
+      "evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "residency evidence identity"
+      },
+      "policy_version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "provider serve policy"
       }
     }
   },

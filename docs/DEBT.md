@@ -2660,14 +2660,14 @@ Owner stage:  Serve
 Subsystem:    model
 Authorizes:   NO
 What:         Ollama may evict or keep a resident model on its own
-              schedule. Chunk 3 records that behavior as later Serve
-              authorization work. It does not constrain Ollama's
-              scheduler, and it does not treat a qualification unload
-              fault as a deployment policy.
+              schedule. Bundle 05 Serve re-reads `/api/ps` before and
+              after inference and refuses a mismatched digest. It does
+              not constrain Ollama's scheduler, and a qualification or
+              STOP unload is not itself the deployment hold.
 Why now:      A long-lived Machi reservation and Ollama's own
-              residency can disagree. Solving that inside qualification
-              would redesign scheduling before Serve exists for this
-              macropath.
+              residency can still disagree after Serve checks the
+              digest. Preventing eviction would mean owning the
+              provider scheduler.
 To make real: a Serve authorization rule for Ollama residency and
               eviction that still uses the one ResourceManager ledger.
 Retire when:  that Serve boundary is specified and enforced, or an

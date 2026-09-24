@@ -1,10 +1,11 @@
-"""Serve policy. Native vLLM is the only provider in this increment."""
+"""Serve policy. Native vLLM and one provider path have separate versions."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 POLICY_VERSION = "m9.serve.1"
+PROVIDER_POLICY_VERSION = "m9.serve.provider.1"
 BIND_SCOPE = "loopback"
 PORT_BASE = 18080
 PORT_SPAN = 32

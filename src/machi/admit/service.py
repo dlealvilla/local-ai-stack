@@ -29,6 +29,11 @@ from machi.plan.contracts import (
     PlanStatus,
     ResourceRequest,
 )
+from machi.plan.provider import (
+    ProviderDeploymentConfiguration,
+    ProviderPlanDecision,
+    ProviderResourceRequest,
+)
 from machi.plan.qualification_probe import QualificationProbe
 
 
@@ -69,6 +74,16 @@ class ResourceManager:
         """Reserve a qualification probe on the same ledger as deployment."""
         with self._lock:
             return self._admit_probe(probe, capacity)
+
+    def admit_provider(
+        self,
+        decision: ProviderPlanDecision,
+        capacity: CapacityEnvelope,
+        plan_currency: PlanFailure,
+    ) -> AdmissionDecision:
+        """Reserve a provider plan on the same ledger as a native plan."""
+        with self._lock:
+            return self._admit_provider(decision, capacity, plan_currency)
 
     def release(self, reservation_id_value: str) -> AdmissionDecision:
         """Free one hold. A second release of the same hold converges."""
@@ -119,6 +134,21 @@ class ResourceManager:
         configuration: DeploymentConfiguration,
     ) -> bool:
         """M9 must call this. A bare plan is not authorization."""
+        current = self.get_reservation(reservation_id_value)
+        if current is None or current.state is not ReservationState.RESERVED:
+            return False
+        return (
+            current.plan_id == configuration.plan_id
+            and current.fingerprint == configuration.fingerprint
+            and current.accelerator_identity == configuration.accelerator_identity
+        )
+
+    def execution_authorized_provider(
+        self,
+        reservation_id_value: str,
+        configuration: ProviderDeploymentConfiguration,
+    ) -> bool:
+        """A provider plan uses the same hold. Residency is not authorization."""
         current = self.get_reservation(reservation_id_value)
         if current is None or current.state is not ReservationState.RESERVED:
             return False
@@ -272,6 +302,80 @@ class ResourceManager:
             persistent_bytes=0,
             transient_bytes=0,
             cpu_count=1,
+            host_safe=host,
+            accelerator_safe=accel,
+            storage_safe=storage,
+            sequence=sequence,
+        )
+
+    def _admit_provider(
+        self,
+        decision: ProviderPlanDecision,
+        capacity: CapacityEnvelope,
+        plan_currency: PlanFailure,
+    ) -> AdmissionDecision:
+        configuration = decision.configuration
+        request = decision.request
+        if decision.failure is not PlanFailure.NONE or not is_resolved(configuration):
+            return refused(
+                AdmissionFailure.PLAN_NOT_SUCCESSFUL, "plan was not produced"
+            )
+        if not is_resolved(request):
+            return refused(AdmissionFailure.PLAN_NOT_SUCCESSFUL, "plan has no request")
+        if configuration.status is not PlanStatus.PLANNED:
+            return refused(AdmissionFailure.PLAN_NOT_SUCCESSFUL, "plan is not planned")
+        mismatch = _provider_pair(configuration, request)
+        if mismatch is not None:
+            return mismatch
+        if plan_currency is not PlanFailure.NONE:
+            return refused(AdmissionFailure.STALE_PLAN, plan_currency.value)
+        if configuration.capacity_evidence_id != capacity.evidence_id:
+            return refused(
+                AdmissionFailure.STALE_CAPACITY_INPUT,
+                "plan cites a different capacity snapshot",
+            )
+        ledger = self._ledger()
+        if _overcommitted(ledger.active, capacity):
+            return refused(
+                AdmissionFailure.CURRENT_CAPACITY_OVERCOMMITTED,
+                "existing holds already exceed safe capacity",
+            )
+        device = _device(capacity, configuration.accelerator_identity)
+        if device is None:
+            return refused(
+                AdmissionFailure.ACCELERATOR_NOT_PRESENT,
+                "planned accelerator is not in this snapshot",
+            )
+        host = capacity.memory.safe_bytes
+        accel = device.safe_bytes
+        storage = _storage_ceiling(capacity)
+        if not isinstance(host, int) or not isinstance(accel, int):
+            return refused(
+                AdmissionFailure.CAPACITY_UNRESOLVED, "safe memory is unknown"
+            )
+        if (request.persistent_bytes or request.transient_bytes) and storage is None:
+            return refused(
+                AdmissionFailure.CAPACITY_UNRESOLVED,
+                "safe storage is unknown",
+            )
+        sequence = _sequence(
+            ledger,
+            plan_id=configuration.plan_id,
+            fingerprint=configuration.fingerprint,
+            capacity_evidence_id=configuration.capacity_evidence_id,
+        )
+        return self._place(
+            ledger=ledger,
+            plan_id=configuration.plan_id,
+            fingerprint=configuration.fingerprint,
+            request_id=request.request_id,
+            capacity_evidence_id=capacity.evidence_id,
+            accelerator_identity=configuration.accelerator_identity,
+            accelerator_memory_bytes=request.accelerator_memory_bytes,
+            host_memory_bytes=request.host_memory_bytes,
+            persistent_bytes=request.persistent_bytes,
+            transient_bytes=request.transient_bytes,
+            cpu_count=request.cpu_count,
             host_safe=host,
             accelerator_safe=accel,
             storage_safe=storage,
@@ -436,6 +540,25 @@ def _pair(
         return refused(
             AdmissionFailure.PLAN_CONFIGURATION_MISMATCH,
             "request bindings do not match the configuration",
+        )
+    return None
+
+
+def _provider_pair(
+    configuration: ProviderDeploymentConfiguration,
+    request: ProviderResourceRequest,
+) -> AdmissionDecision | None:
+    if (
+        configuration.plan_id != request.plan_id
+        or configuration.fingerprint != request.fingerprint
+        or configuration.digest != request.digest
+        or configuration.generation_id != request.generation_id
+        or configuration.capacity_evidence_id != request.capacity_evidence_id
+        or configuration.foundation_id != request.foundation_id
+    ):
+        return refused(
+            AdmissionFailure.PLAN_REQUEST_MISMATCH,
+            "provider request does not match the plan",
         )
     return None
 

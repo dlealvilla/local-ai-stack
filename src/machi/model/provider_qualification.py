@@ -12,6 +12,7 @@ from machi.kernel.errors import ValidationError
 from machi.kernel.schema import Contract, contract, meaning
 from machi.kernel.unresolved import Maybe
 from machi.model.identity import input_token
+from machi.model.provider_candidate import canonical_digest
 from machi.model.qualification import QualificationOutcome
 
 _TOKEN_MAX = 80
@@ -27,7 +28,7 @@ class ProviderFitState(StrEnum):
     UNRESOLVED = "unresolved"
 
 
-@contract(kind="model.ollama_qualification", version=1)
+@contract(kind="model.ollama_qualification", version=2)
 @dataclass(frozen=True, slots=True)
 class OllamaQualificationEvidence(Contract):
     """Provider-owned fit result. Shadow evaluation is not a field."""
@@ -41,8 +42,13 @@ class OllamaQualificationEvidence(Contract):
     execution_environment_fingerprint: str = meaning(
         "material accelerator environment"
     )
-    context: int = meaning("qualification context")
+    context: int = meaning(
+        "context requested from the provider as num_ctx; not an observed slot"
+    )
     concurrency: int = meaning("qualification concurrency")
+    context_binding: str = meaning(
+        "requested when num_ctx was sent; not_sent cannot cover a plan"
+    )
     outcome: QualificationOutcome = meaning("pass, model failure, or host failure")
     provider_fit: ProviderFitState = meaning(
         "specialist fit verdict; not inferred from a later proof failure"
@@ -90,9 +96,13 @@ class OllamaQualificationEvidence(Contract):
             raise ValidationError("ollama qualification authority is ollama")
         if self.size_vram_semantics != _VRAM_SEMANTICS:
             raise ValidationError("size_vram is runtime-reported, not a peak")
+        if self.context_binding not in {"requested", "not_sent"}:
+            raise ValidationError("context binding is not requested or not_sent")
         if self.context < 1 or self.concurrency < 1:
             raise ValidationError("qualification envelope must be positive")
         if self.outcome is QualificationOutcome.PASS:
+            if self.context_binding != "requested":
+                raise ValidationError("a pass requires a requested context")
             if not self.token_proved:
                 raise ValidationError("a pass requires a counted output token")
             if self.provider_fit is not ProviderFitState.FIT:
@@ -119,3 +129,29 @@ def ollama_qualification_id(
         str(concurrency),
     )
     return f"oqev_{token[:16]}"
+
+
+def qualification_covers(
+    evidence: OllamaQualificationEvidence,
+    *,
+    digest: str,
+    generation_id: str,
+    context: int,
+    concurrency: int,
+) -> bool:
+    """A pass covers the requested context only when num_ctx was sent."""
+    if evidence.schema_version != 2 or evidence.context_binding != "requested":
+        return False
+    if evidence.outcome is not QualificationOutcome.PASS:
+        return False
+    if evidence.provider_fit is not ProviderFitState.FIT:
+        return False
+    try:
+        same_digest = canonical_digest(digest) == canonical_digest(evidence.digest)
+    except ValidationError:
+        return False
+    if not same_digest or evidence.generation_id != generation_id:
+        return False
+    if evidence.concurrency != 1 or concurrency != 1:
+        return False
+    return 1 <= context <= evidence.context

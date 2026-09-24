@@ -1,5 +1,9 @@
 # Ollama bundle 04 physical qualification
 
+Historical provider-functional evidence. It is not exact context-2048
+coverage: `num_ctx` was not sent, and the runner selected context 8192.
+Bundle 05 requalifies at an explicit context of 2048 before Serve.
+
 Instruction: `MACHI-OLLAMA-BUNDLE-04-PHYSICAL-AUTH-001`  
 Status: one NVIDIA L40S host, two clean qualification passes, pod terminated.
 

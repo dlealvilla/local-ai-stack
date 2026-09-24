@@ -88,14 +88,14 @@ class OllamaModelApi(Protocol):
     def show_model(self, name: str) -> ShownModel | None:
         """POST /api/show."""
 
-    def preload(self, name: str) -> PreloadResult:
-        """Empty generate. This is not the token probe."""
+    def preload(self, name: str, *, context: int) -> PreloadResult:
+        """Empty generate with the requested context. Not the token probe."""
 
     def running_models(self) -> tuple[RunningModel, ...]:
         """GET /api/ps."""
 
-    def generate_probe(self, name: str) -> GenerateResult:
-        """Real token request."""
+    def generate_probe(self, name: str, *, context: int) -> GenerateResult:
+        """Real token request at the requested context."""
 
     def unload(self, name: str) -> UnloadResult:
         """Ask the provider to drop residency."""
@@ -144,6 +144,7 @@ class FakeOllamaApi:
         self.remain_after_unload = False
         self._phase = "idle"
         self.calls: list[str] = []
+        self.contexts: list[int] = []
         if outcome is FixtureOutcome.NO_FIT:
             self.preload_failure = "no_fit"
         elif outcome is FixtureOutcome.HOST_FAILURE:
@@ -173,9 +174,10 @@ class FakeOllamaApi:
             return None
         return ShownModel(name=name, size_bytes=self.size_bytes)
 
-    def preload(self, name: str) -> PreloadResult:
+    def preload(self, name: str, *, context: int) -> PreloadResult:
         del name
         self.calls.append("preload")
+        self.contexts.append(context)
         if self.preload_failure != "none":
             return PreloadResult(self.preload_failure)
         self._phase = "loaded"
@@ -193,9 +195,10 @@ class FakeOllamaApi:
             return (self._running(self.after_token_digest),)
         return ()
 
-    def generate_probe(self, name: str) -> GenerateResult:
+    def generate_probe(self, name: str, *, context: int) -> GenerateResult:
         del name
         self.calls.append("generate_probe")
+        self.contexts.append(context)
         self._phase = "token"
         return GenerateResult(
             failure="none",

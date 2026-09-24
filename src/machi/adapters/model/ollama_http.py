@@ -102,9 +102,11 @@ class LoopbackOllamaClient:
             format_label=_text(block.get("format")),
         )
 
-    def preload(self, name: str) -> PreloadResult:
+    def preload(self, name: str, *, context: int) -> PreloadResult:
         try:
-            payload = self._generate(name, prompt="", keep_alive=-1, predict=0)
+            payload = self._generate(
+                name, prompt="", keep_alive=-1, predict=0, context=context
+            )
         except OllamaApiError as exc:
             if exc.code == "no_fit":
                 return PreloadResult("no_fit")
@@ -142,10 +144,14 @@ class LoopbackOllamaClient:
             )
         return tuple(found)
 
-    def generate_probe(self, name: str) -> GenerateResult:
+    def generate_probe(self, name: str, *, context: int) -> GenerateResult:
         try:
             payload = self._generate(
-                name, prompt=_PROBE_PROMPT, keep_alive=-1, predict=_PREDICT
+                name,
+                prompt=_PROBE_PROMPT,
+                keep_alive=-1,
+                predict=_PREDICT,
+                context=context,
             )
         except OllamaApiError as exc:
             if exc.code == "no_fit":
@@ -165,22 +171,35 @@ class LoopbackOllamaClient:
 
     def unload(self, name: str) -> UnloadResult:
         try:
-            self._generate(name, prompt="", keep_alive=0, predict=0)
+            self._generate(name, prompt="", keep_alive=0, predict=0, context=None)
         except OllamaApiError:
             return UnloadResult("unload_failed")
         return UnloadResult("none")
 
     def _generate(
-        self, name: str, *, prompt: str, keep_alive: int, predict: int
+        self,
+        name: str,
+        *,
+        prompt: str,
+        keep_alive: int,
+        predict: int,
+        context: int | None,
     ) -> dict[str, object]:
-        body = {
+        if context is not None and context < 1:
+            raise OllamaApiError("shape")
+        body: dict[str, object] = {
             "model": name,
             "prompt": prompt,
             "stream": False,
             "keep_alive": keep_alive,
         }
+        options: dict[str, int] = {}
         if predict:
-            body["options"] = {"num_predict": predict}
+            options["num_predict"] = predict
+        if context is not None:
+            options["num_ctx"] = context
+        if options:
+            body["options"] = options
         return self._call("POST", GENERATE_PATH, body, self._read)
 
     def _call(

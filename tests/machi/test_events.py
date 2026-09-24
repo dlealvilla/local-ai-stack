@@ -23,10 +23,12 @@ import machi.model.provider_qualification as model_provider_qualification_module
 import machi.model.qualification as model_qualification_module
 import machi.model.shadow as model_shadow_module
 import machi.plan.events as plan_events_module
+import machi.plan.provider as plan_provider_module
 import machi.plan.qualification_probe as plan_probe_module
 import machi.prerequisites as prerequisites_module
 import machi.serve.events as serve_events_module
 import machi.serve.native as serve_native_module
+import machi.serve.provider as serve_provider_module
 import machi.steward.events as steward_events_module
 from machi.kernel.alive import KernelAlivePayload, kernel_alive
 from machi.kernel.clock import FixedClock
@@ -191,10 +193,18 @@ def test_schema_fingerprint_matches_committed_golden() -> None:
         == "model.qualification_comparison"
     )
     assert plan_probe_module.QualificationProbe.kind == "plan.qualification_probe"
+    assert (
+        plan_provider_module.ProviderDeploymentConfiguration.kind
+        == "plan.provider_configuration"
+    )
     assert plan_events_module.CREATED_TYPE == "plan.created"
     assert admit_events_module.COMPLETED_TYPE == "admit.completed"
     assert serve_events_module.STARTED_TYPE == "serve.started"
     assert serve_native_module.NativeProcessEvidence.kind == "serve.native_process"
+    assert (
+        serve_provider_module.ProviderServingInstance.kind
+        == "serve.provider_instance"
+    )
     assert JournalDefect.kind == "journal_defect"
     current = fingerprint(module_prefix="machi.")
     expected = json.loads(GOLDEN.read_text(encoding="utf-8"))

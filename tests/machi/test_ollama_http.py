@@ -164,9 +164,9 @@ def test_requests_timeouts_shape_and_timing() -> None:
         client = LoopbackOllamaClient(endpoint)
         listed = client.list_models()
         shown = client.show_model("tiny:latest")
-        preloaded = client.preload("tiny:latest")
+        preloaded = client.preload("tiny:latest", context=2048)
         running = client.running_models()
-        generated = client.generate_probe("tiny:latest")
+        generated = client.generate_probe("tiny:latest", context=2048)
         unloaded = client.unload("tiny:latest")
         absent = client.running_models()
     finally:
@@ -202,10 +202,11 @@ def test_requests_timeouts_shape_and_timing() -> None:
     assert preload_body["keep_alive"] == -1
     assert preload_body["stream"] is False
     assert preload_body["prompt"] == ""
+    assert preload_body["options"] == {"num_ctx": 2048}
     assert isinstance(probe_body, dict)
     assert probe_body["keep_alive"] == -1
     assert probe_body["prompt"] == _PROMPT
-    assert probe_body["options"] == {"num_predict": 8}
+    assert probe_body["options"] == {"num_predict": 8, "num_ctx": 2048}
     assert isinstance(unload_body, dict)
     assert unload_body["keep_alive"] == 0
     candidate = candidate_from_catalog(listed[0], shown)
@@ -231,11 +232,13 @@ def test_transport_failures_fail_closed() -> None:
         with pytest.raises(OllamaApiError) as huge:
             LoopbackOllamaClient(bounded_url, max_body=16).list_models()
         assert huge.value.code == "bounded"
-        assert LoopbackOllamaClient(memory_url).preload("tiny:latest").failure == (
+        assert LoopbackOllamaClient(memory_url).preload(
+            "tiny:latest", context=2048
+        ).failure == (
             "no_fit"
         )
         timed = LoopbackOllamaClient(slow_url, connect_timeout=0.2, read_timeout=0.2)
-        assert timed.preload("tiny:latest").failure == "timeout"
+        assert timed.preload("tiny:latest", context=2048).failure == "timeout"
     finally:
         for server in (malformed, shape, bounded, memory, slow):
             server.shutdown()

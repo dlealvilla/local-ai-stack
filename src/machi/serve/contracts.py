@@ -40,6 +40,9 @@ class ServeFailure(StrEnum):
     PROCESS_STOP_FAILED = "process_stop_failed"
     PROCESS_IDENTITY_UNRESOLVED = "process_identity_unresolved"
     SERVING_STATE_INVALID = "serving_state_invalid"
+    PROVIDER_RESIDENCY_MISMATCH = "provider_residency_mismatch"
+    PROVIDER_UNLOAD_FAILED = "provider_unload_failed"
+    PROVIDER_API_FAILED = "provider_api_failed"
 
 
 class InstanceState(StrEnum):

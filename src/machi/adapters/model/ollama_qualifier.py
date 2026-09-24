@@ -99,7 +99,7 @@ def _qualify(
             token_proved=False,
             observed_at=observed_at,
         )
-    preloaded = api.preload(candidate.display_name)
+    preloaded = api.preload(candidate.display_name, context=context)
     preload_load = preloaded.load_seconds
     if preloaded.failure == "host":
         return _evidence(
@@ -115,6 +115,7 @@ def _qualify(
             failure="provider_host_failure",
             token_proved=False,
             observed_at=observed_at,
+            context_binding="requested",
         )
     if preloaded.failure == "no_fit":
         return _evidence(
@@ -130,6 +131,7 @@ def _qualify(
             failure="provider_no_fit",
             token_proved=False,
             observed_at=observed_at,
+            context_binding="requested",
         )
     resident = _resident(api, candidate)
     if resident is None:
@@ -146,8 +148,9 @@ def _qualify(
             failure="loaded_digest_absent",
             token_proved=False,
             observed_at=observed_at,
+            context_binding="requested",
         )
-    generated = api.generate_probe(candidate.display_name)
+    generated = api.generate_probe(candidate.display_name, context=context)
     proved = generated.output_tokens > 0 and generated.failure == "none"
     after = _resident(api, candidate)
     metrics = _metrics(resident, generated, proved, preload_load)
@@ -172,6 +175,7 @@ def _qualify(
             input_tokens=metrics.input_tokens,
             output_tokens=metrics.output_tokens,
             tokens_per_second=metrics.tokens_per_second,
+            context_binding="requested",
         )
     if not proved:
         return _evidence(
@@ -194,6 +198,7 @@ def _qualify(
             input_tokens=metrics.input_tokens,
             output_tokens=metrics.output_tokens,
             tokens_per_second=metrics.tokens_per_second,
+            context_binding="requested",
         )
     return _evidence(
         candidate,
@@ -215,6 +220,7 @@ def _qualify(
         input_tokens=metrics.input_tokens,
         output_tokens=metrics.output_tokens,
         tokens_per_second=metrics.tokens_per_second,
+        context_binding="requested",
     )
 
 
@@ -299,6 +305,7 @@ def _evidence(
     tokens_per_second: Maybe[float] = NOT_MEASURED,
     size_bytes: Maybe[int] = NOT_MEASURED,
     size_vram_bytes: Maybe[int] = NOT_MEASURED,
+    context_binding: str = "not_sent",
 ) -> OllamaQualificationEvidence:
     vram_known = isinstance(size_vram_bytes, int)
     return OllamaQualificationEvidence(
@@ -349,5 +356,6 @@ def _evidence(
         tokens_per_second=tokens_per_second,
         token_proved=token_proved,
         unload_failure="not_attempted",
+        context_binding=context_binding,
         observed_at=observed_at,
     )

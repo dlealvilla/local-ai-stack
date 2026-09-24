@@ -23,6 +23,7 @@ class _Api:
     def __init__(self, running: tuple[RunningModel, ...] = ()) -> None:
         self.running = running
         self.calls: list[str] = []
+        self.contexts: list[int] = []
         self.fail = ""
 
     def list_models(self) -> tuple[object, ...]:
@@ -31,9 +32,10 @@ class _Api:
     def show_model(self, name: str) -> None:
         del name
 
-    def preload(self, name: str) -> PreloadResult:
+    def preload(self, name: str, *, context: int) -> PreloadResult:
         del name
         self.calls.append("preload")
+        self.contexts.append(context)
         if self.fail == "preload":
             raise OllamaApiError("transport")
         self.running = (
@@ -53,8 +55,8 @@ class _Api:
             raise OllamaApiError("transport")
         return self.running
 
-    def generate_probe(self, name: str) -> object:
-        del name
+    def generate_probe(self, name: str, *, context: int) -> object:
+        del name, context
         raise AssertionError("residency must not probe tokens")
 
     def unload(self, name: str) -> UnloadResult:
@@ -111,7 +113,9 @@ def test_absent_wrong_and_unreadable_states() -> None:
 
 def test_refresh_and_release_use_public_calls_then_ps() -> None:
     api = _Api()
-    refreshed = refresh_residency(api, name="smollm2:135m", digest=DIGEST)
+    refreshed = refresh_residency(
+        api, name="smollm2:135m", digest=DIGEST, context=2048
+    )
     assert api.calls == ["preload", "ps"]
     assert refreshed.state is ResidencyState.EXPECTED_RESIDENT
     released = release_residency(api, name="smollm2:135m", digest=DIGEST)

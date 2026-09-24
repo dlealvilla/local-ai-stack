@@ -1010,11 +1010,13 @@ See [M6.md](M6.md).
 
 **ID:** 7  
 **Name:** Plan  
-**Purpose:** One deterministic serving request for a stored model,
-a verified Foundation, and a Capacity snapshot. It does not admit
-or launch.  
-**Short Description:** Compose DeploymentConfiguration; compare
-CURRENT versus STALE; vLLM recipe stays in the adapter.
+**Purpose:** One deterministic serving request for a stored model
+or a qualified provider-owned model, a verified Foundation, and a
+Capacity snapshot. It does not admit or launch.  
+**Short Description:** Compose DeploymentConfiguration for a native
+artifact, or a sibling provider plan for an Ollama digest. Compare
+CURRENT versus STALE. The vLLM recipe stays in the adapter. An Ollama
+digest is not written into artifact, revision, or dtype fields.
 
 **Components:** 7.1 Compose, 7.2 Generation (CURRENT / STALE),
 7.3 Recipe (structured settings, not a process argv).
@@ -1025,10 +1027,12 @@ the vLLM package.
 **Inputs:** ModelSelection, AvailableModels, verified ModelArtifact,
 FoundationSelection, RuntimeCapability, CapacityEnvelope, bounded
 PlanPreference.  
-**Outputs:** DeploymentConfiguration, ResourceRequest.  
+**Outputs:** DeploymentConfiguration and ResourceRequest, or the
+sibling provider configuration and provider resource request.  
 **Preconditions:** stored verified artifact, Foundation READY,
 provider qualification established, SAFE accelerator and host
-memory known.  
+memory known. A provider plan instead requires a context-bound
+Ollama qualification whose `num_ctx` was actually sent.  
 **Success:** one single-accelerator plan whose fingerprint repeats
 for the same inputs.  
 **Blocked:** missing artifact, failed integrity, unresolved
@@ -1068,10 +1072,10 @@ states.
 generic admit package does not import a vendor, cgroup, or container
 tool. The lock implements the lock port.
 
-**Inputs:** successful PlanDecision, current CapacityEnvelope, and
-the caller's PlanFailure currency from assess_plan.  
-**Outputs:** AdmissionDecision. Admitted carries a ResourceReservation.
-Refused carries none.  
+**Inputs:** successful PlanDecision or provider plan decision, current
+CapacityEnvelope, and the caller's PlanFailure currency.  
+**Outputs:** AdmissionDecision. Admitted carries one ResourceReservation
+on the single ledger. Refused carries none.  
 **Preconditions:** planned configuration, matching request, current
 plan, and the same capacity evidence id.  
 **Success:** one RESERVED hold for accelerator count 1.  
@@ -1106,7 +1110,9 @@ See [M8.md](M8.md).
 **Name:** Serve  
 **Purpose:** Start the reserved runtime and prove one request.  
 **Short Description:** Instance, native executor, readiness, one
-request, stop, reconcile.
+request, stop, reconcile. An admitted Ollama plan is a sibling
+lifecycle: residency is evidence after authorization, STOP unloads
+without releasing the reservation, and the proof cites the digest.
 
 **Components:** 9.1 Instance, 9.2 Execute, 9.3 Readiness, 9.4
 Request inference, 9.5 Reconcile, 9.6 Usage.
@@ -1118,7 +1124,9 @@ vLLM or call subprocess. There is no macropath type.
 
 **Inputs:** current DeploymentConfiguration, a reservation M8 marks
 `execution_authorized`, a READY native vLLM generation, and a verified
-stored artifact.  
+stored artifact. The Ollama path instead takes a current provider plan,
+`execution_authorized_provider`, a READY managed generation, and
+qualification coverage for the requested context.  
 **Outputs:** ServingInstance and InferenceProof.
 `DeploymentWitness` stays a later Kernel projection.  
 **Preconditions:** reservation still reserved and matched.  
