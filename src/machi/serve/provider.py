@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, replace
 from typing import Protocol
 
@@ -208,12 +209,14 @@ class ProviderServeService:
         manager: ResourceManager,
         clock: Clock,
         journal: Journal | None = None,
+        absence_wait_seconds: float = 5,
     ) -> None:
         self._log = log
         self._provider = provider
         self._manager = manager
         self._clock = clock
         self._journal = journal
+        self._absence_wait = absence_wait_seconds
         self.emitted: list[EventRecord] = []
 
     def start(
@@ -328,9 +331,9 @@ class ProviderServeService:
         if instance.state is InstanceState.STOPPED:
             return self._emit(_stopped(instance, "stop already recorded"))
         stopping = self._mark(instance, InstanceState.STOPPING, HealthState.UNREADY)
-        unloaded = self._provider.unload(instance.display_name)
-        seen = self._provider.observe(instance.display_name, instance.digest)
-        if unloaded != "none" or seen.state != "absent":
+        self._provider.unload(instance.display_name)
+        seen = self._absent(instance.display_name, instance.digest)
+        if seen is None:
             return self._emit(
                 _failed(stopping, ServeFailure.PROVIDER_UNLOAD_FAILED)
             )
@@ -353,6 +356,17 @@ class ProviderServeService:
             else:
                 visible.append(replace(item, state=latest.state, health=latest.health))
         return tuple(visible)
+
+    def _absent(self, name: str, digest: str) -> ProviderObservation | None:
+        """Poll /api/ps briefly. Absence is the stop proof."""
+        deadline = time.monotonic() + self._absence_wait
+        seen = self._provider.observe(name, digest)
+        while seen.state != "absent" and time.monotonic() < deadline:
+            time.sleep(0.05)
+            seen = self._provider.observe(name, digest)
+        if seen.state == "absent":
+            return seen
+        return None
 
     def _authorize(
         self,

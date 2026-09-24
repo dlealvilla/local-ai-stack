@@ -277,7 +277,9 @@ def test_unload_failure_does_not_release_or_mark_stopped(tmp_path: Path) -> None
     configuration = decision.configuration
     assert isinstance(configuration, ProviderDeploymentConfiguration)
     port = _Port(unload_failure="unload_failed")
-    service = ProviderServeService(_Log(), port, manager, CLOCK)
+    service = ProviderServeService(
+        _Log(), port, manager, CLOCK, absence_wait_seconds=0.2
+    )
     started = start_ollama(service,
         configuration,
         reservation.reservation_id,
@@ -322,3 +324,45 @@ def test_wrong_digest_does_not_infer(tmp_path: Path) -> None:
     assert started.failure is ServeFailure.PROVIDER_RESIDENCY_MISMATCH
     assert port.inferred == 0
     assert not is_resolved(started.proof)
+
+
+def test_stop_waits_until_the_digest_is_absent(tmp_path: Path) -> None:
+    evidence = _qualification()
+    decision = compose_provider_plan(_inputs(evidence))
+    manager = _manager(tmp_path)
+    admitted = manager.admit_provider(decision, _envelope(), PlanFailure.NONE)
+    reservation = admitted.reservation
+    assert is_resolved(reservation)
+    configuration = decision.configuration
+    assert isinstance(configuration, ProviderDeploymentConfiguration)
+
+    class _Lag(_Port):
+        def __init__(self) -> None:
+            super().__init__()
+            self.reads = 0
+
+        def unload(self, name: str) -> str:
+            del name
+            return "none"
+
+        def observe(self, name: str, digest: str) -> ProviderObservation:
+            self.reads += 1
+            if self.reads < 4:
+                return ProviderObservation("expected_resident", digest, 10, None)
+            return ProviderObservation("absent", None, None, None)
+
+    port = _Lag()
+    service = ProviderServeService(_Log(), port, manager, CLOCK)
+    started = start_ollama(
+        service,
+        configuration,
+        reservation.reservation_id,
+        evidence,
+        foundation_ready=True,
+    )
+    assert is_resolved(started.instance)
+    stopped = service.stop(started.instance.instance_id)
+    assert stopped.outcome is ServeOutcome.STOPPED
+    held = manager.get_reservation(reservation.reservation_id)
+    assert held is not None
+    assert held.state is ReservationState.RESERVED
