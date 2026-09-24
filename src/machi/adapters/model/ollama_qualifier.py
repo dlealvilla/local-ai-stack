@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from machi.adapters.model.ollama_api import (
     GenerateResult,
     ListedModel,
+    OllamaApiError,
     OllamaModelApi,
     RunningModel,
 )
@@ -41,6 +42,47 @@ def qualify_ollama(
     observed_at: dt.datetime,
 ) -> OllamaQualificationEvidence:
     """Authoritative provider result. This function does not read a shadow."""
+    try:
+        return _qualify(
+            api,
+            candidate,
+            generation_id=generation_id,
+            engine_version=engine_version,
+            hardware_class=hardware_class,
+            execution_environment_fingerprint=execution_environment_fingerprint,
+            context=context,
+            concurrency=concurrency,
+            observed_at=observed_at,
+        )
+    except OllamaApiError as exc:
+        return _evidence(
+            candidate,
+            generation_id=generation_id,
+            engine_version=engine_version,
+            hardware_class=hardware_class,
+            execution_environment_fingerprint=execution_environment_fingerprint,
+            context=context,
+            concurrency=concurrency,
+            outcome=QualificationOutcome.FAIL_HOST,
+            provider_fit=ProviderFitState.UNRESOLVED,
+            failure=f"provider_{exc.code}",
+            token_proved=False,
+            observed_at=observed_at,
+        )
+
+
+def _qualify(
+    api: OllamaModelApi,
+    candidate: OllamaCatalogCandidate,
+    *,
+    generation_id: str,
+    engine_version: str,
+    hardware_class: str,
+    execution_environment_fingerprint: str,
+    context: int,
+    concurrency: int,
+    observed_at: dt.datetime,
+) -> OllamaQualificationEvidence:
     listed = _listed(api, candidate.display_name)
     if listed is None or canonical_digest(listed.digest) != candidate.digest:
         return _evidence(
@@ -58,6 +100,7 @@ def qualify_ollama(
             observed_at=observed_at,
         )
     preloaded = api.preload(candidate.display_name)
+    preload_load = preloaded.load_seconds
     if preloaded.failure == "host":
         return _evidence(
             candidate,
@@ -107,7 +150,7 @@ def qualify_ollama(
     generated = api.generate_probe(candidate.display_name)
     proved = generated.output_tokens > 0 and generated.failure == "none"
     after = _resident(api, candidate)
-    metrics = _metrics(resident, generated, proved)
+    metrics = _metrics(resident, generated, proved, preload_load)
     if after is None:
         return _evidence(
             candidate,
@@ -176,12 +219,15 @@ def qualify_ollama(
 
 
 def _metrics(
-    resident: RunningModel, generated: GenerateResult, proved: bool
+    resident: RunningModel,
+    generated: GenerateResult,
+    proved: bool,
+    preload_load_seconds: float | None,
 ) -> _ProbeMetrics:
     return _ProbeMetrics(
         size_bytes=_maybe_int(resident.size_bytes),
         size_vram_bytes=_maybe_int(resident.size_vram_bytes),
-        load_seconds=generated.load_seconds,
+        load_seconds=preload_load_seconds,
         generation_seconds=generated.generation_seconds,
         input_tokens=generated.input_tokens,
         output_tokens=generated.output_tokens,

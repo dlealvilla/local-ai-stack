@@ -29,6 +29,7 @@ class ShownModel:
     size_bytes: int | None
     family: str | None = None
     quantization: str | None = None
+    format_label: str | None = None
     context_length: int | None = None
     dtype: str | None = None
     layer_count: int | None = None
@@ -44,29 +45,38 @@ class RunningModel:
     digest: str
     size_bytes: int | None
     size_vram_bytes: int | None
+    expires_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class PreloadResult:
-    """Empty POST /api/generate. Load and scheduler outcome, not a token."""
+    """Empty POST /api/generate. Load duration is the initial load."""
 
     failure: str
+    load_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class GenerateResult:
-    """Real small POST /api/generate after a proved resident identity."""
+    """Real small POST /api/generate. Its load_duration is not initial load."""
 
     failure: str
     input_tokens: int
     output_tokens: int
-    load_seconds: float | None
     generation_seconds: float | None
 
 
 @dataclass(frozen=True, slots=True)
 class UnloadResult:
     failure: str
+
+
+class OllamaApiError(Exception):
+    """Typed public-API failure. The message is a code, not a response body."""
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
 
 
 class OllamaModelApi(Protocol):
@@ -169,7 +179,7 @@ class FakeOllamaApi:
         if self.preload_failure != "none":
             return PreloadResult(self.preload_failure)
         self._phase = "loaded"
-        return PreloadResult("none")
+        return PreloadResult("none", load_seconds=1.5)
 
     def running_models(self) -> tuple[RunningModel, ...]:
         self.calls.append(PS_PATH)
@@ -191,7 +201,6 @@ class FakeOllamaApi:
             failure="none",
             input_tokens=self.input_tokens,
             output_tokens=self.output_tokens,
-            load_seconds=0.2,
             generation_seconds=0.1,
         )
 

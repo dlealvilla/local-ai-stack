@@ -56,7 +56,9 @@ class OllamaQualificationEvidence(Contract):
     )
     size_vram_source: str = meaning("ollama.api.ps or not_exposed")
     size_vram_semantics: str = meaning("runtime_reported; not an observed peak")
-    load_seconds: Maybe[float] = meaning("provider load duration")
+    load_seconds: Maybe[float] = meaning(
+        "initial preload load_duration converted from nanoseconds"
+    )
     input_tokens: Maybe[int] = meaning("probe input tokens when exposed")
     output_tokens: Maybe[int] = meaning("probe output tokens when exposed")
     generation_seconds: Maybe[float] = meaning("provider generation duration")

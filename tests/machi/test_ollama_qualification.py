@@ -195,6 +195,7 @@ def test_shadow_fit_and_provider_fit_agree(tmp_path: Path) -> None:
     assert case.shadow.fit is FitState.FIT
     assert case.evidence is not None
     assert case.evidence.outcome is QualificationOutcome.PASS
+    assert case.evidence.load_seconds == 1.5
     assert case.evidence.provider_fit is ProviderFitState.FIT
     assert case.evidence.unload_failure == "none"
     assert case.evidence.size_vram_semantics == "runtime_reported"

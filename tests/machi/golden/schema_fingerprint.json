@@ -4110,7 +4110,7 @@
         "optional": false,
         "nullable": false,
         "may_be_unresolved": true,
-        "meaning": "provider load duration"
+        "meaning": "initial preload load_duration converted from nanoseconds"
       },
       "input_tokens": {
         "type": "int | Unresolved",
@@ -4692,7 +4692,7 @@
         "optional": false,
         "nullable": false,
         "may_be_unresolved": true,
-        "meaning": "provider load seconds"
+        "meaning": "initial preload load duration in seconds"
       },
       "input_tokens": {
         "type": "int | Unresolved",

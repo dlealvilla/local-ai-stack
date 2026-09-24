@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass, replace
 
-from machi.adapters.model.ollama_api import OllamaModelApi
+from machi.adapters.model.ollama_api import OllamaApiError, OllamaModelApi
 from machi.adapters.model.ollama_qualifier import qualify_ollama
 from machi.admit.contracts import AdmissionDecision, AdmissionOutcome
 from machi.admit.service import ResourceManager
@@ -151,7 +151,10 @@ def _cleanup(
     attempted: bool,
 ) -> str:
     if attempted:
-        result = api.unload(candidate.display_name)
+        try:
+            result = api.unload(candidate.display_name)
+        except OllamaApiError:
+            return "unload_failed"
         if result.failure != "none":
             return result.failure
     if _resident(api, candidate):

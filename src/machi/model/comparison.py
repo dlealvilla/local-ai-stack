@@ -67,7 +67,9 @@ class QualificationComparison(Contract):
         "availability of size_vram"
     )
     provider_size_vram_source: str = meaning("size_vram source")
-    load_seconds: Maybe[float] = meaning("provider load seconds")
+    load_seconds: Maybe[float] = meaning(
+        "initial preload load duration in seconds"
+    )
     input_tokens: Maybe[int] = meaning("provider input tokens")
     output_tokens: Maybe[int] = meaning("provider output tokens")
     generation_seconds: Maybe[float] = meaning("provider generation seconds")
