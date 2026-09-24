@@ -644,6 +644,208 @@ def test_registry_faults_leave_the_generation_for_reconciliation(
         assert result.environment_id in unregistered_owned_generations(root / "state")
 
 
+def test_safe_below_artifact_size_creates_no_staging(tmp_path: Path) -> None:
+    archive = _archive()
+    path = _file(tmp_path, archive, "short-safe.tar")
+    recipe = _recipe(archive)
+    state = tmp_path / "state"
+    refused = OllamaRuntime().install(
+        state,
+        path,
+        recipe,
+        safe_bytes=len(archive) - 1,
+    )
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.failure is FailureCode.INSUFFICIENT_CAPACITY
+    assert not (state / "foundation" / "staging").exists()
+
+
+def test_artifact_length_mismatch_refuses_before_staging(tmp_path: Path) -> None:
+    archive = _archive()
+    path = _file(tmp_path, archive, "wrong-length.tar")
+    recipe = replace(_recipe(archive), artifact_bytes=len(archive) + 4)
+    state = tmp_path / "state"
+    refused = OllamaRuntime().install(state, path, recipe, safe_bytes=SAFE_BYTES)
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.reason == "artifact length does not match the frozen recipe"
+    assert not (state / "foundation" / "staging").exists()
+
+
+def test_copy_that_exceeds_authorized_length_is_refused(tmp_path: Path) -> None:
+    archive = _archive()
+    path = _file(tmp_path, archive, "grows.tar")
+    recipe = _recipe(archive)
+    state = tmp_path / "state"
+    refused = OllamaRuntime().install(
+        state,
+        path,
+        recipe,
+        safe_bytes=SAFE_BYTES,
+        faults=InstallFaults(extra_bytes=b"more"),
+    )
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.reason == "archive copy exceeded the authorized length"
+    assert not (state / "foundation" / "environments").exists()
+
+
+def test_parent_fsync_happens_after_rename_and_before_registry(
+    tmp_path: Path,
+) -> None:
+    archive = _archive()
+    path = _file(tmp_path, archive, "order.tar")
+    recipe = _recipe(archive)
+    steps: list[str] = []
+    installed = OllamaRuntime().install(
+        tmp_path / "state",
+        path,
+        recipe,
+        safe_bytes=SAFE_BYTES,
+        faults=InstallFaults(steps=steps),
+    )
+    assert isinstance(installed, InstalledPrefix)
+    assert steps == ["rename", "parent_fsync", "registry"]
+    failed_steps: list[str] = []
+    failed = OllamaRuntime().install(
+        tmp_path / "other",
+        path,
+        recipe,
+        safe_bytes=SAFE_BYTES,
+        faults=InstallFaults(fail_parent_fsync=True, steps=failed_steps),
+    )
+    assert isinstance(failed, PrefixRefusal)
+    assert failed.failure is FailureCode.PROMOTED_UNREGISTERED
+    assert failed_steps == ["rename"]
+    assert failed.environment_id in unregistered_owned_generations(tmp_path / "other")
+
+
+def test_invalid_utf8_registry_is_corrupt(tmp_path: Path) -> None:
+    from machi.adapters.foundation.ollama_archive import inspect_environment_index
+
+    archive = _archive()
+    path = _file(tmp_path, archive, "utf.tar")
+    recipe = _recipe(archive)
+    state = tmp_path / "state"
+    directory = state / "foundation" / "environments"
+    directory.mkdir(parents=True)
+    registry = directory / "registry.json"
+    registry.write_bytes(b"\xff\xfe not utf-8")
+    original = registry.read_bytes()
+    refused = OllamaRuntime().install(state, path, recipe, safe_bytes=SAFE_BYTES)
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.failure is FailureCode.VERIFICATION_FAILED
+    assert refused.support is SupportState.RECONCILE_REQUIRED
+    assert refused.reason == "environment index is corrupt"
+    assert registry.read_bytes() == original
+    inspection = inspect_environment_index(state)
+    assert inspection.corrupt is True
+    assert inspection.reason == "environment index is corrupt"
+
+
+def _blocking_tar_header() -> bytes:
+    """A valid ustar header whose body is never sent, so the reader blocks."""
+    header = bytearray(512)
+    header[0:1] = b"x"
+    header[124:135] = f"{100000:011o}".encode()
+    header[156] = ord("0")
+    header[257:262] = b"ustar"
+    for index in range(148, 156):
+        header[index] = ord(" ")
+    checksum = sum(header)
+    header[148:154] = f"{checksum:06o}".encode()
+    header[154] = 0
+    header[155] = ord(" ")
+    return bytes(header)
+
+
+def test_hung_decompressor_fails_without_blocking(tmp_path: Path) -> None:
+    import time
+
+    from machi.adapters.foundation.ollama_archive import DecompressorEvidence
+
+    staged = _file(tmp_path, b"\x28\xb5\x2f\xfdhang", "hang.tar.zst")
+    recipe = _recipe(staged.read_bytes())
+    header = _file(tmp_path, _blocking_tar_header(), "header.bin")
+
+    class Hanging(SystemZstdDecompressor):
+        def __init__(self) -> None:
+            super().__init__(timeout_seconds=0.4)
+
+        def preflight(self) -> DecompressorEvidence:
+            return DecompressorEvidence("zstd", "fake")
+
+        def open_stream(self, source: Path) -> subprocess.Popen[bytes]:
+            del source
+            code = (
+                "import sys, time\n"
+                "sys.stdout.buffer.write(open(sys.argv[1], 'rb').read())\n"
+                "sys.stdout.flush()\n"
+                "sys.stderr.write('still open')\n"
+                "sys.stderr.flush()\n"
+                "time.sleep(30)\n"
+            )
+            return subprocess.Popen(
+                [sys.executable, "-c", code, str(header)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+    started = time.monotonic()
+    refused = OllamaRuntime().install(
+        tmp_path / "state",
+        staged,
+        recipe,
+        safe_bytes=SAFE_BYTES,
+        decompressor=Hanging(),
+    )
+    elapsed = time.monotonic() - started
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.failure is FailureCode.PACKAGE_INSTALL_FAILED
+    assert "timed out" in refused.reason
+    assert elapsed < 3
+
+
+def test_unregistered_generations_require_parsed_ownership(tmp_path: Path) -> None:
+    base = tmp_path / "foundation" / "environments"
+
+    def place(name: str, text: str) -> None:
+        directory = base / name
+        directory.mkdir(parents=True)
+        (directory / "manifest.json").write_text(text, encoding="utf-8")
+
+    place(
+        "renv_real",
+        json.dumps(
+            {"owner": "machi", "owned": True, "environment_id": "renv_real"}
+        ),
+    )
+    place(
+        "renv_spoof",
+        json.dumps(
+            {
+                "owner": "machi",
+                "owned": False,
+                "note": '"owned": true',
+                "environment_id": "renv_spoof",
+            }
+        ),
+    )
+    place(
+        "renv_other",
+        json.dumps(
+            {"owner": "other", "owned": True, "environment_id": "renv_other"}
+        ),
+    )
+    place(
+        "renv_mismatch",
+        json.dumps(
+            {"owner": "machi", "owned": True, "environment_id": "renv_other"}
+        ),
+    )
+    place("renv_bad", "{")
+    found = unregistered_owned_generations(tmp_path)
+    assert found == ("renv_real",)
+
+
 def test_aggregate_size_is_not_the_per_member_ceiling() -> None:
     from machi.adapters.foundation.ollama_archive import (
         _MAX_MEMBER,

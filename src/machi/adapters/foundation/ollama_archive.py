@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
 import shutil
 import subprocess
 import tarfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -37,7 +39,10 @@ class InstallFaults:
     """Test seams. Production calls leave these unset."""
 
     fail_promote: bool = False
+    fail_parent_fsync: bool = False
     registry_fault: str | None = None
+    extra_bytes: bytes = b""
+    steps: list[str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,8 +76,11 @@ class DecompressorEvidence:
 class SystemZstdDecompressor:
     """Stream an existing zstd tool. Does not install one."""
 
-    def __init__(self, executable: str | None = None) -> None:
+    def __init__(
+        self, executable: str | None = None, timeout_seconds: float = 5.0
+    ) -> None:
         self._executable = executable
+        self.timeout_seconds = timeout_seconds
 
     def preflight(self) -> DecompressorEvidence | PrefixRefusal:
         path = self._executable or shutil.which("zstd")
@@ -184,7 +192,8 @@ def inspect_environment_index(state_root: Path) -> RegistryInspection:
         return RegistryInspection(True, "environment index is corrupt", ())
     found: list[str] = []
     for child in sorted(base.iterdir()):
-        if not child.is_dir() or not _owned_manifest(child / "manifest.json"):
+        manifest = child / "manifest.json"
+        if not child.is_dir() or not _owned_manifest(manifest, child.name):
             continue
         if child.name not in registered:
             found.append(child.name)
@@ -226,6 +235,19 @@ def realize_prefix(
             SupportState.PROVISIONING_FAILED,
             "local runtime archive is missing",
         )
+    observed = archive_path.stat().st_size
+    if observed != recipe.artifact_bytes:
+        return PrefixRefusal(
+            FailureCode.PACKAGE_DOWNLOAD_FAILED,
+            SupportState.PROVISIONING_FAILED,
+            "artifact length does not match the frozen recipe",
+        )
+    if safe_bytes < recipe.artifact_bytes:
+        return PrefixRefusal(
+            FailureCode.INSUFFICIENT_CAPACITY,
+            SupportState.INSUFFICIENT_CAPACITY,
+            "safe storage does not cover the staged artifact",
+        )
     tool = decompressor or SystemZstdDecompressor()
     faults = faults or InstallFaults()
     staging = _staging_dir(state_root)
@@ -233,7 +255,25 @@ def realize_prefix(
         staging.mkdir(parents=True)
         (staging / ".machi-stage").write_text(_OWNER, encoding="utf-8")
         staged = staging / "artifact.bin"
-        digest = _copy_and_hash(archive_path, staged)
+        try:
+            digest, copied = _copy_and_hash(
+                archive_path,
+                staged,
+                recipe.artifact_bytes,
+                faults.extra_bytes,
+            )
+        except ArchiveLengthError as exc:
+            return PrefixRefusal(
+                FailureCode.PACKAGE_DOWNLOAD_FAILED,
+                SupportState.PROVISIONING_FAILED,
+                str(exc),
+            )
+        if copied != recipe.artifact_bytes:
+            return PrefixRefusal(
+                FailureCode.PACKAGE_DOWNLOAD_FAILED,
+                SupportState.PROVISIONING_FAILED,
+                "artifact length does not match the frozen recipe",
+            )
         if digest != recipe.artifact_sha256:
             return PrefixRefusal(
                 FailureCode.PACKAGE_DOWNLOAD_FAILED,
@@ -297,8 +337,22 @@ def realize_prefix(
             raise ValidationError("promotion failed")
         final.parent.mkdir(parents=True, exist_ok=True)
         generation.replace(final)
+        _mark(faults, "rename")
+        try:
+            if faults.fail_parent_fsync:
+                raise OSError("parent fsync failed")
+            _fsync_directory(final.parent)
+        except OSError:
+            return PrefixRefusal(
+                FailureCode.PROMOTED_UNREGISTERED,
+                SupportState.RECONCILE_REQUIRED,
+                "generation promoted but the parent directory was not made durable",
+                environment_id,
+            )
+        _mark(faults, "parent_fsync")
         try:
             _register(state_root, environment_id, faults.registry_fault)
+            _mark(faults, "registry")
         except RegistryCorruptError:
             return PrefixRefusal(
                 FailureCode.VERIFICATION_FAILED,
@@ -407,30 +461,56 @@ def _open_tar(
     staged: Path,
     zstd: bool,
     tool: SystemZstdDecompressor,
-) -> tuple[tarfile.TarFile, subprocess.Popen[bytes] | None]:
+) -> tuple[tarfile.TarFile, _TimedChild | None]:
     if not zstd:
         return tarfile.open(staged, "r|"), None
     process = tool.open_stream(staged)
     if process.stdout is None:
         process.kill()
         raise ValidationError("zstd decompressor produced no stream")
-    return tarfile.open(fileobj=process.stdout, mode="r|"), process
+    child = _TimedChild(process, tool.timeout_seconds)
+    return tarfile.open(fileobj=process.stdout, mode="r|"), child
 
 
-def _close_tar(
-    handle: tarfile.TarFile, process: subprocess.Popen[bytes] | None
-) -> None:
+class _TimedChild:
+    """Kills a decompressor when its deadline passes, even if a pipe stays open."""
+
+    def __init__(
+        self, process: subprocess.Popen[bytes], timeout_seconds: float
+    ) -> None:
+        self.process = process
+        self.timeout_seconds = timeout_seconds
+        self.timed_out = False
+        self._timer = threading.Timer(timeout_seconds, self._expire)
+        self._timer.daemon = True
+        self._timer.start()
+
+    def _expire(self) -> None:
+        self.timed_out = True
+        with contextlib.suppress(OSError):
+            self.process.kill()
+
+    def cancel(self) -> None:
+        self._timer.cancel()
+
+
+def _close_tar(handle: tarfile.TarFile, child: _TimedChild | None) -> None:
     handle.close()
-    if process is None:
+    if child is None:
         return
+    process = child.process
     if process.stdout is not None:
         process.stdout.close()
-    stderr = _drain_stderr(process)
+    child.cancel()
+    stderr = _read_stderr_bounded(process)
     try:
-        code = process.wait(timeout=5)
+        code = process.wait(timeout=child.timeout_seconds)
     except subprocess.TimeoutExpired:
         process.kill()
-        code = process.wait(timeout=5)
+        process.wait(timeout=5)
+        raise ValidationError("zstd decompressor timed out") from None
+    if child.timed_out:
+        raise ValidationError("zstd decompressor timed out")
     if code != 0:
         detail = stderr.decode("utf-8", errors="replace").strip()[:160]
         message = "zstd decompressor exited without success"
@@ -439,18 +519,28 @@ def _close_tar(
         raise ValidationError(message)
 
 
-def _drain_stderr(process: subprocess.Popen[bytes]) -> bytes:
+def _read_stderr_bounded(process: subprocess.Popen[bytes]) -> bytes:
+    """Drain stderr on another thread so a stuck pipe cannot hide the deadline."""
     if process.stderr is None:
         return b""
-    kept = bytearray()
-    while True:
-        piece = process.stderr.read(1024)
-        if not piece:
-            break
-        if len(kept) < _STDERR_LIMIT:
-            kept.extend(piece[: _STDERR_LIMIT - len(kept)])
-    process.stderr.close()
-    return bytes(kept)
+    kept: list[bytes] = []
+
+    def _read() -> None:
+        buffer = bytearray()
+        assert process.stderr is not None
+        while True:
+            piece = process.stderr.read(1024)
+            if not piece:
+                break
+            room = _STDERR_LIMIT - len(buffer)
+            if room > 0:
+                buffer.extend(piece[:room])
+        kept.append(bytes(buffer))
+
+    thread = threading.Thread(target=_read, daemon=True)
+    thread.start()
+    thread.join(1)
+    return kept[0] if kept else b""
 
 
 def _reject_member(member: tarfile.TarInfo) -> None:
@@ -490,16 +580,31 @@ def _is_zstd(path: Path) -> bool:
         return handle.read(len(_ZSTD_MAGIC)) == _ZSTD_MAGIC
 
 
-def _copy_and_hash(source: Path, dest: Path) -> str:
+class ArchiveLengthError(Exception):
+    """The copied artifact is not the frozen length."""
+
+
+def _copy_and_hash(
+    source: Path, dest: Path, limit: int, extra: bytes = b""
+) -> tuple[str, int]:
+    """Copy at most the authorized length. Extra source bytes are a refusal."""
     digest = hashlib.sha256()
+    copied = 0
+    pending = extra
     with source.open("rb") as inbound, dest.open("wb") as outbound:
         while True:
             chunk = inbound.read(_CHUNK)
+            if not chunk and pending:
+                chunk = pending
+                pending = b""
             if not chunk:
                 break
+            if copied + len(chunk) > limit:
+                raise ArchiveLengthError("archive copy exceeded the authorized length")
             digest.update(chunk)
             outbound.write(chunk)
-    return digest.hexdigest()
+            copied += len(chunk)
+    return digest.hexdigest(), copied
 
 
 def _library_dir(executable: Path) -> Path | None:
@@ -617,7 +722,7 @@ def _read_registry(path: Path) -> list[str]:
         return []
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise RegistryCorruptError("environment index is corrupt") from exc
     wrong_shape = not isinstance(loaded, list) or any(
         not isinstance(item, str) for item in loaded
@@ -627,11 +732,34 @@ def _read_registry(path: Path) -> list[str]:
     return list(loaded)
 
 
-def _owned_manifest(path: Path) -> bool:
+def _owned_manifest(path: Path, directory_name: str) -> bool:
+    """Parsed ownership. A matching substring is not proof."""
     if not path.is_file():
         return False
-    text = path.read_text(encoding="utf-8")
-    return '"owned":true' in text.replace(" ", "")
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    if not isinstance(loaded, dict):
+        return False
+    return (
+        loaded.get("owner") == _OWNER
+        and loaded.get("owned") is True
+        and loaded.get("environment_id") == directory_name
+    )
+
+
+def _mark(faults: InstallFaults, step: str) -> None:
+    if faults.steps is not None:
+        faults.steps.append(step)
+
+
+def _fsync_directory(directory: Path) -> None:
+    descriptor = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _fsync_tree(root: Path) -> None:
