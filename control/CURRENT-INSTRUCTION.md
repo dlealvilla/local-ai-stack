@@ -1,134 +1,130 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-**Instruction ID:** `MACHI-OLLAMA-CHUNK-02-FREEZE-007`  
+**Instruction ID:** `MACHI-OLLAMA-CHUNK-02-WATCHDOG-008`  
 **Program:** `MACHI-OLLAMA-MACROPATH-001`  
-**Chunk:** 2 of 6 — FINAL FREEZE PATCH  
-**Starting HEAD:** `31dca110271805545cc2ba60c9095c25f357b27d`  
+**Chunk:** 2 of 6 — WATCHDOG MICRO-CORRECTION  
+**Starting HEAD:** `919ab7e547967d6f552507fea617646410b3f0bd`  
 **Physical server:** NO  
 **Model pull/load/inference:** FORBIDDEN  
 **Chunk 3:** FORBIDDEN
 
 Read:
-- `control/OLLAMA-CHUNK-02-FREEZE-REVIEW.md`
+- `control/OLLAMA-CHUNK-02-WATCHDOG-REVIEW.md`
 - `control/CORE-VS-COMMODITY-POLICY.md`
-- current source/tests
+- current Ollama archive adapter/tests
 
-The prior correction PASS is accepted. Fix only the remaining freeze blockers.
+The Chunk-2 architecture is frozen. Fix only the watchdog semantics and the
+known pre-stage marker accounting.
 
-# 1. Pre-stage SAFE authorization
+# 1. Replace 5-second total decompression deadline with progress/inactivity semantics
 
-Before creating the owned staging directory or marker:
-- read the source archive's current byte size;
-- validate the recipe-declared artifact size is coherent with the candidate;
-- require SAFE capacity to cover the initial bounded staging requirement;
-- if it cannot fit, refuse with INSUFFICIENT_CAPACITY and create no staging state.
+Current behavior:
+- timer starts when zstd starts;
+- default 5 seconds;
+- child is killed after 5 seconds even when it is making healthy progress.
 
-During copy/hash:
-- enforce a maximum authorized byte count;
-- abort if source bytes exceed the expected/authorized size;
-- require final staged byte count to match the frozen recipe artifact size;
-- require SHA-256 to match as already implemented.
-
-Do not trust source stat alone against a file that can change during copy.
-
-Add tests:
-- SAFE below source artifact size -> no staging directory/file created;
-- source grows or copy exceeds expected length -> bounded refusal;
-- artifact length mismatch with otherwise fixture-valid metadata -> refusal.
-
-# 2. Durable promotion ordering
-
-After same-filesystem `generation.replace(final)`:
-- fsync `final.parent` immediately;
-- only after that begin registry/index transaction.
-
-Add a bounded injectable/test seam proving order:
-`rename -> parent fsync -> registry update`.
-
-A failure of parent fsync must not report successful installation or registered state.
-
-# 3. Invalid UTF-8 registry is corrupt registry
-
-Catch invalid encoding as registry corruption alongside invalid JSON/wrong shape.
-
-Tests:
-- invalid UTF-8 registry -> typed VERIFICATION_FAILED + RECONCILE_REQUIRED;
-- inspection reports corrupt without exception;
-- bytes remain unchanged.
-
-# 4. Deadlock-safe decompressor completion
-
-Replace blocking stderr-drain-before-wait behavior with a standard bounded
-completion mechanism that cannot bypass timeout.
-
-Requirements:
-- timeout is authoritative;
-- child is killed and reaped on timeout;
-- diagnostics remain bounded;
-- non-zero exit remains typed failure;
+Required:
+- no arbitrary 5-second total wall-clock deadline for the full archive pass;
+- track observable decompressed-stream progress;
+- reset/update progress timestamp as bytes are consumed;
+- kill/reap only when the child is alive and no stream progress has occurred for
+  the configured inactivity interval;
+- keep bounded concurrent stderr draining so stderr cannot fill its pipe;
+- preserve non-zero-exit typed failure;
+- preserve timeout/inactivity typed failure;
 - no shell;
-- no unbounded in-memory output;
-- tar stream remains streaming.
+- no unbounded buffering.
 
-A small adapter-local helper is fine. Do not add a dependency or generic process framework.
+Prefer the smallest adapter-local implementation.
+
+If there is already an accepted generic process/watchdog helper in the repo that
+fits without changing semantics, reuse it. Otherwise a bounded adapter-local
+progress wrapper/watchdog is acceptable.
+
+Do not add a new library/dependency without triggering the Industry Solution
+Selection Gate.
 
 Tests:
-- successful zstd path;
-- non-zero exit with diagnostic;
-- child that emits valid/partial stream then hangs with stderr open -> bounded typed failure, not hang.
+- a slow decoder that takes longer than the old 5-second total deadline but
+  emits regular progress must PASS;
+- a child that stops making progress with pipes open must be killed/refused in a
+  bounded interval;
+- non-zero exit still refuses;
+- normal synthetic zstd path still passes.
 
-# 5. Positive ownership proof for reconciliation
+Use short test intervals so the suite remains fast; do not literally wait >5
+seconds in unit tests if a smaller configured inactivity interval can prove the
+semantics.
 
-Replace substring matching of manifest ownership with parsed proof:
-- JSON object;
-- `owner == "machi"`;
-- `owned is true`;
-- manifest environment_id equals containing directory name.
+# 2. Pre-stage known-byte accounting
 
-Malformed, spoofed-string, wrong-owner, or mismatched-id manifests are not
-positively owned and must not be returned by `unregistered_owned_generations`.
+Before staging creation, initial SAFE requirement must include:
+- frozen artifact bytes;
+- exact staging marker bytes that Machi immediately writes.
 
-No destructive cleanup is added.
+If SAFE is below that known requirement:
+- refuse before creating staging state.
 
-# 6. Gates
+Do not attempt speculative filesystem metadata accounting.
+
+Add boundary tests at:
+- one byte below required;
+- exactly required.
+
+# 3. Preserve everything else
+
+No changes to:
+- archive identity;
+- two-pass extraction;
+- per-member vs aggregate limits;
+- registry transaction accounting;
+- promotion/fsync ordering;
+- corrupt-index handling;
+- ownership proof;
+- Foundation identity;
+- zstd provider choice/debt;
+- governance/docs;
+- AUTO state.
+
+# 4. Gates
 
 Run:
 - targeted Ollama/Foundation tests;
-- all new freeze tests;
+- watchdog tests;
+- pre-stage boundary tests;
 - full tests/machi;
 - architecture tests;
 - ruff;
 - strict mypy;
 - clean wheel;
-- isolated wheel verification ending `verify_ok`.
+- isolated-wheel verification ending `verify_ok`.
 
-Then push exact clean HEAD to `origin/automation/ollama-macropath` and prove
-local == origin. Do not move recovery checkpoint. Do not begin Chunk 3.
+Push exact clean HEAD to `origin/automation/ollama-macropath`, prove local ==
+origin, and STOP. Do not begin Chunk 3.
 
-# 7. Paste-back
+# 5. Paste-back
 
-==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 FREEZE ====================
+==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 WATCHDOG ====================
 
 A. STATUS  
 B. Starting/final SHA  
-C. Pre-stage SAFE authorization and bounded copy  
-D. Artifact length + digest verification  
-E. Promotion durability ordering  
-F. Invalid-UTF8 registry behavior  
-G. Deadlock-safe decompressor timeout behavior  
-H. Positive ownership-proof behavior  
-I. Tests/gates  
-J. Wheel build ID/SHA256  
-K. Isolated verify_ok  
-L. Local/origin equality  
-M. Exact Chunk-2 support claim  
-N. Final status
+C. Old timeout semantics vs new inactivity semantics  
+D. Progress observation mechanism  
+E. Hung-process behavior  
+F. stderr/non-zero-exit behavior  
+G. Pre-stage known-byte formula/boundary tests  
+H. Tests/gates  
+I. Wheel build ID/SHA256  
+J. Isolated verify_ok  
+K. Local/origin equality  
+L. Final Chunk-2 support claim  
+M. Final status
 
 End exactly:
-`STOP — OLLAMA CHUNK 2 FREEZE PATCH COMPLETE. WAIT FOR LEAD REVIEW.`
+`STOP — OLLAMA CHUNK 2 WATCHDOG CORRECTION COMPLETE. WAIT FOR LEAD REVIEW.`
 
 or typed FAIL / DECISION_REQUIRED.
 
-==================== END PASTE BACK — OLLAMA CHUNK 2 FREEZE ====================
+==================== END PASTE BACK — OLLAMA CHUNK 2 WATCHDOG ====================
 
 Do not begin Chunk 3.
