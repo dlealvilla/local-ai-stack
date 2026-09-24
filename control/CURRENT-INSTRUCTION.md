@@ -1,312 +1,225 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-**Instruction ID:** `MACHI-OLLAMA-CHUNK-03-DUAL-QUALIFIER-002`  
+**Instruction ID:** `MACHI-OLLAMA-CHUNK-03-CORRECTION-003`  
 **Program:** `MACHI-OLLAMA-MACROPATH-001`  
-**Chunk:** 3 of 6 — MODEL + SPECIALIST FEASIBILITY BRIDGE  
-**Starting source:** `180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6`  
-**Mode:** LOCAL IMPLEMENTATION / NO PHYSICAL SERVER  
-**Model downloads:** FORBIDDEN  
-**Real provider model load/inference:** FORBIDDEN in this increment  
+**Chunk:** 3 of 6 — DUAL QUALIFIER LOCAL CORRECTION  
+**Starting HEAD:** `da54773ab34b8d4c159fd9427519577319b25821`  
+**Server:** NO  
+**Real model download/load/inference:** FORBIDDEN  
 **Chunk 4:** FORBIDDEN
 
-Read first:
+Read:
+- `control/OLLAMA-CHUNK-03-LOCAL-LEAD-REVIEW.md`
 - `control/OLLAMA-CHUNK-03-DUAL-QUALIFIER-DECISION.md`
-- `control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md`
-- `control/OLLAMA-CHUNK-02-CLOSED.md`
-- `control/CORE-VS-COMMODITY-POLICY.md`
-- authoritative Product Vision / Strategy / Machi Architecture / M6 / telemetry docs
-- current native qualification / Plan / Admit implementation
-- exact Ollama v0.34.3 API and scheduler source
+- exact Ollama v0.34.3 public API/source
+- current native Plan/Admit/Serve + Journal contracts
 
-# 1. Goal
+This is a bounded correctness correction. Preserve the accepted dual-evaluator
+architecture.
 
-Implement the **local control-plane and adapter seams** required for dual
-qualification analytics without downloading or loading a real model.
+# 1. Correct the v0.34.3 public API seam
 
-At the end, a fixture Ollama candidate must be able to flow through:
+Remove digest from `ShownModel`.
 
-```text
-Ollama catalog fixture
- -> normalized Ollama candidate
- -> Machi shadow evaluation
- -> qualification/probe authorization seam
- -> fake Ollama specialist qualifier
- -> authoritative Ollama qualification evidence
- -> comparative analytics record
-```
+Catalog identity:
+- `/api/tags` returns display name + immutable digest;
+- candidate id derives from digest;
+- `/api/show` provides metadata only.
 
-Real physical Ollama qualification is a later bounded acceptance increment.
+Before preload, re-list/re-resolve the candidate display name:
+- the same display name must still map to the expected digest;
+- absent or changed mapping -> typed `catalog_identity_changed` refusal;
+- no provider load/generate may occur after that refusal.
 
-# 2. Preserve separate model catalogs
+Tests must model tag drift using `/api/tags`, not fake `/api/show` digest.
 
-Do NOT create a default Machi ModelArtifact -> Ollama model conversion flow.
+# 2. Split preload from real token generation
 
-Add provider-neutral or Ollama-adapter contracts only as needed to represent:
-- an Ollama catalog candidate by name + digest + public metadata;
-- normalized facts used by Machi shadow evaluation.
+Extend the bounded public adapter seam with separate fixture operations:
+- `preload(name, ...)`: represents empty `POST /api/generate`;
+- `generate_probe(name, ...)`: represents the real small inference;
+- `running_models()`;
+- `unload(name)`.
 
-The Ollama digest is the immutable provider model identity for this macropath.
-The name/tag is a reference/display name and must not be treated as immutable
-proof.
+Required sequence:
+1. resolve tag -> digest;
+2. preload;
+3. `/api/ps` requires **display name + expected digest**;
+4. real token probe;
+5. `/api/ps` again requires display name + expected digest;
+6. cleanup.
 
-Do not mutate Block-6 Model Warehouse semantics to pretend Ollama models are
-warehouse artifacts.
+Tests:
+- pre-load resident digest mismatch refuses before real token;
+- post-token digest/name mismatch refuses proof;
+- readiness/load without token is not PASS.
 
-If existing generic model contracts cannot represent a provider-owned candidate
-without lying, add the smallest separate provider-candidate seam rather than
-overloading `ModelArtifact`.
+# 3. Separate specialist fit verdict from overall qualification outcome
 
-# 3. Ollama API adapter — fixture/local only
+Add a small typed fit verdict, e.g.
+`ProviderFitState.FIT | NO_FIT | UNRESOLVED`.
 
-Implement a bounded provider adapter interface covering the v0.34.3 public
-capabilities Chunk 3 needs:
-- list local models (`/api/tags`);
-- show model metadata (`/api/show`);
-- inspect loaded models (`/api/ps`);
-- qualification load/generate/unload operations as an interface, with fake/test
-  implementation in this increment.
+Semantics:
+- explicit Ollama load/scheduler no-fit -> NO_FIT;
+- successful preload + expected resident name/digest -> FIT;
+- host failure before fit resolution -> UNRESOLVED;
+- catalog identity drift -> UNRESOLVED;
+- token-proof failure after successful fit -> FIT but overall qualification FAIL_MODEL;
+- cleanup failure after successful fit/token -> FIT but overall case is not clean PASS.
 
-Do not start a daemon or make network calls in ordinary unit tests.
-Do not expose Ollama private Go scheduler APIs to the Python/core domain.
+Comparison classification uses provider fit verdict only.
 
-Exact private scheduler algorithms remain provider-owned.
+Examples:
+- shadow FIT + provider FIT -> AGREE_FIT even if later token proof fails; the
+  qualification outcome separately records token failure;
+- shadow NO_FIT + provider FIT -> MACHI_FALSE_NEGATIVE;
+- shadow FIT + provider NO_FIT -> MACHI_FALSE_POSITIVE;
+- provider UNRESOLVED -> MACHI_UNRESOLVED.
 
-# 4. Machi shadow evaluator
+Do not infer provider NO_FIT from arbitrary `FAIL_MODEL`.
 
-Implement a **non-authoritative shadow evaluation** for Ollama candidates.
+# 4. Make qualification admission authorize full remaining SAFE
+
+Remove arbitrary caller-selected qualification memory bytes from the ordinary
+case orchestration.
+
+Under the ResourceManager lock:
+- calculate currently active host-memory holds;
+- calculate active holds for the selected accelerator;
+- derive remaining SAFE host bytes and remaining SAFE accelerator bytes;
+- qualification probe reservation must hold those exact remaining bytes;
+- if either is unresolved/non-positive, refuse;
+- existing deployment/probe holds continue to count from the same ledger.
+
+Keep storage request zero for this local-existing-model qualification path.
+Model pull/acquisition is separate.
+
+The public probe contract may represent the intent/provider/candidate and the
+materialized reservation may hold the computed bytes. Choose the smallest
+backward-compatible implementation.
+
+Refactor duplicated `_admit` / `_admit_probe` fit-and-create logic into one
+private reservation path where practical. Public deployment behavior must not
+change.
+
+Regression tests:
+- caller cannot under-reserve a qualification case;
+- active deployment holds reduce the qualification reservation;
+- qualification hold blocks later admissions from the remaining SAFE pool;
+- release restores capacity;
+- native Admit/Serve behavior unchanged.
+
+# 5. Run shadow against the admitted authorization envelope
+
+Order:
+`catalog candidate -> qualification admission -> shadow evaluation -> provider`.
+
+Shadow uses the exact qualification reservation accelerator/host authorization,
+not total physical SAFE capacity.
+
+Shadow still cannot veto provider execution.
+
+No vLLM-specific refinement may enter the Ollama shadow path.
+
+# 6. Cleanup gates reservation release
+
+Move cleanup responsibility to case orchestration if needed.
+
+After the qualification attempt:
+- request unload;
+- inspect `/api/ps`;
+- require the qualified display name + digest to be absent;
+- only then release ResourceManager reservation.
+
+If unload fails or expected residency remains:
+- reservation stays RESERVED;
+- case returns typed `cleanup_reconcile_required` / host-failure status;
+- comparative evidence may still be recorded;
+- the qualification must not be returned as a clean deployable PASS.
+
+Add tests for:
+- successful unload -> hold released;
+- unload API failure -> hold retained;
+- unload says success but /api/ps still shows expected model -> hold retained.
+
+# 7. Persist comparative analytics
+
+Add a Block-6 operational EventRecord for the comparison, e.g.
+`model.qualification.compared`.
+
+Use existing Journal port / JsonlJournal in tests.
 
 Requirements:
-- consume normalized public Ollama facts only;
-- consume current Machi CapacityEnvelope/current reservation truth;
-- reuse generic Machi estimation/evaluation functions where their inputs are
-  semantically valid;
-- do NOT use `refine_vllm`;
-- unknown provider facts remain unresolved;
-- no guessed architecture/config values;
-- no Ollama-private `PredictServerVRAM` reimplementation;
-- shadow result cannot affect the authoritative Ollama outcome.
+- payload is the versioned QualificationComparison;
+- privacy OPERATIONAL;
+- no prompt/response/model-content/path/user identity;
+- append/read round-trip proves durability;
+- journal failure is reported separately and does not rewrite the Ollama
+  specialist fit verdict;
+- update TELEMETRY.md event catalogue and semantics.
 
-Define a small versioned contract for shadow result, with:
-- candidate/provider identity;
-- capacity evidence;
-- policy version;
-- fit state: FIT / NO_FIT / UNRESOLVED;
-- estimated accelerator/host/storage bytes as Maybe values;
-- typed reason/evidence/provenance.
+If useful, return both in-memory comparison and journaled event identity.
 
-# 5. Authoritative Ollama qualifier adapter
+# 8. Metrics
 
-Implement an `EmpiricalQualifier`-compatible or equivalently bounded adapter
-seam whose **provider result is authoritative for the Ollama macropath**.
+Add provider input-token count when exposed by the fixture/public result so the
+comparison schema can exercise both input and output tokens.
 
-For this local increment use fakes that model:
-- provider FIT/load/inference PASS;
-- provider NO_FIT/load refusal;
-- provider host failure;
-- digest mismatch;
-- loaded model missing from /api/ps;
-- real-token proof missing;
-- unload failure recorded separately.
+Preserve:
+- `size_vram` = runtime-reported;
+- no external peak claim;
+- availability/provenance on normalized figures.
 
-It must map provider results into durable Machi QualificationEvidence without
-pretending Machi's shadow decision caused the result.
-
-Provider evidence must preserve:
-- Ollama model digest;
-- Ollama version/Foundation generation;
-- hardware/execution environment;
-- context/concurrency;
-- actual provider outcome;
-- provider-reported `size_vram` as its own sourced metric;
-- load/generation/token metrics when present.
-
-If the current QualificationEvidence schema cannot cite provider-owned model
-identity truthfully because it requires a Machi artifact id/revision, do NOT
-stuff fake warehouse identifiers into it. Introduce the smallest backward-
-compatible provider identity extension/version or companion evidence contract,
-with migration/read compatibility for native vLLM evidence.
-
-This is a schema-change gate inside the implementation:
-- if two materially credible contract designs remain after repository inspection,
-  STOP with `DECISION_REQUIRED_QUALIFICATION_IDENTITY_SCHEMA`;
-- otherwise use the smallest backward-compatible design and explain it.
-
-# 6. Probe Plan / ResourceManager
-
-Reuse the accepted native qualification precedent.
-
-First inspect whether current `probe=True` + normal Plan/ResourceRequest +
-ResourceManager can truthfully authorize the Ollama qualification attempt.
-
-Preferred behavior:
-- one ResourceManager ledger;
-- qualification purpose remains distinguishable in plan fingerprint/evidence;
-- no prior DeployableModels qualification coverage required for a qualification
-  probe;
-- normal deployment path unchanged.
-
-You MAY replace the boolean with a typed PlanPurpose only if it materially
-improves correctness/inspectability and all native tests/evidence semantics
-remain intact. Do not refactor merely for style.
-
-Add regression tests proving native:
-- normal plan still requires qualification;
-- probe qualification still does not require prior coverage;
-- ResourceManager accounting is unchanged;
-- existing Serve authorization invariants remain unchanged.
-
-# 7. Comparative analytics contract
-
-Create a versioned local operational contract such as
-`model.qualification_comparison/1`.
-
-It must contain enough identity to compare the two evaluators over the same
-case without customer content.
-
-Required fields/categories:
-- comparison identity;
-- provider/macropath;
-- provider version/Foundation generation;
-- provider model digest + display name;
-- normalized candidate id;
-- capacity evidence id;
-- hardware class/execution environment fingerprint;
-- context/concurrency;
-- Machi shadow policy/version + fit state;
-- Machi estimated accelerator/host/storage bytes as Maybe;
-- Machi typed reason;
-- Ollama authoritative outcome/failure;
-- Ollama reported size + size_vram as Maybe;
-- load/generation/token metrics as Maybe;
-- comparison classification:
-  AGREE_FIT,
-  AGREE_NO_FIT,
-  MACHI_FALSE_NEGATIVE,
-  MACHI_FALSE_POSITIVE,
-  MACHI_UNRESOLVED;
-- VRAM delta/ratio only when both operands have compatible semantics;
-- metric availability/provenance.
-
-Be conservative about VRAM comparison:
-- Machi estimated required accelerator bytes vs Ollama `size_vram` may be
-  analytically useful but they are not identical measurement semantics;
-- mark the comparison as estimate-vs-runtime-reported, never
-  estimate-vs-observed-peak.
-
-No prompts, responses, filesystem paths, user identities, or model content.
-
-# 8. Normalized analytics vocabulary
-
-Reuse `MetricAvailability`:
-- OBSERVED;
-- DERIVED;
-- ESTIMATED;
-- HIDDEN_INTERNAL;
-- NOT_EXPOSED;
-- NOT_APPLICABLE;
-- UNSUPPORTED;
-- UNRESOLVED.
-
-Where useful, factor a generic metric shape only if doing so does not force a
-Foundation-specific ontology onto Model analytics.
-
-Provider-native raw facts and normalized comparison facts remain separate.
-
-# 9. Tests
-
-At minimum prove:
-1. Ollama catalog candidate identity is digest-based, not tag-based.
-2. Separate Ollama catalog does not create Machi ModelArtifact records.
-3. Shadow FIT + Ollama PASS -> AGREE_FIT.
-4. Shadow NO_FIT + Ollama PASS -> MACHI_FALSE_NEGATIVE and Ollama still wins.
-5. Shadow FIT + Ollama NO_FIT -> MACHI_FALSE_POSITIVE and Ollama still refuses.
-6. Shadow UNRESOLVED + Ollama PASS/FAIL -> MACHI_UNRESOLVED.
-7. Ollama digest mismatch refuses authoritative qualification.
-8. /api/ps missing expected digest refuses authoritative qualification.
-9. readiness/load without a real token does not PASS.
-10. `size_vram` is labeled runtime-reported, not peak.
-11. analytics contains no prompt/response/path content.
-12. native qualification/plan/admit/serve tests remain green.
-13. shadow evaluator cannot influence provider-authoritative result.
-14. no vLLM-specific refine logic is imported into Ollama shadow adapter.
-15. unknown model facts remain unresolved rather than guessed.
-
-# 10. Documentation
-
-Update product/architecture/M6/telemetry docs only where needed to state:
-- catalog separation by macropath;
-- dual evaluator rule;
-- provider authority per macropath;
-- Machi shadow-learning role;
-- comparative analytics purpose;
-- no automatic policy retuning in Stage 1;
-- later Ollama residency/eviction authorization debt.
-
-Do not expand into UI, warehouse analytics infrastructure, learned routing,
-automatic retuning, or cross-customer telemetry.
-
-# 11. Industry / Product Vision gate
-
-This design is already approved.
-
-If implementation encounters:
-- a new mandatory dependency;
-- a need to import/private-link Ollama internals;
-- a breaking native qualification schema migration;
-- a second resource ledger;
-- a requirement to merge the model catalogs;
-- a change that makes shadow Machi authoritative for Ollama;
-
-STOP with the appropriate DECISION_REQUIRED status.
-
-Otherwise no additional solution-selection gate is needed.
-
-# 12. Gates
+# 9. Gates
 
 Run:
 - targeted Chunk-3 tests;
+- exact API-seam tests;
+- cleanup/reservation tests;
+- Journal round-trip tests;
 - full `tests/machi`;
 - architecture checks;
 - ruff;
 - strict mypy;
 - clean wheel;
-- isolated-wheel verification ending `verify_ok`.
+- isolated wheel verification ending `verify_ok`.
 
 Push exact clean HEAD to `origin/automation/ollama-macropath`.
 Prove local == origin.
-Do not move the Chunk-2 recovery checkpoint.
-Do not start a server or download/load a real model.
-Do not begin Chunk 4.
 
-# 13. Mandatory paste-back
+No physical server/model work. Do not begin Chunk 4.
 
-==================== BEGIN PASTE BACK — OLLAMA CHUNK 3 DUAL QUALIFIER ====================
+# 10. Paste-back
+
+==================== BEGIN PASTE BACK — OLLAMA CHUNK 3 CORRECTION ====================
 
 A. STATUS  
 B. Starting/final SHA  
-C. Separate catalog implementation  
-D. Ollama candidate identity contract  
-E. Machi shadow evaluator behavior  
-F. Ollama authoritative qualifier adapter behavior  
-G. Qualification identity/schema treatment  
-H. Probe Plan / ResourceManager treatment + native regression result  
-I. Comparative analytics contract  
-J. Agreement/disagreement classification examples  
-K. Metric provenance/availability treatment  
-L. Tests/gates  
-M. Wheel build ID/SHA256  
-N. Isolated verify_ok  
-O. Docs/debt changes  
-P. Local/origin equality  
-Q. Exact support claim  
-R. What remains for physical Ollama qualification  
-S. Final status
+C. Exact v0.34.3 API seam correction  
+D. Catalog identity drift handling  
+E. Preload -> ps -> token -> ps identity proof  
+F. Provider fit verdict vs qualification outcome  
+G. Full-remaining-SAFE qualification admission  
+H. Shared ResourceManager reservation path/native regression  
+I. Shadow authorized-envelope semantics  
+J. Cleanup/reservation-release invariant  
+K. Durable comparison event/journal evidence  
+L. Comparative classification examples  
+M. Metrics/provenance changes  
+N. Tests/gates  
+O. Wheel build ID/SHA256  
+P. Isolated verify_ok  
+Q. Docs/debt changes  
+R. Local/origin equality  
+S. Exact support claim  
+T. Remaining physical qualification work  
+U. Final status
 
 End exactly:
-`STOP — OLLAMA CHUNK 3 DUAL QUALIFIER LOCAL COMPLETE. WAIT FOR LEAD REVIEW.`
+`STOP — OLLAMA CHUNK 3 CORRECTION COMPLETE. WAIT FOR LEAD REVIEW.`
 
 or typed FAIL / DECISION_REQUIRED.
 
-==================== END PASTE BACK — OLLAMA CHUNK 3 DUAL QUALIFIER ====================
+==================== END PASTE BACK — OLLAMA CHUNK 3 CORRECTION ====================
 
 Do not begin Chunk 4.
