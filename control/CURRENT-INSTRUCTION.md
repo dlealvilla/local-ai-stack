@@ -11,6 +11,27 @@
 **Chunk 5/6:** FORBIDDEN except physical evidence explicitly described here
 
 
+
+======================================================================
+DIRECTION LEVELS FOR THIS PACKAGE
+======================================================================
+
+Interpret the instruction using three levels:
+
+- **BINDING:** Product Vision, authority boundaries, privacy, one global
+  ResourceManager ledger, separate model-catalog ownership, provider support
+  claims, RunPod safety, evidence/identity rules, and explicit STOP gates.
+- **RECOMMENDED:** technical approaches described as preferred or likely best
+  fit. Validate them against repository/provider truth. Cursor may use a
+  materially better bounded implementation if it preserves all binding
+  semantics and explains the deviation.
+- **DELEGATED:** ordinary coding structure, helpers, refactors, test-fixture
+  mechanics, and other local implementation choices.
+
+Do not treat every Lead technical suggestion as a hard constraint.
+Do not treat an architectural invariant as optional merely because another
+implementation is convenient.
+
 ======================================================================
 PRODUCT PURPOSE / FUNCTIONAL OUTCOME
 ======================================================================
