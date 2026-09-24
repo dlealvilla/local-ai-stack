@@ -1,14 +1,27 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-**Status:** HOLD — CHUNK 2 CLOSED  
+**Instruction ID:** `MACHI-OLLAMA-CHUNK-03-GATE-001`  
 **Program:** `MACHI-OLLAMA-MACROPATH-001`  
-**Accepted Chunk-2 HEAD:** `180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6`
+**Chunk:** 3 of 6 — MODEL + SPECIALIST FEASIBILITY BRIDGE  
+**Mode:** ARCHITECTURE / INDUSTRY SOLUTION DECISION GATE ONLY  
+**Accepted source:** `180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6`  
+**Server:** NO  
+**Code changes:** FORBIDDEN  
+**Model bytes / load / inference:** FORBIDDEN
 
-Chunk 2 is closed. See:
+Read and execute exactly:
+- `control/OLLAMA-CHUNK-03-DECISION-GATE.md`
+- `control/CORE-VS-COMMODITY-POLICY.md`
+- `control/OLLAMA-CHUNK-01-DECISION.md`
 - `control/OLLAMA-CHUNK-02-CLOSED.md`
-- `control/OLLAMA-MACROPATH-PROGRAM.md`
+- authoritative product/architecture docs and current source
 
-Do not begin Chunk 3 until the Lead Developer publishes the next bounded
-instruction.
+Independently inspect the repository and frozen Ollama v0.34.3 source/API.
+Do not rubber-stamp the Lead's preliminary preference.
 
-STOP.
+Publish the required decision package and STOP.
+
+Do not change product source, contracts, tests, docs, or
+`automation/ollama-macropath`.
+
+STOP after the decision package.
