@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import socket
+import subprocess
 import tarfile
 from dataclasses import replace
 from pathlib import Path
@@ -25,10 +26,10 @@ from machi.foundation.contracts import (
     FoundationEngine,
     SupportState,
 )
+from machi.foundation.metrics import MetricAvailability
 from machi.foundation.ollama import (
     CloudMode,
     ExistingOllamaObservation,
-    MetricAvailability,
     OllamaAssessment,
     OllamaProviderMode,
     OllamaRuntimeRecipe,
@@ -37,6 +38,7 @@ from machi.foundation.ollama import (
     channel_refusal,
     ollama_generation_id,
     pinned_recipe,
+    runtime_environment_id,
 )
 from machi.kernel.schema import from_dict, to_dict
 from machi.model.qualification import qualification_identity
@@ -109,6 +111,21 @@ def _archive(*extra: tuple[str, bytes]) -> bytes:
     return buffer.getvalue()
 
 
+def _linked_archive() -> bytes:
+    buffer = io.BytesIO()
+    payload = _archive()
+    with tarfile.open(fileobj=buffer, mode="w") as handle:
+        with tarfile.open(fileobj=io.BytesIO(payload), mode="r:") as source:
+            for member in source.getmembers():
+                extracted = source.extractfile(member)
+                handle.addfile(member, extracted)
+        link = tarfile.TarInfo("bin/escape")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "../outside"
+        handle.addfile(link)
+    return buffer.getvalue()
+
+
 def _recipe(archive: bytes, *, version: str = "0.34.3") -> OllamaRuntimeRecipe:
     return OllamaRuntimeRecipe(
         recipe_id=f"ollama-{version}-fixture",
@@ -151,6 +168,24 @@ def _assess(**overrides: object) -> OllamaAssessment:
         observed_at=FIXED,
         verify_seconds=0.01,
     )
+
+
+def _file(directory: Path, data: bytes, name: str = "artifact.tar") -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / name
+    target.write_bytes(data)
+    return target
+
+
+def _zst(directory: Path, data: bytes, name: str = "artifact.tar.zst") -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / name
+    subprocess.run(
+        ["zstd", "-q", "-f", "-o", str(target)],
+        input=data,
+        check=True,
+    )
+    return target
 
 
 def _port() -> int:
@@ -277,18 +312,29 @@ def test_checksum_mismatch_does_not_extract(tmp_path: Path) -> None:
     sentinel = tmp_path / "outside"
     sentinel.mkdir()
     (sentinel / "keep").write_text("stay", encoding="utf-8")
-    refused = OllamaRuntime().install(tmp_path / "state", _archive(), pinned_recipe())
+    payload = _archive()
+    refused = OllamaRuntime().install(
+        tmp_path / "state",
+        _file(tmp_path, payload, "mismatch.tar"),
+        pinned_recipe(),
+    )
     assert isinstance(refused, PrefixRefusal)
     assert refused.failure is FailureCode.PACKAGE_DOWNLOAD_FAILED
     assert (sentinel / "keep").read_text(encoding="utf-8") == "stay"
-    assert not (tmp_path / "state").exists()
+    assert not any((tmp_path / "state").rglob("bin/ollama"))
+    staging = tmp_path / "state" / "foundation" / "staging"
+    assert not staging.exists()
 
 
 def test_escape_and_short_storage_do_not_leave_a_prefix(tmp_path: Path) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
     escaped = _archive(("../escaped", b"nope"))
-    refused = OllamaRuntime().install(tmp_path / "state", escaped, _recipe(escaped))
+    refused = OllamaRuntime().install(
+        tmp_path / "state",
+        _file(tmp_path, escaped, "escape.tar"),
+        _recipe(escaped),
+    )
     assert isinstance(refused, PrefixRefusal)
     assert refused.failure is FailureCode.PACKAGE_INSTALL_FAILED
     assert not (outside / "escaped").exists()
@@ -296,7 +342,7 @@ def test_escape_and_short_storage_do_not_leave_a_prefix(tmp_path: Path) -> None:
     archive = _archive()
     short = OllamaRuntime().install(
         tmp_path / "state",
-        archive,
+        _file(tmp_path, archive, "short.tar"),
         _recipe(archive),
         safe_bytes=1,
     )
@@ -310,9 +356,10 @@ def test_managed_prefix_verifies_restarts_and_stops(tmp_path: Path) -> None:
     recipe = _recipe(archive)
     runtime = OllamaRuntime()
     state = tmp_path / "state"
-    installed = runtime.install(state, archive, recipe)
+    archive_path = _file(tmp_path, archive, "incoming.tar")
+    installed = runtime.install(state, archive_path, recipe)
     assert isinstance(installed, InstalledPrefix)
-    again = runtime.install(state, archive, recipe)
+    again = runtime.install(state, archive_path, recipe)
     assert isinstance(again, InstalledPrefix)
     assert again.environment_id == installed.environment_id
     prefix = installed.prefix
@@ -357,3 +404,53 @@ def test_managed_prefix_verifies_restarts_and_stops(tmp_path: Path) -> None:
     finally:
         assert runtime.stop() == "stopped"
     assert list((prefix / "models").iterdir()) == []
+
+
+def test_delivery_url_is_not_the_artifact_identity(tmp_path: Path) -> None:
+    archive = _archive()
+    path = _file(tmp_path, archive, "local.tar")
+    upstream = _recipe(archive)
+    mirror = replace(upstream, source_url="offline-bundle:customer")
+    assert runtime_environment_id(upstream) == runtime_environment_id(mirror)
+    installed = OllamaRuntime().install(tmp_path / "state", path, mirror)
+    assert isinstance(installed, InstalledPrefix)
+    assert installed.environment_id == runtime_environment_id(upstream)
+
+
+def test_zst_realization_rejects_bad_archives_without_touching_active(
+    tmp_path: Path,
+) -> None:
+    compressed = _zst(tmp_path, _archive(), "good.tar.zst")
+    recipe = _recipe(compressed.read_bytes())
+    state = tmp_path / "state"
+    installed = OllamaRuntime().install(state, compressed, recipe)
+    assert isinstance(installed, InstalledPrefix)
+    marker = installed.prefix / "lib" / "ollama" / "cuda_v12.keep"
+    marker.write_bytes(b"keep-me")
+    mismatch = _file(tmp_path, b"not-the-archive", "bad.bin")
+    refused = OllamaRuntime().install(state, mismatch, recipe)
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.failure is FailureCode.PACKAGE_DOWNLOAD_FAILED
+    assert marker.read_bytes() == b"keep-me"
+    escaped = _zst(tmp_path, _archive(("../escaped", b"nope")), "escape.tar.zst")
+    escaped_result = OllamaRuntime().install(
+        state, escaped, _recipe(escaped.read_bytes())
+    )
+    assert isinstance(escaped_result, PrefixRefusal)
+    assert escaped_result.reason == "archive member escapes the prefix"
+    linked = _zst(tmp_path, _linked_archive(), "link.tar.zst")
+    linked_result = OllamaRuntime().install(state, linked, _recipe(linked.read_bytes()))
+    assert isinstance(linked_result, PrefixRefusal)
+    assert linked_result.reason == "archive links are refused"
+    bounded = OllamaRuntime().install(
+        tmp_path / "bounded",
+        compressed,
+        recipe,
+        safe_bytes=1,
+    )
+    assert isinstance(bounded, PrefixRefusal)
+    assert bounded.failure is FailureCode.PACKAGE_INSTALL_FAILED
+    assert not (state / "foundation" / "staging").exists()
+    assert not (tmp_path / "bounded" / "foundation" / "staging").exists()
+    assert marker.read_bytes() == b"keep-me"
+    assert not any((tmp_path / "bounded").rglob("bin/ollama"))

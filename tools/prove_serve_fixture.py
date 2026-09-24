@@ -40,6 +40,19 @@ from machi.model.contracts import (
     ModelArtifact,
     ModelSourceKind,
 )
+from machi.model.environment import execution_environment_fingerprint
+from machi.model.qualification import (
+    POLICY_VERSION as QUALIFICATION_POLICY,
+)
+from machi.model.qualification import (
+    DeployableMember,
+    DeployableModels,
+    QualificationEvidence,
+    QualificationOutcome,
+    covers,
+    qualification_identity,
+    select_id,
+)
 from machi.plan.contracts import (
     DeploymentConfiguration,
     PlanDecision,
@@ -153,9 +166,10 @@ def _setting(name: str, value: str, provenance: PlanProvenance) -> PlanSetting:
     return PlanSetting(name=name, value=value, provenance=provenance, reason="fixture")
 
 
-def _settings() -> tuple[PlanSetting, ...]:
+def _settings(qualification_id: str) -> tuple[PlanSetting, ...]:
     default = PlanProvenance.PRODUCT_DEFAULT
     meta = PlanProvenance.MODEL_METADATA
+    derived = PlanProvenance.DERIVED
     return (
         _setting("trust_remote_code", "false", default),
         _setting("tensor_parallel_size", "1", default),
@@ -164,13 +178,101 @@ def _settings() -> tuple[PlanSetting, ...]:
         _setting("gpu_memory_utilization", "0.90", default),
         _setting("dtype", "float32", meta),
         _setting("quantization", "none", meta),
+        _setting("qualification_id", qualification_id, derived),
     )
+
+
+def _coverage() -> str:
+    """Real pass evidence and deployable membership for this fixture plan."""
+    environment = execution_environment_fingerprint(
+        vendor="nvidia",
+        accelerator_model="fixture",
+        capability="unspecified",
+        runtime_capability="fixture-runtime",
+        generation_id="fgen_serve",
+    )
+    qualification_id = qualification_identity(
+        revision="rev-serve",
+        generation_id="fgen_serve",
+        engine="vllm",
+        engine_version="0.18.0",
+        backend="cuda",
+        hardware_class="unspecified",
+        execution_environment_fingerprint=environment,
+        dtype="float32",
+        quantization="none",
+        context=128,
+        concurrency=1,
+        tensor_parallel=1,
+        policy_version=QUALIFICATION_POLICY,
+    )
+    evidence = QualificationEvidence(
+        qualification_id=qualification_id,
+        artifact_id="mart_serve",
+        immutable_revision="rev-serve",
+        generation_id="fgen_serve",
+        engine="vllm",
+        engine_version="0.18.0",
+        backend="cuda",
+        hardware_class="unspecified",
+        execution_environment_fingerprint=environment,
+        dtype="float32",
+        quantization="none",
+        context=128,
+        concurrency=1,
+        tensor_parallel=1,
+        policy_version=QUALIFICATION_POLICY,
+        outcome=QualificationOutcome.PASS,
+        failure="none",
+        load_seconds=NOT_PROVIDED,
+        ttft_seconds=NOT_PROVIDED,
+        tokens_per_second=NOT_PROVIDED,
+        peak_vram_bytes=NOT_PROVIDED,
+        peak_ram_bytes=NOT_PROVIDED,
+        measured=False,
+        observed_at=FIXED.now(),
+    )
+    deployable = DeployableModels(
+        snapshot_id="dep_serve",
+        capacity_snapshot_id="cev_serve",
+        members=(
+            DeployableMember(
+                model_id="mdl_serve",
+                immutable_revision="rev-serve",
+                qualification_id=qualification_id,
+                total_required_vram_bytes=40,
+            ),
+        ),
+        observed_at=FIXED.now(),
+    )
+    member = select_id(deployable, "mdl_serve")
+    if member is None or member.qualification_id != qualification_id:
+        raise SystemExit("deployable membership does not cite qualification")
+    if not covers(
+        evidence,
+        revision="rev-serve",
+        generation_id="fgen_serve",
+        engine="vllm",
+        engine_version="0.18.0",
+        backend="cuda",
+        hardware_class="unspecified",
+        execution_environment_fingerprint=environment,
+        dtype="float32",
+        quantization="none",
+        context=128,
+        concurrency=1,
+        tensor_parallel=1,
+        policy_version=QUALIFICATION_POLICY,
+    ):
+        raise SystemExit("qualification evidence does not cover this plan")
+    return qualification_id
 
 
 def main() -> int:
     root = Path(tempfile.mkdtemp(prefix="machi-serve-"))
     store = FileStore(root / "store")
     token = "a" * 32
+    qualification_id = _coverage()
     configuration = DeploymentConfiguration(
         plan_id="plan_serve",
         status=PlanStatus.PLANNED,
@@ -189,7 +291,7 @@ def main() -> int:
         quantization="none",
         policy_version="m7.plan.1",
         fingerprint=token,
-        settings=_settings(),
+        settings=_settings(qualification_id),
     )
     request = ResourceRequest(
         request_id="preq_serve",

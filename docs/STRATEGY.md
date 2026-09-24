@@ -150,6 +150,36 @@ supports it, Ollama available as the fallback path, and normalized
 evidence with provenance. The fallback path is a Stage 1 exit, not a
 reason to pause Capacity or the first vLLM serve.
 
+
+### Post-spine productization workstream — Runtime Artifact Registry
+
+Once the Stage 1 inference spine is coherent, a parallel productization
+workstream should build a controlled runtime/software artifact supply chain.
+This does **not** replace Stage 2 and does not block empirical lab work.
+
+The goal is reproducible delivery of the exact software Kultrun is responsible
+for provisioning: runtime binaries, managed interpreters, approved packages,
+native libraries, helper artifacts, Machi/Kultrun releases, and offline bundles.
+
+Keep this separate from the Model Warehouse. Runtime/software artifacts and AI
+model artifacts have different licensing, lifecycle, provenance, storage and
+commercial constraints.
+
+Recipes should identify exact artifacts independently of where bytes are
+delivered from. Supported delivery providers may later include:
+
+- a Kultrun-hosted mirrored artifact registry where redistribution is allowed;
+- approved pinned upstream sources;
+- customer-internal mirrors;
+- customer-provided imports;
+- offline/air-gapped bundles generated from the same manifests.
+
+Build this after the spine has stabilized artifact identity, ownership,
+provenance, checksum and local provisioning contracts. It should become a
+prerequisite for scaled Stage 3 commercial deployment and strong air-gapped
+support, not a speculative dependency of current Ollama or vLLM work.
+
+
 ### 2 — Empirical infrastructure lab
 
 Turn physical acceptance into comparison: Ollama, direct/vLLM, and

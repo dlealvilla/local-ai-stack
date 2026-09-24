@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 import shutil
@@ -13,7 +12,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from machi.adapters.foundation.process import NativeProcessRunner, SpawnedProcess
 from machi.foundation.contracts import FailureCode, SupportState
@@ -25,6 +24,7 @@ from machi.foundation.ollama import (
     assess_managed,
     pinned_recipe,
     private_endpoint,
+    runtime_environment_id,
 )
 from machi.kernel.clock import Clock, SystemClock
 from machi.kernel.errors import ValidationError
@@ -32,7 +32,10 @@ from machi.kernel.errors import ValidationError
 _OWNER = "machi"
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 _REQUIRED_BINARY = "bin/ollama"
-_REQUIRED_LIBRARY = "lib/ollama"
+_CHUNK = 1024 * 1024
+# Safety ceiling when the caller does not pass a SAFE byte limit.
+# It does not authorize capacity. A supplied safe_bytes value wins.
+_EXTRACTION_CAP = 8 * 1024 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,47 +105,71 @@ class OllamaRuntime:
     def install(
         self,
         state_root: Path,
-        archive: bytes,
+        archive_path: Path,
         recipe: OllamaRuntimeRecipe,
         *,
         safe_bytes: int | None = None,
     ) -> InstalledPrefix | PrefixRefusal:
-        """Extract a checksummed archive under the state root, or refuse."""
-        digest = hashlib.sha256(archive).hexdigest()
-        if digest != recipe.artifact_sha256:
+        """Stage a local archive, verify it, then promote an owned prefix."""
+        if not archive_path.is_file():
             return PrefixRefusal(
                 FailureCode.PACKAGE_DOWNLOAD_FAILED,
                 SupportState.PROVISIONING_FAILED,
-                "artifact checksum does not match the pinned recipe",
+                "local runtime archive is missing",
             )
-        environment_id = _environment_id(recipe)
-        root = _owned_root(state_root, environment_id)
-        prefix = root / "ollama"
-        if root.exists():
-            return _reuse_or_refuse(root, prefix, recipe)
-        started = time.monotonic()
-        root.mkdir(parents=True)
+        bound = _EXTRACTION_CAP if safe_bytes is None else safe_bytes
+        if bound < 1:
+            return PrefixRefusal(
+                FailureCode.INSUFFICIENT_CAPACITY,
+                SupportState.INSUFFICIENT_CAPACITY,
+                "extraction bound must be positive",
+            )
+        staging = _staging_dir(state_root)
         try:
-            _extract(prefix, archive)
-            _write_cloud_config(prefix)
-            footprint = _tree_bytes(prefix)
-            if safe_bytes is not None and footprint > safe_bytes:
+            staging.mkdir(parents=True)
+            (staging / ".machi-stage").write_text(_OWNER, encoding="utf-8")
+            staged = staging / "artifact.bin"
+            digest = _copy_and_hash(archive_path, staged)
+            if digest != recipe.artifact_sha256:
+                return PrefixRefusal(
+                    FailureCode.PACKAGE_DOWNLOAD_FAILED,
+                    SupportState.PROVISIONING_FAILED,
+                    "artifact checksum does not match the pinned recipe",
+                )
+            environment_id = runtime_environment_id(recipe)
+            final = _owned_root(state_root, environment_id)
+            prefix = final / "ollama"
+            if final.exists():
+                return _reuse_or_refuse(final, prefix, recipe)
+            payload = staging / "payload.tar"
+            _materialize_tar(staged, payload)
+            _preflight(payload, bound)
+            started = time.monotonic()
+            generation = staging / "generation"
+            extracted = generation / "ollama"
+            _extract(extracted, payload, bound)
+            _write_cloud_config(extracted)
+            footprint = _tree_bytes(extracted)
+            if footprint > bound:
                 raise ValidationError("safe storage does not cover the prefix")
-            _write_manifest(state_root, root, environment_id, recipe, footprint)
+            final.parent.mkdir(parents=True, exist_ok=True)
+            _write_manifest(state_root, generation, environment_id, recipe, footprint)
+            generation.replace(final)
+            return InstalledPrefix(
+                environment_id=environment_id,
+                prefix=final / "ollama",
+                footprint_bytes=footprint,
+                install_seconds=time.monotonic() - started,
+            )
         except (ValidationError, tarfile.TarError, OSError) as exc:
-            _discard(root)
             reason = str(exc) if str(exc) else "prefix extraction failed"
             return PrefixRefusal(
                 FailureCode.PACKAGE_INSTALL_FAILED,
                 SupportState.PROVISIONING_FAILED,
                 reason[:240],
             )
-        return InstalledPrefix(
-            environment_id=environment_id,
-            prefix=prefix,
-            footprint_bytes=footprint,
-            install_seconds=time.monotonic() - started,
-        )
+        finally:
+            _discard_staging(staging, state_root)
 
     def verify_existing(
         self,
@@ -297,11 +324,13 @@ def daemon_environment(prefix: Path, port: int) -> dict[str, str]:
     return env
 
 
-def _environment_id(recipe: OllamaRuntimeRecipe) -> str:
-    digest = hashlib.sha256(
-        f"{recipe.recipe_id}\n{recipe.artifact_sha256}".encode()
-    ).hexdigest()
-    return "renv_" + digest[:16]
+def _staging_dir(state_root: Path) -> Path:
+    base = (state_root / "foundation" / "staging").resolve()
+    name = "stage_" + hashlib.sha256(os.urandom(16)).hexdigest()[:16]
+    staging = (base / name).resolve()
+    if staging.parent != base:
+        raise ValidationError("staging path escaped owned storage")
+    return staging
 
 
 def _owned_root(state_root: Path, environment_id: str) -> Path:
@@ -362,23 +391,83 @@ def _reuse_or_refuse(
     )
 
 
-def _extract(prefix: Path, archive: bytes) -> None:
-    payload = _inflate(archive)
+def _copy_and_hash(source: Path, dest: Path) -> str:
+    digest = hashlib.sha256()
+    with source.open("rb") as inbound, dest.open("wb") as outbound:
+        while True:
+            chunk = inbound.read(_CHUNK)
+            if not chunk:
+                break
+            digest.update(chunk)
+            outbound.write(chunk)
+    return digest.hexdigest()
+
+
+def _materialize_tar(staged: Path, dest: Path) -> None:
+    """Stream a zstd archive to a tar file. A plain tar is copied, not loaded."""
+    with staged.open("rb") as handle:
+        magic = handle.read(len(_ZSTD_MAGIC))
+    if magic != _ZSTD_MAGIC:
+        shutil.copyfile(staged, dest)
+        return
+    with staged.open("rb") as inbound, dest.open("wb") as outbound:
+        process = subprocess.Popen(
+            ["zstd", "-d", "-c"],
+            stdin=inbound,
+            stdout=outbound,
+            stderr=subprocess.PIPE,
+        )
+        _stderr = process.stderr
+        if _stderr is None:
+            raise ValidationError("zstd could not unpack the official archive")
+        error = _stderr.read()
+        code = process.wait()
+    if code != 0 or dest.stat().st_size < 1:
+        detail = error.decode("utf-8", errors="replace")[:80]
+        raise ValidationError(detail or "zstd could not unpack the official archive")
+
+
+def _preflight(tar_path: Path, bound: int) -> None:
+    declared = 0
+    with tarfile.open(tar_path, "r:") as handle:
+        for member in handle:
+            _reject_member(member)
+            if not member.isfile():
+                continue
+            declared += member.size
+            if declared > bound:
+                raise ValidationError(
+                    "archive declared size exceeds the extraction bound"
+                )
+
+
+def _extract(prefix: Path, tar_path: Path, bound: int) -> None:
+    written = 0
     prefix.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(fileobj=io.BytesIO(payload), mode="r:") as handle:
-        for member in handle.getmembers():
-            destination = _member_destination(prefix, member)
+    with tarfile.open(tar_path, "r:") as handle:
+        for member in handle:
+            _reject_member(member)
+            relative = _relative_name(member.name)
+            destination = _destination(prefix, relative)
             if member.isdir():
                 destination.mkdir(parents=True, exist_ok=True)
                 continue
-            if not member.isfile():
-                raise ValidationError("archive links are refused")
             source = handle.extractfile(member)
             if source is None:
                 raise ValidationError("archive member is unreadable")
             destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(source.read())
-            if member.name == _REQUIRED_BINARY:
+            with destination.open("wb") as outbound:
+                while True:
+                    chunk = source.read(_CHUNK)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > bound:
+                        raise ValidationError(
+                            "archive extracted size exceeds the extraction bound"
+                        )
+                    outbound.write(chunk)
+            if relative.as_posix() == _REQUIRED_BINARY:
                 destination.chmod(0o755)
     binary = prefix / "bin" / "ollama"
     library = prefix / "lib" / "ollama"
@@ -388,38 +477,45 @@ def _extract(prefix: Path, archive: bytes) -> None:
     (prefix / "logs").mkdir(exist_ok=True)
 
 
-def _inflate(archive: bytes) -> bytes:
-    """Unpack the official zstd asset with the zstd tool. Plain tar is already bytes."""
-    if not archive.startswith(_ZSTD_MAGIC):
-        return archive
-    try:
-        completed = subprocess.run(
-            ["zstd", "-d", "-c"],
-            input=archive,
-            capture_output=True,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise ValidationError(
-            "zstd is required to unpack the official archive"
-        ) from exc
-    if completed.returncode != 0 or not completed.stdout:
-        raise ValidationError("zstd could not unpack the official archive")
-    return bytes(completed.stdout)
+def _reject_member(member: tarfile.TarInfo) -> None:
+    _relative_name(member.name)
+    if member.issym() or member.islnk():
+        raise ValidationError("archive links are refused")
+    if not member.isdir() and not member.isfile():
+        raise ValidationError("archive special members are refused")
 
 
-def _member_destination(prefix: Path, member: tarfile.TarInfo) -> Path:
-    name = member.name
-    if name.startswith(("/", "\\")):
-        raise ValidationError("archive member is absolute")
-    parts = Path(name).parts
-    if ".." in parts or not parts:
+def _relative_name(name: str) -> PurePosixPath:
+    path = PurePosixPath(name)
+    if path.is_absolute() or ".." in path.parts:
         raise ValidationError("archive member escapes the prefix")
+    parts = [part for part in path.parts if part not in {"", "."}]
+    if not parts:
+        raise ValidationError("archive member escapes the prefix")
+    return PurePosixPath(*parts)
+
+
+def _destination(prefix: Path, relative: PurePosixPath) -> Path:
     root = prefix.resolve()
-    destination = (prefix / name).resolve()
+    destination = (prefix / Path(*relative.parts)).resolve()
     if destination != root and root not in destination.parents:
         raise ValidationError("archive member escapes the prefix")
     return destination
+
+
+def _discard_staging(staging: Path, state_root: Path) -> None:
+    if not staging.exists():
+        return
+    base = (state_root / "foundation" / "staging").resolve()
+    resolved = staging.resolve()
+    if resolved.parent != base:
+        return
+    marker = staging / ".machi-stage"
+    if not marker.is_file() or marker.read_text(encoding="utf-8") != _OWNER:
+        return
+    shutil.rmtree(staging)
+    if base.is_dir() and not any(base.iterdir()):
+        base.rmdir()
 
 
 def _write_cloud_config(prefix: Path) -> None:
@@ -440,6 +536,7 @@ def _write_manifest(
     payload = {
         "environment_id": environment_id,
         "recipe_id": recipe.recipe_id,
+        "version": recipe.version,
         "artifact_sha256": recipe.artifact_sha256,
         "owner": _OWNER,
         "owned": True,
@@ -477,10 +574,6 @@ def _store_has_files(models: Path) -> bool:
     if not models.exists():
         return False
     return any(filenames for _dirpath, _dirnames, filenames in os.walk(models))
-
-
-def _discard(root: Path) -> None:
-    shutil.rmtree(root, ignore_errors=True)
 
 
 def _failed(reason: str) -> OllamaAssessment:

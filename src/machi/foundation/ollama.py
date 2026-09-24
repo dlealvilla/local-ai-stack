@@ -27,6 +27,11 @@ from machi.foundation.contracts import (
     RuntimeCapability,
     SupportState,
 )
+from machi.foundation.metrics import (
+    FoundationMetric,
+    FoundationMetricSet,
+    MetricAvailability,
+)
 from machi.kernel.clock import require_utc
 from machi.kernel.errors import ValidationError
 from machi.kernel.schema import Contract, contract, meaning
@@ -50,7 +55,6 @@ _PRERELEASE_MARKERS = ("alpha", "beta", "rc", "preview", "nightly", "dev")
 _PRIVATE_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _EXECUTED_BINARY = "executed_binary"
 _UNRESOLVED = "unresolved"
-_MAX_METRICS = 16
 
 
 class OllamaProviderMode(StrEnum):
@@ -58,19 +62,6 @@ class OllamaProviderMode(StrEnum):
 
     VERIFIED_EXISTING = "verified_existing"
     MANAGED_PREFIX = "managed_prefix"
-
-
-class MetricAvailability(StrEnum):
-    """Whether a normalized number was actually observed."""
-
-    OBSERVED = "observed"
-    DERIVED = "derived"
-    ESTIMATED = "estimated"
-    HIDDEN_INTERNAL = "hidden_internal"
-    NOT_EXPOSED = "not_exposed"
-    NOT_APPLICABLE = "not_applicable"
-    UNSUPPORTED = "unsupported"
-    UNRESOLVED = "unresolved"
 
 
 class CloudMode(StrEnum):
@@ -81,45 +72,10 @@ class CloudMode(StrEnum):
     UNRESOLVED = "unresolved"
 
 
-@contract(kind="foundation.metric", version=1)
-@dataclass(frozen=True, slots=True)
-class FoundationMetric(Contract):
-    """One normalized foundation figure and where it came from."""
-
-    name: str = meaning("stable metric name")
-    value: str = meaning("figure as text; unresolved when unknown")
-    availability: MetricAvailability = meaning("how this figure was obtained")
-    unit: str = meaning("text, seconds, bytes, or count")
-    source: str = meaning("provider fact this figure came from")
-    privacy: str = meaning("operational; request text is not stored here")
-
-    def __post_init__(self) -> None:
-        _bounded(self.name, what="metric", maximum=_TOKEN_MAX)
-        _bounded(self.value, what="metric value", maximum=_REASON_MAX)
-        _bounded(self.unit, what="unit", maximum=16)
-        _bounded(self.source, what="source", maximum=_TOKEN_MAX)
-        if self.unit not in {"text", "seconds", "bytes", "count"}:
-            raise ValidationError("metric unit is not supported")
-        if self.privacy != "operational":
-            raise ValidationError("foundation metrics are operational only")
-
-
-@contract(kind="foundation.metric_set", version=1)
-@dataclass(frozen=True, slots=True)
-class FoundationMetricSet(Contract):
-    """Normalized foundation analytics. Raw provider text stays separate."""
-
-    metrics: tuple[FoundationMetric, ...] = meaning("ordered foundation metrics")
-
-    def __post_init__(self) -> None:
-        if not self.metrics or len(self.metrics) > _MAX_METRICS:
-            raise ValidationError("foundation metric set size is not supported")
-
-
 @contract(kind="foundation.ollama_recipe", version=1)
 @dataclass(frozen=True, slots=True)
 class OllamaRuntimeRecipe(Contract):
-    """Frozen Ollama runtime artifact. Not a model and not a wheel."""
+    """Checksummed runtime artifact. The delivery URL is provenance only."""
 
     recipe_id: str = meaning("stable id of this version and artifact")
     version: str = meaning("exact stable version, without a leading v")
@@ -264,6 +220,21 @@ def pinned_recipe() -> OllamaRuntimeRecipe:
         license_name="MIT",
         stable=True,
     )
+
+
+def runtime_environment_id(recipe: OllamaRuntimeRecipe) -> str:
+    """Owned-prefix id. Version and checksum count. The delivery URL does not."""
+    digest = hashlib.sha256(
+        "\n".join(
+            (
+                "runtime-artifact",
+                recipe.recipe_id,
+                recipe.version,
+                recipe.artifact_sha256,
+            )
+        ).encode()
+    ).hexdigest()
+    return "renv_" + digest[:16]
 
 
 def channel_refusal(*, tag: str, prerelease: bool, draft: bool) -> str | None:

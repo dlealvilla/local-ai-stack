@@ -1,7 +1,8 @@
 """Foundation contracts (MACHI 5).
 
-Native managed vLLM is the primary path. These records do not choose a
-model, admit a workload, or start a server.
+Native managed vLLM is the primary engine. Ollama is a separate engine
+with its own recipe. These records do not choose a model, admit a
+workload, or start a server.
 """
 
 from __future__ import annotations
@@ -312,7 +313,7 @@ class RuntimeCapability(Contract):
 @contract(kind="foundation.selection", version=1)
 @dataclass(frozen=True, slots=True)
 class FoundationSelection(Contract):
-    """Macropath decision for this increment: native direct vLLM, or a refusal."""
+    """Macropath decision: family plus engine, or a typed refusal."""
 
     selection_id: str = meaning("identity of this decision")
     family: FoundationFamily = meaning("direct")
