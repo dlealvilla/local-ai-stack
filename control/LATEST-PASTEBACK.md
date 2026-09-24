@@ -1,55 +1,75 @@
-==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 WATCHDOG ====================
+==================== BEGIN PASTE BACK — OLLAMA CHUNK 3 DUAL QUALIFIER ====================
 
 A. STATUS
-PASS. Instruction `MACHI-OLLAMA-CHUNK-02-WATCHDOG-008` executed. Adapter-local inactivity watchdog and pre-stage marker accounting only. `NO_SOLUTION_DECISION_REQUIRED`: stdlib threading, no new dependency, no existing process helper matched this progress watchdog.
+PASS. Instruction `MACHI-OLLAMA-CHUNK-03-DUAL-QUALIFIER-002` executed as a local fixture control plane. `NO_SOLUTION_DECISION_REQUIRED`. No new dependency, no Ollama private scheduler import, no second resource ledger, no catalog merge, and the shadow result is not authoritative.
 
 B. Starting/final SHA
-Starting `919ab7e547967d6f552507fea617646410b3f0bd`
-Final `180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6`
+Starting `180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6`
+Final `da54773ab34b8d4c159fd9427519577319b25821`
 
-C. Old timeout semantics vs new inactivity semantics
-The previous `_TimedChild` timer started when zstd started and killed the child after `timeout_seconds` (default 5.0), including while output was still arriving.
-The replacement kills the child only while it is still alive and no decompressed bytes have arrived for `inactivity_seconds` (default 30). A stream that keeps producing bytes may run longer than that interval. Tests configure a short interval and do not wait 5 seconds.
+C. Separate catalog implementation
+Native/vLLM still uses `ModelArtifact` and warehouse qualification. An Ollama entry is `model.ollama_candidate` version 1, built only from public facts. `public_candidate` does not construct a `ModelArtifact`.
 
-D. Progress observation mechanism
-Stdout is read from the raw pipe into a 64 KiB window. Each non-empty arrival resets the inactivity timestamp. Tar reads from that window, so a large buffered `read()` cannot hide progress. Stderr is drained on a concurrent thread; the first 4096 bytes are kept and the rest are discarded so the pipe cannot fill.
+D. Ollama candidate identity contract
+Identity is `ocand_` plus a hash of the canonical sha256 digest. A `sha256:` prefix is stripped. The display name is not an input. Two tags with one digest share one candidate id. A tag alone is rejected.
 
-E. Hung-process behavior
-A child that writes one ustar header and then sleeps with both pipes open is killed and refused with `zstd decompressor timed out`. The test sets inactivity to 0.4 seconds and finishes in under 3 seconds.
+E. Machi shadow evaluator behavior
+`evaluate_shadow` runs before the provider call. It uses `estimate_serving` only when explicit public dtype, layer count, kv heads, and head dimension are present. A published size that already exceeds SAFE accelerator bytes is `NO_FIT`. Otherwise missing shape stays `UNRESOLVED`. Family labels are not turned into architecture or parameter counts. `refine_vllm` is not imported. Host bytes stay unresolved. Policy `m6.shadow.1`.
 
-F. stderr/non-zero-exit behavior
-Exit code 1 is still `zstd decompressor exited without success`, with the bounded stderr text attached. After a completed tar read, SIGPIPE (`-13` or `141`) is accepted: closing the consumer is what produces it, and a checked zstd early-close returned `-13`. Other non-zero exits still refuse.
+F. Ollama authoritative qualifier adapter behavior
+`qualify_ollama` does not take a shadow result. The fixture API covers `/api/tags`, `/api/show`, `/api/ps`, `/api/generate`, and unload. Provider `PASS` requires a counted output token and the expected digest in `/api/ps`. Digest mismatch, missing `/api/ps` entry, missing token, provider no-fit, and host failure are typed refusals. Unload failure is stored on `unload_failure` and does not rewrite a pass. No socket is opened.
 
-G. Pre-stage known-byte formula/boundary tests
-`pre_stage_requirement = artifact_bytes + len("machi")` (5 marker bytes, no newline).
-One byte below that sum refuses with `safe storage does not cover the staged artifact` and creates no staging directory.
-Exactly that sum passes the pre-stage check. The later peak check still refuses when SAFE does not cover extraction, generated metadata, and the registry temp file.
+G. Qualification identity/schema treatment
+`QualificationEvidence` version 2 still requires a warehouse artifact id, and `covers()` accepts only schema version 2. Putting an Ollama digest into that field would invent a warehouse identity. The smallest compatible record is the companion `model.ollama_qualification` version 1. Native version 2 evidence is unchanged and still decodes.
 
-H. Tests/gates
-`tests/machi`: 527 passed, including architecture, watchdog, hung-child, non-zero exit, synthetic zstd, and both pre-stage boundaries.
+H. Probe Plan / ResourceManager treatment + native regression result
+`PlanInputs.probe` remains the native boolean. A normal plan with a mismatched revision still fails `QUALIFICATION_REQUIRED`. A probe plan whose evidence context is too small still succeeds. Ollama uses `plan.qualification_probe` version 1, purpose `qualification`, admitted by `ResourceManager.admit_probe` on the same reservation log. A probe hold counts against SAFE capacity, so a later deployment that no longer fits is refused. `execution_authorized` stays bound to a `DeploymentConfiguration` and does not accept the probe hold. 537 `tests/machi` passed, including architecture.
+
+I. Comparative analytics contract
+`model.qualification_comparison` version 1 records both evaluators for one case: digest, display name, candidate id, capacity evidence, hardware class, execution-environment fingerprint, context, concurrency, shadow policy and fit, provider outcome, `size_vram` source `ollama.api.ps`, and load/token metrics as Maybe values. No prompt, response, or filesystem path is stored.
+
+J. Agreement/disagreement classification examples
+Shadow FIT + Ollama PASS -> `AGREE_FIT`, and Ollama's outcome is PASS.
+Shadow NO_FIT + Ollama PASS -> `MACHI_FALSE_NEGATIVE`, and Ollama's outcome stays PASS.
+Shadow FIT + Ollama NO_FIT -> `MACHI_FALSE_POSITIVE`, and Ollama still refuses.
+Shadow UNRESOLVED + Ollama PASS, and shadow UNRESOLVED + Ollama NO_FIT -> `MACHI_UNRESOLVED`.
+A provider host failure is `MACHI_UNRESOLVED` because it is not a fit verdict.
+
+K. Metric provenance/availability treatment
+Shadow accelerator bytes are `ESTIMATED` with provenance `machi.formula` when resolved, otherwise `UNRESOLVED`. Host bytes are `NOT_EXPOSED`. `size_vram` is `OBSERVED` from `ollama.api.ps` and labeled `runtime_reported`. A VRAM delta or ratio is `DERIVED` only when both integers exist, with semantics `estimate_vs_runtime_reported`. Missing operands are `not_comparable`.
+
+L. Tests/gates
+`tests/machi`: 537 passed, including architecture, native plan/admit/serve regressions, and the Chunk 3 cases above.
 `ruff check src/machi tests/machi`: pass.
-`mypy --strict src/machi`: 161 files, success.
-Slow-progress test uses inactivity 0.4 seconds and a stream longer than that interval.
+`mypy --strict src/machi`: 169 files, success.
 
-I. Wheel build ID/SHA256
-build `0.1.0+180a4e898c5f`
-sha256 `535a1b96485b47381ef14a78d2e527d4ef0a470b4e6c60fd13053f79f135e4be`
-size `290609`
+M. Wheel build ID/SHA256
+build `0.1.0+da54773ab34b`
+sha256 `b2781f38e3a77829ec7b0e45096f80e18fb196e4d1a75417a0e792c75761b184`
+size `304840`
 clean_source `true`
 
-J. Isolated verify_ok
+N. Isolated verify_ok
 `serve_ok sin_5c22adc1d8920043`
 `verify_ok`
 
-K. Local/origin equality
-`LOCAL 180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6`
-`ORIGIN 180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6`
+O. Docs/debt changes
+`docs/machi/ARCHITECTURE.md` and `docs/machi/M6.md` record catalog separation, Ollama authority, shadow comparison, and no Stage 1 retune.
+`docs/DEBT.md` adds `M-6-OLLAMA-01` for Ollama residency/eviction under a later Serve hold. Authorizes NO.
+Native qualification schema and AUTO state were not changed.
+
+P. Local/origin equality
+`LOCAL da54773ab34b8d4c159fd9427519577319b25821`
+`ORIGIN da54773ab34b8d4c159fd9427519577319b25821`
 Recovery `checkpoint/native-vllm-partial-pass-2026-09-24` remains `6e17f4a817d1571e0a708decec405ceda0282c7f`.
 
-L. Final Chunk-2 support claim
-The freeze-review blockers are corrected on `180a4e8`: decompression is bounded by inactivity while bytes arrive, and the pre-stage SAFE check includes the staging marker. Archive identity, two-pass extraction, member limits, registry accounting, promotion order, corrupt-index handling, ownership proof, Foundation identity, the zstd debt, and AUTO state are unchanged. The official Linux binary is still not executed (`M-5-OLLAMA-03`). Chunk 3 was not started. No physical server, model pull/load, inference, or AUTO fallback.
+Q. Exact support claim
+A fixture Ollama candidate can be normalized, shadow-evaluated, authorized on the existing ResourceManager, qualified by a fake Ollama adapter, and stored as comparison analytics. Ollama's result is the only fit authority on that macropath. Native Plan, Admit, and Serve behavior is preserved. This does not claim a physical Ollama qualification, a real model load, or Serve for Ollama.
 
-M. Final status
-STOP — OLLAMA CHUNK 2 WATCHDOG CORRECTION COMPLETE. WAIT FOR LEAD REVIEW.
+R. What remains for physical Ollama qualification
+A live loopback daemon at the pinned Foundation generation, a real local model digest from `/api/tags` and `/api/show`, one ResourceManager-authorized load, `/api/ps` `size_vram`, a real output token, unload, and the same comparison record filled from that run. No model download or Chunk 4 was started in this increment. `M-5-OLLAMA-03` and `M-6-03` remain open.
 
-==================== END PASTE BACK — OLLAMA CHUNK 2 WATCHDOG ====================
+S. Final status
+STOP — OLLAMA CHUNK 3 DUAL QUALIFIER LOCAL COMPLETE. WAIT FOR LEAD REVIEW.
+
+==================== END PASTE BACK — OLLAMA CHUNK 3 DUAL QUALIFIER ====================
