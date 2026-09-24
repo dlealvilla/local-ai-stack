@@ -1,22 +1,20 @@
 {
+  "schema": "machi.lead_handoff.v1",
+  "instruction_id": "MACHI-OLLAMA-CHUNK-02-FINAL-003",
+  "status": "READY",
+  "source_repository": "dlealvilla/ai-stack",
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "sync_closeout_ollama_chunk_2_push_publish",
-  "expected_pasteback_instruction_id": "MACHI-OLLAMA-CHUNK-02-CLOSEOUT-002",
-  "instruction_id": "MACHI-OLLAMA-CHUNK-02-CLOSEOUT-002",
+  "expected_cursor_action": "sync_final_harden_ollama_chunk_2_push_publish",
+  "expected_pasteback_instruction_id": "MACHI-OLLAMA-CHUNK-02-FINAL-003",
   "program": {
-    "artifact_registry_vision": "control/RUNTIME-ARTIFACT-REGISTRY-VISION.md",
+    "program_id": "MACHI-OLLAMA-MACROPATH-001",
+    "name": "ollama-execution-macropath",
     "chunks": 6,
     "current_chunk": 2,
-    "docs_vision_branch": "docs/post-spine-artifact-registry-vision",
     "integration_branch": "automation/ollama-macropath",
-    "name": "ollama-execution-macropath",
-    "next_action": "lead_review_before_chunk_3",
-    "program_id": "MACHI-OLLAMA-MACROPATH-001",
+    "recovery_branch": "checkpoint/native-vllm-partial-pass-2026-09-24",
     "program_spec": "control/OLLAMA-MACROPATH-PROGRAM.md",
-    "recovery_branch": "checkpoint/native-vllm-partial-pass-2026-09-24"
-  },
-  "published_instruction_id": "MACHI-OLLAMA-CHUNK-02-CLOSEOUT-002",
-  "schema": "machi.lead_handoff.v1",
-  "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+    "lead_review": "control/OLLAMA-CHUNK-02-LEAD-REVIEW-2.md",
+    "next_action": "lead_review_before_chunk_3"
+  }
 }
