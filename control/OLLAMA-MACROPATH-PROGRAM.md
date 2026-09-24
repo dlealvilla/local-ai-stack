@@ -380,3 +380,31 @@ real public Ollama adapter/timing truth, first physical dual qualification,
 durable comparison evidence, bounded re-entry, and conditional provider-side
 residency work. It may reach a core long-lived Serve authorization decision
 gate but must not silently cross it.
+
+
+---
+
+## Bundle 04 review and Serve authorization decision
+
+Bundle 04 produced real provider-functional physical evidence at source
+`e8bba2becd9b7e5244e987556c88812bad5895c0` and final source
+`ea9cb26a6034eeaca1058d6635ee4008fc833bed`.
+
+The recorded context-2048 qualification is not reusable as exact coverage
+because `num_ctx` was not sent and Ollama selected a different effective
+context.
+
+Daniel/Lead accepted Option A (refined) in
+`control/OLLAMA-SERVE-AUTH-DECISION.md`:
+
+- Plan remains the model-serving intent;
+- native Plan remains ModelArtifact-backed;
+- provider Plan is provider-digest-backed;
+- both use the same ResourceManager / ResourceReservation ledger;
+- residency is provider evidence, not authorization;
+- STOP and reservation release remain separate.
+
+The active next execution package is
+`MACHI-OLLAMA-BUNDLE-05-SERVE-001`, covering context-true requalification,
+provider Plan/Admit, bounded Ollama Serve, exact identity proof,
+STOP/restart/re-entry/release, and one physical acceptance campaign.
