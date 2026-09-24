@@ -87,6 +87,44 @@ the product.
 
 ---
 
+
+## 4.1 Core-vs-commodity implementation rule
+
+Machi must distinguish **owned semantics** from **implementation mechanics**.
+
+For mechanics outside Machi's differentiating core, research the current
+industry practice before designing code. Prefer, in order, an established
+standard, a mature library/project, a replaceable adapter around an external
+implementation, or a small bounded implementation. Do not invent a subsystem
+because the repository happens not to contain one yet.
+
+For enabling infrastructure, keep the generic Machi contract and provider
+boundary while integrating mature implementations where they fit.
+
+For core concepts—host/capacity truth, resource authorization, deployment
+identity, qualification meaning, Plan/Serve invariants, evidence/witness
+semantics, and other product-defining control decisions—Machi owns the contract
+even when libraries or runtimes implement lower-level mechanics.
+
+### Industry Solution Selection Gate
+
+Before code changes, stop for Lead/product decision when:
+- two or more credible standards/libraries/projects remain materially viable;
+- the choice introduces meaningful lock-in or affects security, privacy,
+  licensing, redistribution, portability, deployment model, supportability, or
+  commercial strategy;
+- the choice changes a Machi/Kultrun-owned contract or control boundary;
+- the choice is build-vs-integrate near the product core.
+
+The decision package must identify the generic capability, viable alternatives,
+evidence, trade-offs, recommended default, reversibility/migration cost, and
+whether each option can be deferred. Do not silently choose.
+
+If no meaningful choice exists, explicitly state **"No solution decision
+required"** and proceed. The existing Provider Selection Gate remains required
+for provider-specific implementation and is a specialization of this gate.
+
+
 # 5. Hierarchy
 
 | Level | Official name | ID shape | Meaning |
