@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
+  "status": "CLOSED_NVIDIA_STAGE1",
+  "branch": "automation/ollama-macropath",
+  "physical_source_sha": "fc216642cd6d3e2f77c8bbaa53f2fe22f6bb658a",
+  "build_id": "0.1.0+fc216642cd6d",
+  "wheel_sha256": "f88725b7c87e8a3a10c8eb0f13d696c2116d92a98a2b9e1047943834e103e536",
+  "wheel_size_bytes": 329644,
+  "amd": {
+    "disposition": "NO_STOCK",
+    "mi300x_secure_availability": "NONE",
+    "mi300x_secure_hourly_usd": 2.39,
+    "pod_created": false
+  },
+  "host": {
+    "sku": "NVIDIA A40",
+    "region": "EU-SE-1",
+    "cloud": "SECURE",
+    "compute_capability": "8.6",
+    "driver": "580.159.04",
+    "cuda": "13.0",
+    "hourly_usd": 0.49,
+    "pod_id": "5vckhyhjmjht55",
+    "pod_terminated": true,
+    "safe_host_bytes": 49463128064,
+    "safe_accelerator_bytes": 48037363712
+  },
+  "native": {
+    "selection_id": "fsel_17d3aa41babb8ffa",
+    "generation_id": "fgen_6e4c419798416a74",
+    "support": "ready",
+    "vllm_version": "0.18.0"
+  },
+  "ollama": {
+    "runtime_environment_id": "renv_ceedac1939fecd21",
+    "foundation_generation_id": "fgen_66a0af2ac4ba618c",
+    "selection_id": "fsel_66a0af2ac4ba618c"
+  },
+  "auto_healthy": {
+    "decision_id": "fbk_fa5314e89fc227d3",
+    "selected_engine": "vllm"
+  },
+  "auto_fallback": {
+    "decision_id": "fbk_d83226b96d76d7e2",
+    "primary_selection_id": "fsel_9a7247e225d0d653",
+    "primary_support": "provisioning_failed",
+    "selected_engine": "ollama",
+    "plan_id": "plan_d24362279180c37c",
+    "reservation_id": "rsv_35c15204781dc933"
+  },
+  "models": [
+    {
+      "tag": "smollm2:135m-instruct-q8_0",
+      "digest": "2d470404841a51320639b2c2418c7ad8643cccbbcb88c2a242b211ae83bf46a9",
+      "plan_id": "plan_bd9c83c38656c40d"
+    },
+    {
+      "tag": "smollm2:360m-instruct-q8_0",
+      "digest": "dfd48b1fa28f91f94d51037458e22eb461591d2f2f92bb44b115c86ac11b560f",
+      "plan_id": "plan_9bbf3fa49c0ff004"
+    }
+  ],
+  "negative": "qualification_does_not_cover_at_context_4096",
+  "macropath_closed": "CLOSED_NVIDIA_STAGE1",
+  "amd_closed": false,
+  "physical_live_failover": false
+}

@@ -480,9 +480,10 @@ AUTO prefers healthy or supported native vLLM. AUTO may select Ollama
 only when native vLLM is unavailable by the local policy in
 `foundation/fallback.py`. That choice is not physical live failover.
 Explicit vLLM and explicit Ollama fail closed. Ollama model pull is
-not a product acquisition feature. One NVIDIA A40 has a
-generation-bound Ollama Serve proof. The Ollama macropath is not fully
-closed. Dynamo stays a deferred
+not a product acquisition feature. The Ollama macropath is
+`CLOSED_NVIDIA_STAGE1` for the qualified A40 configurations in
+`docs/machi/OLLAMA-BUNDLE-07-PHYSICAL.md`. AMD and physical live
+failover stay open. Dynamo stays a deferred
 Stage-2 family. None of these paths own host or admission truth.
 
 **Inputs:** HostProfile, CapacityEnvelope, HostMinimumVerdict PASS.
@@ -653,10 +654,9 @@ streaming, public bind, Ollama, and a distributed fabric.
 
 **Status:** local native vLLM candidate. Physical native inference is
 not the passing NVIDIA-N1 proof (`M-9-02`). `DeploymentWitness` remains
-deferred. The generic instance does not require a pid. A separate
-provider path has one generation-bound Ollama Serve proof on an
-NVIDIA A40. That proof is not NVIDIA-wide and does not close the
-Ollama macropath.
+deferred. The generic instance does not require a pid. The Ollama
+provider path is `CLOSED_NVIDIA_STAGE1` for the qualified A40
+configurations. That closure is not AMD support and not live failover.
 
 **Unlocks:** outer product attachment after a physical inference
 proof. More runtimes wait for a provider decision.
@@ -722,7 +722,7 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M7 Plan | KEEP | 1 | Physically accepted on NVIDIA. Plan is not admission and not launch |
 | M8 Admit | KEEP | 1 | Physically accepted on NVIDIA as logical reservation authority. Serve is not started |
 | M9 Serve | KEEP | 1 | Local native vLLM serve. NVIDIA-N1 L5 inference did not pass (`M-9-02`). Witness composer remains deferred |
-| OllamaExecutionMacropath | REPOSITION | 1 exit | Generation-bound Serve is proven on one NVIDIA A40. Local AUTO preference is implemented. Model pull is not a product feature. Physical live failover is not implemented. The macropath is not fully closed |
+| OllamaExecutionMacropath | REPOSITION | 1 exit | `CLOSED_NVIDIA_STAGE1` on the qualified A40 cases. AMD is open. Model pull is not a product feature. Physical live failover is not claimed |
 | Runtime Artifact Registry / software supply chain | DEFER | post-spine, parallel with 2; gate before scaled 3 | Reproducible approved runtime/package delivery, mirrors, customer imports and offline bundles. Separate from Model Warehouse. Build after stable artifact/provenance/recipe contracts; do not widen current Ollama scope |
 | Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |
 | Dynamo | DEFER | 2 | Fabric family. No integration until the evidence in strategy |
