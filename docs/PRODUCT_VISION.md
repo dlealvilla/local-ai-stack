@@ -285,6 +285,82 @@ They remain replaceable.
 
 ---
 
+
+## 5.2.1 Reuse the Industry; Own the Product
+
+Kultrun should not create proprietary implementations for solved engineering
+problems merely because they are adjacent to the product.
+
+The default engineering order is:
+
+1. use a well-established standard or protocol when one exists;
+2. use a mature, appropriately licensed library or open-source project;
+3. wrap an external implementation behind a Kultrun-owned adapter or provider;
+4. make the smallest bounded implementation needed when no suitable reusable
+   implementation exists;
+5. build a bespoke subsystem only when it creates material product value,
+   protects a Kultrun-owned invariant, or fills a demonstrated gap that available
+   industry solutions cannot satisfy.
+
+This is not an instruction to outsource the product ontology. Kultrun still owns
+the concepts, policies, evidence, customer promises, and control semantics that
+differentiate the Company Brain. External projects may implement mechanics
+behind those boundaries.
+
+### Core-proximity classification
+
+Before new substantial work, classify the capability:
+
+**Commodity / non-core.** Examples include archive extraction, cryptographic
+hashing, update metadata, process supervision primitives, serialization,
+standard authentication protocols, filesystem transactions, and other solved
+infrastructure. Research current industry practice and adopt the strongest
+suitable standard/library. Bespoke invention requires a documented reason.
+
+**Enabling infrastructure.** Examples include inference runtimes, model stores,
+vector/search infrastructure, observability backends, gateways, databases, and
+workflow engines. Prefer mature open-source or commercial components behind
+replaceable Kultrun interfaces. Kultrun owns the cross-provider semantics and
+evidence.
+
+**Product core.** Examples include Company Brain semantics, organisational
+knowledge and permission meaning, model/routing policy, global resource
+authorization, deployment truth, evidence and witness semantics, memory and
+collective-intelligence policy, and the administrator/user product experience.
+These may use libraries internally, but the governing concepts and strategic
+decisions remain Kultrun-owned.
+
+### Industry Solution Selection Gate
+
+Do not automatically choose when there is a material strategic choice.
+
+Before implementation, explicitly stop for product/architecture review when any
+of the following is true:
+
+- two or more credible industry standards, projects, providers, or architectural
+  patterns remain materially viable;
+- choosing one creates meaningful lock-in or changes portability, security,
+  privacy, licensing, redistribution, supportability, deployment model, data
+  ownership, or commercial strategy;
+- the decision changes a Kultrun-owned contract, ontology, control boundary, or
+  customer promise;
+- the choice is build-versus-integrate for a capability close to the product
+  core;
+- an apparently commodity choice would become a mandatory non-replaceable
+  dependency.
+
+The review should present the real alternatives, evidence, trade-offs,
+recommended default, migration/reversibility implications, and what would be
+hard to change later. Implementation waits for an explicit decision.
+
+When research shows one clearly established fit with no material product or
+architectural consequence, state **"No solution decision required"** and proceed
+using the industry practice.
+
+The existing Provider Selection Gate is a specialized instance of this broader
+Industry Solution Selection Gate.
+
+
 ## 5.3 Capability-Based Deployment
 
 Kultrun should ask:
