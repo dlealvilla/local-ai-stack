@@ -57,7 +57,7 @@ class ProvisionMode(StrEnum):
 
 
 class SupportState(StrEnum):
-    """Whether this host can hold a native vLLM foundation."""
+    """Whether this host can hold a foundation. Not an admission verdict."""
 
     SUPPORTED = "supported"
     CONDITIONALLY_SUPPORTED = "conditionally_supported"
@@ -68,6 +68,7 @@ class SupportState(StrEnum):
     PROVISIONING_FAILED = "provisioning_failed"
     VERIFICATION_FAILED = "verification_failed"
     READY = "ready"
+    RECONCILE_REQUIRED = "reconcile_required"
 
 
 class FailureCode(StrEnum):
@@ -87,6 +88,7 @@ class FailureCode(StrEnum):
     TIMEOUT = "timeout"
     INTERRUPTED = "interrupted"
     UNEXPECTED = "unexpected"
+    PROMOTED_UNREGISTERED = "promoted_unregistered"
 
 
 class FeatureState(StrEnum):

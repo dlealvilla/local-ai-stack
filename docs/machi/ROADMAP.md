@@ -13,6 +13,20 @@ Implementation tokens will be `MACHI-<milestone>`.
 with known input → capture contracts + events + logs → accept or
 fix. Do not edit source on the server.
 
+**Rule: research before invention.** For non-core mechanics, use current
+industry best practice and mature standards/libraries/projects before bespoke
+implementation. For enabling infrastructure, prefer replaceable providers.
+When two or more credible solutions remain materially viable, or when a
+build-vs-integrate choice affects core product semantics, architecture,
+security, licensing, portability, supportability, or commercial strategy,
+trigger the Industry Solution Selection Gate and wait for Lead/product
+decision. If there is no material choice, state `No solution decision required`
+and proceed. Every material option must also pass Product Vision Alignment:
+explicitly check self-hosting, privacy, offline/air-gap, replaceability,
+provider-neutrality, ownership/safety/evidence, administrator simplicity,
+commercial direction, and long-term Company Brain compatibility. A technically
+strong but structurally misaligned option is not a default implementation.
+
 **Rule:** no attached product (Admin UI, Knowledge, marketplace)
 before the core exoskeleton can run Blocks 1–9. Observability is
 **not** an attached product; it starts at M0.

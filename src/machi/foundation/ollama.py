@@ -133,6 +133,15 @@ class OllamaFoundationGeneration(Contract):
     provider_mode: OllamaProviderMode = meaning("verified existing or managed")
     version: str = meaning("exact runtime version")
     artifact_sha256: str = meaning("archive sha256, or unresolved")
+    runtime_identity_sha256: str = meaning(
+        "content identity of the realized runtime, or unresolved"
+    )
+    identity_strength: str = meaning(
+        "archive, runtime closure, or partial executable"
+    )
+    qualification_reusable: bool = meaning(
+        "true only when immutable runtime identity can cover later evidence"
+    )
     execution_environment_fingerprint: str = meaning(
         "accelerator environment this generation is bound to"
     )
@@ -149,6 +158,22 @@ class OllamaFoundationGeneration(Contract):
         _bounded(self.version, what="version", maximum=32)
         if self.artifact_sha256 != _UNRESOLVED:
             _sha256(self.artifact_sha256)
+        if self.runtime_identity_sha256 != _UNRESOLVED:
+            _sha256(self.runtime_identity_sha256)
+        if self.identity_strength not in {
+            "archive",
+            "runtime_closure",
+            "partial_executable",
+            "absent",
+        }:
+            raise ValidationError("runtime identity strength is not supported")
+        if self.qualification_reusable and self.identity_strength not in {
+            "archive",
+            "runtime_closure",
+        }:
+            raise ValidationError(
+                "partial runtime identity is not qualification evidence"
+            )
         _bounded(
             self.execution_environment_fingerprint,
             what="environment",
@@ -195,6 +220,8 @@ class ExistingOllamaObservation:
     cloud_disabled: bool | None
     auto_update: bool | None
     binary_sha256: str | None = None
+    runtime_identity_sha256: str | None = None
+    identity_strength: str = "absent"
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,12 +281,12 @@ def ollama_generation_id(
     recipe_id: str,
     provider_mode: OllamaProviderMode,
     version: str,
-    artifact_sha256: str,
+    content_sha256: str,
+    identity_strength: str,
     execution_environment_fingerprint: str,
-    cloud_mode: CloudMode,
-    endpoint: str,
+    security_class: str,
 ) -> str:
-    """Content-addressed id. Any material change invalidates later evidence."""
+    """Qualification identity. An endpoint port is not part of it."""
     digest = hashlib.sha256(
         "\n".join(
             (
@@ -267,10 +294,10 @@ def ollama_generation_id(
                 recipe_id,
                 provider_mode.value,
                 version,
-                artifact_sha256,
+                content_sha256,
+                identity_strength,
                 execution_environment_fingerprint,
-                cloud_mode.value,
-                endpoint,
+                security_class,
             )
         ).encode()
     ).hexdigest()
@@ -293,6 +320,11 @@ def assess_existing(
         return OllamaAssessment(failure, _support(failure), reason)
     assert observation.api_version is not None
     assert observation.cloud_disabled is True
+    strength = observation.identity_strength
+    runtime_sha = observation.runtime_identity_sha256
+    if strength == "absent" and observation.binary_sha256:
+        strength = "partial_executable"
+        runtime_sha = observation.binary_sha256
     return _verified(
         recipe=recipe,
         provider_mode=OllamaProviderMode.VERIFIED_EXISTING,
@@ -300,7 +332,9 @@ def assess_existing(
         version_text=observation.version_text,
         api_version=observation.api_version,
         endpoint=observation.endpoint,
-        artifact_sha256=observation.binary_sha256 or _UNRESOLVED,
+        artifact_sha256=_UNRESOLVED,
+        runtime_identity_sha256=runtime_sha or _UNRESOLVED,
+        identity_strength=strength,
         execution_environment_fingerprint=execution_environment_fingerprint,
         capacity_evidence_id=capacity_evidence_id,
         observed_at=observed_at,
@@ -371,6 +405,8 @@ def assess_managed(
         api_version=api_version,
         endpoint=endpoint,
         artifact_sha256=artifact_sha256,
+        runtime_identity_sha256=artifact_sha256,
+        identity_strength="archive",
         execution_environment_fingerprint=execution_environment_fingerprint,
         capacity_evidence_id=capacity_evidence_id,
         observed_at=observed_at,
@@ -459,6 +495,8 @@ def _verified(
     api_version: str,
     endpoint: str,
     artifact_sha256: str,
+    runtime_identity_sha256: str,
+    identity_strength: str,
     execution_environment_fingerprint: str,
     capacity_evidence_id: str,
     observed_at: dt.datetime,
@@ -468,14 +506,20 @@ def _verified(
     install_seconds: float | None,
     lifecycle: str,
 ) -> OllamaAssessment:
+    reusable = identity_strength in {"archive", "runtime_closure"}
+    content = (
+        artifact_sha256
+        if identity_strength == "archive"
+        else runtime_identity_sha256
+    )
     generation_id = ollama_generation_id(
         recipe_id=recipe.recipe_id,
         provider_mode=provider_mode,
         version=version,
-        artifact_sha256=artifact_sha256,
+        content_sha256=content,
+        identity_strength=identity_strength,
         execution_environment_fingerprint=execution_environment_fingerprint,
-        cloud_mode=CloudMode.DISABLED,
-        endpoint=endpoint,
+        security_class="loopback_cloud_disabled",
     )
     selection = FoundationSelection(
         selection_id="fsel_" + generation_id.removeprefix("fgen_"),
@@ -508,6 +552,9 @@ def _verified(
         provider_mode=provider_mode,
         version=version,
         artifact_sha256=artifact_sha256,
+        runtime_identity_sha256=runtime_identity_sha256,
+        identity_strength=identity_strength,
+        qualification_reusable=reusable,
         execution_environment_fingerprint=execution_environment_fingerprint,
         cloud_mode=CloudMode.DISABLED,
         endpoint=endpoint,

@@ -1754,6 +1754,27 @@
         "may_be_unresolved": false,
         "meaning": "archive sha256, or unresolved"
       },
+      "runtime_identity_sha256": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "content identity of the realized runtime, or unresolved"
+      },
+      "identity_strength": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "archive, runtime closure, or partial executable"
+      },
+      "qualification_reusable": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "true only when immutable runtime identity can cover later evidence"
+      },
       "execution_environment_fingerprint": {
         "type": "str",
         "optional": false,

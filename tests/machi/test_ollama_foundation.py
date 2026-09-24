@@ -16,9 +16,12 @@ from tests.machi.test_plan import _capability, _foundation, _inputs, _plan
 
 from machi.adapters.foundation.ollama_runtime import (
     InstalledPrefix,
+    InstallFaults,
     OllamaRuntime,
     PrefixRefusal,
+    SystemZstdDecompressor,
     daemon_environment,
+    unregistered_owned_generations,
 )
 from machi.foundation.contracts import (
     FailureCode,
@@ -47,6 +50,7 @@ from machi.plan.contracts import PlanFailure
 FIXED = dt.datetime(2026, 9, 24, 3, 0, tzinfo=dt.UTC)
 FINGERPRINT = "exe_" + ("ab" * 16)
 CAPACITY = "cap_ollama_fixture"
+SAFE_BYTES = 2_000_000
 _FIXTURE = """#!/usr/bin/env python3
 import json
 import os
@@ -224,6 +228,8 @@ def test_verified_existing_exact_version_round_trips() -> None:
     assert restored.capability.server_launch is FeatureState.UNSUPPORTED
     assert restored.capability.version == "0.34.3"
     assert restored.generation.cloud_mode is CloudMode.DISABLED
+    assert restored.generation.qualification_reusable is False
+    assert restored.generation.identity_strength == "absent"
     assert "model residency is not claimed" in assessment.reason
     names = {item.name: item for item in restored.metrics.metrics}
     assert names["foundation.engine"].value == "ollama"
@@ -281,21 +287,41 @@ def test_generation_change_changes_qualification_identity() -> None:
         recipe_id="ollama-0.34.3-linux-amd64",
         provider_mode=OllamaProviderMode.VERIFIED_EXISTING,
         version="0.34.3",
-        artifact_sha256="unresolved",
+        content_sha256="ab" * 32,
+        identity_strength="runtime_closure",
         execution_environment_fingerprint=FINGERPRINT,
-        cloud_mode=CloudMode.DISABLED,
-        endpoint="http://127.0.0.1:11434",
+        security_class="loopback_cloud_disabled",
     )
     shifted = ollama_generation_id(
         recipe_id="ollama-0.34.3-linux-amd64",
         provider_mode=OllamaProviderMode.MANAGED_PREFIX,
         version="0.34.3",
-        artifact_sha256="unresolved",
+        content_sha256="ab" * 32,
+        identity_strength="archive",
         execution_environment_fingerprint=FINGERPRINT,
-        cloud_mode=CloudMode.DISABLED,
-        endpoint="http://127.0.0.1:11434",
+        security_class="loopback_cloud_disabled",
+    )
+    same_port = ollama_generation_id(
+        recipe_id="ollama-0.34.3-linux-amd64",
+        provider_mode=OllamaProviderMode.VERIFIED_EXISTING,
+        version="0.34.3",
+        content_sha256="ab" * 32,
+        identity_strength="runtime_closure",
+        execution_environment_fingerprint=FINGERPRINT,
+        security_class="loopback_cloud_disabled",
+    )
+    changed_bytes = ollama_generation_id(
+        recipe_id="ollama-0.34.3-linux-amd64",
+        provider_mode=OllamaProviderMode.VERIFIED_EXISTING,
+        version="0.34.3",
+        content_sha256="cd" * 32,
+        identity_strength="runtime_closure",
+        execution_environment_fingerprint=FINGERPRINT,
+        security_class="loopback_cloud_disabled",
     )
     assert current != shifted
+    assert current == same_port
+    assert current != changed_bytes
     assert _qualification(current) != _qualification(shifted)
 
 
@@ -317,6 +343,7 @@ def test_checksum_mismatch_does_not_extract(tmp_path: Path) -> None:
         tmp_path / "state",
         _file(tmp_path, payload, "mismatch.tar"),
         pinned_recipe(),
+        safe_bytes=SAFE_BYTES,
     )
     assert isinstance(refused, PrefixRefusal)
     assert refused.failure is FailureCode.PACKAGE_DOWNLOAD_FAILED
@@ -334,6 +361,7 @@ def test_escape_and_short_storage_do_not_leave_a_prefix(tmp_path: Path) -> None:
         tmp_path / "state",
         _file(tmp_path, escaped, "escape.tar"),
         _recipe(escaped),
+        safe_bytes=SAFE_BYTES,
     )
     assert isinstance(refused, PrefixRefusal)
     assert refused.failure is FailureCode.PACKAGE_INSTALL_FAILED
@@ -347,7 +375,7 @@ def test_escape_and_short_storage_do_not_leave_a_prefix(tmp_path: Path) -> None:
         safe_bytes=1,
     )
     assert isinstance(short, PrefixRefusal)
-    assert short.failure is FailureCode.PACKAGE_INSTALL_FAILED
+    assert short.failure is FailureCode.INSUFFICIENT_CAPACITY
     assert not any((tmp_path / "state").rglob("bin/ollama"))
 
 
@@ -357,9 +385,9 @@ def test_managed_prefix_verifies_restarts_and_stops(tmp_path: Path) -> None:
     runtime = OllamaRuntime()
     state = tmp_path / "state"
     archive_path = _file(tmp_path, archive, "incoming.tar")
-    installed = runtime.install(state, archive_path, recipe)
+    installed = runtime.install(state, archive_path, recipe, safe_bytes=SAFE_BYTES)
     assert isinstance(installed, InstalledPrefix)
-    again = runtime.install(state, archive_path, recipe)
+    again = runtime.install(state, archive_path, recipe, safe_bytes=SAFE_BYTES)
     assert isinstance(again, InstalledPrefix)
     assert again.environment_id == installed.environment_id
     prefix = installed.prefix
@@ -387,6 +415,8 @@ def test_managed_prefix_verifies_restarts_and_stops(tmp_path: Path) -> None:
         substrate = started.substrate
         assert substrate is not None
         assert substrate.capability.server_launch is FeatureState.UNSUPPORTED
+        assert substrate.generation.qualification_reusable is True
+        assert substrate.generation.identity_strength == "archive"
         names = {item.name: item for item in substrate.metrics.metrics}
         assert names["provider.mode"].value == "managed_prefix"
         assert (
@@ -412,7 +442,9 @@ def test_delivery_url_is_not_the_artifact_identity(tmp_path: Path) -> None:
     upstream = _recipe(archive)
     mirror = replace(upstream, source_url="offline-bundle:customer")
     assert runtime_environment_id(upstream) == runtime_environment_id(mirror)
-    installed = OllamaRuntime().install(tmp_path / "state", path, mirror)
+    installed = OllamaRuntime().install(
+        tmp_path / "state", path, mirror, safe_bytes=SAFE_BYTES
+    )
     assert isinstance(installed, InstalledPrefix)
     assert installed.environment_id == runtime_environment_id(upstream)
 
@@ -423,23 +455,29 @@ def test_zst_realization_rejects_bad_archives_without_touching_active(
     compressed = _zst(tmp_path, _archive(), "good.tar.zst")
     recipe = _recipe(compressed.read_bytes())
     state = tmp_path / "state"
-    installed = OllamaRuntime().install(state, compressed, recipe)
+    installed = OllamaRuntime().install(
+        state, compressed, recipe, safe_bytes=SAFE_BYTES
+    )
     assert isinstance(installed, InstalledPrefix)
     marker = installed.prefix / "lib" / "ollama" / "cuda_v12.keep"
     marker.write_bytes(b"keep-me")
     mismatch = _file(tmp_path, b"not-the-archive", "bad.bin")
-    refused = OllamaRuntime().install(state, mismatch, recipe)
+    refused = OllamaRuntime().install(
+        state, mismatch, recipe, safe_bytes=SAFE_BYTES
+    )
     assert isinstance(refused, PrefixRefusal)
     assert refused.failure is FailureCode.PACKAGE_DOWNLOAD_FAILED
     assert marker.read_bytes() == b"keep-me"
     escaped = _zst(tmp_path, _archive(("../escaped", b"nope")), "escape.tar.zst")
     escaped_result = OllamaRuntime().install(
-        state, escaped, _recipe(escaped.read_bytes())
+        state, escaped, _recipe(escaped.read_bytes()), safe_bytes=SAFE_BYTES
     )
     assert isinstance(escaped_result, PrefixRefusal)
     assert escaped_result.reason == "archive member escapes the prefix"
     linked = _zst(tmp_path, _linked_archive(), "link.tar.zst")
-    linked_result = OllamaRuntime().install(state, linked, _recipe(linked.read_bytes()))
+    linked_result = OllamaRuntime().install(
+        state, linked, _recipe(linked.read_bytes()), safe_bytes=SAFE_BYTES
+    )
     assert isinstance(linked_result, PrefixRefusal)
     assert linked_result.reason == "archive links are refused"
     bounded = OllamaRuntime().install(
@@ -449,8 +487,157 @@ def test_zst_realization_rejects_bad_archives_without_touching_active(
         safe_bytes=1,
     )
     assert isinstance(bounded, PrefixRefusal)
-    assert bounded.failure is FailureCode.PACKAGE_INSTALL_FAILED
+    assert bounded.failure is FailureCode.INSUFFICIENT_CAPACITY
     assert not (state / "foundation" / "staging").exists()
     assert not (tmp_path / "bounded" / "foundation" / "staging").exists()
     assert marker.read_bytes() == b"keep-me"
     assert not any((tmp_path / "bounded").rglob("bin/ollama"))
+
+
+def test_missing_safe_bytes_refuses(tmp_path: Path) -> None:
+    archive = _archive()
+    refused = OllamaRuntime().install(
+        tmp_path / "state",
+        _file(tmp_path, archive),
+        _recipe(archive),
+    )
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.failure is FailureCode.INSUFFICIENT_CAPACITY
+    assert not (tmp_path / "state" / "foundation" / "environments").exists()
+
+
+def test_two_pass_zstd_and_transaction_faults(tmp_path: Path) -> None:
+    compressed = _zst(tmp_path, _archive(), "twice.tar.zst")
+    recipe = _recipe(compressed.read_bytes())
+
+    class Counting(SystemZstdDecompressor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.opens = 0
+
+        def open_stream(self, source: Path):
+            self.opens += 1
+            return super().open_stream(source)
+
+    counter = Counting()
+    installed = OllamaRuntime().install(
+        tmp_path / "state",
+        compressed,
+        recipe,
+        safe_bytes=SAFE_BYTES,
+        decompressor=counter,
+    )
+    assert isinstance(installed, InstalledPrefix)
+    assert counter.opens == 2
+    archive_source = Path("src/machi/adapters/foundation/ollama_archive.py")
+    assert "payload.tar" not in archive_source.read_text(encoding="utf-8")
+    kept = (installed.prefix / "lib" / "ollama" / "cuda_v12.keep").read_bytes()
+    other = _zst(
+        tmp_path,
+        _archive(("lib/ollama/extra.keep", b"x")),
+        "other.tar.zst",
+    )
+    promoted = OllamaRuntime().install(
+        tmp_path / "state",
+        other,
+        _recipe(other.read_bytes()),
+        safe_bytes=SAFE_BYTES,
+        faults=InstallFaults(registry_fault="replace"),
+    )
+    assert isinstance(promoted, PrefixRefusal)
+    assert promoted.failure is FailureCode.PROMOTED_UNREGISTERED
+    assert promoted.support is SupportState.RECONCILE_REQUIRED
+    assert promoted.environment_id in unregistered_owned_generations(tmp_path / "state")
+    assert kept == (installed.prefix / "lib" / "ollama" / "cuda_v12.keep").read_bytes()
+    blocked = OllamaRuntime().install(
+        tmp_path / "promote",
+        compressed,
+        recipe,
+        safe_bytes=SAFE_BYTES,
+        faults=InstallFaults(fail_promote=True),
+    )
+    assert isinstance(blocked, PrefixRefusal)
+    assert blocked.failure is FailureCode.PACKAGE_INSTALL_FAILED
+    assert not (tmp_path / "promote" / "foundation" / "environments").exists()
+
+
+def test_runtime_closure_identity_changes_with_bytes(tmp_path: Path) -> None:
+    from machi.adapters.foundation.ollama_archive import observe_runtime_identity
+
+    root = tmp_path / "runtime"
+    binary = root / "bin" / "ollama"
+    library = root / "lib" / "ollama" / "runner"
+    library.parent.mkdir(parents=True)
+    binary.parent.mkdir()
+    binary.write_bytes(b"executable-v1")
+    library.write_bytes(b"library-v1")
+    first, strength = observe_runtime_identity(binary)
+    assert strength == "runtime_closure"
+    library.write_bytes(b"library-v2")
+    second, _again = observe_runtime_identity(binary)
+    assert first != second
+    lone = tmp_path / "only-exe" / "ollama"
+    lone.parent.mkdir()
+    lone.write_bytes(b"exe")
+    _digest, partial = observe_runtime_identity(lone)
+    assert partial == "partial_executable"
+
+
+def test_same_runtime_on_two_ports_keeps_qualification_identity() -> None:
+    shared = {
+        "runtime_identity_sha256": "ab" * 32,
+        "identity_strength": "runtime_closure",
+    }
+    first = _assess(endpoint="http://127.0.0.1:11434", **shared)
+    second = _assess(endpoint="http://127.0.0.1:11435", **shared)
+    assert first.substrate is not None
+    assert second.substrate is not None
+    assert (
+        first.substrate.generation.generation_id
+        == second.substrate.generation.generation_id
+    )
+    assert first.substrate.generation.qualification_reusable is True
+    assert first.substrate.generation.endpoint != second.substrate.generation.endpoint
+
+
+def test_missing_zstd_is_a_prerequisite_refusal(tmp_path: Path) -> None:
+    compressed = _zst(tmp_path, _archive(), "needs-zstd.tar.zst")
+    recipe = _recipe(compressed.read_bytes())
+
+    class Missing(SystemZstdDecompressor):
+        def preflight(self):
+            return PrefixRefusal(
+                FailureCode.PREREQUISITE_BLOCKED,
+                SupportState.BLOCKED_BY_PREREQUISITE,
+                "zstd decompressor is not available",
+            )
+
+    refused = OllamaRuntime().install(
+        tmp_path / "state",
+        compressed,
+        recipe,
+        safe_bytes=SAFE_BYTES,
+        decompressor=Missing(),
+    )
+    assert isinstance(refused, PrefixRefusal)
+    assert refused.failure is FailureCode.PREREQUISITE_BLOCKED
+
+
+def test_registry_faults_leave_the_generation_for_reconciliation(
+    tmp_path: Path,
+) -> None:
+    raw = _archive(("lib/ollama/marker", b"m"))
+    for fault in ("temp", "write", "fsync"):
+        root = tmp_path / fault
+        compressed = _zst(root, raw, "fault.tar.zst")
+        recipe = _recipe(compressed.read_bytes())
+        result = OllamaRuntime().install(
+            root / "state",
+            compressed,
+            recipe,
+            safe_bytes=SAFE_BYTES,
+            faults=InstallFaults(registry_fault=fault),
+        )
+        assert isinstance(result, PrefixRefusal)
+        assert result.failure is FailureCode.PROMOTED_UNREGISTERED
+        assert result.environment_id in unregistered_owned_generations(root / "state")

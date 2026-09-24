@@ -2629,6 +2629,27 @@ To make real: on a Linux host, unpack the pinned
 Retire when:  that host evidence is recorded
 Status:       OPEN
 
+### M-5-OLLAMA-04 — External zstd helper is not a managed artifact
+Label:        DEFERRED
+Owner stage:  Foundation
+Subsystem:    foundation
+Authorizes:   NO
+What:         The managed Ollama prefix streams the official `.tar.zst`
+              through a system `zstd` decompressor. That tool is
+              preflighted and recorded as provisioning provenance. It
+              is not part of qualification identity. The final
+              plug-and-play product should ship a pinned helper
+              through the Runtime Artifact Registry, or replace it
+              with an approved in-process implementation.
+Why now:      Official Ollama Linux archives of this pin are zstd.
+              Installing the tool with a package manager, or asking
+              the customer to install it, is not the product model.
+To make real: a pinned decompressor artifact delivered by the future
+              registry, or an in-process decoder behind the same port.
+Retire when:  realization no longer depends on an unmanaged host
+              `zstd` binary
+Status:       OPEN
+
 ### M-9-01 — Deferred witness composer and further serve depth
 Label:        DEFERRED
 Owner stage:  Serve
