@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "instruction_id": "MACHI-INFERENCE-EXEC-005-001",
+  "status": "NATIVE_VLLM_PARTIAL_PHYSICAL_PASS",
+  "branch": "automation/inference-program",
+  "recovery_branch": "checkpoint/pre-automation-inference-2026-09-23",
+  "recovery_sha": "0700e669267fd0db3d642192050a8654c9beb96c",
+  "funnel_sha": "96bc4303c4b4af48cfb6326b89edd951fa043911",
+  "lab_sha": "765aab67208cd1fde399db83be0e4254308597e0",
+  "build_id": "0.1.0+96bc4303c4b4",
+  "wheel_sha256": "31c8059f47de7c44eeb59489afe9887309cc9fc2cec4a1acff54972e8371d8f4",
+  "n1": {
+    "status": "ENVIRONMENT_BLOCKED",
+    "A40": "NONE",
+    "RTX_A6000": "NONE",
+    "pod_created": false
+  },
+  "n2": {
+    "status": "PASS",
+    "sku": "NVIDIA L40S",
+    "region": "US-MO-1",
+    "vram_mib": 46068,
+    "compute_capability": "8.9",
+    "driver": "580.178.04",
+    "cuda": "13.0",
+    "hourly_usd": 1.09,
+    "pod_id": "o2k1u11gp1fnuy",
+    "pod_terminated": true,
+    "generation_id": "fgen_071b23a5b1db1192",
+    "fingerprint": "exe_9fc7dd60f1cafcfdb9772ea9b755337f",
+    "positive_revisions": [
+      "12fd25f77366fa6b3b4b768ec3050bf629380bac",
+      "a10cc1512eabd3dde888204e902eca88bddb4951"
+    ],
+    "negative_revision": "9fb191250dd56d0ba7ec9785a025ed29c03d5998",
+    "negative_weights_fetched": false
+  }
+}
