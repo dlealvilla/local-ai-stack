@@ -323,3 +323,19 @@ unnecessary coupling between a runtime recipe and one byte-delivery location.
 Mirrored vendor artifacts, pinned upstream artifacts, customer mirrors/imports
 and offline bundles should later be delivery providers for the same verified
 artifact identity and recipe.
+
+
+---
+
+## Binding Core-vs-Commodity / Industry Solution Selection policy
+
+`control/CORE-VS-COMMODITY-POLICY.md` governs this program and future Machi
+implementation work.
+
+Commodity mechanics default to researched industry practice rather than bespoke
+invention. Enabling infrastructure defaults to mature replaceable
+implementations. Product-core semantics remain Kultrun-owned.
+
+When 2+ materially credible solutions remain, or when build-vs-integrate affects
+core architecture/product semantics, implementation must stop for a Lead/product
+decision. The Provider Selection Gate remains a specialized form of this rule.
