@@ -5,6 +5,35 @@
 **Gate status:** DECISION RESEARCH ONLY — NO IMPLEMENTATION  
 **Accepted starting source:** `180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6`
 
+## Existing native precedent — REQUIRED starting point
+
+Repository truth already contains a qualification-before-normal-deployment path
+for native vLLM:
+
+- `PlanInputs.probe: bool = False`;
+- `_qualified()` explicitly states: **"User plans require coverage. A probe
+  plan is how that coverage is earned."**;
+- when `probe=True`, qualification coverage is not required;
+- the probe/deploy distinction is included in the plan fingerprint;
+- the same Plan/ResourceRequest shape then flows through the existing
+  ResourceManager ledger;
+- checkpoint `MACHI-6-N1-QUALIFICATION.json` records:
+  **"The qualification probe reuses reserved vLLM serve."**
+
+Therefore Chunk 3 is **not** discovering an Ollama-specific circularity and must
+not invent a second qualification authority.
+
+The real core question is now:
+
+> Is the existing native `probe=True` Plan/ResourceManager mechanism already
+> the correct generic Machi abstraction for qualification workloads, needing
+> only provider-neutral formalization/clarification; or should we refactor it
+> into a more explicit purpose-aware admission abstraction before extending it
+> to Ollama?
+
+Any proposal must preserve native behavior or provide an explicit migration.
+
+
 ## Why this gate exists
 
 The current normal deployment chain is intentionally:
@@ -55,63 +84,70 @@ Expected facts requiring confirmation:
 
 Confirm exact v0.34.3 behavior and identify any mismatch.
 
-## Decision 1 — qualification resource admission shape (CORE)
+## Decision 1 — qualification admission abstraction (CORE)
 
-Evaluate at least these options.
+Evaluate the existing native pattern first. Do not label it as a fake or bypass
+without accounting for the accepted repository semantics and physical evidence.
 
-### Option A — generalized purpose-aware ResourceManager claim
+### Option A — preserve and formalize existing probe Plan (CURRENT PRECEDENT)
 
-Evolve the Admit ontology so the same ResourceManager can admit resource claims
-for different workload purposes, initially:
-- DEPLOYMENT;
-- QUALIFICATION.
+Keep one Plan/ResourceRequest/ResourceReservation path and one ResourceManager.
 
-Normal Deployment still requires Plan/DeployableModels.
-Qualification uses a qualification authority/request rather than pretending to
-be a normal deployment.
+A Plan has an explicit purpose/mode:
+- normal deployment requires prior qualification coverage;
+- qualification/probe mode is authorized to earn that coverage.
 
-One common ledger/accounting/atomicity path owns all reservations.
+Assess whether the existing boolean `probe` should remain or become a typed
+purpose such as `PlanPurpose.DEPLOYMENT | QUALIFICATION`, while preserving
+the same ledger and resource accounting.
 
-Assess whether this can be introduced as the smallest generic seam without
-prematurely designing training/indexing/future workloads.
+Key question:
+- can this remain semantically truthful if a probe Plan is clearly defined as
+  "a resource-authorized execution plan for empirical qualification", rather
+  than pretending to be an already-qualified user deployment?
 
-### Option B — separate QualificationReservation contract, same ResourceManager ledger
+### Option B — generalize admission below Plan into purpose-aware workload claims
 
-Add a bounded qualification-specific admission entry point and reservation
-contract, but make ResourceManager aggregate both deployment and qualification
-holds in one ledger and one fit/accounting authority.
+Introduce a more generic ResourceClaim/ReservationPurpose abstraction beneath
+Plan so deployment and qualification are different upstream authorities but
+share one ResourceManager ledger.
 
-This minimizes change to existing deployment contracts but creates two
-reservation record shapes.
+Assess whether this is cleaner long-term for training/indexing/conversion, or
+prematurely broadens Block 8 and weakens the exoskeleton.
 
-### Option C — synthetic/bypass PlanDecision
+### Option C — qualification-specific reservation contract, same ledger
 
-Construct a special PlanDecision or bypass qualification checks solely so
-ResourceManager.admit can be reused.
+Add a dedicated QualificationReservation/Request handled by ResourceManager,
+aggregated atomically with deployment holds.
 
-Treat this as presumptively disfavored because Plan means deployment after
-qualification and this risks circular/false semantics. Confirm whether any
-clean formulation exists; do not implement it.
+Assess duplication, schema/migration burden, and whether it creates parallel
+resource ontology unnecessarily.
 
-### Option D — runtime/Ollama implicit admission
+### Option D — Ollama/runtime implicit admission
 
-Let Ollama load and discover fit without a Machi reservation.
+Let Ollama load to discover fit without prior Machi reservation.
 
 Treat as structurally misaligned unless evidence overturns the accepted
 architecture.
 
 For A/B/C/D provide:
 - exact repository changes required;
+- relationship to the already accepted native probe path;
+- migration/backward-compatibility impact;
 - ontology/control-boundary impact;
-- migration/schema impact;
-- atomic accounting behavior with existing reservations;
+- atomic accounting behavior with all existing reservations;
 - crash/re-entry/release semantics;
-- ability to remain single-host now and grow to later workload classes;
+- ability to grow to later workload classes without premature abstraction;
 - test burden;
 - Product Vision Alignment;
 - reversibility.
 
-Recommend one, but STOP for Daniel/Lead decision.
+Recommend one, but STOP for Daniel/Lead decision if changing the existing native
+abstraction is materially architectural.
+
+If repository review concludes the existing probe-plan mechanism is already the
+correct generic pattern and Ollama only needs a provider implementation behind
+it, explicitly state `NO_NEW_CORE_DECISION_REQUIRED` and explain why.
 
 ## Decision 2 — initial Ollama model representation/acquisition path
 
