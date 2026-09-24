@@ -153,3 +153,108 @@ Even for large bundles, paste-back must remain clearly bounded with:
 - explicit STOP/status delimiter.
 
 More work in one run requires a more complete paste-back, not a shorter one.
+
+
+## 9. Product-first instruction design
+
+Every future execution bundle must explain the **product intent before the code mechanics**.
+
+The Lead instruction should be written so an engineer can understand:
+- why this capability exists in Kultrun / the Company Brain;
+- what user, administrator, operator, or platform behavior it enables;
+- what product promise becomes true when the bundle succeeds;
+- what is deliberately still not promised;
+- how the work fits the current strategic stage and exoskeleton-first roadmap;
+- how the work aligns with Product Vision, including self-hosting, privacy,
+  replaceability, provider neutrality, evidence, admin simplicity, governance,
+  offline/air-gap direction, and long-term Company Brain evolution.
+
+Technical implementation detail should be included only when it protects an
+accepted invariant, API/provider truth, safety boundary, compatibility rule, or
+evidence requirement. Otherwise Cursor owns the coding-level implementation.
+
+Each bundle should therefore contain these layers, in this order where practical:
+
+### Product purpose
+Explain the business/product reason for the work and the user/admin/platform
+capability it unlocks.
+
+### Functional outcome
+Describe the behavior that must exist when complete, in product language.
+Examples:
+- "An administrator can run one qualified Ollama-backed model under Machi
+  resource authorization and see trustworthy comparative analytics."
+- "Kultrun can prove which exact provider model answered and retain that
+  evidence for later policy learning."
+
+### Scope and non-scope
+State what functional surfaces are included and explicitly excluded.
+
+### Product Vision alignment
+State how the bundle supports or must preserve the Product Vision. Name any
+known tensions or temporary compromises.
+
+### Authority and ownership boundaries
+State which subsystem/provider is authoritative for each concept and what must
+remain replaceable.
+
+### Delivery actions
+Describe the intended work as actions, not merely code changes:
+- inspect/reconcile repository truth;
+- design/refine contracts where already authorized;
+- build;
+- unit/integration test;
+- package;
+- isolated verify;
+- deploy to disposable acceptance target where applicable;
+- execute physical acceptance;
+- collect evidence;
+- compare against prior evidence;
+- fix implementation defects;
+- rerun affected gates;
+- update docs/debt/checkpoints;
+- publish exact paste-back.
+
+### QA and acceptance
+Define what must be proven functionally, not just which test commands run.
+
+### Fix vs architectural amendment
+Cursor should distinguish:
+- **implementation defect**: accepted product/architecture intent is clear but
+  the code fails to realize it -> fix autonomously and continue;
+- **bounded design refinement**: small internal structure change that preserves
+  accepted semantics -> implement and explain;
+- **architecture amendment**: changes authority, ontology, Product Vision,
+  dependency/lock-in, provider policy, privacy/security posture, customer
+  promise, or accepted cross-macropath behavior -> STOP at the relevant
+  decision gate.
+
+### Support claim
+State exactly what product capability may be claimed after success and what
+remains experimental, unqualified, deferred, or unsupported.
+
+## 10. Lead instructions should not micromanage code
+
+The Lead Developer owns:
+- product purpose;
+- functional behavior;
+- architecture and subsystem authority;
+- invariants;
+- product policy;
+- acceptance criteria;
+- risk/decision gates;
+- evidence and support claims.
+
+Cursor owns, within those constraints:
+- code structure;
+- helper decomposition;
+- local refactors;
+- choice of standard-library technique;
+- test implementation details;
+- naming of private helpers;
+- routine error-handling mechanics;
+- ordinary performance/maintainability improvements.
+
+Do not prescribe line-by-line code or unnecessary implementation recipes unless
+repository truth, an external API, a safety invariant, or prior failure makes
+that specificity necessary.
