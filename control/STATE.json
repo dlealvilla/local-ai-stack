@@ -1,8 +1,8 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "sync_implement_context_true_provider_plan_admit_serve_physical_push_publish",
-  "expected_pasteback_instruction_id": "MACHI-OLLAMA-BUNDLE-05-SERVE-001",
-  "instruction_id": "MACHI-OLLAMA-BUNDLE-05-SERVE-001",
+  "expected_cursor_action": "none_wait_for_next_bundled_instruction",
+  "expected_pasteback_instruction_id": null,
+  "instruction_id": "MACHI-OLLAMA-BUNDLE-05-LEAD-REVIEW",
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
@@ -25,7 +25,7 @@
     "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
-    "next_action": "lead_review_bundle_05",
+    "next_action": "lead_publish_bundle_06_corrections_plus_adjacent_chunk6_work",
     "package_slices": [
       "context_truth",
       "provider_plan_and_admit",
@@ -42,10 +42,18 @@
     "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md",
     "serve_authorization_decision": "A_refined_accepted",
     "serve_authorization_decision_record": "control/OLLAMA-SERVE-AUTH-DECISION.md",
-    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger"
+    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger",
+    "bundle_05_review": "control/OLLAMA-BUNDLE-05-LEAD-REVIEW.md",
+    "bundle_05_physical_lifecycle_pass": true,
+    "bundle_05_source_closed": false,
+    "bundle_05_blockers": [
+      "serve_must_verify_actual_foundation_generation_and_environment",
+      "reconcile_renv_runtime_environment_vs_fgen_foundation_generation_evidence",
+      "satisfy_k03_schema_migration_and_v1_readback"
+    ]
   },
   "published_instruction_id": "MACHI-OLLAMA-BUNDLE-05-SERVE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "HOLD_CORRECTIONS_REQUIRED"
 }
