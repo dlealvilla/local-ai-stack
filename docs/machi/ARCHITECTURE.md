@@ -995,7 +995,7 @@ again.
 or policy change. Old snapshots are not rewritten.  
 **Recompute:** a new AvailableModels snapshot.  
 **Telemetry:** `model.inspected`, `model.selected`, acquisition
-outcome, and a local `model.qualification_comparison` record.
+outcome, and `model.qualification.compared`.
 Comparison analytics do not retune policy in Stage 1. No tokens,
 card bodies, prompts, or customer paths.  
 **Independent test:** a branch name is not artifact identity; a

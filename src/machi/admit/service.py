@@ -189,28 +189,8 @@ class ResourceManager:
             fingerprint=configuration.fingerprint,
             capacity_evidence_id=configuration.capacity_evidence_id,
         )
-        identity = reservation_id(
-            plan_id=configuration.plan_id,
-            fingerprint=configuration.fingerprint,
-            request_id=request.request_id,
-            capacity_evidence_id=capacity.evidence_id,
-            sequence=sequence,
-        )
-        for existing in ledger.active:
-            if existing.reservation_id == identity:
-                return _admitted(existing)
-        fit = _fits(
-            ledger.active,
-            request,
-            configuration.accelerator_identity,
-            host,
-            accel,
-            storage,
-        )
-        if fit is not None:
-            return fit
-        record = ResourceReservation(
-            reservation_id=identity,
+        return self._place(
+            ledger=ledger,
             plan_id=configuration.plan_id,
             fingerprint=configuration.fingerprint,
             request_id=request.request_id,
@@ -221,22 +201,11 @@ class ResourceManager:
             persistent_bytes=request.persistent_bytes,
             transient_bytes=request.transient_bytes,
             cpu_count=request.cpu_count,
-            policy_version=POLICY_VERSION,
-            state=ReservationState.RESERVED,
+            host_safe=host,
+            accelerator_safe=accel,
+            storage_safe=storage,
+            sequence=sequence,
         )
-        try:
-            stored, _created = self._log.create(identity, record)
-        except ConflictError:
-            return refused(
-                AdmissionFailure.RESERVATION_CONFLICT,
-                "an existing hold does not match this admission",
-            )
-        if not isinstance(stored, ResourceReservation):
-            return refused(
-                AdmissionFailure.RESERVATION_STATE_INVALID,
-                "store returned an unexpected record",
-            )
-        return _admitted(stored)
 
     def _admit_probe(
         self,
@@ -267,10 +236,23 @@ class ResourceManager:
             return refused(
                 AdmissionFailure.CAPACITY_UNRESOLVED, "safe memory is unknown"
             )
-        if (probe.persistent_bytes or probe.transient_bytes) and storage is None:
+        host_used = sum(item.host_memory_bytes for item in ledger.active)
+        accel_used = sum(
+            item.accelerator_memory_bytes
+            for item in ledger.active
+            if item.accelerator_identity == probe.accelerator_identity
+        )
+        host_left = host - host_used
+        accel_left = accel - accel_used
+        if host_left < 1:
             return refused(
-                AdmissionFailure.CAPACITY_UNRESOLVED,
-                "safe storage is unknown",
+                AdmissionFailure.INSUFFICIENT_HOST_MEMORY,
+                "host safe memory is short",
+            )
+        if accel_left < 1:
+            return refused(
+                AdmissionFailure.INSUFFICIENT_ACCELERATOR_CAPACITY,
+                "accelerator safe memory is short",
             )
         sequence = _sequence(
             ledger,
@@ -278,11 +260,48 @@ class ResourceManager:
             fingerprint=probe.fingerprint,
             capacity_evidence_id=probe.capacity_evidence_id,
         )
-        identity = reservation_id(
+        return self._place(
+            ledger=ledger,
             plan_id=probe.probe_id,
             fingerprint=probe.fingerprint,
             request_id=probe.probe_id,
             capacity_evidence_id=capacity.evidence_id,
+            accelerator_identity=probe.accelerator_identity,
+            accelerator_memory_bytes=accel_left,
+            host_memory_bytes=host_left,
+            persistent_bytes=0,
+            transient_bytes=0,
+            cpu_count=1,
+            host_safe=host,
+            accelerator_safe=accel,
+            storage_safe=storage,
+            sequence=sequence,
+        )
+
+    def _place(
+        self,
+        *,
+        ledger: _Ledger,
+        plan_id: str,
+        fingerprint: str,
+        request_id: str,
+        capacity_evidence_id: str,
+        accelerator_identity: str,
+        accelerator_memory_bytes: int,
+        host_memory_bytes: int,
+        persistent_bytes: int,
+        transient_bytes: int,
+        cpu_count: int,
+        host_safe: int,
+        accelerator_safe: int,
+        storage_safe: int | None,
+        sequence: int,
+    ) -> AdmissionDecision:
+        identity = reservation_id(
+            plan_id=plan_id,
+            fingerprint=fingerprint,
+            request_id=request_id,
+            capacity_evidence_id=capacity_evidence_id,
             sequence=sequence,
         )
         for existing in ledger.active:
@@ -290,26 +309,29 @@ class ResourceManager:
                 return _admitted(existing)
         fit = _fits(
             ledger.active,
-            probe,
-            probe.accelerator_identity,
-            host,
-            accel,
-            storage,
+            accelerator_identity=accelerator_identity,
+            accelerator_memory_bytes=accelerator_memory_bytes,
+            host_memory_bytes=host_memory_bytes,
+            persistent_bytes=persistent_bytes,
+            transient_bytes=transient_bytes,
+            host_safe=host_safe,
+            accelerator_safe=accelerator_safe,
+            storage_safe=storage_safe,
         )
         if fit is not None:
             return fit
         record = ResourceReservation(
             reservation_id=identity,
-            plan_id=probe.probe_id,
-            fingerprint=probe.fingerprint,
-            request_id=probe.probe_id,
-            capacity_evidence_id=capacity.evidence_id,
-            accelerator_identity=probe.accelerator_identity,
-            accelerator_memory_bytes=probe.accelerator_memory_bytes,
-            host_memory_bytes=probe.host_memory_bytes,
-            persistent_bytes=probe.persistent_bytes,
-            transient_bytes=probe.transient_bytes,
-            cpu_count=probe.cpu_count,
+            plan_id=plan_id,
+            fingerprint=fingerprint,
+            request_id=request_id,
+            capacity_evidence_id=capacity_evidence_id,
+            accelerator_identity=accelerator_identity,
+            accelerator_memory_bytes=accelerator_memory_bytes,
+            host_memory_bytes=host_memory_bytes,
+            persistent_bytes=persistent_bytes,
+            transient_bytes=transient_bytes,
+            cpu_count=cpu_count,
             policy_version=POLICY_VERSION,
             state=ReservationState.RESERVED,
         )
@@ -420,14 +442,18 @@ def _pair(
 
 def _fits(
     active: tuple[ResourceReservation, ...],
-    request: ResourceRequest | QualificationProbe,
+    *,
     accelerator_identity: str,
+    accelerator_memory_bytes: int,
+    host_memory_bytes: int,
+    persistent_bytes: int,
+    transient_bytes: int,
     host_safe: int,
     accelerator_safe: int,
     storage_safe: int | None,
 ) -> AdmissionDecision | None:
     host_used = sum(item.host_memory_bytes for item in active)
-    if host_used + request.host_memory_bytes > host_safe:
+    if host_used + host_memory_bytes > host_safe:
         return refused(
             AdmissionFailure.INSUFFICIENT_HOST_MEMORY, "host safe memory is short"
         )
@@ -436,7 +462,7 @@ def _fits(
         for item in active
         if item.accelerator_identity == accelerator_identity
     )
-    if accel_used + request.accelerator_memory_bytes > accelerator_safe:
+    if accel_used + accelerator_memory_bytes > accelerator_safe:
         return refused(
             AdmissionFailure.INSUFFICIENT_ACCELERATOR_CAPACITY,
             "accelerator safe memory is short",
@@ -445,12 +471,12 @@ def _fits(
         return None
     used = sum(item.persistent_bytes + item.transient_bytes for item in active)
     remaining = storage_safe - used
-    if request.persistent_bytes > remaining:
+    if persistent_bytes > remaining:
         return refused(
             AdmissionFailure.INSUFFICIENT_PERSISTENT_STORAGE,
             "safe storage cannot hold the persistent request",
         )
-    if request.persistent_bytes + request.transient_bytes > remaining:
+    if persistent_bytes + transient_bytes > remaining:
         return refused(
             AdmissionFailure.INSUFFICIENT_TRANSIENT_STORAGE,
             "safe storage cannot hold the transient request",

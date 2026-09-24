@@ -8,6 +8,7 @@ from machi.kernel.clock import Clock, FixedClock
 from machi.kernel.events import EventOutcome, EventRecord
 from machi.kernel.privacy import PrivacyClass
 from machi.kernel.schema import Contract, contract, meaning
+from machi.model.comparison import QualificationComparison
 from machi.model.contracts import (
     AvailableModels,
     ModelArtifact,
@@ -22,6 +23,7 @@ SELECTED_TYPE = "model.selected"
 ACQUIRED_TYPE = "model.acquisition.completed"
 ACQUIRE_FAILED_TYPE = "model.acquisition.failed"
 INTEGRITY_FAILED_TYPE = "model.artifact.integrity_failed"
+COMPARED_TYPE = "model.qualification.compared"
 
 
 @contract(kind="model.inspected", version=1)
@@ -164,4 +166,19 @@ def acquisition_events(
             ),
             clock=clock,
         ),
+    )
+
+
+def comparison_event(
+    comparison: QualificationComparison, *, clock: Clock
+) -> EventRecord:
+    """Local analytics witness. It does not decide provider fit."""
+    return EventRecord.create(
+        event_type=COMPARED_TYPE,
+        block_id=MODEL_BLOCK,
+        component_id=MODEL_COMPONENT,
+        outcome=EventOutcome.INFO,
+        privacy=PrivacyClass.OPERATIONAL,
+        payload=comparison,
+        clock=clock,
     )

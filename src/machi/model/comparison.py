@@ -12,7 +12,10 @@ from machi.kernel.errors import ValidationError
 from machi.kernel.schema import Contract, contract, meaning
 from machi.kernel.unresolved import NOT_MEASURED, Maybe
 from machi.model.identity import input_token
-from machi.model.provider_qualification import OllamaQualificationEvidence
+from machi.model.provider_qualification import (
+    OllamaQualificationEvidence,
+    ProviderFitState,
+)
 from machi.model.qualification import QualificationOutcome
 from machi.model.shadow import SHADOW_POLICY, FitState, ShadowEvaluation
 
@@ -55,7 +58,8 @@ class QualificationComparison(Contract):
     shadow_accelerator_availability: MetricAvailability = meaning(
         "availability of the machi accelerator estimate"
     )
-    provider_outcome: QualificationOutcome = meaning("authoritative outcome")
+    provider_fit: ProviderFitState = meaning("ollama specialist fit verdict")
+    provider_outcome: QualificationOutcome = meaning("overall qualification outcome")
     provider_failure: str = meaning("authoritative failure")
     provider_size_bytes: Maybe[int] = meaning("provider reported size")
     provider_size_vram_bytes: Maybe[int] = meaning("provider size_vram")
@@ -107,18 +111,15 @@ class QualificationComparison(Contract):
             raise ValidationError("vram comparison semantics are not supported")
 
 
-def classify(shadow: FitState, outcome: QualificationOutcome) -> ComparisonClass:
-    """Map the two fit verdicts. A host fault is not a fit verdict."""
-    if shadow is FitState.UNRESOLVED:
+def classify(shadow: FitState, provider: ProviderFitState) -> ComparisonClass:
+    """Compare specialist fit verdicts. Later proof failures stay separate."""
+    if shadow is FitState.UNRESOLVED or provider is ProviderFitState.UNRESOLVED:
         return ComparisonClass.MACHI_UNRESOLVED
-    if outcome is QualificationOutcome.FAIL_HOST:
-        return ComparisonClass.MACHI_UNRESOLVED
-    provider_fit = outcome is QualificationOutcome.PASS
-    if shadow is FitState.FIT and provider_fit:
+    if shadow is FitState.FIT and provider is ProviderFitState.FIT:
         return ComparisonClass.AGREE_FIT
-    if shadow is FitState.NO_FIT and not provider_fit:
+    if shadow is FitState.NO_FIT and provider is ProviderFitState.NO_FIT:
         return ComparisonClass.AGREE_NO_FIT
-    if shadow is FitState.NO_FIT and provider_fit:
+    if shadow is FitState.NO_FIT and provider is ProviderFitState.FIT:
         return ComparisonClass.MACHI_FALSE_NEGATIVE
     return ComparisonClass.MACHI_FALSE_POSITIVE
 
@@ -132,7 +133,7 @@ def compare(
     observed_at: dt.datetime,
 ) -> QualificationComparison:
     """Record both results. The provider outcome is copied, not recomputed."""
-    classification = classify(shadow.fit, evidence.outcome)
+    classification = classify(shadow.fit, evidence.provider_fit)
     delta, ratio, semantics, availability = _vram(
         shadow.accelerator_bytes, evidence.size_vram_bytes
     )
@@ -166,6 +167,7 @@ def compare(
         shadow_host_bytes=shadow.host_bytes,
         shadow_storage_bytes=shadow.storage_bytes,
         shadow_accelerator_availability=shadow.accelerator_availability,
+        provider_fit=evidence.provider_fit,
         provider_outcome=evidence.outcome,
         provider_failure=evidence.failure,
         provider_size_bytes=evidence.size_bytes,

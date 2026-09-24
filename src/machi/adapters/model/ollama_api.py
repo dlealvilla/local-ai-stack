@@ -1,4 +1,4 @@
-"""Ollama public API seam. This increment's implementation is a fixture."""
+"""Ollama public API seam for v0.34.3. This increment is a fixture."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ GENERATE_PATH = "/api/generate"
 
 @dataclass(frozen=True, slots=True)
 class ListedModel:
+    """GET /api/tags. Digest lives here, not on show."""
+
     name: str
     digest: str
     size_bytes: int | None
@@ -21,8 +23,9 @@ class ListedModel:
 
 @dataclass(frozen=True, slots=True)
 class ShownModel:
+    """POST /api/show. Metadata only. v0.34.3 does not return a digest."""
+
     name: str
-    digest: str
     size_bytes: int | None
     family: str | None = None
     quantization: str | None = None
@@ -35,6 +38,8 @@ class ShownModel:
 
 @dataclass(frozen=True, slots=True)
 class RunningModel:
+    """GET /api/ps. Name and digest together are the residency proof."""
+
     name: str
     digest: str
     size_bytes: int | None
@@ -42,11 +47,18 @@ class RunningModel:
 
 
 @dataclass(frozen=True, slots=True)
-class GenerateResult:
+class PreloadResult:
+    """Empty POST /api/generate. Load and scheduler outcome, not a token."""
+
     failure: str
-    digest: str
-    size_bytes: int | None
-    size_vram_bytes: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class GenerateResult:
+    """Real small POST /api/generate after a proved resident identity."""
+
+    failure: str
+    input_tokens: int
     output_tokens: int
     load_seconds: float | None
     generation_seconds: float | None
@@ -58,7 +70,7 @@ class UnloadResult:
 
 
 class OllamaModelApi(Protocol):
-    """v0.34.3 public calls Chunk 3 needs. No private scheduler surface."""
+    """Public v0.34.3 calls. No private scheduler surface."""
 
     def list_models(self) -> tuple[ListedModel, ...]:
         """GET /api/tags."""
@@ -66,24 +78,29 @@ class OllamaModelApi(Protocol):
     def show_model(self, name: str) -> ShownModel | None:
         """POST /api/show."""
 
+    def preload(self, name: str) -> PreloadResult:
+        """Empty generate. This is not the token probe."""
+
     def running_models(self) -> tuple[RunningModel, ...]:
         """GET /api/ps."""
 
-    def generate(self, name: str) -> GenerateResult:
-        """POST /api/generate for the qualification token."""
+    def generate_probe(self, name: str) -> GenerateResult:
+        """Real token request."""
 
     def unload(self, name: str) -> UnloadResult:
-        """Release residency. Failure stays separate from the token result."""
+        """Ask the provider to drop residency."""
 
 
 class FixtureOutcome(StrEnum):
     PASS = "pass"
     NO_FIT = "no_fit"
     HOST_FAILURE = "host_failure"
-    DIGEST_MISMATCH = "digest_mismatch"
-    MISSING_FROM_PS = "missing_from_ps"
+    CATALOG_DRIFT = "catalog_drift"
+    PRELOAD_IDENTITY_MISMATCH = "preload_identity_mismatch"
+    POST_TOKEN_IDENTITY_MISMATCH = "post_token_identity_mismatch"
     NO_TOKEN = "no_token"
     UNLOAD_FAILURE = "unload_failure"
+    RESIDENT_AFTER_UNLOAD = "resident_after_unload"
 
 
 class FakeOllamaApi:
@@ -94,7 +111,7 @@ class FakeOllamaApi:
         *,
         name: str,
         digest: str,
-        outcome: FixtureOutcome,
+        outcome: FixtureOutcome = FixtureOutcome.PASS,
         size_bytes: int = 1000,
         size_vram_bytes: int = 800,
         other_digest: str = "cd" * 32,
@@ -105,13 +122,38 @@ class FakeOllamaApi:
         self.size_bytes = size_bytes
         self.size_vram_bytes = size_vram_bytes
         self.other_digest = other_digest
+        self.tag_digest = digest
+        if outcome is FixtureOutcome.CATALOG_DRIFT:
+            self.tag_digest = other_digest
+        self.preload_failure = "none"
+        self.after_preload_digest = digest
+        self.after_token_digest = digest
+        self.output_tokens = 4
+        self.input_tokens = 3
+        self.unload_failure = "none"
+        self.remain_after_unload = False
+        self._phase = "idle"
         self.calls: list[str] = []
+        if outcome is FixtureOutcome.NO_FIT:
+            self.preload_failure = "no_fit"
+        elif outcome is FixtureOutcome.HOST_FAILURE:
+            self.preload_failure = "host"
+        elif outcome is FixtureOutcome.PRELOAD_IDENTITY_MISMATCH:
+            self.after_preload_digest = other_digest
+        elif outcome is FixtureOutcome.POST_TOKEN_IDENTITY_MISMATCH:
+            self.after_token_digest = other_digest
+        elif outcome is FixtureOutcome.NO_TOKEN:
+            self.output_tokens = 0
+        elif outcome is FixtureOutcome.UNLOAD_FAILURE:
+            self.unload_failure = "unload_failed"
+        elif outcome is FixtureOutcome.RESIDENT_AFTER_UNLOAD:
+            self.remain_after_unload = True
 
     def list_models(self) -> tuple[ListedModel, ...]:
         self.calls.append(TAGS_PATH)
         return (
             ListedModel(
-                name=self.name, digest=self.digest, size_bytes=self.size_bytes
+                name=self.name, digest=self.tag_digest, size_bytes=self.size_bytes
             ),
         )
 
@@ -119,53 +161,36 @@ class FakeOllamaApi:
         self.calls.append(SHOW_PATH)
         if name != self.name:
             return None
-        digest = self.digest
-        if self.outcome is FixtureOutcome.DIGEST_MISMATCH:
-            digest = self.other_digest
-        return ShownModel(
-            name=name,
-            digest=digest,
-            size_bytes=self.size_bytes,
-        )
+        return ShownModel(name=name, size_bytes=self.size_bytes)
+
+    def preload(self, name: str) -> PreloadResult:
+        del name
+        self.calls.append("preload")
+        if self.preload_failure != "none":
+            return PreloadResult(self.preload_failure)
+        self._phase = "loaded"
+        return PreloadResult("none")
 
     def running_models(self) -> tuple[RunningModel, ...]:
         self.calls.append(PS_PATH)
-        if self.outcome is FixtureOutcome.MISSING_FROM_PS:
-            return ()
-        if self.outcome in {
-            FixtureOutcome.NO_FIT,
-            FixtureOutcome.HOST_FAILURE,
-            FixtureOutcome.DIGEST_MISMATCH,
-        }:
-            return ()
-        return (
-            RunningModel(
-                name=self.name,
-                digest=self.digest,
-                size_bytes=self.size_bytes,
-                size_vram_bytes=self.size_vram_bytes,
-            ),
-        )
+        if self._phase == "unloaded":
+            if not self.remain_after_unload:
+                return ()
+            return (self._running(self.digest),)
+        if self._phase == "loaded":
+            return (self._running(self.after_preload_digest),)
+        if self._phase == "token":
+            return (self._running(self.after_token_digest),)
+        return ()
 
-    def generate(self, name: str) -> GenerateResult:
+    def generate_probe(self, name: str) -> GenerateResult:
         del name
-        self.calls.append(GENERATE_PATH)
-        failure = "none"
-        tokens = 4
-        if self.outcome is FixtureOutcome.HOST_FAILURE:
-            failure = "host"
-            tokens = 0
-        elif self.outcome is FixtureOutcome.NO_FIT:
-            failure = "no_fit"
-            tokens = 0
-        elif self.outcome is FixtureOutcome.NO_TOKEN:
-            tokens = 0
+        self.calls.append("generate_probe")
+        self._phase = "token"
         return GenerateResult(
-            failure=failure,
-            digest=self.digest,
-            size_bytes=self.size_bytes,
-            size_vram_bytes=self.size_vram_bytes,
-            output_tokens=tokens,
+            failure="none",
+            input_tokens=self.input_tokens,
+            output_tokens=self.output_tokens,
             load_seconds=0.2,
             generation_seconds=0.1,
         )
@@ -173,6 +198,15 @@ class FakeOllamaApi:
     def unload(self, name: str) -> UnloadResult:
         del name
         self.calls.append("unload")
-        if self.outcome is FixtureOutcome.UNLOAD_FAILURE:
-            return UnloadResult("unload_failed")
+        if self.unload_failure != "none":
+            return UnloadResult(self.unload_failure)
+        self._phase = "unloaded"
         return UnloadResult("none")
+
+    def _running(self, digest: str) -> RunningModel:
+        return RunningModel(
+            name=self.name,
+            digest=digest,
+            size_bytes=self.size_bytes,
+            size_vram_bytes=self.size_vram_bytes,
+        )

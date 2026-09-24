@@ -1,10 +1,16 @@
-"""Map a fixture Ollama result into provider qualification evidence."""
+"""Map fixture Ollama results into provider qualification evidence."""
 
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 
-from machi.adapters.model.ollama_api import OllamaModelApi
+from machi.adapters.model.ollama_api import (
+    GenerateResult,
+    ListedModel,
+    OllamaModelApi,
+    RunningModel,
+)
 from machi.foundation.metrics import MetricAvailability
 from machi.kernel.unresolved import NOT_MEASURED, Maybe
 from machi.model.provider_candidate import (
@@ -13,6 +19,7 @@ from machi.model.provider_candidate import (
 )
 from machi.model.provider_qualification import (
     OllamaQualificationEvidence,
+    ProviderFitState,
     ollama_qualification_id,
 )
 from machi.model.qualification import QualificationOutcome
@@ -34,8 +41,8 @@ def qualify_ollama(
     observed_at: dt.datetime,
 ) -> OllamaQualificationEvidence:
     """Authoritative provider result. This function does not read a shadow."""
-    shown = api.show_model(candidate.display_name)
-    if shown is None or canonical_digest(shown.digest) != candidate.digest:
+    listed = _listed(api, candidate.display_name)
+    if listed is None or canonical_digest(listed.digest) != candidate.digest:
         return _evidence(
             candidate,
             generation_id=generation_id,
@@ -45,13 +52,13 @@ def qualify_ollama(
             context=context,
             concurrency=concurrency,
             outcome=QualificationOutcome.FAIL_MODEL,
-            failure="digest_mismatch",
+            provider_fit=ProviderFitState.UNRESOLVED,
+            failure="catalog_identity_changed",
             token_proved=False,
-            unload_failure="not_attempted",
             observed_at=observed_at,
         )
-    generated = api.generate(candidate.display_name)
-    if generated.failure == "host":
+    preloaded = api.preload(candidate.display_name)
+    if preloaded.failure == "host":
         return _evidence(
             candidate,
             generation_id=generation_id,
@@ -61,13 +68,12 @@ def qualify_ollama(
             context=context,
             concurrency=concurrency,
             outcome=QualificationOutcome.FAIL_HOST,
+            provider_fit=ProviderFitState.UNRESOLVED,
             failure="provider_host_failure",
             token_proved=False,
-            unload_failure="not_attempted",
-            load_seconds=generated.load_seconds,
             observed_at=observed_at,
         )
-    if generated.failure == "no_fit":
+    if preloaded.failure == "no_fit":
         return _evidence(
             candidate,
             generation_id=generation_id,
@@ -77,22 +83,13 @@ def qualify_ollama(
             context=context,
             concurrency=concurrency,
             outcome=QualificationOutcome.FAIL_MODEL,
+            provider_fit=ProviderFitState.NO_FIT,
             failure="provider_no_fit",
             token_proved=False,
-            unload_failure="not_attempted",
-            load_seconds=generated.load_seconds,
-            size_bytes=_maybe_int(generated.size_bytes),
             observed_at=observed_at,
         )
-    running = api.running_models()
-    matched = [
-        item
-        for item in running
-        if canonical_digest(item.digest) == candidate.digest
-    ]
-    unload = api.unload(candidate.display_name)
-    unload_failure = unload.failure if unload.failure != "none" else "none"
-    if not matched:
+    resident = _resident(api, candidate)
+    if resident is None:
         return _evidence(
             candidate,
             generation_id=generation_id,
@@ -102,21 +99,37 @@ def qualify_ollama(
             context=context,
             concurrency=concurrency,
             outcome=QualificationOutcome.FAIL_MODEL,
+            provider_fit=ProviderFitState.UNRESOLVED,
             failure="loaded_digest_absent",
             token_proved=False,
-            unload_failure=unload_failure,
-            load_seconds=generated.load_seconds,
             observed_at=observed_at,
         )
-    resident = matched[0]
+    generated = api.generate_probe(candidate.display_name)
     proved = generated.output_tokens > 0 and generated.failure == "none"
-    rate: Maybe[float] = NOT_MEASURED
-    if (
-        proved
-        and isinstance(generated.generation_seconds, float)
-        and generated.generation_seconds > 0
-    ):
-        rate = generated.output_tokens / generated.generation_seconds
+    after = _resident(api, candidate)
+    metrics = _metrics(resident, generated, proved)
+    if after is None:
+        return _evidence(
+            candidate,
+            generation_id=generation_id,
+            engine_version=engine_version,
+            hardware_class=hardware_class,
+            execution_environment_fingerprint=execution_environment_fingerprint,
+            context=context,
+            concurrency=concurrency,
+            outcome=QualificationOutcome.FAIL_MODEL,
+            provider_fit=ProviderFitState.FIT,
+            failure="post_token_identity_mismatch",
+            token_proved=False,
+            observed_at=observed_at,
+            size_bytes=metrics.size_bytes,
+            size_vram_bytes=metrics.size_vram_bytes,
+            load_seconds=metrics.load_seconds,
+            generation_seconds=metrics.generation_seconds,
+            input_tokens=metrics.input_tokens,
+            output_tokens=metrics.output_tokens,
+            tokens_per_second=metrics.tokens_per_second,
+        )
     if not proved:
         return _evidence(
             candidate,
@@ -127,15 +140,17 @@ def qualify_ollama(
             context=context,
             concurrency=concurrency,
             outcome=QualificationOutcome.FAIL_MODEL,
+            provider_fit=ProviderFitState.FIT,
             failure="token_proof_missing",
             token_proved=False,
-            unload_failure=unload_failure,
-            load_seconds=generated.load_seconds,
-            generation_seconds=generated.generation_seconds,
-            output_tokens=generated.output_tokens,
-            size_bytes=_maybe_int(resident.size_bytes),
-            size_vram_bytes=_maybe_int(resident.size_vram_bytes),
             observed_at=observed_at,
+            size_bytes=metrics.size_bytes,
+            size_vram_bytes=metrics.size_vram_bytes,
+            load_seconds=metrics.load_seconds,
+            generation_seconds=metrics.generation_seconds,
+            input_tokens=metrics.input_tokens,
+            output_tokens=metrics.output_tokens,
+            tokens_per_second=metrics.tokens_per_second,
         )
     return _evidence(
         candidate,
@@ -146,17 +161,69 @@ def qualify_ollama(
         context=context,
         concurrency=concurrency,
         outcome=QualificationOutcome.PASS,
+        provider_fit=ProviderFitState.FIT,
         failure="none",
         token_proved=True,
-        unload_failure=unload_failure,
-        load_seconds=generated.load_seconds,
-        generation_seconds=generated.generation_seconds,
-        output_tokens=generated.output_tokens,
-        tokens_per_second=rate,
+        observed_at=observed_at,
+        size_bytes=metrics.size_bytes,
+        size_vram_bytes=metrics.size_vram_bytes,
+        load_seconds=metrics.load_seconds,
+        generation_seconds=metrics.generation_seconds,
+        input_tokens=metrics.input_tokens,
+        output_tokens=metrics.output_tokens,
+        tokens_per_second=metrics.tokens_per_second,
+    )
+
+
+def _metrics(
+    resident: RunningModel, generated: GenerateResult, proved: bool
+) -> _ProbeMetrics:
+    return _ProbeMetrics(
         size_bytes=_maybe_int(resident.size_bytes),
         size_vram_bytes=_maybe_int(resident.size_vram_bytes),
-        observed_at=observed_at,
+        load_seconds=generated.load_seconds,
+        generation_seconds=generated.generation_seconds,
+        input_tokens=generated.input_tokens,
+        output_tokens=generated.output_tokens,
+        tokens_per_second=_rate(
+            generated.output_tokens, generated.generation_seconds, proved
+        ),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _ProbeMetrics:
+    size_bytes: Maybe[int]
+    size_vram_bytes: Maybe[int]
+    load_seconds: float | None
+    generation_seconds: float | None
+    input_tokens: int
+    output_tokens: int
+    tokens_per_second: Maybe[float]
+
+
+def _listed(api: OllamaModelApi, name: str) -> ListedModel | None:
+    for item in api.list_models():
+        if item.name == name:
+            return item
+    return None
+
+
+def _resident(
+    api: OllamaModelApi, candidate: OllamaCatalogCandidate
+) -> RunningModel | None:
+    for item in api.running_models():
+        if item.name != candidate.display_name:
+            continue
+        if canonical_digest(item.digest) == candidate.digest:
+            return item
+    return None
+
+
+def _rate(tokens: int, seconds: float | None, proved: bool) -> Maybe[float]:
+    if proved and isinstance(seconds, float) and seconds > 0 and tokens > 0:
+        return tokens / seconds
+    return NOT_MEASURED
 
 
 def _maybe_int(value: int | None) -> Maybe[int]:
@@ -175,12 +242,13 @@ def _evidence(
     context: int,
     concurrency: int,
     outcome: QualificationOutcome,
+    provider_fit: ProviderFitState,
     failure: str,
     token_proved: bool,
-    unload_failure: str,
     observed_at: dt.datetime,
     load_seconds: float | None = None,
     generation_seconds: float | None = None,
+    input_tokens: int | None = None,
     output_tokens: int | None = None,
     tokens_per_second: Maybe[float] = NOT_MEASURED,
     size_bytes: Maybe[int] = NOT_MEASURED,
@@ -206,6 +274,7 @@ def _evidence(
         context=context,
         concurrency=concurrency,
         outcome=outcome,
+        provider_fit=provider_fit,
         failure=failure,
         authority="ollama",
         size_bytes=size_bytes,
@@ -220,7 +289,9 @@ def _evidence(
         load_seconds=(
             load_seconds if isinstance(load_seconds, float) else NOT_MEASURED
         ),
-        input_tokens=NOT_MEASURED,
+        input_tokens=(
+            input_tokens if isinstance(input_tokens, int) else NOT_MEASURED
+        ),
         output_tokens=(
             output_tokens if isinstance(output_tokens, int) else NOT_MEASURED
         ),
@@ -231,6 +302,6 @@ def _evidence(
         ),
         tokens_per_second=tokens_per_second,
         token_proved=token_proved,
-        unload_failure=unload_failure,
+        unload_failure="not_attempted",
         observed_at=observed_at,
     )

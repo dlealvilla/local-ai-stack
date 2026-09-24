@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from enum import StrEnum
 
 from machi.foundation.metrics import MetricAvailability
 from machi.kernel.clock import require_utc
@@ -16,6 +17,14 @@ from machi.model.qualification import QualificationOutcome
 _TOKEN_MAX = 80
 _REASON_MAX = 240
 _VRAM_SEMANTICS = "runtime_reported"
+
+
+class ProviderFitState(StrEnum):
+    """Specialist fit. It is not the overall qualification outcome."""
+
+    FIT = "fit"
+    NO_FIT = "no_fit"
+    UNRESOLVED = "unresolved"
 
 
 @contract(kind="model.ollama_qualification", version=1)
@@ -35,6 +44,9 @@ class OllamaQualificationEvidence(Contract):
     context: int = meaning("qualification context")
     concurrency: int = meaning("qualification concurrency")
     outcome: QualificationOutcome = meaning("pass, model failure, or host failure")
+    provider_fit: ProviderFitState = meaning(
+        "specialist fit verdict; not inferred from a later proof failure"
+    )
     failure: str = meaning("typed provider failure, or none")
     authority: str = meaning("ollama; shadow is not this authority")
     size_bytes: Maybe[int] = meaning("provider-reported model size")
@@ -78,8 +90,11 @@ class OllamaQualificationEvidence(Contract):
             raise ValidationError("size_vram is runtime-reported, not a peak")
         if self.context < 1 or self.concurrency < 1:
             raise ValidationError("qualification envelope must be positive")
-        if self.outcome is QualificationOutcome.PASS and not self.token_proved:
-            raise ValidationError("a pass requires a counted output token")
+        if self.outcome is QualificationOutcome.PASS:
+            if not self.token_proved:
+                raise ValidationError("a pass requires a counted output token")
+            if self.provider_fit is not ProviderFitState.FIT:
+                raise ValidationError("a pass requires provider fit")
 
 
 def ollama_qualification_id(

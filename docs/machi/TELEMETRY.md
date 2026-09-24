@@ -96,6 +96,7 @@ Names are examples; the catalogue is owned by Kernel 0.3.
 - `capacity.characterized` / `capacity.minimum.completed`
 - `foundation.resolved` / `foundation.selected` / `foundation.verified`
 - `model.funnel.completed` / `model.selected` / `model.acquired`
+- `model.qualification.compared` (Block 6; privacy `operational`; payload is `model.qualification_comparison` version 1; digest and display name only; no prompt, response, model bytes, filesystem path, or user identity; journal failure does not rewrite provider fit)
 - `plan.created` / `plan.stale`
 - `admit.completed` / `admit.rejected` / `admit.released` / `admit.reconciliation_detected`
 - `serve.started` / `serve.ready` / `serve.failed` / `serve.stopped`

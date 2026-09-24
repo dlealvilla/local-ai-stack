@@ -4049,6 +4049,13 @@
         "may_be_unresolved": false,
         "meaning": "pass, model failure, or host failure"
       },
+      "provider_fit": {
+        "type": "ProviderFitState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "specialist fit verdict; not inferred from a later proof failure"
+      },
       "failure": {
         "type": "str",
         "optional": false,
@@ -4631,12 +4638,19 @@
         "may_be_unresolved": false,
         "meaning": "availability of the machi accelerator estimate"
       },
+      "provider_fit": {
+        "type": "ProviderFitState",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "ollama specialist fit verdict"
+      },
       "provider_outcome": {
         "type": "QualificationOutcome",
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "authoritative outcome"
+        "meaning": "overall qualification outcome"
       },
       "provider_failure": {
         "type": "str",
@@ -6115,41 +6129,6 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "device this probe asks to hold"
-      },
-      "accelerator_memory_bytes": {
-        "type": "int",
-        "optional": false,
-        "nullable": false,
-        "may_be_unresolved": false,
-        "meaning": "SAFE accelerator bytes requested"
-      },
-      "host_memory_bytes": {
-        "type": "int",
-        "optional": false,
-        "nullable": false,
-        "may_be_unresolved": false,
-        "meaning": "SAFE host bytes requested"
-      },
-      "persistent_bytes": {
-        "type": "int",
-        "optional": false,
-        "nullable": false,
-        "may_be_unresolved": false,
-        "meaning": "persistent bytes requested"
-      },
-      "transient_bytes": {
-        "type": "int",
-        "optional": false,
-        "nullable": false,
-        "may_be_unresolved": false,
-        "meaning": "transient bytes requested"
-      },
-      "cpu_count": {
-        "type": "int",
-        "optional": false,
-        "nullable": false,
-        "may_be_unresolved": false,
-        "meaning": "process slots requested"
       },
       "fingerprint": {
         "type": "str",

@@ -6,7 +6,6 @@ import datetime as dt
 from dataclasses import dataclass
 from enum import StrEnum
 
-from machi.capacity.contracts import CapacityEnvelope
 from machi.foundation.metrics import MetricAvailability
 from machi.kernel.clock import require_utc
 from machi.kernel.errors import ValidationError
@@ -78,15 +77,17 @@ class ShadowEvaluation(Contract):
 
 def evaluate_shadow(
     candidate: OllamaCatalogCandidate,
-    envelope: CapacityEnvelope,
     *,
+    capacity_evidence_id: str,
     accelerator_identity: str,
+    authorized_accelerator_bytes: int,
+    authorized_host_bytes: int,
     context: int,
     concurrency: int,
     observed_at: dt.datetime,
 ) -> ShadowEvaluation:
-    """Coarse Machi estimate from public facts and the current SAFE envelope."""
-    device_safe = _device_safe(envelope, accelerator_identity)
+    """Estimate against the admitted qualification hold, not total SAFE."""
+    del authorized_host_bytes
     published = candidate.size_bytes
     storage = published if is_resolved(published) else NOT_MEASURED
     storage_availability = (
@@ -110,18 +111,21 @@ def evaluate_shadow(
     reason = "attention_shape_not_exposed"
     accelerator: Maybe[int] = NOT_MEASURED
     accelerator_availability = MetricAvailability.UNRESOLVED
-    if not isinstance(device_safe, int):
+    if authorized_accelerator_bytes < 1:
         reason = "capacity_unresolved"
     elif isinstance(total, int):
         accelerator = total
         accelerator_availability = MetricAvailability.ESTIMATED
-        if total <= device_safe:
+        if total <= authorized_accelerator_bytes:
             fit = FitState.FIT
             reason = "estimated_requirement_within_safe"
         else:
             fit = FitState.NO_FIT
             reason = "estimated_requirement_exceeds_safe"
-    elif isinstance(candidate.size_bytes, int) and candidate.size_bytes > device_safe:
+    elif (
+        isinstance(candidate.size_bytes, int)
+        and candidate.size_bytes > authorized_accelerator_bytes
+    ):
         fit = FitState.NO_FIT
         reason = "published_size_exceeds_safe_accelerator"
         accelerator = candidate.size_bytes
@@ -129,8 +133,9 @@ def evaluate_shadow(
     token = input_token(
         candidate.candidate_id,
         candidate.digest,
-        envelope.evidence_id,
+        capacity_evidence_id,
         accelerator_identity,
+        str(authorized_accelerator_bytes),
         SHADOW_POLICY,
         str(context),
         str(concurrency),
@@ -140,7 +145,7 @@ def evaluate_shadow(
         candidate_id=candidate.candidate_id,
         provider="ollama",
         digest=candidate.digest,
-        capacity_evidence_id=envelope.evidence_id,
+        capacity_evidence_id=capacity_evidence_id,
         policy_version=SHADOW_POLICY,
         fit=fit,
         accelerator_bytes=accelerator,
@@ -153,13 +158,6 @@ def evaluate_shadow(
         provenance="machi.formula",
         observed_at=observed_at,
     )
-
-
-def _device_safe(envelope: CapacityEnvelope, identity: str) -> Maybe[int]:
-    for device in envelope.accelerators:
-        if device.identity == identity:
-            return device.safe_bytes
-    return NOT_MEASURED
 
 
 def _metadata(candidate: OllamaCatalogCandidate) -> NormalizedMetadata:
