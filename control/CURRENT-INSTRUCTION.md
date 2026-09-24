@@ -1,280 +1,180 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-**Instruction ID:** `MACHI-OLLAMA-CHUNK-02-CLOSEOUT-002`  
+**Instruction ID:** `MACHI-OLLAMA-CHUNK-02-FINAL-003`  
 **Program:** `MACHI-OLLAMA-MACROPATH-001`  
-**Chunk:** 2 of 6 — CLOSEOUT  
-**Mode:** LOCAL FIX / HARDEN / PACKAGE / PUSH / PUBLISH  
+**Chunk:** 2 of 6 — FINAL HARDENING  
+**Mode:** BOUNDED LOCAL CORRECTION + PACKAGE + PUSH  
+**Starting canonical HEAD:** `45b1734936164393c7434ddd09640c7c05e5fb7b`  
 **Physical server:** NO  
-**Model weights:** FORBIDDEN  
-**Model load/inference:** FORBIDDEN  
-**Chunk 3:** FORBIDDEN  
-**Integration branch:** `automation/ollama-macropath`  
-**Recovery checkpoint:** `checkpoint/native-vllm-partial-pass-2026-09-24`
+**Model pull/load/inference:** FORBIDDEN  
+**Chunk 3:** FORBIDDEN
 
-Read first:
-- `control/OLLAMA-MACROPATH-PROGRAM.md`
+Read:
+- `control/OLLAMA-CHUNK-02-LEAD-REVIEW-2.md`
 - `control/OLLAMA-CHUNK-01-DECISION.md`
 - `control/RUNTIME-ARTIFACT-REGISTRY-VISION.md`
-- canonical docs and current local Chunk-2 implementation
+- current branch source/docs/tests
 
-# 0. Why this closeout exists
+This is a narrow final closeout. Do not reopen accepted architecture.
 
-The reported Chunk-2 implementation is directionally accepted but is NOT closed because:
-1. the implementation commit reported as `073c5daf0baf319abc8b4d0f3f415999aeadf67f` was local-only and is not reviewable from canonical GitHub;
-2. isolated-wheel verification failed because `tools/prove_serve_fixture.py` is stale against the accepted qualification requirement;
-3. the managed Ollama archive path reportedly inflates the ~1.4 GB compressed archive fully into memory and the real `.tar.zst` path was not exercised.
+# A. Peak SAFE storage truth
 
-Close these issues without widening scope.
+Current implementation may hold compressed artifact + decompressed tar + extracted generation concurrently, while `safe_bytes` only bounds extraction.
 
-# 1. Preserve accepted Chunk-2 architecture
+Fix the provisioning transaction so **all Machi-owned bytes created by the attempt are covered by explicit SAFE capacity**.
 
-Keep:
-- `FoundationEngine.OLLAMA`;
-- verified-existing local Ollama;
-- Machi-owned managed-prefix Ollama;
-- Linux/NVIDIA first;
-- native process;
-- loopback/private endpoint;
-- cloud disabled;
-- no `/usr` mutation;
-- no global systemd;
-- no model pull/load/inference;
-- AUTO fallback disabled;
-- explicit local-API bypass debt;
-- Foundation readiness distinct from deployment readiness.
+Preferred implementation:
+1. caller supplies explicit `safe_bytes` from Capacity authority; missing authority refuses rather than falling back to an arbitrary 8 GiB authorization;
+2. stage and verify the compressed artifact;
+3. preflight the verified archive by streaming decompression directly into tar parsing without materializing a full decompressed tar file;
+4. reopen the same verified compressed artifact and stream-decompress/extract in a second pass;
+5. enforce the bound against:
+   - staged compressed copy;
+   - extracted bytes written;
+   - config/manifest/staging overhead;
+   - any other Machi-owned temporary bytes created by this transaction;
+6. require enough safe headroom for the actual peak owned footprint.
 
-Do not redesign Foundation unless a real invariant is broken.
+If you retain a decompressed tar file, prove the bound covers its full simultaneous footprint too.
 
-# 2. Fix the isolated-wheel verifier
+No `safe_bytes=None` path may authorize managed provisioning. An unresolved/missing Capacity input must return a typed refusal.
 
-The current Serve proof fixture predates the accepted rule that normal Serve requires qualification coverage.
+Add tests for:
+- compressed artifact itself larger than safe allowance;
+- archive declared payload + staged compressed bytes exceeding safe allowance;
+- actual extracted bytes exceeding allowance;
+- success when the full peak fits.
 
-Update the verifier/fixture to construct valid current qualification coverage:
-- current `QualificationEvidence` PASS;
-- current deployable membership/qualification identity as required by the real Plan/Serve contracts;
-- Plan/configuration cites the valid qualification;
-- Admit and Serve use that valid current identity.
+# B. Transactional promotion / registry consistency
 
-Do NOT:
-- remove the qualification requirement;
-- special-case the verifier in product code;
-- weaken Plan/Serve invariants;
-- bypass ResourceManager.
+Fix ordering around:
+- generation-local manifest;
+- final generation promotion;
+- central `foundation/environments/registry.json`.
 
-Then rebuild and rerun isolated-wheel verification until the final output contains `verify_ok`.
+Requirements:
+- no registry row may point at a generation that failed to promote;
+- registry update must be atomic (temp file + replace or existing repository pattern);
+- a failure after promotion must either safely roll back only the newly promoted positively owned generation or persist a typed reconcile state with proof; prefer bounded rollback for this increment;
+- never delete a pre-existing generation;
+- add injected failure tests for rename/promotion failure and registry-write/replace failure.
 
-# 3. Harden managed archive realization
+# C. Qualification-stable Foundation identity
 
-Do not hold the fully decompressed Ollama tar archive in RAM.
+Do not include ephemeral daemon port/address in model-qualification identity.
 
-Required transaction shape:
+Refactor identity so:
+- exact runtime recipe/version/content identity;
+- provider mode where materially relevant;
+- execution-environment fingerprint;
+- cloud/local security mode or endpoint class where material
 
-```text
-approved compressed artifact
-  -> Machi-owned download/staging file
-  -> verify expected SHA-256
-  -> read-only archive/preflight inspection where practical
-  -> verify SAFE storage/extraction bound
-  -> bounded streaming decompression + extraction
-  -> owned temporary installation generation
-  -> verify expected layout/binary/version
-  -> promote verified generation
-```
+can invalidate qualification, but:
+- a loopback port change alone does not.
 
-For this chunk the acquisition input may still be a local archive path supplied to the provisioner. Do not build a network downloader unless one already exists and is genuinely required.
+Keep the actual endpoint on raw/operational evidence.
 
-Security requirements:
-- verify compressed artifact digest before execution;
-- no execution from partial/unverified bytes;
-- reject absolute paths;
-- reject `..` traversal;
-- reject symlink/hardlink escape;
-- reject unsafe special/device members;
-- enforce cumulative declared/actual extraction bound;
-- write only under positively owned staging/state;
-- clean only positively owned failed staging;
-- never mutate a verified active generation in place;
-- checksum mismatch must not produce an installation.
+Add test:
+same runtime/environment on two different loopback ports -> same qualification-relevant Foundation generation identity (or same explicit qualification identity basis).
 
-Prefer a two-pass local archive approach where practical:
-1. preflight member metadata/declared sizes;
-2. stream extraction with the same bounds enforced again.
+# D. Verified-existing immutable runtime identity
 
-# 4. Exercise the real compressed path
+A verified-existing substrate must establish an immutable observed executable identity before it can support reusable model qualification.
 
-Add a small synthetic `.tar.zst` fixture that goes through the same zstd decompression/extraction implementation used by the managed provider.
+At minimum:
+- hash the actual executable bytes when the provider observes it;
+- store that executable/content SHA-256 as runtime identity/provenance;
+- include it in qualification-material generation identity for verified-existing mode.
 
-Test at least:
-- valid archive PASS;
-- checksum mismatch;
-- traversal path;
-- unsafe link;
-- extraction-size bound;
-- partial/staging cleanup;
-- active generation untouched on failure.
+If the executable cannot be read/hashed:
+- report the substrate as observed/unresolved or non-qualification-capable;
+- do not mint qualification-reusable READY identity.
 
-The fixture should be small. Do NOT download the 1.4 GB official archive merely for this local unit test.
+Do not compare executable SHA-256 to the release archive SHA-256.
 
-# 5. Future Runtime Artifact Registry compatibility — NO REGISTRY BUILD NOW
+Add tests for:
+- same reported version, changed executable bytes -> different generation/qualification identity;
+- missing/unreadable executable identity -> fail closed for qualification-capable READY.
 
-The accepted future vision is:
-- after the inference spine, build a Runtime Artifact Registry / software supply chain;
-- keep it separate from the Model Warehouse;
-- later support mirrored artifacts, pinned upstream, customer mirrors/imports, and offline bundles through the same artifact/recipe identities.
+# E. zstd prerequisite truth
 
-Current Chunk-2 code should therefore preserve this consumer-side invariant:
+The official Ollama v0.34.3 Linux archive requires zstd decompression.
 
-```text
-runtime recipe / artifact identity
-        !=
-one hard-coded byte-delivery location
-```
+Add explicit decompressor readiness:
+- identify the configured decompressor implementation;
+- preflight availability before provisioning;
+- missing decompressor -> typed prerequisite/unavailable/block reason, not generic package-install failure;
+- record provider/decompressor evidence where useful.
 
-Minimum expected behavior:
-- recipe identifies exact version/revision and checksum/provenance;
-- realization can consume an already-present verified artifact/local archive input;
-- source URL may be provenance, but must not become the identity;
-- installation/verification logic must not require GitHub specifically;
-- local staging and realization remain usable later with a vendor registry, customer mirror or offline bundle.
+Add debt, if not already represented, that the current managed Ollama path depends on an external decompressor and final plug-and-play productization must manage or bundle an approved helper artifact under the future Runtime Artifact Registry / managed-prerequisite supply chain.
 
-Do NOT create:
-- a hosted registry service;
-- a generic package manager;
-- a broad artifact-catalog domain;
-- speculative dependency resolution;
-- new networking infrastructure.
+Do not install zstd with apt/dnf and do not build the registry here.
 
-Only add a small source/acquisition port if the current implementation is otherwise concretely coupled to GitHub and a seam is required now.
+# F. Preserve accepted behavior
 
-# 6. Canonical product documentation
+Do not change:
+- Ollama v0.34.3 stable pin/checksum;
+- verified-existing + managed-prefix provider strategy;
+- loopback-only/cloud-off behavior;
+- no global /usr/systemd mutation;
+- artifact identity independent of delivery URL;
+- common Foundation analytics vocabulary;
+- AUTO still disabled;
+- no model weights/load/inference;
+- no physical server.
 
-The accepted future vision is committed on:
+# G. Gates
 
-`docs/post-spine-artifact-registry-vision`
-
-It updates:
-- `docs/PRODUCT_VISION.md`
-- `docs/STRATEGY.md`
-- `docs/machi/ROADMAP.md`
-- `docs/machi/ARCHITECTURE.md`
-
-Before final push, reconcile those accepted semantics into the final
-`automation/ollama-macropath` branch.
-
-Because Chunk 2 already modified some of the same docs, do not blindly overwrite them.
-Merge/reconcile the meaning:
-- post-spine Runtime Artifact Registry;
-- separate from Model Warehouse;
-- artifact identity independent of delivery provider;
-- build after spine, may run in parallel with Stage 2 lab;
-- mature before scaled Stage 3 / strong air-gap productization;
-- hosted registry remains outside Machi core.
-
-Also keep the truthful Chunk-2 Ollama status/debt/doc changes already made locally.
-
-# 7. Generic Foundation wording audit
-
-Now that `FoundationEngine.OLLAMA` exists, review generic contracts/comments/docstrings for stale statements that say generic Foundation concepts are inherently vLLM-only.
-
-Correct wording only when the concept is truly generic.
-
-Do not generalize vLLM-specific contracts such as Python/vLLM recipes merely for cosmetic symmetry.
-
-Keep Ollama-specific fields in Ollama contracts/adapters.
-
-# 8. Analytics audit
-
-Confirm that `foundation.metric` is a reusable normalized metric representation rather than a one-off ontology that would force Model/Serve to invent incompatible availability semantics later.
-
-It is acceptable for Foundation to own Foundation-level observations. The shared vocabulary should remain:
-- metric name;
-- value;
-- unit;
-- availability;
-- source/provenance;
-- privacy.
-
-Do not build the full analytics warehouse.
-
-# 9. Local gates
-
-Required:
+Run:
 - targeted Ollama/Foundation tests;
-- new compressed-archive tests;
-- updated isolated Serve fixture tests;
-- full `tests/machi`;
-- architecture boundary tests;
+- new peak-storage tests;
+- transaction failure-injection tests;
+- identity/hash tests;
+- zstd prerequisite tests;
+- full tests/machi;
+- architecture tests;
 - ruff;
-- strict scoped mypy;
+- strict mypy;
 - clean wheel build;
-- isolated-wheel verification ending in `verify_ok`.
+- isolated-wheel verification ending `verify_ok`.
 
-Max three same-root fix iterations.
+Then:
+- clean final commit;
+- push exact HEAD to `origin/automation/ollama-macropath`;
+- verify local == origin;
+- working tree clean except explicitly excluded proposal notes;
+- do not move recovery checkpoint.
 
-# 10. Source-control closure
+# H. Mandatory paste-back
 
-After all gates pass:
-- create a clean final implementation commit;
-- push exact final HEAD to `origin/automation/ollama-macropath`;
-- verify local HEAD == origin HEAD;
-- working tree clean except explicitly excluded local notes;
-- do not move the recovery checkpoint.
-
-The canonical remote source must be reviewable before this closeout can PASS.
-
-# 11. PASS criteria
-
-`OLLAMA_CHUNK_2_CLOSEOUT_PASS` requires:
-- all accepted Chunk-2 functionality remains;
-- no model weights/load/inference/server;
-- stable Ollama version/checksum provenance retained;
-- no unbounded full-tar-in-RAM decompression;
-- real `.tar.zst` code path locally tested;
-- stale Serve verifier fixed without weakening product rules;
-- all local/package gates green including `verify_ok`;
-- future artifact-registry vision reconciled into canonical product docs;
-- artifact identity not coupled to one delivery source;
-- exact final source pushed to origin;
-- origin HEAD equality proven.
-
-# 12. Mandatory paste-back
-
-Bound exactly:
-
-==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 CLOSEOUT ====================
+==================== BEGIN PASTE BACK — OLLAMA CHUNK 2 FINAL ====================
 
 A. STATUS  
-B. Starting local/origin SHA and recovery checkpoint  
-C. Changes since prior Chunk-2 paste-back  
-D. Serve verifier qualification fix  
-E. Archive realization design before/after  
-F. Streaming/preflight security controls  
-G. Real `.tar.zst` fixture evidence  
-H. Artifact identity vs delivery-source audit  
-I. Future Runtime Artifact Registry compatibility result  
-J. Canonical Product Vision/Strategy/Roadmap/Architecture reconciliation  
-K. Foundation generic-wording audit  
-L. Analytics vocabulary audit  
-M. Targeted/full test results  
-N. Ruff/mypy/architecture results  
-O. Clean wheel build ID + SHA256  
-P. Isolated-wheel `verify_ok` evidence  
-Q. Debts retained/added/closed  
-R. Exact support claim after closeout  
-S. Final local HEAD  
-T. Final origin HEAD and equality proof  
-U. Working-tree state  
-V. Exact proposed Chunk-3 scope  
-W. Final status
+B. Starting/final SHA  
+C. Peak-storage design and exact accounting formula  
+D. Evidence that missing Capacity cannot authorize provisioning  
+E. Streaming/preflight implementation  
+F. Transactional promotion/registry behavior  
+G. Failure-injection evidence  
+H. Foundation qualification identity before/after  
+I. Verified-existing executable identity behavior  
+J. zstd prerequisite behavior/debt  
+K. Files changed  
+L. Test/gate results  
+M. Clean wheel build ID + SHA256  
+N. Isolated `verify_ok`  
+O. Debts retained/added  
+P. Exact support claim  
+Q. Origin/local equality  
+R. Proposed Chunk-3 starting point  
+S. Final status
 
-End with exactly:
+End:
 
-`STOP — OLLAMA CHUNK 2 CLOSEOUT COMPLETE. WAIT FOR LEAD REVIEW.`
+`STOP — OLLAMA CHUNK 2 FINAL HARDENING COMPLETE. WAIT FOR LEAD REVIEW.`
 
-or a typed DECISION_REQUIRED/FAIL equivalent.
+or typed FAIL/DECISION_REQUIRED equivalent.
 
-==================== END PASTE BACK — OLLAMA CHUNK 2 CLOSEOUT ====================
-
-Publish through the existing GitHub handoff.
+==================== END PASTE BACK — OLLAMA CHUNK 2 FINAL ====================
 
 Do not begin Chunk 3.
