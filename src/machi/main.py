@@ -2234,7 +2234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("provider vllm")
             print("executor native_process")
             print("pid      false")
-            print("witness  deferred")
+            print("witness  projection")
             return 0
         if ns.command == "admit" and ns.admit_command == "inspect":
             return _inspect_reservations(Path(ns.store_dir))

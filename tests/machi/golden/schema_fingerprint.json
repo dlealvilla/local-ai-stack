@@ -3169,6 +3169,144 @@
       }
     }
   },
+  "kernel.deployment_witness@1": {
+    "python": "DeploymentWitness",
+    "fields": {
+      "witness_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "deterministic identity of these cited facts"
+      },
+      "install_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "install correlation, or not_recorded"
+      },
+      "capacity_evidence_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited capacity evidence, or not_recorded"
+      },
+      "foundation_selection_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited foundation selection"
+      },
+      "foundation_generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited foundation generation"
+      },
+      "model_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse artifact id or provider digest; catalogs stay separate"
+      },
+      "model_identity_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse_artifact, provider_digest, or not_recorded"
+      },
+      "qualification_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited qualification evidence, or not_recorded"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited plan"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited reservation"
+      },
+      "reservation_state": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reserved, released, or not_recorded"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited serving instance"
+      },
+      "instance_state": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "observed instance state, or not_recorded"
+      },
+      "inference_proof_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited inference proof, or not_recorded"
+      },
+      "inference_outcome": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "proven, failed, or not_recorded"
+      },
+      "release_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited release, or not_recorded"
+      },
+      "verdict": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "supported, incomplete, contradictory, or failed; never a boolean"
+      },
+      "reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why the verdict was reached; no paths or content"
+      },
+      "observed_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "caller-supplied observation time"
+      }
+    }
+  },
   "kernel.store.proof@1": {
     "python": "StoreProof",
     "fields": {
@@ -3211,6 +3349,32 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "whether a record already existed at this key"
+      }
+    }
+  },
+  "kernel.witness.composed@1": {
+    "python": "WitnessComposedPayload",
+    "fields": {
+      "witness_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity of the projection"
+      },
+      "verdict": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "supported, incomplete, contradictory, or failed"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "cited plan identity, or not_recorded"
       }
     }
   },

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "instruction_id": "MACHI-STAGE1-SPINE-CLOSURE-001",
+  "status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
+  "branch": "stage1/spine-closure",
+  "starting_source_sha": "2c12f00286d6e7d6d524baa7a7787099e476bf08",
+  "implementation_sha": "PENDING_CLEAN_COMMIT",
+  "closure_record_sha": "PENDING_CLEAN_COMMIT",
+  "build_id": "PENDING_CLEAN_WHEEL",
+  "wheel_filename": "machi-0.1.0-py3-none-any.whl",
+  "wheel_sha256": "PENDING_CLEAN_WHEEL",
+  "wheel_size_bytes": 0,
+  "isolated_verify": "PENDING",
+  "physical_campaigns_this_run": "NONE",
+  "witness": "kernel.deployment_witness@1 local projection",
+  "native_evidence": "INFERENCE-PROGRAM-005 L40S SmolLM2 request and restart",
+  "ollama_evidence": "OLLAMA-BUNDLE-07 A40 AUTO fallback and request inference",
+  "single_ledger": "ResourceManager",
+  "pending_physical": [
+    "AMD_native_vLLM",
+    "macOS_Ollama",
+    "NVIDIA_Ampere_N1_breadth"
+  ],
+  "debt_retired": ["M-6-03", "M-9-02-as-stage1-blocker", "M-9-01W"],
+  "debt_left_open": ["M-9-01", "M-5-AMD-01", "M-5-OLLAMA-05"],
+  "machi_promotion": "not performed; ancestor 1db7646; Lead review required",
+  "pod_created": false
+}

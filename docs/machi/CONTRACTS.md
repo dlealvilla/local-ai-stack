@@ -120,7 +120,7 @@ entity.
 | `ServingInstance` | 9.1 | Serve, Witness | Runtime state | yes | configuration + reservation IDs |
 | `ReadinessProof` | 9.3 | Serve | Proof | yes | not a user inference |
 | `InferenceProof` | 9.4 | Witness, usage | Proof | yes | purpose=request; no prompt text |
-| `DeploymentWitness` | 0.6 | CLI, API, Admin | Witness | derived | InstallRun + fact IDs |
+| `DeploymentWitness` (`kernel.deployment_witness`) | 0.6.1 | CLI, API, Admin | Witness | derived | cited install, capacity, foundation, model, plan, reservation, instance, and proof ids; no customer content |
 
 Lifecycle: observations and events are immutable. Profiles and
 selections are replaced by a new generation when invalidated.

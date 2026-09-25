@@ -61,8 +61,8 @@ Mounts: `2.4.1` accepted (Darwin + Docker overlay physical on SHA `3fbf6c83…`)
 Steward: Tier 2 accepted on SHA `a9234b69…`. It classifies and does not delete.  
 Capacity: Tier 2 accepted on SHA `56d6a5d7…`. SAFE planning envelopes. Sonar writes default off.  
 Foundation: development closed. NVIDIA CUDA qualified. AMD ROCm implemented, qualification deferred (`M-5-AMD-01`), not production support.  
-Next: Model. Not started. Do not start Model, Dynamo, an optimizer, or Team Brain without a new instruction.  
-Approved serving policy: vLLM primary, Ollama fallback, fallback not implemented.
+Model, Plan, Admit, native Serve, and the Ollama fallback macropath are implemented on the accepted product line. Stage-1 implementation closure is `STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING`. `machi` at `1db7646` is an ancestor, not the current tip.  
+Approved serving policy: AUTO prefers healthy native vLLM. Ollama is selected only for the approved unavailable states, and that selection recomputes Foundation → model → Plan → Admit → Serve. Explicit VLLM and OLLAMA fail closed. Do not start Dynamo, a frontend, a command center, or Team Brain without a new instruction.
 
 ## Packaging
 

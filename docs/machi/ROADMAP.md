@@ -718,10 +718,10 @@ existing components. Classifications do not reopen accepted checkpoints.
 | M3 Steward | KEEP | 1 | Ownership before capacity. Accepted at Tier 2 |
 | M4 Capacity | KEEP | 1 | SAFE bytes are the only storage authorization. Accepted at Tier 2 |
 | M5 Foundation | MODIFY | 1 | Native vLLM increment closed. NVIDIA CUDA qualified. AMD qualification deferred (`M-5-AMD-01`). AUTO may select Ollama only when native vLLM is unavailable by policy. That is not physical failover |
-| M6 Model | KEEP | 1 | Warehouse path accepted. Deployable membership now requires runtime qualification. Physical qualification is not run (`M-6-03`) |
+| M6 Model | KEEP | 1 | Warehouse path accepted. Deployable membership requires runtime qualification. L40S SmolLM2 qualification passed; that is not class-wide NVIDIA support. Ampere/N1 breadth remains `PHYSICAL_PENDING` (`M-6-03` retired as a Stage-1 blocker) |
 | M7 Plan | KEEP | 1 | Physically accepted on NVIDIA. Plan is not admission and not launch |
-| M8 Admit | KEEP | 1 | Physically accepted on NVIDIA as logical reservation authority. Serve is not started |
-| M9 Serve | KEEP | 1 | Local native vLLM serve. NVIDIA-N1 L5 inference did not pass (`M-9-02`). Witness composer remains deferred |
+| M8 Admit | KEEP | 1 | Physically accepted on NVIDIA as logical reservation authority. One ResourceManager ledger. Serve consumes authorization and does not reserve |
+| M9 Serve | KEEP | 1 | Native vLLM request and restart inference passed on one L40S. NVIDIA-N1 L5 did not pass; the tiny Llama remains negative evidence and is not the Stage-1 acceptance artifact. Kernel 0.6.1 DeploymentWitness projects persisted evidence. Restart, multi-instance, and public bind stay deferred |
 | OllamaExecutionMacropath | REPOSITION | 1 exit | `CLOSED_NVIDIA_STAGE1` on the qualified A40 cases. AMD is open. Model pull is not a product feature. Physical live failover is not claimed |
 | Runtime Artifact Registry / software supply chain | DEFER | post-spine, parallel with 2; gate before scaled 3 | Reproducible approved runtime/package delivery, mirrors, customer imports and offline bundles. Separate from Model Warehouse. Build after stable artifact/provenance/recipe contracts; do not widen current Ollama scope |
 | Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |

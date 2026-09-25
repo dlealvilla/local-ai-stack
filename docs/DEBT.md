@@ -2626,7 +2626,7 @@ Retire when:  readers no longer need the v1 wording to interpret an
 Status:       OPEN
 
 ### M-5-OLLAMA-03 — Official Linux prefix is not yet executed
-Label:        DEFERRED
+Label:        RETIRED
 Owner stage:  Foundation
 Subsystem:    foundation
 Authorizes:   NO
@@ -2671,6 +2671,22 @@ Retire when:  realization no longer depends on an unmanaged host
               `zstd` binary
 Status:       OPEN
 
+### M-5-OLLAMA-05 — macOS Ollama qualification is not executed
+Label:        PHYSICAL_PENDING
+Owner stage:  Foundation
+Subsystem:    foundation
+Authorizes:   NO
+What:         A macOS host has not run the managed Ollama prefix,
+              provider qualification, or one request inference.
+              Linux A40 evidence does not transfer.
+Why now:      Stage-1 closure keeps this coverage explicit. The
+              product must not claim Apple or macOS Ollama support.
+To make real: one macOS host, the pinned artifact for that OS,
+              a product-owned prefix, and one context-bound request
+              recorded as evidence.
+Retire when:  that host evidence is recorded
+Status:       OPEN
+
 ### M-6-OLLAMA-01 — Ollama residency can move under a Serve hold
 Label:        DEFERRED
 Owner stage:  Serve
@@ -2692,23 +2708,41 @@ Retire when:  that Serve boundary is specified and enforced, or an
               for the deployment model
 Status:       OPEN
 
-### M-9-01 — Deferred witness composer and further serve depth
+### M-9-01W — DeploymentWitness projection
+Label:        RETIRED
+Owner stage:  Kernel 0.6.1
+Subsystem:    kernel
+Authorizes:   NO
+What:         A read-time projection that cites persisted install,
+              capacity, foundation, model, plan, reservation,
+              instance, and inference identities and reports
+              supported, incomplete, contradictory, or failed.
+Why now:      Operators need the accepted journey explained from
+              stored records without a second orchestrator.
+Retire when:  the composer reads cited records and does not invent
+              a missing proof
+Status:       RETIRED (Stage-1 spine closure). Local projection
+              only. It does not restart a process, bind a public
+              endpoint, or admit resources.
+
+### M-9-01 — Deferred serve depth beyond the witness projection
 Label:        DEFERRED
 Owner stage:  Serve
 Subsystem:    serve
 Authorizes:   NO
-What:         The Kernel `DeploymentWitness` projection, automatic
-              restart, usage metrics beyond the inference event,
-              more than one serving instance, and a public endpoint.
+What:         Automatic restart, usage metrics beyond the inference
+              event, more than one serving instance, and a public
+              endpoint. The witness projection is `M-9-01W`.
 Why now:      Native M9 stores the plan, reservation, instance, and
-              inference proof. It does not compose a witness or
-              restart a dead process.
-Retire when:  a witness composer reads those stored records, or a
-              later serve decision names restart and usage
+              inference proof. It does not restart a dead process
+              or publish a remote endpoint.
+Retire when:  a later serve decision names restart, usage,
+              multi-instance, or public bind and that slice is
+              proven
 Status:       OPEN
 
 ### M-9-02 — Pinned vLLM cannot execute the stored tiny Llama
-Label:        DEFERRED
+Label:        RETIRED as a Stage-1 acceptance blocker
 Owner stage:  Serve
 Subsystem:    serve
 Authorizes:   NO
@@ -2728,7 +2762,18 @@ Retire when:  one real completion of this exact artifact succeeds on
               the pinned runtime, or an authorized decision replaces
               the artifact or the vLLM pin and the new candidate is
               proven on its own SHA
-Status:       OPEN
+Status:       RETIRED as a Stage-1 acceptance blocker
+              (MACHI-STAGE1-SPINE-CLOSURE-001). The Lead authorized
+              HuggingFaceTB/SmolLM2-135M-Instruct revision
+              `12fd25f77366fa6b3b4b768ec3050bf629380bac` and
+              SmolLM2-360M-Instruct revision
+              `a10cc1512eabd3dde888204e902eca88bddb4951` as the
+              Stage-1 native artifacts. Both already have request
+              and restart inference on one secure L40S. The tiny
+              Llama remains valid negative evidence: qualification
+              still refuses that attention shape, and this
+              retirement does not claim the tiny artifact executes.
+              NVIDIA Ampere/N1 breadth stays PHYSICAL_PENDING.
 
 ### M-8-01 — Deferred enforcement beyond single-host accounting
 Label:        DEFERRED
@@ -2771,7 +2816,8 @@ Authorizes:   NO
 What:         Multi-GPU planning, tensor parallel above 1, pipeline
               parallel, a measured serving-memory model, benchmark
               search, learned optimization, llama.cpp, MLX, and
-              Ollama planners, and dynamic LoRA planning.
+              dynamic LoRA planning. The bounded Ollama provider
+              plan is implemented and is not this item.
 Why now:      The first plan asks Admit for one accelerator inside
               the cited SAFE budget and writes a bounded vLLM
               recipe. It does not tune or admit.
@@ -2790,11 +2836,18 @@ What:         A real one-token probe on the verified vLLM generation.
               and Accelerate are not estimators in this path.
 Why now:      Architecture recognition admitted a head-size-4 Llama
               that vLLM 0.18 could not execute. The new gate refuses
-              that shape before qualification. No external artifact
-              has a `model.qualification` pass on hardware.
+              that shape before qualification.
 Retire when:  one candidate is qualified on NVIDIA-N1 with the new
               identity, or the lead chooses not to run that probe
-Status:       OPEN
+Status:       RETIRED (Stage-1 spine closure, 2026-09-25). The
+              retire-when clause allows the Lead to skip the
+              NVIDIA-N1 probe. Instruction
+              MACHI-STAGE1-SPINE-CLOSURE-001 makes that choice.
+              Real qualification already exists for the two SmolLM2
+              artifacts on one secure L40S, recorded in
+              INFERENCE-PROGRAM-005. That pass is not class-wide
+              NVIDIA or Ada support. Ampere/N1 breadth remains
+              PHYSICAL_PENDING.
 
 ### M-6-01 — Deferred model catalog, conversion, and training
 Label:        DEFERRED

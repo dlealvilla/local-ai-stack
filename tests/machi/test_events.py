@@ -16,6 +16,7 @@ import machi.foundation.events as foundation_events_module
 import machi.foundation.fallback as foundation_fallback_module
 import machi.install.events as install_events_module
 import machi.kernel.store_proof as store_proof_module
+import machi.kernel.witness as kernel_witness_module
 import machi.model.comparison as model_comparison_module
 import machi.model.events as model_events_module
 import machi.model.predicates as model_predicates_module
@@ -172,6 +173,8 @@ def test_schema_fingerprint_matches_committed_golden() -> None:
     assert discover_events_module.MOUNT_OBSERVED_TYPE == "discover.mounts.observed"
     assert install_events_module.INSTALL_BOUND_TYPE == "install.bound"
     assert store_proof_module.STORE_PROVED_TYPE == "kernel.store.proved"
+    assert kernel_witness_module.WITNESS_COMPOSED_TYPE == "kernel.witness.composed"
+    assert kernel_witness_module.DeploymentWitness.kind == "kernel.deployment_witness"
     assert prerequisites_module is not None
     assert steward_events_module.OCCUPANCY_TYPE == "steward.occupancy.observed"
     assert foundation_events_module.INSPECTED_TYPE == "foundation.inspected"

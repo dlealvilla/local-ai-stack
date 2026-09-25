@@ -181,7 +181,7 @@ honestly without knowing who it is.
 - `InferenceProof` with `purpose=request` is PASS and the served
   model identity matches the selection;
 - Event journal contains the chain with one `InstallRun`;
-- `DeploymentWitness` can be composed from stored contracts + events
+- `DeploymentWitness` is composed from cited stored identities. It does not execute
   without live re-resolution.
 
 The serving process may be **stopped**. Success does not require it to
@@ -1143,7 +1143,8 @@ stored artifact. The Ollama path instead takes a current provider plan,
 `execution_authorized_provider`, a READY managed generation, and
 qualification coverage for the requested context.  
 **Outputs:** ServingInstance and InferenceProof.
-`DeploymentWitness` stays a later Kernel projection.  
+Kernel 0.6.1 `DeploymentWitness` projects those stored identities
+after the fact. It does not start, stop, or admit.  
 **Preconditions:** reservation still reserved and matched.  
 **Success:** runtime readiness, then one structurally valid request,
 then a confirmed stop.  
@@ -1193,7 +1194,7 @@ See [M9.md](M9.md).
   0.5 Privacy
     0.5.1 Classification + export allow-list
   0.6 Witness
-    0.6.1 DeploymentWitness composer
+    0.6.1 DeploymentWitness composer (projection of cited identities)
   0.7 Health
     0.7.1 Aggregator
 1 Install
