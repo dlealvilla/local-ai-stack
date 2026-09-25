@@ -8,6 +8,8 @@
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
     "amd_closure_gate": false,
     "amd_policy_record": "control/OLLAMA-NVIDIA-CLOSURE-AMD-OPTIONAL.md",
+    "amd_preflight_model": "host_prerequisites_then_machi_managed_rocm_userspace",
+    "amd_status": "OPEN_FUTURE_CROSS_MACROPATH_QUALIFICATION",
     "auto_fallback_scope": "local_control_plane_only_no_physical_live_failover_claim",
     "bundle": "control/OLLAMA-BUNDLE-07-NVIDIA-CLOSURE.md",
     "bundle_04_exact_context_qualification": false,
@@ -29,6 +31,10 @@
     ],
     "bundle_06_checkpoint": "checkpoint/ollama-generation-bound-serve-2026-09-24",
     "bundle_06_review": "control/OLLAMA-BUNDLE-06-LEAD-REVIEW.md",
+    "bundle_07_accepted": true,
+    "bundle_07_checkpoint": "checkpoint/ollama-nvidia-stage1-2026-09-24",
+    "bundle_07_final_sha": "2c12f00286d6e7d6d524baa7a7787099e476bf08",
+    "bundle_07_review": "control/OLLAMA-BUNDLE-07-LEAD-REVIEW.md",
     "carry_forward": "explicit_ollama_num_ctx_then_physical_requalification",
     "chunks": 6,
     "closure_scope": "nvidia_stage1",
@@ -46,6 +52,7 @@
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
     "next_action": "lead_reonboard_from_cursor_repository_truth_then_select_next_company_brain_workstream",
+    "ollama_stage1_status": "CLOSED_NVIDIA_STAGE1",
     "package_slices": [
       "migration_durability_k03",
       "runtime_choice_concrete_evidence",
@@ -63,17 +70,10 @@
     "qualifier_boundary": "control/OLLAMA-CHUNK-03-QUALIFIER-BOUNDARY.md",
     "serve_authorization_decision": "A_refined_accepted",
     "serve_authorization_decision_record": "control/OLLAMA-SERVE-AUTH-DECISION.md",
-    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger",
-    "ollama_stage1_status": "CLOSED_NVIDIA_STAGE1",
-    "bundle_07_review": "control/OLLAMA-BUNDLE-07-LEAD-REVIEW.md",
-    "bundle_07_accepted": true,
-    "bundle_07_final_sha": "2c12f00286d6e7d6d524baa7a7787099e476bf08",
-    "bundle_07_checkpoint": "checkpoint/ollama-nvidia-stage1-2026-09-24",
-    "amd_status": "OPEN_FUTURE_CROSS_MACROPATH_QUALIFICATION",
-    "amd_preflight_model": "host_prerequisites_then_machi_managed_rocm_userspace"
+    "serve_authorization_recommendation": "A_refined_sibling_provider_plan_same_resource_reservation_ledger"
   },
-  "published_instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
+  "published_instruction_id": "MACHI-LEAD-ONBOARDING-STATUS-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_READ_ONLY_ONBOARDING"
+  "status": "PASTEBACK_PUBLISHED"
 }
