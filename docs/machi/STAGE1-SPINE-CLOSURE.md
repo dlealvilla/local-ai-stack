@@ -16,9 +16,14 @@ It does not mean AMD support, macOS/Ollama support, all-NVIDIA support,
 live request-failure failover, multi-host placement, or a public
 control plane.
 
-Wheel identity, final SHA, and the local QA summary are recorded in
-[../../checkpoints/MACHI-STAGE1-SPINE-CLOSURE.json](../../checkpoints/MACHI-STAGE1-SPINE-CLOSURE.json)
-once the clean package exists.
+The implementation commit is `d116696667468494ae2e4327d11c98a6820d33cf`.
+Its clean wheel is `machi-0.1.0-py3-none-any.whl`, build
+`0.1.0+d11669666746`, SHA256
+`0a34a2390d1f89591e3e2508e04b441de7f8f17315fa7bddddc3b779a0a8fc63`,
+332957 bytes, isolated `verify_ok`. The branch tip that records these
+figures is the closure record. Local QA: ruff clean, mypy --strict
+clean on 178 files, `tests/machi` passed, `tests/acceptance_lab`
+passed. No accelerator was required.
 
 ## Architecture audit
 
