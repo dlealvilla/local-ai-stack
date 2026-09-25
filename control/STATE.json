@@ -1,8 +1,8 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "none_wait_for_next_company_brain_workstream",
-  "expected_pasteback_instruction_id": null,
-  "instruction_id": "MACHI-OLLAMA-NVIDIA-STAGE1-CLOSED",
+  "expected_cursor_action": "run_read_only_onboarding_status",
+  "expected_pasteback_instruction_id": "MACHI-LEAD-ONBOARDING-STATUS-001",
+  "instruction_id": "MACHI-LEAD-ONBOARDING-STATUS-001",
   "program": {
     "accepted_chunk_2_head": "180a4e898c5fcd46ae54a6d1c8aa8acfe84c66e6",
     "accepted_chunk_3_local_head": "4aa21ccabade398a8f931c5a231baed84bbf45f0",
@@ -45,7 +45,7 @@
     "model_catalog_policy": "native_machi_catalog_ollama_ollama_catalog",
     "name": "ollama-execution-macropath",
     "native_qualification_precedent": "probe_plan_reuses_reserved_vllm_serve",
-    "next_action": "lead_select_next_company_brain_workstream",
+    "next_action": "lead_reonboard_from_cursor_repository_truth_then_select_next_company_brain_workstream",
     "package_slices": [
       "migration_durability_k03",
       "runtime_choice_concrete_evidence",
@@ -75,5 +75,5 @@
   "published_instruction_id": "MACHI-OLLAMA-BUNDLE-07-NVIDIA-CLOSURE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "CLOSED_NVIDIA_STAGE1_ACCEPTED"
+  "status": "AWAITING_CURSOR_READ_ONLY_ONBOARDING"
 }
