@@ -26,6 +26,10 @@ shows the latest `exported_at`. Remove deletes only that local copy.
 Malformed JSON, an unknown schema version, and prohibited content keys
 fail closed. Imported documents are not executed.
 
+## List and history
+
+The deployments table searches install id, version, OS, accelerator, macropath, model, and Witness. It sorts by `exported_at` and shows the snapshot count plus snapshot age. Snapshot age is computed from the local clock and `exported_at`. It is not last-seen or online state. When an installation has more than one snapshot, detail can select an older export. Support evidence stays structured event envelopes.
+
 ## Screens
 
 Deployments, detail, support evidence, import, and settings. Status is

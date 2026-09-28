@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from machi.adapters.rukan.complete import Completion
+from machi.adapters.rukan.lifecycle import LifecycleOwner
 from machi.adapters.rukan.project import (
     export_snapshot,
     project_admin,
@@ -25,6 +27,7 @@ API_NAME = "rukan.admin.v1"
 _MAX_BODY = 65_536
 _MAX_PROMPT = 2_000
 _LOOPBACK = "127.0.0.1"
+_OVERRIDES = frozenset({"pid", "provider", "port", "runtime"})
 
 ModelHandler = Callable[[dict[str, object]], tuple[str, str, dict[str, object]]]
 StopHandler = Callable[[str], tuple[str, str]]
@@ -55,6 +58,7 @@ class AdminApplication:
         handlers: AdminHandlers | None = None,
         static_dir: Path | None = None,
         clock: Clock | None = None,
+        lifecycle: LifecycleOwner | None = None,
     ) -> None:
         self.store_root = Path(store_root)
         self.build = build
@@ -62,6 +66,7 @@ class AdminApplication:
         self.handlers = handlers or AdminHandlers()
         self.static_dir = static_dir
         self.clock = clock or SystemClock()
+        self.lifecycle = lifecycle
 
     def summary(self) -> dict[str, object]:
         view = project_admin(
@@ -73,9 +78,10 @@ class AdminApplication:
             "import_local": self.handlers.import_model is not None,
             "acquire_hub": self.handlers.acquire_model is not None,
         }
+        attached = self.lifecycle is not None
         body["lifecycle"] = {
-            "stop_attached": self.handlers.stop is not None,
-            "release_attached": self.handlers.release is not None,
+            "stop_attached": attached or self.handlers.stop is not None,
+            "release_attached": attached or self.handlers.release is not None,
         }
         return _envelope("ok", "stored evidence", body)
 
@@ -91,6 +97,8 @@ class AdminApplication:
         return _envelope("ok", "snapshot exported", document)
 
     def infer(self, body: dict[str, object]) -> dict[str, object]:
+        if _overrides(body):
+            return _envelope("refused", "runtime selection is not accepted", {})
         view = project_admin(
             self.store_root, self.build, journal_dir=self.journal_dir
         )
@@ -113,6 +121,7 @@ class AdminApplication:
             return _envelope("refused", "max_tokens is outside 1..64", {})
         if self.handlers.complete is None:
             return _envelope("refused", "interactive completer is not attached", {})
+        started = time.monotonic()
         result = self.handlers.complete(
             provider=chain.macropath,
             model_identity=chain.model_identity,
@@ -120,12 +129,14 @@ class AdminApplication:
             prompt=prompt,
             max_tokens=max_tokens,
         )
+        elapsed = round(time.monotonic() - started, 3)
         return _envelope(
             result.outcome,
             result.reason,
             {
                 "text": result.text,
                 "completion_tokens": result.completion_tokens,
+                "elapsed_seconds": elapsed,
                 "provider": result.provider,
                 "instance_id": result.instance_id,
                 "model_identity": result.model_identity,
@@ -134,6 +145,8 @@ class AdminApplication:
         )
 
     def stop(self, body: dict[str, object]) -> dict[str, object]:
+        if _overrides(body):
+            return _envelope("refused", "runtime selection is not accepted", {})
         view = project_admin(
             self.store_root, self.build, journal_dir=self.journal_dir
         )
@@ -142,12 +155,19 @@ class AdminApplication:
             return _envelope("refused", "instance is not the current chain", {})
         if view.chain.instance_state == "not_recorded":
             return _envelope("refused", "no serving instance is stored", {})
+        if self.lifecycle is not None:
+            outcome, reason = self.lifecycle.stop(
+                instance_id, view.chain.model_identity_kind
+            )
+            return _envelope(outcome, reason, {"instance_id": instance_id})
         if self.handlers.stop is None:
             return _envelope("refused", "lifecycle runtime is not attached", {})
         outcome, reason = self.handlers.stop(instance_id)
         return _envelope(outcome, reason, {"instance_id": instance_id})
 
     def release(self, body: dict[str, object]) -> dict[str, object]:
+        if _overrides(body):
+            return _envelope("refused", "runtime selection is not accepted", {})
         view = project_admin(
             self.store_root, self.build, journal_dir=self.journal_dir
         )
@@ -161,6 +181,11 @@ class AdminApplication:
             return _envelope("refused", "reservation is not the current chain", {})
         if view.chain.reservation_state == "not_recorded":
             return _envelope("refused", "no reservation is stored", {})
+        if self.lifecycle is not None:
+            outcome, reason = self.lifecycle.release(
+                view.chain.instance_id, view.chain.model_identity_kind
+            )
+            return _envelope(outcome, reason, {"reservation_id": reservation_id})
         if self.handlers.release is None:
             return _envelope("refused", "lifecycle runtime is not attached", {})
         outcome, reason = self.handlers.release(reservation_id)
@@ -331,6 +356,10 @@ def _write(
     handler.send_header("Cache-Control", "no-store")
     handler.end_headers()
     handler.wfile.write(encoded)
+
+
+def _overrides(body: dict[str, object]) -> bool:
+    return any(key in body for key in _OVERRIDES)
 
 
 def _envelope(outcome: str, reason: str, body: dict[str, object]) -> dict[str, object]:

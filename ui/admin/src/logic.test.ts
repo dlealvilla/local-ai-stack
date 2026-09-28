@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { canSendInference, releaseBlocked, witnessClass, type Summary } from "./logic";
+import {
+  canSendInference,
+  formatBytes,
+  modelKindLabel,
+  releaseBlocked,
+  usabilityLabel,
+  witnessClass,
+  type Summary,
+} from "./logic";
 
 function summary(overrides: Partial<Summary["body"]["chain"]> = {}): Summary {
   return {
@@ -77,5 +85,14 @@ describe("admin state", () => {
     expect(releaseBlocked(summary({ instance_state: "stopped" }))).toBe(false);
     expect(summary().body.model_operations.acquire_hub).toBe(false);
     expect(summary().body.live_claim).toBe(false);
+  });
+
+  it("formats bytes without inventing a measurement", () => {
+    expect(formatBytes("not_recorded").shown).toBe("not_recorded");
+    expect(formatBytes("2048").exact).toBe("2048 bytes");
+    expect(modelKindLabel("warehouse_artifact")).toBe("Warehouse artifact");
+    expect(modelKindLabel("provider_digest")).toBe("Provider digest");
+    expect(usabilityLabel("authorised_ready_instance", false)).toContain("Usable");
+    expect(usabilityLabel("no_instance", false)).toContain("Not usable");
   });
 });

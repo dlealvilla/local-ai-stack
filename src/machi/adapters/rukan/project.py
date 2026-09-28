@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TypeVar
 
@@ -42,7 +42,7 @@ from machi.model.provider_qualification import OllamaQualificationEvidence
 from machi.model.qualification import QualificationEvidence
 from machi.plan.contracts import DeploymentConfiguration
 from machi.plan.provider import ProviderDeploymentConfiguration
-from machi.serve.contracts import InferenceProof, ServingInstance
+from machi.serve.contracts import InferenceProof, ServeTransition, ServingInstance
 from machi.serve.provider import ProviderInferenceProof, ProviderServingInstance
 
 PHYSICAL_REGISTER = "product qualification register; not a live host status"
@@ -121,8 +121,11 @@ def project_admin(
     provider_plans = _typed(root, ProviderDeploymentConfiguration)
     reservations = _typed(root, ResourceReservation)
     releases = _typed(root, ReservationRelease)
-    native_instances = _typed(root, ServingInstance)
-    provider_instances = _typed(root, ProviderServingInstance)
+    steps = _typed(root, ServeTransition)
+    native_instances = _overlay_native(_typed(root, ServingInstance), steps)
+    provider_instances = _overlay_provider(
+        _typed(root, ProviderServingInstance), steps
+    )
     native_proofs = _typed(root, InferenceProof)
     provider_proofs = _typed(root, ProviderInferenceProof)
     artifacts = _typed(root, ModelArtifact)
@@ -627,6 +630,45 @@ def _support_events(journal_dir: Path | None) -> tuple[SupportEvent, ...]:
             )
         )
     return tuple(chosen[-_MAX_EVENTS:])
+
+
+def _latest_step(
+    instance_id: str, steps: tuple[ServeTransition, ...]
+) -> ServeTransition | None:
+    latest: ServeTransition | None = None
+    for step in steps:
+        if step.instance_id != instance_id:
+            continue
+        if latest is None or step.sequence >= latest.sequence:
+            latest = step
+    return latest
+
+
+def _overlay_native(
+    instances: tuple[ServingInstance, ...], steps: tuple[ServeTransition, ...]
+) -> tuple[ServingInstance, ...]:
+    visible: list[ServingInstance] = []
+    for item in instances:
+        latest = _latest_step(item.instance_id, steps)
+        if latest is None:
+            visible.append(item)
+        else:
+            visible.append(replace(item, state=latest.state, health=latest.health))
+    return tuple(visible)
+
+
+def _overlay_provider(
+    instances: tuple[ProviderServingInstance, ...],
+    steps: tuple[ServeTransition, ...],
+) -> tuple[ProviderServingInstance, ...]:
+    visible: list[ProviderServingInstance] = []
+    for item in instances:
+        latest = _latest_step(item.instance_id, steps)
+        if latest is None:
+            visible.append(item)
+        else:
+            visible.append(replace(item, state=latest.state, health=latest.health))
+    return tuple(visible)
 
 
 def _typed(root: Path, contract_type: type[ContractT]) -> tuple[ContractT, ...]:
