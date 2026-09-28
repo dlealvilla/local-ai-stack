@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "implement_rukan_analytics_hub_v0_2",
-  "expected_pasteback_instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
-  "instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
+  "expected_cursor_action": "fix_rukan_analytics_hub_v0_2_provenance",
+  "expected_pasteback_instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-FIX-001",
+  "instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-FIX-001",
   "program": {
     "canonical_baseline": "c649103f244475f6381ba473f4431e0a7f86f803",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_build_persistent_command_center_ingestion_and_local_admin_analytics_then_lead_review",
+    "next_action": "cursor_fix_analytics_hub_provenance_then_lead_review",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -47,7 +47,16 @@
       "instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
       "physical_server": "NONE",
       "starting_source": "c649103f244475f6381ba473f4431e0a7f86f803",
-      "terminal_success_status": "RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS"
+      "terminal_success_status": "RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS",
+      "correction": {
+        "starting_source": "404858abde45443d91f9a6f17b301754cc8b4276",
+        "issues": [
+          "bundle_record_install_identity_validation",
+          "snapshot_count_import_order_convergence",
+          "remove_refresh_reimport_recoverability"
+        ],
+        "status": "CORRECTION_REQUIRED"
+      }
     },
     "rukan_command_center": {
       "connectivity_v0": "imported_non_content_snapshots",
@@ -106,8 +115,8 @@
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
     "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
-  "published_instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
+  "published_instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-FIX-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_RUKAN_ANALYTICS_HUB_V0_2_FIX"
 }
