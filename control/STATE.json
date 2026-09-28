@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "implement_rukan_dual_ui_v0_1",
-  "expected_pasteback_instruction_id": "RUKAN-DUAL-UI-V0.1-001",
-  "instruction_id": "RUKAN-DUAL-UI-V0.1-001",
+  "expected_cursor_action": "implement_rukan_analytics_hub_v0_2",
+  "expected_pasteback_instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
+  "instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
   "program": {
-    "canonical_baseline": "7ff3dff6972f69ba38214a6d30f7a19f272318e0",
+    "canonical_baseline": "c649103f244475f6381ba473f4431e0a7f86f803",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_implement_ui_v0_1_then_lead_review",
+    "next_action": "cursor_build_persistent_command_center_ingestion_and_local_admin_analytics_then_lead_review",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -85,10 +85,29 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "rukan_analytics_hub_v0_2": {
+      "instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
+      "starting_source": "c649103f244475f6381ba473f4431e0a7f86f803",
+      "branch": "rukan/analytics-hub-v0.2",
+      "physical_server": "NONE",
+      "command_center": {
+        "mode": "long_running_local_service",
+        "persistence": "sqlite",
+        "ingestion": "inbox_plus_refresh",
+        "canonical_interchange": "versioned_json_jsonl",
+        "automatic_transport": false
+      },
+      "admin": {
+        "add_page": "analytics",
+        "source": "local_journal_store",
+        "vendor_export_boundary": "separate"
+      },
+      "terminal_success_status": "RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS"
+    }
   },
-  "published_instruction_id": "RUKAN-DUAL-UI-V0.1-001",
+  "published_instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_RUKAN_ANALYTICS_HUB_V0_2"
 }
