@@ -200,6 +200,12 @@ def _check_counts(bundle: AnalyticsBundle) -> None:
     for snapshot in bundle.snapshots:
         if snapshot.install_id != manifest.install_id:
             raise ValidationError("analytics snapshot install id does not match")
+    for event in bundle.events:
+        if event.install_id != manifest.install_id:
+            raise ValidationError("analytics event install id does not match")
+    for item in bundle.inferences:
+        if item.install_id != manifest.install_id:
+            raise ValidationError("analytics inference install id does not match")
 
 
 def _token(label: str, value: str) -> None:

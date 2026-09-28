@@ -32,9 +32,15 @@ python -m machi.main command-center serve \
 
 The data directory holds `command.sqlite` and `inbox/`. Place
 `*.json` support snapshots or `*.jsonl` analytics bundles in the inbox,
-then press Refresh deployments. The same file hash is skipped. A bad
-file is recorded and does not block a valid one. Source files are not
-deleted.
+then press Refresh deployments. The same file hash is skipped. A
+different serialization of the same bundle id or snapshot id is also
+skipped, so it does not add a second import row. A bad file is recorded
+and does not block a valid one. Every record in a bundle must use the
+manifest install id; a mismatch rejects the whole file before SQLite
+changes. Remove local copy deletes that installation's imported rows
+and its import provenance. It does not delete inbox files, and Refresh
+imports those files again. Removing one installation leaves the others
+in place.
 
 Development UI: `cd ui/command-center && npm run dev` proxies `/v1` to
 `127.0.0.1:8780`. Admin analytics uses the existing Admin seam on

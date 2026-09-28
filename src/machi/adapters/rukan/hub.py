@@ -17,7 +17,7 @@ from machi.kernel.schema import to_dict
 from machi.kernel.snapshot import SupportSnapshot, accept_snapshot
 
 API_NAME = "rukan.command.v1"
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 _LOOPBACK = "127.0.0.1"
 _MAX_BODY = 64_000
 
@@ -74,22 +74,27 @@ class CommandHub:
                 if path.suffix not in {".json", ".jsonl"}:
                     continue
                 digest = hashlib.sha256(path.read_bytes()).hexdigest()
-                known = self._db.execute(
-                    "SELECT sha256 FROM sources WHERE sha256 = ?", (digest,)
-                ).fetchone()
-                if known is not None:
+                if self._source_hash(digest) is not None:
                     skipped += 1
                     continue
                 try:
-                    self._import_file(path, digest)
+                    kind, install_id, logical_id, parsed = self._identify(path)
                 except (ValidationError, json.JSONDecodeError, UnicodeError, OSError) as exc:  # noqa: E501
-                    reason = exc.message if isinstance(exc, ValidationError) else "unreadable"  # noqa: E501
-                    self._db.execute(
-                        "INSERT INTO rejections(name, reason, seen_at) VALUES (?, ?, ?)",  # noqa: E501
-                        (path.name, reason[:240], _now()),
+                    self._reject(path.name, exc)
+                    rejected.append(
+                        {"name": path.name, "reason": _reason(exc)}
                     )
-                    self._db.commit()
-                    rejected.append({"name": path.name, "reason": reason[:240]})
+                    continue
+                if self._source_logical(install_id, logical_id) is not None:
+                    skipped += 1
+                    continue
+                try:
+                    self._import_parsed(
+                        path, digest, kind, install_id, logical_id, parsed
+                    )
+                except (ValidationError, json.JSONDecodeError, UnicodeError, OSError) as exc:  # noqa: E501
+                    self._reject(path.name, exc)
+                    rejected.append({"name": path.name, "reason": _reason(exc)})
                     continue
                 imported += 1
             self._set_meta("last_refresh", _now())
@@ -225,30 +230,84 @@ class CommandHub:
             self._db.execute("DELETE FROM events WHERE install_id = ?", (install_id,))
             self._db.execute("DELETE FROM inferences WHERE install_id = ?", (install_id,))  # noqa: E501
             self._db.execute("DELETE FROM deployments WHERE install_id = ?", (install_id,))  # noqa: E501
+            self._db.execute("DELETE FROM sources WHERE install_id = ?", (install_id,))
             self._db.commit()
         return _envelope("ok", "local copy removed", {"install_id": install_id})
 
-    def _import_file(self, path: Path, digest: str) -> None:
+    def _identify(
+        self, path: Path
+    ) -> tuple[str, str, str, AnalyticsBundle | SupportSnapshot]:
         text = path.read_text(encoding="utf-8")
+        if path.suffix == ".jsonl":
+            bundle = load_bundle(text)
+            return (
+                "rukan.analytics_bundle",
+                bundle.manifest.install_id,
+                bundle.manifest.bundle_id,
+                bundle,
+            )
+        snapshot = accept_snapshot(json.loads(text))
+        return (
+            "rukan.support_snapshot",
+            snapshot.install_id,
+            snapshot.snapshot_id,
+            snapshot,
+        )
+
+    def _import_parsed(
+        self,
+        path: Path,
+        digest: str,
+        kind: str,
+        install_id: str,
+        logical_id: str,
+        parsed: AnalyticsBundle | SupportSnapshot,
+    ) -> None:
         self._db.execute("BEGIN")
         try:
-            if path.suffix == ".jsonl":
-                bundle = load_bundle(text)
-                self._apply_bundle(bundle)
-                kind = "rukan.analytics_bundle"
+            if isinstance(parsed, AnalyticsBundle):
+                self._apply_bundle(parsed)
             else:
-                document = json.loads(text)
-                snapshot = accept_snapshot(document)
-                self._apply_snapshot(snapshot, "snapshot:" + snapshot.snapshot_id)
-                kind = "rukan.support_snapshot"
+                self._apply_snapshot(parsed, logical_id)
             self._db.execute(
-                "INSERT INTO sources(sha256, name, kind, imported_at) VALUES (?, ?, ?, ?)",  # noqa: E501
-                (digest, path.name, kind, _now()),
+                """
+                INSERT INTO sources(
+                    sha256, name, kind, install_id, logical_id, imported_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (digest, path.name, kind, install_id, logical_id, _now()),
             )
             self._db.commit()
         except Exception:
             self._db.rollback()
             raise
+
+    def _source_hash(self, digest: str) -> str | None:
+        row = self._db.execute(
+            "SELECT sha256 FROM sources WHERE sha256 = ?", (digest,)
+        ).fetchone()
+        if row is None:
+            return None
+        return str(row["sha256"])
+
+    def _source_logical(self, install_id: str, logical_id: str) -> str | None:
+        row = self._db.execute(
+            """
+            SELECT logical_id FROM sources
+            WHERE install_id = ? AND logical_id = ?
+            """,
+            (install_id, logical_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return str(row["logical_id"])
+
+    def _reject(self, name: str, exc: Exception) -> None:
+        self._db.execute(
+            "INSERT INTO rejections(name, reason, seen_at) VALUES (?, ?, ?)",
+            (name, _reason(exc), _now()),
+        )
+        self._db.commit()
 
     def _apply_bundle(self, bundle: AnalyticsBundle) -> None:
         for snapshot in bundle.snapshots:
@@ -263,7 +322,7 @@ class CommandHub:
                 """,
                 (
                     event.event_id,
-                    bundle.manifest.install_id,
+                    event.install_id,
                     bundle.manifest.bundle_id,
                     event.event_type,
                     event.occurred_at,
@@ -285,7 +344,7 @@ class CommandHub:
                 """,
                 (
                     item.proof_id,
-                    bundle.manifest.install_id,
+                    item.install_id,
                     bundle.manifest.bundle_id,
                     item.instance_id,
                     item.plan_id,
@@ -329,16 +388,41 @@ class CommandHub:
                 snapshot_count
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(install_id) DO UPDATE SET
-                latest_exported_at = excluded.latest_exported_at,
-                version = excluded.version,
-                os_family = excluded.os_family,
-                architecture = excluded.architecture,
-                accelerator_summary = excluded.accelerator_summary,
-                macropath = excluded.macropath,
-                model_identity = excluded.model_identity,
-                witness_verdict = excluded.witness_verdict,
+                latest_exported_at = CASE
+                    WHEN excluded.latest_exported_at >= deployments.latest_exported_at
+                    THEN excluded.latest_exported_at
+                    ELSE deployments.latest_exported_at
+                END,
+                version = CASE
+                    WHEN excluded.latest_exported_at >= deployments.latest_exported_at
+                    THEN excluded.version ELSE deployments.version
+                END,
+                os_family = CASE
+                    WHEN excluded.latest_exported_at >= deployments.latest_exported_at
+                    THEN excluded.os_family ELSE deployments.os_family
+                END,
+                architecture = CASE
+                    WHEN excluded.latest_exported_at >= deployments.latest_exported_at
+                    THEN excluded.architecture ELSE deployments.architecture
+                END,
+                accelerator_summary = CASE
+                    WHEN excluded.latest_exported_at >= deployments.latest_exported_at
+                    THEN excluded.accelerator_summary
+                    ELSE deployments.accelerator_summary
+                END,
+                macropath = CASE
+                    WHEN excluded.latest_exported_at >= deployments.latest_exported_at
+                    THEN excluded.macropath ELSE deployments.macropath
+                END,
+                model_identity = CASE
+                    WHEN excluded.latest_exported_at >= deployments.latest_exported_at
+                    THEN excluded.model_identity ELSE deployments.model_identity
+                END,
+                witness_verdict = CASE
+                    WHEN excluded.latest_exported_at >= deployments.latest_exported_at
+                    THEN excluded.witness_verdict ELSE deployments.witness_verdict
+                END,
                 snapshot_count = excluded.snapshot_count
-            WHERE excluded.latest_exported_at >= deployments.latest_exported_at
             """,
             (
                 snapshot.install_id,
@@ -365,8 +449,12 @@ class CommandHub:
                     sha256 TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     kind TEXT NOT NULL,
+                    install_id TEXT NOT NULL,
+                    logical_id TEXT NOT NULL,
                     imported_at TEXT NOT NULL
                 );
+                CREATE UNIQUE INDEX sources_logical
+                    ON sources(install_id, logical_id);
                 CREATE TABLE rejections (
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -419,6 +507,25 @@ class CommandHub:
                     failure TEXT NOT NULL,
                     outcome TEXT NOT NULL
                 );
+                """
+            )
+            self._set_meta("schema_version", SCHEMA_VERSION)
+            self._db.commit()
+            return
+        if version == "1":
+            self._db.execute("DROP TABLE IF EXISTS sources")
+            self._db.executescript(
+                """
+                CREATE TABLE sources (
+                    sha256 TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    install_id TEXT NOT NULL,
+                    logical_id TEXT NOT NULL,
+                    imported_at TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX sources_logical
+                    ON sources(install_id, logical_id);
                 """
             )
             self._set_meta("schema_version", SCHEMA_VERSION)
@@ -570,6 +677,11 @@ def _write(handler: BaseHTTPRequestHandler, status: int, body: dict[str, object]
 
 def _envelope(outcome: str, reason: str, body: dict[str, object]) -> dict[str, object]:
     return {"api": API_NAME, "outcome": outcome, "reason": reason, "body": body}
+
+
+def _reason(exc: Exception) -> str:
+    message = exc.message if isinstance(exc, ValidationError) else "unreadable"
+    return message[:240]
 
 
 def _now() -> str:
