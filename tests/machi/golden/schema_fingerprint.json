@@ -3352,6 +3352,268 @@
       }
     }
   },
+  "kernel.support_event@1": {
+    "python": "SupportEvent",
+    "fields": {
+      "event_type": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dotted event name"
+      },
+      "outcome": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "pass, fail, blocked, info, or unresolved"
+      },
+      "occurred_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC timestamp of the event"
+      },
+      "privacy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "public_ops or operational only"
+      }
+    }
+  },
+  "kernel.support_snapshot@1": {
+    "python": "SupportSnapshot",
+    "fields": {
+      "snapshot_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "deterministic identity of this export"
+      },
+      "schema_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rukan.support_snapshot"
+      },
+      "exported_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this projection was written; UTC"
+      },
+      "install_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "install identity, or not_recorded"
+      },
+      "install_created_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the install record was first written, or not_recorded"
+      },
+      "product_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "customer product name"
+      },
+      "package_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "internal package namespace"
+      },
+      "version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "running product version"
+      },
+      "build_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "build id, or not_recorded for a checkout"
+      },
+      "source_commit": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "source commit when known, or not_recorded"
+      },
+      "os_family": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized OS family, or not_recorded"
+      },
+      "architecture": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "normalized CPU architecture, or not_recorded"
+      },
+      "accelerator_summary": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "short device summary, or not_recorded"
+      },
+      "safe_host_bytes": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE host memory ceiling, or not_recorded"
+      },
+      "safe_accelerator_bytes": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "SAFE accelerator ceiling for the cited device, or not_recorded"
+      },
+      "capacity_observed_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the cited capacity envelope was derived, or not_recorded"
+      },
+      "macropath": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "selected engine, or not_recorded"
+      },
+      "foundation_generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation, or not_recorded"
+      },
+      "model_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse artifact id or provider digest"
+      },
+      "model_identity_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse_artifact, provider_digest, or not_recorded"
+      },
+      "qualification_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualification evidence id, or not_recorded"
+      },
+      "qualification_outcome": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "qualification outcome, or not_recorded"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan id, or not_recorded"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reservation id, or not_recorded"
+      },
+      "reservation_state": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reserved, released, or not_recorded"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "serving instance id, or not_recorded"
+      },
+      "instance_state": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "instance state, or not_recorded"
+      },
+      "witness_verdict": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "witness reading of the cited chain"
+      },
+      "witness_reason": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why the witness reading was reached"
+      },
+      "physical_register": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "product qualification register; not a live host status"
+      },
+      "pending_coverage": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "physical coverage still pending"
+      },
+      "support_events": {
+        "type": "tuple[SupportEvent, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bounded operational events without payloads"
+      }
+    }
+  },
   "kernel.witness.composed@1": {
     "python": "WitnessComposedPayload",
     "fields": {

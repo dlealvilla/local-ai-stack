@@ -1,6 +1,6 @@
 # Machi
 
-**Current status:** Stage-1 deployment-spine implementation is closed for the proven scope: `STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING`. The accepted product line is the closure branch `stage1/spine-closure`, not the ancestor `machi` tip `1db7646`. Native request and restart inference is the accepted L40S SmolLM2 campaign. Ollama AUTO fallback and request inference is the accepted A40 Bundle-07 campaign. Still `PHYSICAL_PENDING`: AMD native/vLLM, macOS/Ollama, and NVIDIA Ampere/N1 breadth. See [STAGE1-SPINE-CLOSURE.md](STAGE1-SPINE-CLOSURE.md) and [STAGE1-PHYSICAL-BACKLOG.md](STAGE1-PHYSICAL-BACKLOG.md).
+**Current status:** The product name is Rukan. `machi` remains the internal package. Stage-1 deployment-spine implementation is closed for the proven scope: `STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING`. Rukan Admin and Rukan Command Center v0 are the local visual planes. See [RUKAN.md](RUKAN.md). The accepted product line is the closure branch `stage1/spine-closure`, not the ancestor `machi` tip `1db7646`. Native request and restart inference is the accepted L40S SmolLM2 campaign. Ollama AUTO fallback and request inference is the accepted A40 Bundle-07 campaign. Still `PHYSICAL_PENDING`: AMD native/vLLM, macOS/Ollama, and NVIDIA Ampere/N1 breadth. See [STAGE1-SPINE-CLOSURE.md](STAGE1-SPINE-CLOSURE.md) and [STAGE1-PHYSICAL-BACKLOG.md](STAGE1-PHYSICAL-BACKLOG.md).
 
 **Work token:** `MACHI-2.3-NVIDIA-AMD-LOCAL-CANDIDATE`  
 **Chain:** architecture `df1c21e` → M0 `25f6960` → 1.2.1 `fe5b02c` → 1.3.1 `da70da5` → 0.4.1 `2a7097e` → 1.3.2 `7da66a5` → 1.1.1 `700447d` → M1 closed `99b96bf` → 2.1.1 `b9d869b` → **2.2.1 last accepted forward feature** `66e8ee0` → provider gate `1db7646` → 2.3 NVIDIA+Apple `1c774a0` → historical NVIDIA physical evidence `636dfa0` → Acceptance Lab v1 `3c5869c` → **NVIDIA+AMD implementation** `67e9c7f`. Canonical `machi` remains `1db7646`. Historical NVIDIA PASS on SHA `351cee81…` is not inherited.  
@@ -66,6 +66,9 @@ contracts. It does not own deployment truth.
 | [STAGE1-SPINE-CLOSURE.md](STAGE1-SPINE-CLOSURE.md) | Stage-1 implementation closure and its exact boundary. |
 | [STAGE1-PHYSICAL-BACKLOG.md](STAGE1-PHYSICAL-BACKLOG.md) | Physical qualification still pending. |
 | [STAGE1-NEXT-OPTIONS.md](STAGE1-NEXT-OPTIONS.md) | Advisory next-workstream memo. Not authorization. |
+| [RUKAN.md](RUKAN.md) | Product name, two planes, and local run. |
+| [RUKAN-ADMIN.md](RUKAN-ADMIN.md) | Rukan Admin v0. |
+| [RUKAN-COMMAND-CENTER.md](RUKAN-COMMAND-CENTER.md) | Rukan Command Center v0. |
 
 Kultrun authorities (`docs/PRODUCT_VISION.md`, `docs/ARCHITECTURE.md`,
 `docs/ROADMAP.md`, `docs/DEBT.md`) are **not** replaced. They describe

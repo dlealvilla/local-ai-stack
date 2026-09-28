@@ -1379,6 +1379,134 @@ def compose_plan(inputs: PlanInputs) -> PlanDecision:
     return compose_plan_domain(inputs, build_vllm_recipe)
 
 
+def _serve_rukan_admin(ns: argparse.Namespace) -> int:
+    """Bind the loopback Rukan Admin seam. It does not choose a runtime."""
+    from machi.adapters.rukan.complete import store_completer
+    from machi.adapters.rukan.server import (
+        AdminApplication,
+        AdminHandlers,
+        serve_admin,
+    )
+    from machi.kernel.build import identity
+
+    if not str(ns.provider_base).startswith("http://127.0.0.1:"):
+        raise ValidationError("provider base must be loopback")
+    application = AdminApplication(
+        Path(ns.store_dir),
+        identity(),
+        journal_dir=Path(ns.journal_dir) if ns.journal_dir else None,
+        static_dir=Path(ns.static_dir) if ns.static_dir else None,
+        handlers=AdminHandlers(
+            complete=store_completer(Path(ns.store_dir), ns.provider_base),
+            inspect_model=lambda body: _admin_inspect(ns, body),
+            import_model=lambda body: _admin_import(ns, body),
+            acquire_model=lambda body: _admin_acquire(ns, body),
+        ),
+    )
+    print("product  Rukan Admin")
+    print(f"bind     127.0.0.1:{ns.port}")
+    serve_admin(application, port=ns.port)
+    return 0
+
+
+def _admin_inspect(
+    ns: argparse.Namespace, body: dict[str, object]
+) -> tuple[str, str, dict[str, object]]:
+    source = body.get("source_path")
+    label = body.get("label")
+    if not isinstance(source, str) or not isinstance(label, str) or not label:
+        return "refused", "inspect requires source_path and label", {}
+    try:
+        snapshot, _events = inspect_model(
+            source_path=Path(source),
+            label=label,
+            journal_dir_path=None,
+            state_root=Path(ns.state_root) if ns.state_root else None,
+        )
+    except MachiError as exc:
+        return "refused", exc.message, {}
+    entry = snapshot.entries[0]
+    return (
+        "ok",
+        "inspected",
+        {
+            "state": entry.compatibility.state.value,
+            "failure": entry.compatibility.failure.value,
+            "revision": entry.definition.immutable_revision,
+        },
+    )
+
+
+def _admin_import(
+    ns: argparse.Namespace, body: dict[str, object]
+) -> tuple[str, str, dict[str, object]]:
+    if not ns.state_root:
+        return "refused", "state root is not configured", {}
+    source = body.get("source_path")
+    label = body.get("label")
+    if not isinstance(source, str) or not isinstance(label, str) or not label:
+        return "refused", "import requires source_path and label", {}
+    holder = argparse.Namespace(
+        state_root=ns.state_root,
+        path=source,
+        label=label,
+        store_dir=ns.store_dir,
+        journal_dir=None,
+        foundation_id="foundation_unspecified",
+        qualification="unknown",
+        runtime_python=None,
+    )
+    try:
+        envelope, runtime, observed = _planning_inputs(holder)
+        stored = store_local(
+            Path(ns.state_root),
+            Path(source),
+            label,
+            runtime=runtime,
+            capacity=envelope,
+            accelerator_safe_bytes=_device_ceiling(envelope),
+            observed_at=observed,
+        )
+    except MachiError as exc:
+        return "refused", exc.message, {}
+    artifact_id = stored.artifact_id or "not_recorded"
+    return "ok" if stored.failure.value == "none" else "failed", stored.failure.value, {
+        "artifact_id": artifact_id,
+        "failure": stored.failure.value,
+    }
+
+
+def _admin_acquire(
+    ns: argparse.Namespace, body: dict[str, object]
+) -> tuple[str, str, dict[str, object]]:
+    if not ns.state_root:
+        return "refused", "state root is not configured", {}
+    repository = body.get("repository")
+    revision = body.get("revision")
+    if not isinstance(repository, str) or not isinstance(revision, str):
+        return "refused", "acquire requires repository and revision", {}
+    holder = argparse.Namespace(
+        state_root=ns.state_root,
+        repository=repository,
+        revision=revision,
+        store_dir=ns.store_dir,
+        journal_dir=None,
+        foundation_id="foundation_unspecified",
+        qualification="unknown",
+        runtime_python=None,
+    )
+    try:
+        code = _acquire_hub(holder)
+    except MachiError as exc:
+        return "refused", exc.message, {}
+    if code == 0:
+        return "ok", "acquired", {"repository": repository, "revision": revision}
+    return "failed", "acquire did not store the revision", {
+        "repository": repository,
+        "revision": revision,
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="machi", description="Machi")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1732,6 +1860,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     serve_sub = serve.add_subparsers(dest="serve_command", required=True)
     serve_sub.add_parser("policy", help="print the native vLLM serve bounds")
+
+    admin = sub.add_parser(
+        "admin",
+        help="serve the loopback Rukan Admin seam; this does not admit",
+    )
+    admin_sub = admin.add_subparsers(dest="admin_command", required=True)
+    admin_serve = admin_sub.add_parser(
+        "serve",
+        help="bind 127.0.0.1 and project stored deployment evidence",
+    )
+    admin_serve.add_argument("--store-dir", required=True)
+    admin_serve.add_argument("--journal-dir", default=None)
+    admin_serve.add_argument("--static-dir", default=None)
+    admin_serve.add_argument("--port", type=int, default=8765)
+    admin_serve.add_argument(
+        "--provider-base",
+        default="http://127.0.0.1:11434",
+        help="loopback provider API used only after a READY provider instance",
+    )
     inspect = admit_sub.add_parser(
         "inspect",
         help="print stored holds; does not admit, release, or serve",
@@ -2228,6 +2375,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("accel    1")
             print("serve    false")
             return 0
+        if ns.command == "admin" and ns.admin_command == "serve":
+            return _serve_rukan_admin(ns)
         if ns.command == "serve" and ns.serve_command == "policy":
             print(f"policy   {SERVE_POLICY_VERSION}")
             print(f"bind     {BIND_SCOPE}")
