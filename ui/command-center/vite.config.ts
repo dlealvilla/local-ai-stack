@@ -3,6 +3,10 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
-  server: { host: "127.0.0.1", port: 5174 },
+  server: {
+    host: "127.0.0.1",
+    port: 5174,
+    proxy: { "/v1": "http://127.0.0.1:8780" },
+  },
   test: { environment: "node" },
 });

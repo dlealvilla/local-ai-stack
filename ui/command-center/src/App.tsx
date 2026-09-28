@@ -1,33 +1,76 @@
-import { useMemo, useState } from "react";
-import { emptyStore, importSnapshot, latest, removeDeployment, type CommandStore } from "../../shared/store";
+import { useEffect, useState } from "react";
 import type { SupportSnapshot } from "../../shared/snapshot";
-import { filterDeployments, history, snapshotAge } from "./query";
+import { filterRows, history, snapshotAge, type DeploymentRow } from "./query";
 
-const PAGES = ["Deployments", "Detail", "Support", "Import", "Settings"] as const;
+const PAGES = ["Deployments", "Detail", "Support", "Analytics", "Import", "Settings"] as const;
 type Page = (typeof PAGES)[number];
-const STORAGE_KEY = "rukan.command.store.v1";
+
+type Status = {
+  last_refresh: string;
+  last_imported: number;
+  last_rejected: number;
+  live_claim: boolean;
+};
+
+type DetailBody = {
+  snapshots: SupportSnapshot[];
+  events: { event_id: string; event_type: string; occurred_at: string; outcome: string; block_id: string }[];
+  inferences: { proof_id: string; outcome: string; completion_tokens: string; failure: string; model_identity: string }[];
+};
 
 export function App() {
   const [page, setPage] = useState<Page>("Deployments");
-  const [store, setStore] = useState<CommandStore>(() => readStore());
-  const [selected, setSelected] = useState<string>("");
-  const [snapshotId, setSnapshotId] = useState<string>("");
+  const [rows, setRows] = useState<DeploymentRow[]>([]);
+  const [status, setStatus] = useState<Status | null>(null);
+  const [selected, setSelected] = useState("");
+  const [snapshotId, setSnapshotId] = useState("");
+  const [detail, setDetail] = useState<DetailBody | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  function save(next: CommandStore) {
-    setStore(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  async function reload() {
+    const statusResponse = await fetch("/v1/status");
+    const statusDocument = await statusResponse.json();
+    setStatus(statusDocument.body);
+    const listResponse = await fetch("/v1/deployments");
+    const listDocument = await listResponse.json();
+    setRows(listDocument.body.deployments);
   }
 
-  const current = store.deployments.find((item) => item.installId === selected) ?? null;
-  const snapshots = current ? history(current.snapshots) : [];
+  useEffect(() => {
+    void reload().catch(() => setError("Rukan Command Center service is not reachable."));
+  }, []);
+
+  async function refresh() {
+    setError("");
+    const response = await fetch("/v1/refresh", { method: "POST" });
+    const document = await response.json();
+    setNotice(
+      `imported ${document.body.imported}, skipped ${document.body.skipped}, rejected ${document.body.rejected}`,
+    );
+    await reload();
+  }
+
+  async function open(installId: string) {
+    setSelected(installId);
+    setSnapshotId("");
+    const response = await fetch(`/v1/deployments/${encodeURIComponent(installId)}`);
+    const document = await response.json();
+    setDetail(document.body);
+    setPage("Detail");
+  }
+
+  const snapshots = detail ? history(detail.snapshots) : [];
   const snapshot = snapshots.find((item) => item.snapshot_id === snapshotId) ?? snapshots[0] ?? null;
 
   return (
     <>
       <header>
         <strong>Rukan Command Center</strong>
+        <button type="button" onClick={() => void refresh()}>
+          Refresh deployments
+        </button>
         <nav aria-label="Command sections">
           {PAGES.map((item) => (
             <button
@@ -43,41 +86,32 @@ export function App() {
       </header>
       <main>
         <p className="banner">Imported evidence — not live deployment status</p>
+        {status ? (
+          <p className="muted">
+            Service loopback. Last refresh {status.last_refresh}. Imported {status.last_imported}. Rejected{" "}
+            {status.last_rejected}.
+          </p>
+        ) : null}
+        {notice ? <p role="status">{notice}</p> : null}
         {error ? <p role="alert">{error}</p> : null}
         {page === "Deployments" ? (
-          <Deployments
-            store={store}
-            query={query}
-            onQuery={setQuery}
-            onOpen={(installId) => {
-              setSelected(installId);
-              setSnapshotId("");
-              setPage("Detail");
-            }}
-          />
+          <Deployments rows={rows} query={query} onQuery={setQuery} onOpen={(installId) => void open(installId)} />
         ) : null}
         {page === "Detail" ? (
-          <Detail
-            snapshot={snapshot}
-            snapshots={snapshots}
-            onSelect={setSnapshotId}
-          />
+          <>
+            <Detail snapshot={snapshot} snapshots={snapshots} onSelect={setSnapshotId} />
+            <InferenceFacts rows={detail?.inferences ?? []} />
+          </>
         ) : null}
-        {page === "Support" ? <Support snapshot={snapshot} /> : null}
+        {page === "Support" ? <Support snapshot={snapshot} events={detail?.events ?? []} /> : null}
+        {page === "Analytics" ? <Analytics /> : null}
         {page === "Import" ? (
           <Import
-            onImported={(raw) => {
-              try {
-                const next = importSnapshot(store, raw);
-                save(next);
-                setError("");
-                setPage("Deployments");
-              } catch (exc) {
-                setError(exc instanceof Error ? exc.message : "import failed");
-              }
+            rows={rows}
+            onRemove={async (installId) => {
+              await fetch(`/v1/deployments/${encodeURIComponent(installId)}`, { method: "DELETE" });
+              await reload();
             }}
-            onRemove={(installId) => save(removeDeployment(store, installId))}
-            store={store}
           />
         ) : null}
         {page === "Settings" ? <Settings /> : null}
@@ -87,38 +121,33 @@ export function App() {
 }
 
 function Deployments({
-  store,
+  rows,
   query,
   onQuery,
   onOpen,
 }: {
-  store: CommandStore;
+  rows: DeploymentRow[];
   query: string;
   onQuery: (value: string) => void;
   onOpen: (installId: string) => void;
 }) {
-  const rows = filterDeployments(store, query);
+  const visible = filterRows(rows, query);
   return (
     <section>
       <h1>Imported deployments</h1>
       <p>
         <label>
           Search{" "}
-          <input
-            aria-label="Search deployments"
-            value={query}
-            onChange={(event) => onQuery(event.target.value)}
-          />
+          <input aria-label="Search deployments" value={query} onChange={(event) => onQuery(event.target.value)} />
         </label>
       </p>
-      {store.deployments.length === 0 ? <p>No imported deployments.</p> : null}
-      {store.deployments.length > 0 && rows.length === 0 ? <p>No deployments match that search.</p> : null}
-      {rows.length > 0 ? (
+      {rows.length === 0 ? <p>No imported deployments.</p> : null}
+      {rows.length > 0 && visible.length === 0 ? <p>No deployments match that search.</p> : null}
+      {visible.length > 0 ? (
         <table>
           <thead>
             <tr>
               <th>Install identity</th>
-              <th>Install created</th>
               <th>Rukan version</th>
               <th>OS / accelerator</th>
               <th>Macropath</th>
@@ -130,29 +159,25 @@ function Deployments({
             </tr>
           </thead>
           <tbody>
-            {rows.map((item) => {
-              const snap = latest(item);
-              return (
-                <tr key={item.installId}>
-                  <td>
-                    <button type="button" onClick={() => onOpen(item.installId)}>
-                      {item.installId}
-                    </button>
-                  </td>
-                  <td>{snap.install_created_at}</td>
-                  <td>{snap.version}</td>
-                  <td>
-                    {snap.os_family} / {snap.accelerator_summary}
-                  </td>
-                  <td>{snap.macropath}</td>
-                  <td>{snap.model_identity}</td>
-                  <td>{snap.witness_verdict}</td>
-                  <td>{item.snapshots.length}</td>
-                  <td>{snap.exported_at}</td>
-                  <td>{snapshotAge(snap.exported_at, Date.now())}</td>
-                </tr>
-              );
-            })}
+            {visible.map((item) => (
+              <tr key={item.install_id}>
+                <td>
+                  <button type="button" onClick={() => onOpen(item.install_id)}>
+                    {item.install_id}
+                  </button>
+                </td>
+                <td>{item.version}</td>
+                <td>
+                  {item.os_family} / {item.accelerator_summary}
+                </td>
+                <td>{item.macropath}</td>
+                <td>{item.model_identity}</td>
+                <td>{item.witness_verdict}</td>
+                <td>{item.snapshot_count}</td>
+                <td>{item.latest_exported_at}</td>
+                <td>{snapshotAge(item.latest_exported_at, Date.now())}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       ) : null}
@@ -235,78 +260,118 @@ function Detail({
   );
 }
 
-function Support({ snapshot }: { snapshot: SupportSnapshot | null }) {
-  if (!snapshot) return <p>Select an imported deployment.</p>;
-  if (snapshot.support_events.length === 0) {
-    return (
-      <section>
-        <h1>Support evidence</h1>
-        <p>No exportable operational events in this snapshot.</p>
-      </section>
-    );
-  }
+function InferenceFacts({
+  rows,
+}: {
+  rows: { proof_id: string; outcome: string; completion_tokens: string; failure: string; model_identity: string }[];
+}) {
+  return (
+    <section>
+      <h2>Inference facts</h2>
+      <p className="muted">Persisted proofs only. Input tokens, TTFT, queue time, and latency are not recorded.</p>
+      {rows.length === 0 ? <p>No imported inference proofs.</p> : null}
+      {rows.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Proof</th>
+              <th>Model</th>
+              <th>Outcome</th>
+              <th>Completion tokens</th>
+              <th>Failure</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.proof_id}>
+                <td>{row.proof_id}</td>
+                <td>{row.model_identity}</td>
+                <td>{row.outcome}</td>
+                <td>{row.completion_tokens}</td>
+                <td>{row.failure}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </section>
+  );
+}
+
+function Support({
+  snapshot,
+  events,
+}: {
+  snapshot: SupportSnapshot | null;
+  events: { event_id: string; event_type: string; occurred_at: string; outcome: string }[];
+}) {
+  if (!snapshot && events.length === 0) return <p>Select an imported deployment.</p>;
+  const rows = events.length > 0 ? events : snapshot?.support_events ?? [];
   return (
     <section>
       <h1>Support evidence</h1>
       <p className="muted">Structured operational envelopes. Payloads and customer content are omitted.</p>
-    <table>
-      <thead>
-        <tr>
-          <th>When</th>
-          <th>Event</th>
-          <th>Outcome</th>
-          <th>Privacy</th>
-        </tr>
-      </thead>
-      <tbody>
-        {snapshot.support_events.map((event) => (
-          <tr key={`${event.occurred_at}:${event.event_type}`}>
-            <td>{event.occurred_at}</td>
-            <td>{event.event_type}</td>
-            <td>{event.outcome}</td>
-            <td>{event.privacy}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+      {rows.length === 0 ? <p>No exportable operational events in this snapshot.</p> : null}
+      {rows.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Event</th>
+              <th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((event) => (
+              <tr key={`${event.occurred_at}:${event.event_type}`}>
+                <td>{event.occurred_at}</td>
+                <td>{event.event_type}</td>
+                <td>{event.outcome}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </section>
+  );
+}
+
+function Analytics() {
+  const [body, setBody] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    void fetch("/v1/analytics")
+      .then((response) => response.json())
+      .then((document) => setBody(document.body));
+  }, []);
+  if (!body) return <p>Loading imported analytics.</p>;
+  return (
+    <section>
+      <h1>Imported analytics</h1>
+      <p className="banner">Imported evidence — not live deployment status</p>
+      <pre>{JSON.stringify(body, null, 2)}</pre>
     </section>
   );
 }
 
 function Import({
-  store,
-  onImported,
+  rows,
   onRemove,
 }: {
-  store: CommandStore;
-  onImported: (raw: unknown) => void;
-  onRemove: (installId: string) => void;
+  rows: DeploymentRow[];
+  onRemove: (installId: string) => Promise<void>;
 }) {
-  const ids = useMemo(() => store.deployments.map((item) => item.installId), [store]);
   return (
     <section>
-      <p>Import a Rukan deployment summary file from this PC. Nothing is uploaded.</p>
-      <input
-        aria-label="Snapshot file"
-        type="file"
-        accept="application/json"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          void file.text().then((text) => {
-            try {
-              onImported(JSON.parse(text));
-            } catch {
-              onImported(null);
-            }
-          });
-        }}
-      />
+      <h1>Inbox</h1>
+      <p>
+        Place a support snapshot JSON file or an analytics bundle JSONL file in the Command Center inbox,
+        then use Refresh deployments. Files are not uploaded by the browser.
+      </p>
       <ul>
-        {ids.map((id) => (
-          <li key={id}>
-            {id}{" "}
-            <button type="button" onClick={() => onRemove(id)}>
+        {rows.map((row) => (
+          <li key={row.install_id}>
+            {row.install_id}{" "}
+            <button type="button" onClick={() => void onRemove(row.install_id)}>
               Remove local copy
             </button>
           </li>
@@ -319,21 +384,11 @@ function Import({
 function Settings() {
   return (
     <section>
+      <h1>Settings</h1>
       <p>This Command Center runs on the business operator PC.</p>
-      <p>It has no remote execution authority and no fleet connection.</p>
-      <p>Imported files stay in this browser profile until removed.</p>
+      <p>SQLite is the durable store. The browser is not.</p>
+      <p>There is no remote execution authority and no fleet connection.</p>
+      <p>Transfer from a deployment is manual: export a bundle, copy it into the inbox, then refresh.</p>
     </section>
   );
-}
-
-function readStore(): CommandStore {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return emptyStore();
-  try {
-    const parsed = JSON.parse(raw) as CommandStore;
-    if (!Array.isArray(parsed.deployments)) return emptyStore();
-    return parsed;
-  } catch {
-    return emptyStore();
-  }
 }

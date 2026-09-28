@@ -3169,6 +3169,252 @@
       }
     }
   },
+  "kernel.analytics_event@1": {
+    "python": "AnalyticsEvent",
+    "fields": {
+      "event_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "journal event identity"
+      },
+      "event_type": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "dotted event name"
+      },
+      "occurred_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC timestamp"
+      },
+      "install_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "install id, or not_recorded"
+      },
+      "block_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "emitting block"
+      },
+      "component_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "emitting component"
+      },
+      "outcome": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "pass, fail, blocked, info, or unresolved"
+      },
+      "privacy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "public_ops or operational"
+      }
+    }
+  },
+  "kernel.analytics_inference@1": {
+    "python": "AnalyticsInference",
+    "fields": {
+      "proof_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "proof identity"
+      },
+      "install_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "install id, or not_recorded"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "serving instance"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reservation"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation"
+      },
+      "model_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "artifact id or provider digest"
+      },
+      "model_identity_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse_artifact or provider_digest"
+      },
+      "request_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "protocol request kind"
+      },
+      "status_code": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "HTTP status when recorded; 0 when the proof has none"
+      },
+      "completion_tokens": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reported completion tokens, or not_recorded"
+      },
+      "structurally_valid": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "the runtime returned the expected structure"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed failure, or none"
+      },
+      "outcome": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "proven or failed"
+      }
+    }
+  },
+  "kernel.analytics_manifest@1": {
+    "python": "AnalyticsManifest",
+    "fields": {
+      "bundle_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "deterministic identity of this bundle"
+      },
+      "schema_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rukan.analytics_bundle"
+      },
+      "install_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "installation this export describes"
+      },
+      "exported_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when the bundle was written; UTC"
+      },
+      "version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "Rukan version when known"
+      },
+      "build_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "build id, or not_recorded"
+      },
+      "source_commit": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "source commit when known, or not_recorded"
+      },
+      "privacy_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "export allow-list version"
+      },
+      "snapshot_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "support snapshots in this bundle"
+      },
+      "event_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "event projections in this bundle"
+      },
+      "inference_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inference projections in this bundle"
+      }
+    }
+  },
   "kernel.deployment_witness@1": {
     "python": "DeploymentWitness",
     "fields": {
