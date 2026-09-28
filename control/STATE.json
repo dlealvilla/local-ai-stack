@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "none_waiting_for_lead_next_instruction",
-  "expected_pasteback_instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-FIX-001",
-  "instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-FIX-001",
+  "expected_cursor_action": "implement_rukan_connected_monitoring_v0_3",
+  "expected_pasteback_instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
+  "instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "lead_select_next_rukan_product_increment",
+    "next_action": "cursor_review_challenge_implement_and_stand_up_connected_monitoring_v0_3_then_lead_review",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -116,10 +116,52 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "rukan_connected_monitoring_v0_3": {
+      "instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
+      "starting_source": "d38a8e855f099f353e1ac090b990014eed67a826",
+      "branch": "rukan/connected-monitoring-v0.3",
+      "periodic_report_hours": 6,
+      "automatic_transport": true,
+      "machine_authentication": true,
+      "human_authentication": false,
+      "remote_control": false,
+      "usage_accounting": [
+        "requests",
+        "input_tokens_when_reported",
+        "output_tokens_when_reported",
+        "latency",
+        "outcome",
+        "purpose",
+        "model",
+        "runtime"
+      ],
+      "admin_focus": [
+        "overview",
+        "models_streaming_library",
+        "deployment",
+        "inference",
+        "analytics",
+        "activity",
+        "system",
+        "settings"
+      ],
+      "command_center_focus": [
+        "overview",
+        "deployments",
+        "analytics",
+        "models",
+        "reporting_intake",
+        "settings"
+      ],
+      "external_acceptance_statuses": [
+        "RUKAN_CONNECTED_MONITORING_V0_3_CONNECTED_PASS",
+        "RUKAN_CONNECTED_MONITORING_V0_3_LOCAL_PASS_EXTERNAL_ENDPOINT_REQUIRED"
+      ]
+    }
   },
-  "published_instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-FIX-001",
+  "published_instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "LEAD_ACCEPTED_RUKAN_ANALYTICS_HUB_V0_2"
+  "status": "AWAITING_CURSOR_RUKAN_CONNECTED_MONITORING_V0_3"
 }
