@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "implement_rukan_admin_and_command_center_v0",
-  "expected_pasteback_instruction_id": "RUKAN-DUAL-UI-V0-001",
-  "instruction_id": "RUKAN-DUAL-UI-V0-001",
+  "expected_cursor_action": "implement_rukan_dual_ui_v0_1",
+  "expected_pasteback_instruction_id": "RUKAN-DUAL-UI-V0.1-001",
+  "instruction_id": "RUKAN-DUAL-UI-V0.1-001",
   "program": {
-    "canonical_baseline": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
+    "canonical_baseline": "7ff3dff6972f69ba38214a6d30f7a19f272318e0",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_build_both_local_visual_products_then_lead_iterate",
+    "next_action": "cursor_implement_ui_v0_1_then_lead_review",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -46,10 +46,49 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "runpod_policy": {
+      "nvidia_max_hourly_usd": 1.5,
+      "amd_max_hourly_usd": 4,
+      "remaining_balance_floor_usd": 0.5,
+      "max_concurrent_pods": 1,
+      "max_pod_lifetime_minutes": 90,
+      "max_provision_retries": 3,
+      "network_volume": false,
+      "hang_action": "stop_and_ask"
+    },
+    "rukan_ui_v0_1": {
+      "instruction_id": "RUKAN-DUAL-UI-V0.1-001",
+      "starting_source": "7ff3dff6972f69ba38214a6d30f7a19f272318e0",
+      "branch": "rukan/dual-ui-v0.1",
+      "physical_server": "NONE",
+      "primary_goal": "attach safe lifecycle authority and improve both local UIs",
+      "admin": [
+        "real_stop_release_if_safe",
+        "overview_hierarchy",
+        "inference_ux",
+        "deployment_journey",
+        "models_system_refinement"
+      ],
+      "command_center": [
+        "search_filter",
+        "snapshot_history",
+        "deployment_detail_hierarchy",
+        "support_evidence_usability"
+      ],
+      "forbidden": [
+        "remote_fleet",
+        "identity",
+        "knowledge",
+        "runtime_artifact_registry",
+        "dynamo",
+        "physical_testing"
+      ],
+      "terminal_success_status": "RUKAN_DUAL_UI_V0_1_LOCAL_PASS"
+    }
   },
-  "published_instruction_id": "RUKAN-DUAL-UI-V0-001",
+  "published_instruction_id": "RUKAN-DUAL-UI-V0.1-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_RUKAN_DUAL_UI_V0_1"
 }
