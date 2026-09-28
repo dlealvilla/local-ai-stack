@@ -1,569 +1,398 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-Instruction ID: `RUKAN-DUAL-UI-V0.1-001`  
-Status: `AUTHORIZED_IMPLEMENTATION`  
-Canonical baseline: `machi` at `7ff3dff6972f69ba38214a6d30f7a19f272318e0`  
-Predecessor: `RUKAN-DUAL-UI-V0-001` / implementation `cd14b3ed8490f7ceb64db50b17646acc4b18eaa1`
+Instruction ID: `RUKAN-ANALYTICS-HUB-V0.2-001`
+Status: `AUTHORIZED_IMPLEMENTATION`
+Canonical baseline: `machi` at `c649103f244475f6381ba473f4431e0a7f86f803`
+Predecessor: `RUKAN-DUAL-UI-V0.1-001` / `add9ac3f5acb2d9f4bc335dedc49a274df4d4193`
 
-This is the second bounded Rukan UI iteration.
+Build the next bounded Rukan product increment: turn Command Center into a persistent local business data hub and add a small local Analytics page to Rukan Admin.
 
-The goal is to turn the already-running Rukan Admin and Rukan Command Center v0 into a more usable local product without opening new platform domains.
+No physical server is required.
 
-No physical server is required for this instruction.
+## Product outcome
 
-Do not start remote fleet connectivity, identity, licensing, Knowledge/RAG, Runtime Artifact Registry, Dynamo, or physical qualification.
+### Rukan Command Center
+Run as a long-lived local service on the business operator PC.
 
----
+It must:
+- own a persistent local datastore;
+- own an inbox/import directory;
+- serve the Command Center UI;
+- expose a **Refresh deployments** action;
+- scan all supported files in the inbox;
+- validate and import only new valid records idempotently;
+- retain deployment/snapshot/event history across browser and service restarts;
+- aggregate data across multiple deployments;
+- remain non-authoritative for customer-host truth.
 
-# 1. STARTING TRUTH
+The browser must no longer be the durable data authority.
 
-Rukan dual UI v0 is accepted.
+### Rukan Admin
+Add a small **Analytics** page over the deployment's own local journal/store using only active truth-backed Rukan facts.
 
-## Rukan Admin already exists
+## Data principles
 
-- Overview
-- Inference
-- Models
-- Deployment
-- System
-- loopback-only `rukan.admin.v1`
-- snapshot export
-- Rukan-native inference seam
-- truthful typed refusals
-- no prompt/response persistence
-- no LibreChat dependency
+Preserve the existing separation:
+1. operational state = authoritative current contracts;
+2. EventRecord journal = append-only record of what happened;
+3. metrics = derived/rebuildable projections;
+4. logs = debugging, not analytics.
 
-## Rukan Command Center already exists
+Keep three data domains distinct:
+- customer-local operational/usage analytics;
+- business/vendor product telemetry + support analytics;
+- future licensing/entitlement data.
 
-- Deployments
-- Deployment Detail
-- Support Evidence
-- Import
-- Settings
-- imported `rukan.support_snapshot`
-- local browser storage only
-- no remote control
-- no live fleet claims
-- no customer content export
+Do not mix licensing into this work.
 
-## Known usability/operational gap
+## Canonical interchange
 
-Admin exposes Stop and Release semantics, but the CLI-launched Admin process does not currently attach the lifecycle runtime/process owner. The UI therefore correctly returns `lifecycle runtime is not attached`.
+Do not use CSV as the canonical Rukan-to-Command-Center format.
 
-This iteration should close that gap if repository truth permits a safe bounded solution.
+Use versioned JSON/JSONL because it preserves typed identities, timestamps, schemas, unresolved values, privacy classes and provenance.
 
----
+CSV may be added later as a human convenience adapter only.
 
-# 2. RUNPOD POLICY — CURRENT BINDING TRUTH
+Keep `rukan.support_snapshot` as a compact point-in-time support summary. Do not overload it into the complete analytics feed.
 
-No RunPod use is authorized by this instruction.
+Add a separate versioned analytics export, preferably one transportable JSONL file such as:
 
-For future physical work, preserve the current policy:
+`rukan.analytics_bundle.v1.jsonl`
 
-- NVIDIA hourly ceiling: `≤ $1.50/hour`
-- AMD hourly ceiling: `≤ $4.00/hour`
-- remaining RunPod account-balance floor: `$0.50`
-- one owned Pod at a time
-- max Pod lifetime: 90 minutes
-- max 3 provisioning retries
-- no network volume
-- hang: stop-and-ask
-- existing session/day spend caps remain in force
+The bundle should have a manifest record with:
+- bundle schema/version;
+- bundle id;
+- install id;
+- exported_at;
+- Rukan version/build/commit when known;
+- included dataset kinds and counts;
+- export/privacy policy version.
 
-Do not alter these limits in this UI package.
+Subsequent typed records may include only supported active Rukan facts.
 
----
+## Export what actually exists now
 
-# 3. BRANCH
+At minimum evaluate/include:
 
-Sync control and fetch origin.
+### Support snapshot
+The existing `rukan.support_snapshot`.
 
-Confirm canonical `machi` is:
+### Event timeline
+Exportable EventRecord facts from the current journal.
 
-`7ff3dff6972f69ba38214a6d30f7a19f272318e0`
+Business export rules:
+- customer_content: NEVER;
+- restricted: default exclude;
+- public_ops: eligible;
+- operational: eligible only through explicit allow-list projection.
 
-Create:
+Do not blindly export arbitrary payloads.
 
-`rukan/dual-ui-v0.1`
+Useful event projection fields include event id/type, timestamps, install/run/host identities where permitted, block/component, outcome, privacy and specifically allow-listed safe payload fields.
 
-from that exact canonical baseline.
+### Inference facts
+Active `InferenceProof` contains useful non-content facts:
+- proof id;
+- instance/plan/fingerprint/reservation/generation/artifact ids;
+- request kind;
+- status code;
+- completion tokens when reported;
+- structural validity;
+- typed failure.
 
-Do not branch from the old `rukan/dual-ui-v0` tip directly unless it is ancestry-equivalent to canonical after the integration merge.
+Export a bounded projection of those facts. Never prompt or response text.
 
----
+### Other active facts
+Include additional non-content analytics-ready facts only when current Rukan contracts already define stable meaning and they add value.
 
-# 4. PRIMARY OUTCOME
+Avoid redundant duplication when support snapshot + events already carry the information.
 
-At completion:
+## Do not invent future metrics
 
-## Rukan Admin
+The telemetry architecture reserves richer measures, but active Rukan does not yet persist all of them.
 
-A local administrator should be able to:
+Do not synthesize or claim, unless repository truth proves they now exist:
+- input tokens;
+- TTFT;
+- queue time;
+- cost;
+- user/team/application usage;
+- requested vs actual routed model;
+- route reason;
+- utilization percentages;
+- SLA/availability;
+- historical latency.
 
-1. open Rukan Admin;
-2. immediately understand whether the deployment is usable;
-3. run a real inference test with clear in-progress/success/refusal/error feedback;
-4. inspect the active model and execution path;
-5. inspect the deployment chain without reading raw ids by default;
-6. safely stop the current managed serving instance;
-7. release its reservation only after Rukan proves release eligibility;
-8. see the resulting state update in the UI;
-9. inspect technical evidence only through progressive disclosure.
+The Admin inference seam's current elapsed time is not historical fleet telemetry.
 
-## Rukan Command Center
+Return a gap table:
+`DESIGNED FUTURE METRIC -> ACTIVE RUKAN SOURCE MISSING`.
 
-A business operator should be able to:
+Do not import the old Kultrun UsageEvent wholesale without a separate product decision.
 
-1. import support snapshots;
-2. find a deployment quickly;
-3. see when the imported evidence was exported;
-4. inspect version/host/stack/model/qualification/Witness information;
-5. inspect structured support evidence;
-6. see snapshot history where multiple snapshots for one installation exist;
-7. remove local imported data;
-8. never confuse imported evidence with live connectivity.
+## Deployment-side export
 
----
+Add a Rukan-owned read-only analytics export command/service using the internal machi namespace as needed.
 
-# 5. LIFECYCLE WIRING — MAIN ENGINEERING TASK
+Conceptually:
 
-First inspect repository truth around:
+`rukan analytics export --output ...`
 
-- `ServeService`
-- current Native/vLLM process ownership/evidence
-- Ollama provider lifecycle ownership
-- ResourceManager
-- Admin composition
-- CLI process lifetime
-- re-entry/reconciliation semantics
+It must:
+- read persisted Rukan state/journal/proofs;
+- not mutate operational state;
+- write one versioned export bundle;
+- require no network;
+- fail closed on prohibited content;
+- report included/skipped counts;
+- never export prompts/responses/documents/secrets/paths/raw logs.
 
-The objective is **not** merely to make the buttons clickable.
+## Command Center local service
 
-The objective is:
+Replace browser localStorage as durable authority.
 
-> Rukan Admin can invoke the existing authoritative lifecycle services for the current managed instance without bypassing process identity, reservation authority, STOP != RELEASE, or provider-specific ownership.
+Preferred implementation:
+- Python;
+- loopback only;
+- SQLite via stdlib;
+- static Command Center assets served locally for product use;
+- Vite remains development tooling.
 
-## Required invariant
+Add a command equivalent to:
 
-Browser
-→ Rukan loopback API
-→ Rukan lifecycle application service/composition
-→ existing Serve/provider lifecycle semantics
-→ ResourceManager release only after eligibility
+`machi command-center serve --data-dir <dir> --port <port>`
 
-Never:
+Use an owned data root containing at least:
+- SQLite database;
+- inbox directory;
+- optional bounded rejected/import metadata.
 
-Browser
-→ arbitrary PID kill
+Do not delete arbitrary source files.
 
-Never:
+Design it as a long-running local service. If no existing cross-platform service manager exists, do not invent OS startup registration in this bundle; document boot/login autostart as later installer integration.
 
-Browser
-→ direct Ollama/vLLM lifecycle endpoint bypass
+## Inbox + Refresh
 
-Never adopt a process by PID alone.
+The UI must have a clear **Refresh deployments** button.
 
-## Preferred implementation shape
+Refresh must:
+1. scan the inbox;
+2. identify supported Rukan snapshot/bundle files;
+3. content-hash or otherwise stably identify each source;
+4. validate schema/version;
+5. enforce privacy/export restrictions;
+6. validate bundle identity/count consistency;
+7. import transactionally;
+8. deduplicate stable source records;
+9. retain provenance;
+10. update all views.
 
-Use the smallest safe composition seam that allows the Admin-serving process to access/reconstruct the existing lifecycle authority.
+Scanning the same bundle twice must not duplicate data.
 
-Possible repository-consistent implementations may include:
+Newer bundles for the same installation append history.
 
-- running Admin within an existing long-lived local Rukan supervisor/composition;
-- reconstructing lifecycle services from persisted Rukan evidence only where current identity/re-entry contracts explicitly permit it;
-- a narrow local lifecycle-owner service if an owner process already conceptually exists.
+Malformed files must not block valid files. Show rejected count/reason.
 
-Do **not** invent a new daemon architecture unless current contracts genuinely require one.
+Automatic scan on service startup is encouraged. Background polling is not required.
 
-If safe cross-process reattachment is not possible under existing contracts, do not weaken the identity rules. Implement the safe subset, document the exact architectural blocker, and return `DECISION_REQUIRED` for that subpart while completing the rest of the bounded UI iteration.
+## SQLite model
 
-## Tests required
+Keep it small, versioned and migratable.
+
+Represent concepts equivalent to:
+- deployments/installations;
+- imported source files/bundles;
+- support snapshots;
+- event envelopes;
+- inference facts;
+- rejected/import-error evidence.
+
+Preserve Rukan source identities. Do not collapse install id, install-run id, host id, model identity, plan, reservation, instance or proof into one ambiguous id.
+
+Use transactions and schema versioning.
+
+## Command Center UI
+
+Keep the existing screens, now backed by the local service/database.
+
+Header:
+- service status;
+- last refresh;
+- latest imported/rejected counts;
+- Refresh deployments.
+
+Deployments:
+- search/sort/history;
+- snapshot count;
+- evidence exported time;
+- simple truthful aggregate counts/distributions for known deployments, versions, macropaths, Witness outcomes and accelerator models.
+
+Never show online/offline/healthy from imported files.
+
+Deployment detail:
+- Summary;
+- Timeline;
+- Inference analytics;
+- Snapshots;
+- Support evidence.
+
+Timeline:
+- imported EventRecord projections;
+- useful filtering by event type/outcome/block.
+
+Inference analytics:
+- total persisted proof/request facts;
+- completed/failed facts;
+- reported completion-token totals/averages only when available;
+- status/failure distribution;
+- model/artifact identity where supported.
+
+Clearly label unrecorded metrics.
+
+Add a simple cross-deployment Analytics section for imported truth-backed facts such as:
+- Rukan version;
+- OS/architecture;
+- accelerator;
+- macropath/runtime;
+- model identities;
+- Witness outcomes;
+- event failures;
+- inference success/failure;
+- reported completion tokens.
+
+No decorative fake KPI cards.
+
+## Rukan Admin local Analytics
+
+Add an Analytics page powered directly by local Rukan records.
+
+Minimum truth-backed views:
+- event counts by outcome;
+- recent/event timeline;
+- lifecycle event counts;
+- inference proof count;
+- successful/failed inference facts;
+- reported completion-token total where available;
+- current runtime/model context;
+- explicit missing-data labels.
+
+Local Admin may see locally permitted data that is not vendor-exportable. Do not loosen export privacy because Admin can see it.
+
+## Privacy hard gate
+
+Never export:
+- prompts;
+- generated responses;
+- messages;
+- documents;
+- RAG context;
+- proprietary file contents;
+- credentials/secrets;
+- absolute paths;
+- arbitrary raw logs;
+- customer_content records;
+- restricted records unless a future explicit projection authorizes them.
+
+Use allow-list projection, not denylist-only sanitization.
+
+Add negative privacy tests.
+
+## Transport limitation
+
+There is no automatic customer-to-business transport yet.
+
+v0.2 truth is:
+
+Deployment
+-> analytics export bundle
+-> manual/external file transfer
+-> Command Center inbox
+-> Refresh
+
+Do not claim sync, heartbeat or fleet connectivity.
+
+## Migration
+
+Current v0.1 browser snapshot workflow must remain usable.
 
 At minimum:
+- manual existing support snapshot JSON files can be placed in the inbox;
+- they import into the new service/database;
+- browser localStorage is no longer durable authority.
 
-- stop current READY native instance via Admin seam;
-- second stop converges/idempotent according to existing semantics;
-- stop wrong/mismatched instance refused;
-- release while STARTING/READY/STOPPING refused;
-- release after confirmed STOPPED/dead succeeds through ResourceManager;
-- second release converges/refuses consistently with M8 contract;
-- reservation remains held when stop fails;
-- process identity mismatch refuses;
-- provider/Ollama path follows its existing provider lifecycle semantics where current architecture supports it;
-- UI refresh reflects changed state;
-- browser cannot supply arbitrary runtime/provider/PID to override the current chain.
+Do not attempt to scrape arbitrary browser profiles.
 
-Do not create fake unit-only semantics that differ from current Serve/Admit behavior.
-
----
-
-# 6. ADMIN OVERVIEW — USABILITY PASS
-
-Rework hierarchy, not truth.
-
-The first screen should answer, in this order:
-
-1. **Can I use this deployment?**
-2. **What model is active?**
-3. **How is it running?**
-4. **Is anything requiring attention?**
-5. **What resources are safely available/allocated?**
-
-Use existing fields only.
-
-Recommended presentation:
-
-- top deployment state derived from Witness + current chain;
-- active model;
-- macropath/runtime;
-- instance state;
-- reservation state;
-- concise capacity;
-- warnings/pending physical coverage;
-- build/version in secondary detail.
-
-Do not create a synthetic health score.
-
-Do not label imported/stored evidence as current utilization.
-
-Use plain-language labels with exact technical ids behind expandable detail.
-
----
-
-# 7. ADMIN INFERENCE — USABILITY PASS
-
-Keep this an operational inference tester, not a full chat product.
-
-Add only useful bounded UX:
-
-- clear model and macropath context;
-- multiline prompt;
-- configurable `max_tokens` within the existing 1..64 API bound;
-- Send button;
-- in-flight state;
-- disable duplicate sends while a request is active;
-- response text;
-- completion tokens when reported;
-- elapsed request duration measured for the actual request if implemented truthfully;
-- clear typed refusal/error reason;
-- Clear action;
-- local privacy note: response is not stored by the Rukan operational store.
-
-Do not add:
-
-- conversation history;
-- saved chats;
-- RAG;
-- file upload;
-- tools;
-- agents;
-- Markdown plugins;
-- model switching;
-- direct runtime endpoint selection.
-
-The Admin tester should remain obviously different from a future employee chat client.
-
----
-
-# 8. ADMIN DEPLOYMENT — PRODUCTIZE THE BLOCK CHAIN
-
-The current ordered list is truthful but too implementation-shaped.
-
-Create a clearer deployment journey view:
-
-Foundation
-→ Model
-→ Plan
-→ Reservation
-→ Instance
-→ Inference Evidence
-→ Witness
-
-For each step:
-
-- human-readable status;
-- concise meaning;
-- relevant current value;
-- technical id/details behind disclosure.
-
-The screen should make Block 5–9 semantics understandable without exposing internal jargon first.
-
-Lifecycle actions:
-
-- Stop when applicable and attached;
-- Release only when eligible;
-- disable/refuse honestly otherwise;
-- show operation outcome immediately.
-
-Do not add Start/Deploy unless there is already a complete truthful action seam backing it in this baseline.
-
----
-
-# 9. ADMIN MODELS / SYSTEM — SMALL REFINEMENT ONLY
-
-Do not expand scope into a marketplace.
-
-Models:
-
-- improve labels around warehouse artifact vs provider digest;
-- make unavailable operations visibly disabled with a reason;
-- preserve explicit local inspect/import/hub acquire semantics;
-- show qualification/deployability only where actually present.
-
-System:
-
-- improve formatting of bytes into human-readable values while retaining exact bytes in detail;
-- distinguish observed hardware from SAFE capacity;
-- preserve unresolved/not_recorded;
-- show physical qualification/pending coverage clearly.
-
-No utilization graphs unless real utilization evidence exists.
-
----
-
-# 10. COMMAND CENTER — V0.1 USABILITY
-
-Do not add network connectivity.
-
-Improve the existing local imported-evidence workflow.
-
-## Deployments list
-
-Add bounded local-only features:
-
-- search/filter by install id, version, OS/accelerator, macropath, model, Witness;
-- sort by latest snapshot export time;
-- show number of imported snapshots per deployment;
-- show latest evidence timestamp as **Evidence exported** or **Snapshot age**, never Last Seen/Online.
-
-If computing snapshot age, derive it from local current time and `exported_at` and label it explicitly as snapshot age.
-
-## Deployment detail
-
-Improve hierarchy:
-
-- identity/version;
-- hardware;
-- execution stack;
-- model/qualification;
-- Witness;
-- capacity;
-- evidence timestamps;
-- pending physical coverage.
-
-Add a visible banner:
-
-`Imported evidence — not live deployment status`
-
-## Snapshot history
-
-Where multiple snapshots are already retained for the same install id:
-
-- show their exported timestamps;
-- schema/build/version;
-- Witness verdict;
-- model/macropath summary;
-- allow selecting an older snapshot for inspection.
-
-Do not invent diff semantics unless you implement a deterministic field-by-field local comparison.
-
-## Support evidence
-
-Keep structured event envelopes only.
-
-No raw log ingestion in this iteration.
-
----
-
-# 11. VISUAL / ACCESSIBILITY PASS
-
-Keep the implementation lightweight.
-
-No redesign framework migration.
-
-Improve:
-
-- spacing and hierarchy;
-- consistent status treatments;
-- table readability;
-- responsive layout at normal desktop widths;
-- keyboard focus visibility;
-- accessible labels;
-- semantic headings;
-- loading/empty/error states.
-
-Use the existing shared theme; do not introduce a large design-system dependency.
-
-Rukan Admin and Command Center may visually relate but must remain clearly distinct products.
-
----
-
-# 12. LOCAL STAND-UP / VISUAL EVIDENCE
-
-Run both applications locally against deterministic test/demo evidence.
-
-Create a reproducible local demonstration method that does **not** fake backend capabilities.
-
-Acceptable:
-
-- test fixtures that are explicitly labelled fixture/demo evidence;
-- a temporary local state root populated through current contracts/test helpers;
-- a snapshot fixture derived from the real SupportSnapshot contract.
-
-Capture screenshots of:
-
-## Admin
-
-- Overview
-- Inference
-- Deployment
-
-## Command Center
-
-- Deployments
-- Deployment Detail
-- Support Evidence or Snapshot History
-
-If the repository environment lacks a safe screenshot mechanism, document exact local commands and DOM/test evidence instead. Do not introduce a browser automation framework only for screenshots unless it is already available or trivially justified.
-
-No physical inference host is required.
-
----
-
-# 13. TEST / QA GATES
+## QA
 
 Run:
+- full tests/machi;
+- tests/acceptance_lab;
+- bundle serialization/readback;
+- privacy allow-list and prohibited-content cases;
+- idempotent refresh;
+- duplicate bundle;
+- mixed valid/invalid inbox;
+- transaction rollback;
+- SQLite schema/migration;
+- service restart persistence;
+- multiple deployments and multiple bundles per deployment;
+- timeline and inference aggregation;
+- Admin local analytics;
+- architecture tests;
+- ruff;
+- mypy strict;
+- both frontend test/typecheck/build suites;
+- wheel build and isolated verify if Python changes.
 
-Backend:
-- full `tests/machi`
-- `tests/acceptance_lab`
-- new Admin lifecycle/API tests
-- snapshot/privacy tests
-- architecture tests
-- ruff
-- mypy --strict
+No physical testing.
 
-Admin:
-- unit/component tests
-- TypeScript no-emit check
-- production Vite build
+## Non-goals
 
-Command Center:
-- store/import/history/search tests
-- TypeScript no-emit check
-- production Vite build
-
-Packaging:
-- repository-owned wheel build if Python changed
-- isolated verification if Python changed
-
-Regression:
-
-- Stage-1 native/vLLM primary semantics unchanged;
-- Ollama fallback semantics unchanged;
-- one ResourceManager authority unchanged;
-- STOP != RELEASE unchanged;
-- no prompt/response persistence/export;
-- Command Center still non-authoritative/import-only.
-
----
-
-# 14. NON-GOALS
-
-Do not implement:
-
-- remote Admin;
-- connected fleet heartbeat;
+Do not build:
+- automatic deployment-to-vendor transport;
 - cloud Command Center;
-- authentication/tenancy;
-- users/teams;
-- licensing;
-- Runtime Artifact Registry;
+- remote control;
+- online/offline heartbeat;
+- auth/tenancy;
+- licensing/billing;
 - Knowledge/RAG;
-- employee chat application;
-- LibreChat/Open WebUI integration;
+- agents/Team Brain;
 - Dynamo;
-- new runtime providers;
-- physical AMD/macOS/Ampere testing;
-- new RunPod Pods;
-- usage analytics dashboard unless current real data contracts already make a tiny display trivial and directly relevant — default is defer;
-- model marketplace/recommendation.
+- Runtime Artifact Registry;
+- LibreChat/Open WebUI;
+- raw log shipping;
+- Postgres/Kafka/data lake;
+- Parquet unless a concrete need emerges;
+- CSV as canonical format;
+- new usage ontology;
+- RunPod tests.
 
----
+## Acceptance
 
-# 15. DOCUMENTATION
+Pass only if:
+- v0.1 behavior remains intact;
+- Command Center has a persistent local service + SQLite store;
+- inbox + Refresh works in one action;
+- refresh is idempotent;
+- existing support snapshots import;
+- versioned analytics bundles import;
+- implemented safe active Rukan analytics are captured;
+- timelines and inference analytics work;
+- aggregate analytics are truth-backed;
+- Rukan Admin has local Analytics;
+- privacy tests pass;
+- transport remains explicitly manual/external;
+- full QA/build pass;
+- pushed branch clean.
 
-Update current Rukan UI docs with:
+Use branch:
 
-- exact run commands;
-- architecture boundary;
-- lifecycle attachment behavior;
-- local security model;
-- inference privacy;
-- Command Center import semantics;
-- screenshot/demo workflow;
-- deferred features.
+`rukan/analytics-hub-v0.2`
 
-Do not rewrite historical Machi evidence.
+Terminal success:
 
----
+`RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS`
 
-# 16. ACCEPTANCE
-
-PASS requires:
-
-- both UIs still run locally;
-- lifecycle wiring is safe and functional, OR an exact genuine architecture blocker is reported without weakening invariants;
-- Admin inference UX improved;
-- Admin Overview/Deployment clarity improved;
-- Command Center search/history/evidence usability improved;
-- no live-fleet claim introduced;
-- no customer content exported;
-- all relevant tests/builds pass;
-- clean pushed branch.
-
-Preferred terminal status when lifecycle is fully closed:
-
-`RUKAN_DUAL_UI_V0_1_LOCAL_PASS`
-
-If the only unresolved item is a genuine lifecycle ownership architecture decision:
-
-`DECISION_REQUIRED_LIFECYCLE_ATTACHMENT`
-
-Do not use PASS if Stop/Release are visually presented as functional when they are not.
-
----
-
-# 17. PASTE BACK
-
-Return:
-
-A. exact status  
-B. TL;DR  
-C. starting/final SHA  
-D. branch/worktree/origin  
-E. lifecycle ownership analysis  
-F. Stop implementation  
-G. Release implementation  
-H. native lifecycle tests  
-I. Ollama lifecycle disposition  
-J. Admin Overview changes  
-K. Admin Inference changes  
-L. Admin Deployment changes  
-M. Models/System refinement  
-N. Command Center Deployments changes  
-O. snapshot history  
-P. Support evidence changes  
-Q. visual/accessibility changes  
-R. screenshots/demo evidence  
-S. security/privacy review  
-T. full QA  
-U. build artifacts  
-V. remaining limitations  
-W. recommended next UI iteration  
-X. git state  
-Y. STOP
-
-Then STOP for Lead review.
+Paste back exact status, SHAs, architecture, SQLite schema, inbox/refresh behavior, bundle contract, exported record types, privacy rules, analytics views, future-metric gaps, tests/builds, limitations, next recommendation, git state, then STOP.
 
 # END INSTRUCTION
