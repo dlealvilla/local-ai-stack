@@ -1,5 +1,96 @@
 # Open Decisions
 
+## Automatic monitoring / telemetry loop — binding direction
+
+Rukan is moving from manual analytics-file transfer to a **one-way automatic operational reporting loop**. This is monitoring and accountability, not remote control.
+
+### Semantics
+
+- A deployment sends a versioned **Operational Report** to the vendor/business intake.
+- The periodic trigger may be called a heartbeat in product language, but it does **not** prove Online/Offline or current health.
+- Command Center may show **Last report received**, **report age**, report sequence, report trigger and latest reported state.
+- Until an explicit liveness model is implemented, Command Center must not derive Online, Offline, Healthy, Unhealthy, Last Seen, or availability SLA from report cadence.
+
+### Cadence and triggers
+
+- Periodic report target: every **6 hours**.
+- Add bounded jitter so future fleets do not synchronize exactly.
+- Also request an immediate/coalesced report after material operational changes, including:
+  - deployment/serving instance reaches READY;
+  - deployment/serving instance is STOPPED and/or its reservation is released;
+  - deployment start/serve failure;
+  - active model selection changes;
+  - Foundation/runtime/macropath selection changes, including approved fallback;
+  - active DeploymentPlan materially changes or becomes stale/replaced;
+  - bounded inference settings change: context length, concurrency, replica count, placement/device, resource reserve/headroom where those settings actually exist;
+  - AUTO/MANUAL selection mode changes or a bounded override changes;
+  - model artifact/provider model is installed/acquired/removed where active contracts support the action;
+  - Rukan software/build changes;
+  - SAFE capacity materially changes after rediscovery/recharacterization;
+  - telemetry sharing, endpoint, cadence or machine credential changes.
+- Pure presentation preferences, UI filters, theme, local Command Center aliases and other non-operational UI settings do not warrant deployment telemetry.
+- Coalesce related rapid state transitions into one report once the resulting state is stable rather than uploading several redundant reports seconds apart.
+
+### Security
+
+- Human login/authentication and tenancy remain deferred.
+- **Machine authentication is mandatory for automatic upload.** Secure telemetry cannot accept unauthenticated Internet writes.
+- Initial direction: HTTPS + one high-entropy credential per deployment/key-id, with server-side credential verification and rotation/revocation seams.
+- Non-loopback transport must require TLS. Plain HTTP is permitted only for explicit local test mode.
+- Credentials, tokens and secrets are never journaled, exported, displayed after creation, or included in analytics bundles/reports.
+- The external intake surface is write-only/minimal. It must not expose ResourceManager, Serve, settings mutation, shell, file access or remote-control APIs.
+- A full human identity system is not a prerequisite for this machine-to-machine security boundary.
+- Actor accountability before identity exists records **actor origin** such as local Admin UI, CLI, system/AUTO, scheduler or telemetry agent; it must not invent a human user identity.
+
+### Delivery semantics
+
+- Customer inference/deployment must never depend on telemetry availability.
+- Use a durable local outbox and **at-least-once delivery** with server-side idempotency; do not attempt distributed exactly-once semantics.
+- Failed uploads remain queued and retry with bounded exponential backoff.
+- Each accepted report has a stable report id, deployment/install id, generated time, trigger reason(s), sequence/cursor metadata and schema version.
+- The server acknowledges accepted report ids. Client cursor/outbox state advances only after acknowledgement.
+- A periodic report should include the latest safe deployment summary plus incremental operational changes and usage since the last acknowledged cursor, with enough cumulative counters/provenance to identify gaps.
+
+### Inference usage
+
+Create an active Rukan-owned **non-content inference usage record** rather than treating acceptance proofs as the long-term usage model.
+
+Initial usage facts should include, where truthfully available:
+- request/usage id and occurred_at;
+- request purpose/source (for example operator_test, acceptance_probe, future user_request);
+- serving instance, plan and model identity;
+- runtime/macropath/provider;
+- outcome and typed error/failure class;
+- input tokens when the runtime reports them;
+- output/completion tokens when the runtime reports them;
+- latency measured at the Rukan request boundary;
+- protocol status where relevant.
+
+Never store prompt/response text in usage analytics.
+
+Acceptance probes and Admin test prompts must be distinguishable from future employee/user traffic so product usage is not overstated.
+
+Vendor reporting may transmit bounded interval/model rollups instead of prompt-level content. Customer Admin may retain richer local non-content request records subject to local retention.
+
+### Product surfaces
+
+Rukan Admin is the customer's **AI operations cockpit**: readiness, active capability, models, deployments, capacity, local usage, activity and settings.
+
+Rukan Command Center is the vendor/business **deployment portfolio and product intelligence** surface: known deployments, report freshness, versions, hardware, runtime/model state at last report, deployment/change history, usage aggregates, failures/support evidence and telemetry intake accountability.
+
+Both surfaces must remain evidence-backed and avoid fake KPI/state.
+
+### Model experience
+
+The Admin Models area should evolve toward a streaming-catalog/Netflix-like experience while preserving exact model identity:
+- **family/series** (for example Qwen);
+- **generation/release line** (for example Qwen 2.5 or Qwen 3);
+- **concrete variant/edition** (size, instruct/base, quantization, format/runtime-specific artifact).
+
+This grouping is presentation metadata only. It must never collapse distinct artifacts/digests or imply compatibility/equivalence that Rukan has not proven.
+
+Rows such as Running, Installed, Recommended for this host, Compatible and Available may be shown only when the corresponding active Rukan contracts support them.
+
 ## Command Center ingestion / analytics — binding
 
 - Rukan Command Center is now intended to be a **long-running local business application/service** on the operator PC, not only a browser-local snapshot viewer.
