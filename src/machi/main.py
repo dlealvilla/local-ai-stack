@@ -1382,6 +1382,7 @@ def compose_plan(inputs: PlanInputs) -> PlanDecision:
 def _serve_rukan_admin(ns: argparse.Namespace) -> int:
     """Bind the loopback Rukan Admin seam. It does not choose a runtime."""
     from machi.adapters.rukan.complete import store_completer
+    from machi.adapters.rukan.lifecycle import LifecycleOwner
     from machi.adapters.rukan.server import (
         AdminApplication,
         AdminHandlers,
@@ -1401,6 +1402,11 @@ def _serve_rukan_admin(ns: argparse.Namespace) -> int:
             inspect_model=lambda body: _admin_inspect(ns, body),
             import_model=lambda body: _admin_import(ns, body),
             acquire_model=lambda body: _admin_acquire(ns, body),
+        ),
+        lifecycle=LifecycleOwner(
+            Path(ns.store_dir),
+            provider_base=ns.provider_base,
+            state_root=Path(ns.state_root) if ns.state_root else Path(ns.store_dir),
         ),
     )
     print("product  Rukan Admin")

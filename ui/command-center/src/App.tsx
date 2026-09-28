@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { emptyStore, importSnapshot, latest, removeDeployment, type CommandStore } from "../../shared/store";
 import type { SupportSnapshot } from "../../shared/snapshot";
+import { filterDeployments, history, snapshotAge } from "./query";
 
 const PAGES = ["Deployments", "Detail", "Support", "Import", "Settings"] as const;
 type Page = (typeof PAGES)[number];
@@ -10,6 +11,8 @@ export function App() {
   const [page, setPage] = useState<Page>("Deployments");
   const [store, setStore] = useState<CommandStore>(() => readStore());
   const [selected, setSelected] = useState<string>("");
+  const [snapshotId, setSnapshotId] = useState<string>("");
+  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
 
   function save(next: CommandStore) {
@@ -18,7 +21,8 @@ export function App() {
   }
 
   const current = store.deployments.find((item) => item.installId === selected) ?? null;
-  const snapshot = current ? latest(current) : null;
+  const snapshots = current ? history(current.snapshots) : [];
+  const snapshot = snapshots.find((item) => item.snapshot_id === snapshotId) ?? snapshots[0] ?? null;
 
   return (
     <>
@@ -38,18 +42,27 @@ export function App() {
         </nav>
       </header>
       <main>
-        <p className="banner">Imported evidence only. Not live, online, offline, or currently healthy.</p>
+        <p className="banner">Imported evidence — not live deployment status</p>
         {error ? <p role="alert">{error}</p> : null}
         {page === "Deployments" ? (
           <Deployments
             store={store}
+            query={query}
+            onQuery={setQuery}
             onOpen={(installId) => {
               setSelected(installId);
+              setSnapshotId("");
               setPage("Detail");
             }}
           />
         ) : null}
-        {page === "Detail" ? <Detail snapshot={snapshot} /> : null}
+        {page === "Detail" ? (
+          <Detail
+            snapshot={snapshot}
+            snapshots={snapshots}
+            onSelect={setSnapshotId}
+          />
+        ) : null}
         {page === "Support" ? <Support snapshot={snapshot} /> : null}
         {page === "Import" ? (
           <Import
@@ -75,58 +88,113 @@ export function App() {
 
 function Deployments({
   store,
+  query,
+  onQuery,
   onOpen,
 }: {
   store: CommandStore;
+  query: string;
+  onQuery: (value: string) => void;
   onOpen: (installId: string) => void;
 }) {
-  if (store.deployments.length === 0) return <p>No imported deployments.</p>;
+  const rows = filterDeployments(store, query);
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Install identity</th>
-          <th>Install created</th>
-          <th>Rukan version</th>
-          <th>OS / accelerator</th>
-          <th>Macropath</th>
-          <th>Model</th>
-          <th>Witness</th>
-          <th>Exported at</th>
-        </tr>
-      </thead>
-      <tbody>
-        {store.deployments.map((item) => {
-          const snap = latest(item);
-          return (
-            <tr key={item.installId}>
-              <td>
-                <button type="button" onClick={() => onOpen(item.installId)}>
-                  {item.installId}
-                </button>
-              </td>
-              <td>{snap.install_created_at}</td>
-              <td>{snap.version}</td>
-              <td>
-                {snap.os_family} / {snap.accelerator_summary}
-              </td>
-              <td>{snap.macropath}</td>
-              <td>{snap.model_identity}</td>
-              <td>{snap.witness_verdict}</td>
-              <td>{snap.exported_at}</td>
+    <section>
+      <h1>Imported deployments</h1>
+      <p>
+        <label>
+          Search{" "}
+          <input
+            aria-label="Search deployments"
+            value={query}
+            onChange={(event) => onQuery(event.target.value)}
+          />
+        </label>
+      </p>
+      {store.deployments.length === 0 ? <p>No imported deployments.</p> : null}
+      {store.deployments.length > 0 && rows.length === 0 ? <p>No deployments match that search.</p> : null}
+      {rows.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Install identity</th>
+              <th>Install created</th>
+              <th>Rukan version</th>
+              <th>OS / accelerator</th>
+              <th>Macropath</th>
+              <th>Model</th>
+              <th>Witness</th>
+              <th>Snapshots</th>
+              <th>Evidence exported</th>
+              <th>Snapshot age</th>
             </tr>
-          );
-        })}
-      </tbody>
-    </table>
+          </thead>
+          <tbody>
+            {rows.map((item) => {
+              const snap = latest(item);
+              return (
+                <tr key={item.installId}>
+                  <td>
+                    <button type="button" onClick={() => onOpen(item.installId)}>
+                      {item.installId}
+                    </button>
+                  </td>
+                  <td>{snap.install_created_at}</td>
+                  <td>{snap.version}</td>
+                  <td>
+                    {snap.os_family} / {snap.accelerator_summary}
+                  </td>
+                  <td>{snap.macropath}</td>
+                  <td>{snap.model_identity}</td>
+                  <td>{snap.witness_verdict}</td>
+                  <td>{item.snapshots.length}</td>
+                  <td>{snap.exported_at}</td>
+                  <td>{snapshotAge(snap.exported_at, Date.now())}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : null}
+    </section>
   );
 }
 
-function Detail({ snapshot }: { snapshot: SupportSnapshot | null }) {
+function Detail({
+  snapshot,
+  snapshots,
+  onSelect,
+}: {
+  snapshot: SupportSnapshot | null;
+  snapshots: SupportSnapshot[];
+  onSelect: (snapshotId: string) => void;
+}) {
   if (!snapshot) return <p>Select an imported deployment.</p>;
   return (
-    <section className="grid">
+    <section>
+      <h1>Deployment detail</h1>
+      <p className="banner">Imported evidence — not live deployment status</p>
+      {snapshots.length > 1 ? (
+        <p>
+          <label>
+            Snapshot history{" "}
+            <select
+              aria-label="Snapshot history"
+              value={snapshot.snapshot_id}
+              onChange={(event) => onSelect(event.target.value)}
+            >
+              {snapshots.map((item) => (
+                <option key={item.snapshot_id} value={item.snapshot_id}>
+                  {item.exported_at} · {item.version} · {item.witness_verdict} · {item.macropath}
+                </option>
+              ))}
+            </select>
+          </label>
+        </p>
+      ) : null}
+      <section className="grid">
       <article className="card">
+        <h2>Identity and version</h2>
         <p>Install {snapshot.install_id}</p>
         <p>Created {snapshot.install_created_at}</p>
         <p>
@@ -135,6 +203,7 @@ function Detail({ snapshot }: { snapshot: SupportSnapshot | null }) {
         <p>Commit {snapshot.source_commit}</p>
       </article>
       <article className="card">
+        <h2>Hardware and capacity</h2>
         <p>
           {snapshot.os_family} {snapshot.architecture}
         </p>
@@ -144,6 +213,7 @@ function Detail({ snapshot }: { snapshot: SupportSnapshot | null }) {
         <p>Capacity observed {snapshot.capacity_observed_at}</p>
       </article>
       <article className="card">
+        <h2>Execution, model, and Witness</h2>
         <p>Macropath {snapshot.macropath}</p>
         <p>Generation {snapshot.foundation_generation_id}</p>
         <p>
@@ -160,6 +230,7 @@ function Detail({ snapshot }: { snapshot: SupportSnapshot | null }) {
         <p>Snapshot {snapshot.snapshot_id}</p>
         <p>Exported {snapshot.exported_at}</p>
       </article>
+      </section>
     </section>
   );
 }
@@ -167,9 +238,17 @@ function Detail({ snapshot }: { snapshot: SupportSnapshot | null }) {
 function Support({ snapshot }: { snapshot: SupportSnapshot | null }) {
   if (!snapshot) return <p>Select an imported deployment.</p>;
   if (snapshot.support_events.length === 0) {
-    return <p>No exportable operational events in this snapshot.</p>;
+    return (
+      <section>
+        <h1>Support evidence</h1>
+        <p>No exportable operational events in this snapshot.</p>
+      </section>
+    );
   }
   return (
+    <section>
+      <h1>Support evidence</h1>
+      <p className="muted">Structured operational envelopes. Payloads and customer content are omitted.</p>
     <table>
       <thead>
         <tr>
@@ -190,6 +269,7 @@ function Support({ snapshot }: { snapshot: SupportSnapshot | null }) {
         ))}
       </tbody>
     </table>
+    </section>
   );
 }
 

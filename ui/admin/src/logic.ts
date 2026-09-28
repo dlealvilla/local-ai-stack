@@ -64,3 +64,33 @@ export function releaseBlocked(summary: Summary | null): boolean {
   const state = summary?.body.chain.instance_state;
   return state === "starting" || state === "ready" || state === "stopping";
 }
+
+export function formatBytes(value: string): { shown: string; exact: string } {
+  if (!/^\d+$/.test(value)) return { shown: value, exact: value };
+  const bytes = Number(value);
+  const units = ["bytes", "KiB", "MiB", "GiB", "TiB"];
+  let size = bytes;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  const shown = unit === 0 ? `${bytes} bytes` : `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unit]}`;
+  return { shown, exact: `${bytes} bytes` };
+}
+
+export function modelKindLabel(kind: string): string {
+  if (kind === "warehouse_artifact") return "Warehouse artifact";
+  if (kind === "provider_digest") return "Provider digest";
+  return kind;
+}
+
+export function usabilityLabel(basis: string, contradictory: boolean): string {
+  if (contradictory || basis === "contradictory_ready_instances") {
+    return "Not usable — more than one ready instance";
+  }
+  if (basis === "authorised_ready_instance") return "Usable — one ready instance";
+  if (basis === "latest_stored_not_live") return "Not usable — stored instance is not ready";
+  if (basis === "no_instance") return "Not usable — no serving instance";
+  return basis;
+}

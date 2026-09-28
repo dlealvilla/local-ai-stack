@@ -61,6 +61,10 @@ cd ui/command-center && npm install && npm run dev
 It does not call the Admin API. Import a snapshot from
 `GET /v1/snapshot` on the customer deployment.
 
+## Local demonstration
+
+No physical host is required. Lifecycle tests in `tests/machi/test_rukan_lifecycle.py` start a local probe process, then a separate Admin lifecycle owner reattaches using the stored stamp and token, stops it, and releases through ResourceManager. Frontend checks are `npm test` and `npm run build` in `ui/admin` and `ui/command-center`. This environment did not capture screenshots. The pages under test are Overview, Inference, Deployment, Deployments, Deployment Detail, and Support evidence.
+
 ## Deferred
 
 Remote Admin, connected fleet telemetry, identity, licensing, Dynamo,
