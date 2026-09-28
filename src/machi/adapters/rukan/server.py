@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 from machi.adapters.rukan.complete import Completion
 from machi.adapters.rukan.lifecycle import LifecycleOwner
+from machi.adapters.rukan.local_analytics import local_analytics
 from machi.adapters.rukan.project import (
     export_snapshot,
     project_admin,
@@ -84,6 +85,14 @@ class AdminApplication:
             "release_attached": attached or self.handlers.release is not None,
         }
         return _envelope("ok", "stored evidence", body)
+
+    def analytics(self) -> dict[str, object]:
+        """Customer-local facts. This is not the vendor export."""
+        return _envelope(
+            "ok",
+            "local analytics",
+            local_analytics(self.store_root, self.journal_dir),
+        )
 
     def snapshot(self) -> dict[str, object]:
         view = project_admin(
@@ -257,6 +266,9 @@ def _dispatch(
         _write(handler, 403, _envelope("refused", "origin is not loopback", {}))
         return
     path = urlparse(handler.path).path
+    if method == "GET" and path == "/v1/analytics":
+        _write(handler, 200, application.analytics())
+        return
     if method == "GET" and path in {"/v1/summary", "/v1/overview"}:
         _write(handler, 200, application.summary())
         return

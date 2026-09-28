@@ -1379,6 +1379,40 @@ def compose_plan(inputs: PlanInputs) -> PlanDecision:
     return compose_plan_domain(inputs, build_vllm_recipe)
 
 
+def _export_rukan_analytics(ns: argparse.Namespace) -> int:
+    """Write one analytics bundle. This does not change operational state."""
+    from machi.adapters.rukan.analytics_export import export_analytics, write_analytics
+    from machi.kernel.build import identity
+
+    text = export_analytics(
+        Path(ns.store_dir),
+        Path(ns.journal_dir) if ns.journal_dir else None,
+        identity(),
+        exported_at=dt.datetime.now(dt.UTC).isoformat(),
+    )
+    write_analytics(Path(ns.output), text)
+    print("product  Rukan")
+    print(f"bundle   {ns.output}")
+    print("network  false")
+    return 0
+
+
+def _serve_rukan_command_center(ns: argparse.Namespace) -> int:
+    """Bind the loopback Command Center. The browser is not the store."""
+    from machi.adapters.rukan.hub import CommandHub, serve_command_center
+
+    hub = CommandHub(Path(ns.data_dir))
+    print("product  Rukan Command Center")
+    print(f"bind     127.0.0.1:{ns.port}")
+    print("store    sqlite")
+    serve_command_center(
+        hub,
+        port=ns.port,
+        static_dir=Path(ns.static_dir) if ns.static_dir else None,
+    )
+    return 0
+
+
 def _serve_rukan_admin(ns: argparse.Namespace) -> int:
     """Bind the loopback Rukan Admin seam. It does not choose a runtime."""
     from machi.adapters.rukan.complete import store_completer
@@ -1406,7 +1440,7 @@ def _serve_rukan_admin(ns: argparse.Namespace) -> int:
         lifecycle=LifecycleOwner(
             Path(ns.store_dir),
             provider_base=ns.provider_base,
-            state_root=Path(ns.state_root) if ns.state_root else Path(ns.store_dir),
+            state_root=Path(getattr(ns, "state_root", None) or ns.store_dir),
         ),
     )
     print("product  Rukan Admin")
@@ -1880,6 +1914,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     admin_serve.add_argument("--journal-dir", default=None)
     admin_serve.add_argument("--static-dir", default=None)
     admin_serve.add_argument("--port", type=int, default=8765)
+    admin_serve.add_argument("--state-root", default=None)
+
+    analytics = sub.add_parser(
+        "analytics",
+        help="read-only Rukan analytics export; this does not mutate state",
+    )
+    analytics_sub = analytics.add_subparsers(dest="analytics_command", required=True)
+    analytics_export = analytics_sub.add_parser(
+        "export",
+        help="write one versioned JSONL bundle from the local store and journal",
+    )
+    analytics_export.add_argument("--store-dir", required=True)
+    analytics_export.add_argument("--journal-dir", default=None)
+    analytics_export.add_argument("--output", required=True)
+
+    command_center = sub.add_parser(
+        "command-center",
+        help="serve the loopback Rukan Command Center; this does not admit",
+    )
+    command_sub = command_center.add_subparsers(
+        dest="command_center_command", required=True
+    )
+    command_serve = command_sub.add_parser(
+        "serve",
+        help="bind 127.0.0.1, own SQLite, and scan the inbox on refresh",
+    )
+    command_serve.add_argument("--data-dir", required=True)
+    command_serve.add_argument("--port", type=int, default=8780)
+    command_serve.add_argument("--static-dir", default=None)
     admin_serve.add_argument(
         "--provider-base",
         default="http://127.0.0.1:11434",
@@ -2383,6 +2446,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if ns.command == "admin" and ns.admin_command == "serve":
             return _serve_rukan_admin(ns)
+        if ns.command == "analytics" and ns.analytics_command == "export":
+            return _export_rukan_analytics(ns)
+        if ns.command == "command-center" and ns.command_center_command == "serve":
+            return _serve_rukan_command_center(ns)
         if ns.command == "serve" and ns.serve_command == "policy":
             print(f"policy   {SERVE_POLICY_VERSION}")
             print(f"bind     {BIND_SCOPE}")

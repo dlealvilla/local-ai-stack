@@ -1,5 +1,17 @@
-import { latest, type CommandStore } from "../../shared/store";
 import type { SupportSnapshot } from "../../shared/snapshot";
+
+export type DeploymentRow = {
+  install_id: string;
+  latest_exported_at: string;
+  version: string;
+  os_family: string;
+  architecture: string;
+  accelerator_summary: string;
+  macropath: string;
+  model_identity: string;
+  witness_verdict: string;
+  snapshot_count: number;
+};
 
 export function snapshotAge(exportedAt: string, nowMs: number): string {
   const then = Date.parse(exportedAt);
@@ -13,27 +25,26 @@ export function snapshotAge(exportedAt: string, nowMs: number): string {
   return `snapshot age ${Math.floor(hours / 24)}d`;
 }
 
-export function filterDeployments(store: CommandStore, query: string): CommandStore["deployments"] {
+export function filterRows(rows: DeploymentRow[], query: string): DeploymentRow[] {
   const needle = query.trim().toLowerCase();
-  const rows = [...store.deployments].sort((left, right) =>
-    latest(right).exported_at.localeCompare(latest(left).exported_at),
+  const sorted = [...rows].sort((left, right) =>
+    right.latest_exported_at.localeCompare(left.latest_exported_at),
   );
-  if (!needle) return rows;
-  return rows.filter((item) => {
-    const snap = latest(item);
-    const haystack = [
-      item.installId,
-      snap.version,
-      snap.os_family,
-      snap.accelerator_summary,
-      snap.macropath,
-      snap.model_identity,
-      snap.witness_verdict,
+  if (!needle) return sorted;
+  return sorted.filter((row) =>
+    [
+      row.install_id,
+      row.version,
+      row.os_family,
+      row.accelerator_summary,
+      row.macropath,
+      row.model_identity,
+      row.witness_verdict,
     ]
       .join(" ")
-      .toLowerCase();
-    return haystack.includes(needle);
-  });
+      .toLowerCase()
+      .includes(needle),
+  );
 }
 
 export function history(snapshots: SupportSnapshot[]): SupportSnapshot[] {

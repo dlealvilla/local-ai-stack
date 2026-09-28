@@ -9,7 +9,7 @@ import {
   type Summary,
 } from "./logic";
 
-const PAGES = ["Overview", "Inference", "Models", "Deployment", "System"] as const;
+const PAGES = ["Overview", "Inference", "Models", "Deployment", "System", "Analytics"] as const;
 type Page = (typeof PAGES)[number];
 
 export function App() {
@@ -75,6 +75,7 @@ export function App() {
         {!loading && summary?.outcome === "ok" && page === "System" ? (
           <System summary={summary} />
         ) : null}
+        {!loading && page === "Analytics" ? <Analytics /> : null}
       </main>
     </>
   );
@@ -335,6 +336,52 @@ function System({ summary }: { summary: Summary }) {
         <Card title="SAFE accelerator memory" value={safeAccel.shown} detail={safeAccel.exact} />
         <Card title="Physical qualification" value={summary.body.physical_register} detail={summary.body.pending_coverage} />
       </section>
+    </section>
+  );
+}
+
+function Analytics() {
+  const [body, setBody] = useState<Record<string, unknown> | null>(null);
+  const [failed, setFailed] = useState("");
+  useEffect(() => {
+    void fetch("/v1/analytics")
+      .then((response) => response.json())
+      .then((document) => setBody(document.body))
+      .catch(() => setFailed("Local analytics could not be read."));
+  }, []);
+  if (failed) return <p role="alert">{failed}</p>;
+  if (!body) return <p>Loading local analytics.</p>;
+  const missing = Array.isArray(body.missing) ? body.missing : [];
+  return (
+    <section>
+      <h1>Local analytics</h1>
+      <p className="muted">Facts from this deployment's journal and proofs. Not a vendor export.</p>
+      <section className="grid">
+        <article className="card">
+          <p className="muted">Inference proofs</p>
+          <p>{String(body.inference_proof_count ?? "not_recorded")}</p>
+        </article>
+        <article className="card">
+          <p className="muted">Proven</p>
+          <p>{String(body.inference_proven ?? "not_recorded")}</p>
+        </article>
+        <article className="card">
+          <p className="muted">Failed</p>
+          <p>{String(body.inference_failed ?? "not_recorded")}</p>
+        </article>
+        <article className="card">
+          <p className="muted">Reported completion tokens</p>
+          <p>{String(body.completion_tokens_reported ?? "not_recorded")}</p>
+        </article>
+      </section>
+      <h2>Not recorded</h2>
+      <ul>
+        {missing.map((item) => (
+          <li key={String(item)}>{String(item)}</li>
+        ))}
+      </ul>
+      <h2>Recent events</h2>
+      <pre>{JSON.stringify(body.timeline ?? [], null, 2)}</pre>
     </section>
   );
 }
