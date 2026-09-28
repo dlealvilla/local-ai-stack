@@ -1,120 +1,89 @@
-# RUKAN-DUAL-UI-V0.1-001
+# RUKAN-ANALYTICS-HUB-V0.2-001
 
-## A. EXACT STATUS
+## EXACT STATUS
 
-RUKAN_DUAL_UI_V0_1_LOCAL_PASS
+RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS
 
-## B. TL;DR
+## TL;DR
 
-Rukan Admin now stops the current managed instance through the existing Serve services and releases only through ResourceManager after stop eligibility. Native reattachment uses the stored start stamp and serve identity token, not the pid alone. Both local UIs are easier to read. Command Center stays import-only and still does not claim a deployment is live. No physical host was created.
+Command Center is now a loopback service with SQLite as the durable store and an inbox scanned by Refresh deployments. Rukan Admin has a local Analytics page over this deployment's journal and proofs. The vendor interchange is versioned JSONL, not CSV. Nothing is labelled live. No physical host was created.
 
-## C. STARTING / FINAL SHA
+## SHAS
 
-- Canonical baseline: `7ff3dff6972f69ba38214a6d30f7a19f272318e0`
-- Final SHA: `add9ac3f5acb2d9f4bc335dedc49a274df4d4193`
+- Canonical baseline: `c649103f244475f6381ba473f4431e0a7f86f803`
+- Final SHA: `404858abde45443d91f9a6f17b301754cc8b4276`
+- Branch: `rukan/analytics-hub-v0.2`
+- Origin: `origin/rukan/analytics-hub-v0.2` equals that SHA
+- `origin/machi` was not moved and remains `c649103f244475f6381ba473f4431e0a7f86f803`
 
-## D. BRANCH / WORKTREE / ORIGIN
+## ARCHITECTURE
 
-- Branch: `rukan/dual-ui-v0.1`
-- Origin: `origin/rukan/dual-ui-v0.1` = `add9ac3f5acb2d9f4bc335dedc49a274df4d4193`
-- Branched from `origin/machi` at `7ff3dff6972f69ba38214a6d30f7a19f272318e0`
-- `origin/machi` was not moved
-- Untracked `docs/machi/proposals/` was not committed
+Customer-local analytics and the vendor export stay separate. Admin `GET /v1/analytics` reads the deployment journal and inference proofs. `machi analytics export` writes one allow-listed JSONL bundle and does not mutate operational state. Command Center imports that bundle, or an existing support snapshot JSON file, from its inbox into SQLite. The browser is a client. Transport is still manual: export, copy the file into the inbox, Refresh deployments.
 
-## E. LIFECYCLE OWNERSHIP ANALYSIS
+## SQLITE SCHEMA
 
-The Admin process rebuilds `ServeService`, `ProviderServeService`, and one `ResourceManager` from the same store. Native `VllmServeProvider` already reconstructs a `SpawnedProcess` from persisted pid, start stamp, identity token, and argv fingerprint. `NativeProcessRunner.view` treats a different start stamp or `MACHI_SERVE_IDENTITY` as not our process, and `terminate` does not signal that process. Provider stop unloads by catalog name and digest, then proves absence. That is the existing re-entry contract, so no new daemon was added.
+Schema version `1` in `command.sqlite`. Tables: `meta`, `sources` (content hash), `rejections`, `deployments`, `snapshots`, `events`, `inferences`. A newer unknown schema version fails closed. There is no upgrade path yet because this is the first version.
 
-## F. STOP IMPLEMENTATION
+## INBOX / REFRESH
 
-`POST /v1/lifecycle/stop` refuses a body that contains `pid`, `provider`, `port`, or `runtime`, and refuses an instance id that is not the current chain. Otherwise it calls native `ServeService.stop` or provider `ProviderServeService.stop`. A second native stop converges with `stop already recorded`. A failed stop leaves the reservation held. The projection reads the latest serve transition, so the UI shows `stopping` or `stopped` after refresh.
+`machi command-center serve --data-dir <dir> --port 8780` creates `<dir>/inbox` and scans it on startup and on `POST /v1/refresh`. Supported files are `*.json` support snapshots and `*.jsonl` analytics bundles. Each file is hashed. A known hash is skipped. A valid file imports in one transaction. A malformed file is recorded by basename and reason and does not block other files. Source files are not deleted. The same bundle twice does not duplicate rows. A second snapshot for the same install appends history. Removing a deployment deletes the local rows only.
 
-## G. RELEASE IMPLEMENTATION
+## BUNDLE CONTRACT
 
-Release is refused while the instance is starting, ready, or stopping. After a confirmed native stop, `ServeService.release_after_stop` calls `ResourceManager.release`. A provider instance is released on that same manager only when its state is STOPPED. A second release converges with `release already recorded`. STOP does not release.
+`rukan.analytics_bundle` version 1. First JSONL record is `kernel.analytics_manifest` with bundle id, install id, exported_at, version, build, commit, privacy policy `rukan.analytics.export.1`, and snapshot/event/inference counts. Counts must match the following records.
 
-## H. NATIVE LIFECYCLE TESTS
+## EXPORTED RECORD TYPES
 
-`tests/machi/test_rukan_lifecycle.py` starts a local probe through the real `ServeService`, then a separate `LifecycleOwner` reattaches and stops it. Covered: stop of the READY instance, idempotent second stop, wrong instance refused, pid override refused, release while READY refused, release after STOPPED, second release, failed stop keeps the reservation and the process, identity mismatch does not signal.
+- `kernel.support_snapshot` point-in-time summary
+- `kernel.analytics_event` envelope: event id, type, time, install, block, component, outcome, privacy. No payload
+- `kernel.analytics_inference`: proof id, instance, plan, reservation, generation, model identity and kind, request kind, status code when the proof has one, completion tokens when reported otherwise `not_recorded`, structural validity, typed failure, proven or failed
 
-## I. OLLAMA LIFECYCLE DISPOSITION
+## PRIVACY RULES
 
-The provider path uses `ProviderServeService.stop` against the catalog port, then the same ResourceManager. A local fake catalog proves unload-then-release and that release is refused while the instance is READY. No Ollama daemon was started.
+Export allow-list is `public_ops` and `operational` only. `restricted` and `customer_content` are not exported. Admin local analytics may show restricted envelopes without payloads and counts omitted customer-content events without their bodies. Prohibited keys, including prompt and response, fail the bundle closed. Absolute paths are not stored in rejection rows; the file name is.
 
-## J. ADMIN OVERVIEW CHANGES
+## ANALYTICS VIEWS
 
-The first screen now leads with whether the deployment is usable, then the active model, how it is running, the reservation, SAFE memory, and pending physical coverage. Build and ids sit behind disclosure. There is no health score.
+Command Center: deployment inventory, versions, OS/architecture, accelerators, macropath, models, Witness, event failures by type, inference proven/failed, reported completion-token sums, snapshot history, and support envelopes. Admin Analytics: events by outcome, recent timeline, lifecycle counts, proof count, proven/failed, reported completion tokens, and an explicit missing-data list. Neither surface says live, online, offline, healthy, or last-seen.
 
-## K. ADMIN INFERENCE CHANGES
+## FUTURE-METRIC GAPS
 
-Multiline prompt, max tokens limited to 1..64, Send disabled while a request is in progress, Clear, typed refusal text, completion tokens only when reported, and elapsed seconds measured around that request. The reply is still not stored. The browser still cannot choose the runtime.
+| Designed metric | Active source |
+|---|---|
+| input tokens | not on the native inference proof; not invented |
+| TTFT | not exported as request telemetry |
+| queue time | not persisted |
+| historical request latency | not persisted; tester elapsed time is not history |
+| cost | not persisted |
+| user/team/application usage | not persisted |
+| routing reason | not persisted |
+| utilization | not persisted |
+| SLA/availability | not persisted |
 
-## L. ADMIN DEPLOYMENT CHANGES
+## TESTS / BUILDS
 
-The chain is Foundation, Model, Plan, Reservation, Instance, Inference evidence, Witness, each with a short meaning and a technical disclosure. Stop and Release show the returned outcome. Release stays disabled until stop eligibility.
-
-## M. MODELS / SYSTEM REFINEMENT
-
-Models label warehouse artifacts and provider digests separately and say when an operation is not attached. System separates observed hardware from SAFE capacity and shows human-readable bytes with the exact byte count in detail. Unresolved and not_recorded stay as recorded. No utilisation chart.
-
-## N. COMMAND CENTER DEPLOYMENTS CHANGES
-
-Search covers install id, version, OS, accelerator, macropath, model, and Witness. Rows sort by latest `exported_at`, show snapshot count, evidence exported time, and snapshot age. Snapshot age is not last-seen or online.
-
-## O. SNAPSHOT HISTORY
-
-Multiple snapshots for one install stay retained. Detail can select an older snapshot by export time, version, Witness, and macropath. No diff engine was added.
-
-## P. SUPPORT EVIDENCE CHANGES
-
-The support view titles the structured envelopes and states that payloads and customer content are omitted. Raw logs were not added.
-
-## Q. VISUAL / ACCESSIBILITY CHANGES
-
-Existing shared theme. Added headings, search label, history select label, status text, and disabled-operation reasons. Focus outlines were already in the theme. No new design-system dependency.
-
-## R. SCREENSHOTS / DEMO EVIDENCE
-
-No screenshot tool was introduced. Local proof is `tests/machi/test_rukan_lifecycle.py`, Admin and Command Center vitest, and the documented commands in `docs/machi/RUKAN.md`. Run Admin with `python -m machi.main admin serve --store-dir <store> --port 8765` and `cd ui/admin && npm run dev`. Run Command Center with `cd ui/command-center && npm run dev`.
-
-## S. SECURITY / PRIVACY REVIEW
-
-Loopback binding is unchanged. Inference text is still not journaled. Snapshot export still rejects prohibited content keys. Command Center remains import-only and non-authoritative. The banner says imported evidence is not live deployment status.
-
-## T. FULL QA
-
-- `tests/machi`: pass, including architecture, privacy, and lifecycle tests
-- `tests/acceptance_lab`: pass, run separately because the two suites share a `test_cli` module name
+- `tests/machi`: pass, including architecture, privacy, idempotent refresh, mixed inbox, schema version, and restart
+- `tests/acceptance_lab`: pass, collected separately from `tests/machi`
 - ruff: pass
-- mypy --strict `src/machi`: pass, 185 files
-- Admin vitest: 4 passed. Command Center vitest: 5 passed
-- Both production Vite builds and `tsc --noEmit` passed
+- mypy --strict `src/machi`: pass, 189 files
+- Admin vitest 4 passed; Command Center vitest 5 passed
+- both production Vite builds passed
+- Wheel `machi-0.1.0-py3-none-any.whl`, build `0.1.0+404858abde45`, clean, SHA256 `61d7b486c8f2978ef143f0d9cf2a63aa1d8829d4e62efb71dff671ff8129422a`, size 363049, isolated `verify_ok`
 
-## U. BUILD ARTIFACTS
+## LIMITATIONS
 
-- Wheel: `machi-0.1.0-py3-none-any.whl`
-- Build id: `0.1.0+add9ac3f5acb`
-- Commit: `add9ac3f5acb2d9f4bc335dedc49a274df4d4193`
-- Clean: true
-- SHA256: `0140ab465da303e0f61cdb178184efa3622878312fc861ef03c2d502ab5709de`
-- Size: 350937
-- Isolated verify: `verify_ok`
-- Admin and Command Center production bundles built under `ui/*/dist`
+No automatic copy from a customer deployment to the vendor PC. No OS autostart. Command Center dev UI proxies to port 8780. CSV is not a format. Raw logs are not shipped.
 
-## V. REMAINING LIMITATIONS
+## NEXT RECOMMENDATION
 
-Admin must be the process that calls stop. It can reattach a native process only when the stored stamp and identity token still match. It does not adopt an unrelated pid. Provider stop needs the loopback provider API. Command Center storage is still this browser profile. Physical AMD, macOS/Ollama, and Ampere/N1 coverage stay pending. No remote fleet, auth, Knowledge, registry, or Dynamo.
+Keep the manual inbox. The next useful step is a documented operator copy path, still not a live fleet connection, and only after Lead review.
 
-## W. RECOMMENDED NEXT UI ITERATION
+## GIT STATE
 
-Show the stop and release outcome on the Deployment page against a real READY instance the operator already started, and keep the Command Center import-only. Do not add fleet connectivity in that pass.
-
-## X. GIT STATE
-
-- `rukan/dual-ui-v0.1` equals `origin/rukan/dual-ui-v0.1` at `add9ac3f5acb2d9f4bc335dedc49a274df4d4193`
-- `origin/machi` remains `7ff3dff6972f69ba38214a6d30f7a19f272318e0`
+- `rukan/analytics-hub-v0.2` equals origin at `404858abde45443d91f9a6f17b301754cc8b4276`
+- `origin/machi` remains `c649103f244475f6381ba473f4431e0a7f86f803`
 - Working tree clean except untracked `docs/machi/proposals/`
 
-## Y. STOP
+## STOP
 
-STOP. Waiting for Lead review. Remote fleet, authentication, Knowledge, licensing, the Runtime Artifact Registry, Dynamo, LibreChat, and physical testing were not started.
+STOP. Waiting for Lead review. Remote fleet, authentication, licensing, Knowledge, the Runtime Artifact Registry, Dynamo, LibreChat, and physical testing were not started.
