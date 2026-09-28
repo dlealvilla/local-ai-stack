@@ -1,5 +1,28 @@
 # Open Decisions
 
+## Command Center ingestion / analytics — binding
+
+- Rukan Command Center is now intended to be a **long-running local business application/service** on the operator PC, not only a browser-local snapshot viewer.
+- v0.2 should introduce a persistent local Command Center service and datastore. Use a small local SQLite database unless repository truth exposes a stronger already-authoritative fit. The browser UI must become a client of that local service rather than the authority.
+- Add a local **inbox/import directory**. A Refresh action scans that directory, validates supported Rukan export artifacts, imports only new material idempotently, and updates the UI.
+- There is **no deployment-to-business transport yet**. For now, files may be copied/synced into the inbox manually or by external means. Do not pretend remote delivery exists.
+- Canonical machine interchange should be **versioned JSON/JSONL**, not CSV. CSV may be offered later as a human export/import adapter, but it must not define Rukan analytics contracts.
+- Preserve the existing `rukan.support_snapshot` as a compact point-in-time support summary. Do not overload it to become the entire analytics feed.
+- Add a separate versioned analytics/export bundle capable of carrying currently implemented non-content analytical records from a deployment, including:
+  - the support snapshot;
+  - exportable EventRecord envelopes/timeline;
+  - inference-proof/usage facts that actually exist in active Rukan contracts;
+  - other implemented non-content analytical projections only where repository truth supports them.
+- Do not invent input-token, TTFT, queue-time, cost, user/team/application, utilization, or other metrics that active Rukan does not yet persist. Preserve those as future schema/domain work.
+- Customer content stays local. Prompts, generated responses, documents, RAG context, secrets, credentials, filesystem paths, and other restricted/customer-content fields must not enter Command Center analytics.
+- Local customer administrators should also gain access to analytics derived from their own local operational journal/state. The customer-local Admin analytics view may contain locally permitted data that is not eligible for vendor export.
+- Keep the three concerns distinct:
+  1. customer-local operational/usage analytics;
+  2. business/vendor product telemetry and support analytics in Command Center;
+  3. future licensing/entitlement data.
+- Command Center aggregation is not authoritative for local host facts, Capacity, ResourceManager, Plan, Serve, or inference availability.
+- Live fleet heartbeat/transport, tenant identity, authentication, consented automatic export, and remote control remain separate later workstreams.
+
 ## RunPod acceptance cost — binding
 
 - **NVIDIA hourly ceiling remains ≤ $1.50/hour.**
