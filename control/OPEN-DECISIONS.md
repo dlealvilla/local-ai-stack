@@ -2,11 +2,12 @@
 
 ## RunPod acceptance cost — binding
 
-- Default maximum hourly price for **any newly created RunPod Pod is $0.50/hour**.
-- This supersedes the previous NVIDIA $1.50/hour and AMD $4.00/hour provider-specific ceilings for future campaigns.
-- If the required target cannot be provisioned at or below $0.50/hour, Cursor must return a price-cap/environment block rather than selecting a more expensive SKU.
-- Any exception above $0.50/hour requires Daniel's explicit approval for that specific physical test.
-- Existing one-Pod ownership/safety rules, $5 remaining-balance floor, session/day caps, 90-minute lifetime, retry limit, no-network-volume rule, and stop-and-ask hang handling remain unchanged unless separately amended.
+- **NVIDIA hourly ceiling remains ≤ $1.50/hour.**
+- **AMD hourly ceiling remains ≤ $4.00/hour.**
+- The **remaining RunPod account-balance floor is now $0.50**.
+- Before creating a Pod, live balance must be established and the planned test must be able to complete while preserving at least $0.50, accounting for the selected hourly rate, expected runtime, any other observed account burn, and a reasonable safety margin.
+- If balance cannot be established or safe completion above $0.50 cannot be demonstrated, do not create the Pod.
+- Existing one-Pod ownership/safety rules, session/day caps, 90-minute lifetime, retry limit, no-network-volume rule, and stop-and-ask hang handling remain unchanged unless separately amended.
 
 There are **no blocking Lead Developer decisions** for the first Rukan dual-UI implementation bundle.
 
