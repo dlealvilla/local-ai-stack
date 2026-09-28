@@ -44,19 +44,19 @@
         "mode": "long_running_local_service",
         "persistence": "sqlite"
       },
-      "instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
-      "physical_server": "NONE",
-      "starting_source": "c649103f244475f6381ba473f4431e0a7f86f803",
-      "terminal_success_status": "RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS",
       "correction": {
-        "starting_source": "404858abde45443d91f9a6f17b301754cc8b4276",
         "issues": [
           "bundle_record_install_identity_validation",
           "snapshot_count_import_order_convergence",
           "remove_refresh_reimport_recoverability"
         ],
+        "starting_source": "404858abde45443d91f9a6f17b301754cc8b4276",
         "status": "CORRECTION_REQUIRED"
-      }
+      },
+      "instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
+      "physical_server": "NONE",
+      "starting_source": "c649103f244475f6381ba473f4431e0a7f86f803",
+      "terminal_success_status": "RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS"
     },
     "rukan_command_center": {
       "connectivity_v0": "imported_non_content_snapshots",
@@ -118,5 +118,5 @@
   "published_instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-FIX-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_ANALYTICS_HUB_V0_2_FIX"
+  "status": "PASTEBACK_PUBLISHED"
 }

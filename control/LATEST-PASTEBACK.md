@@ -1,89 +1,91 @@
-# RUKAN-ANALYTICS-HUB-V0.2-001
+================================================================================
+=========================== PASTE BACK START ===================================
+================================================================================
 
-## EXACT STATUS
+TASK: RUKAN-ANALYTICS-HUB-V0.2-FIX-001
+STATE: PASS
+MILESTONE: Rukan analytics hub v0.2 correction
+STAGE: local Command Center provenance
+STEP: fix bundle identity, snapshot history, and remove/refresh reimport
+PREDECESSOR OUTPUTS: 404858abde45443d91f9a6f17b301754cc8b4276 on rukan/analytics-hub-v0.2
+CURRENT_COMMIT: acd91f319b653c8e53a8c1d1eb4a01e26ae08bdf
 
-RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS
+STATUS: RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS
 
-## TL;DR
+CHANGES:
 
-Command Center is now a loopback service with SQLite as the durable store and an inbox scanned by Refresh deployments. Rukan Admin has a local Analytics page over this deployment's journal and proofs. The vendor interchange is versioned JSONL, not CSV. Nothing is labelled live. No physical host was created.
+* src/machi/kernel/analytics.py — a bundle fails closed when a snapshot, event, or inference install id differs from the manifest. The record id is not rewritten.
+* src/machi/adapters/rukan/hub.py — events and inferences are stored under their own install id. Snapshot history always records the retained count, and deployment metadata moves forward only when the incoming export is at least as new. Sources are keyed by file hash and by installation plus bundle id or snapshot id. Remove deletes that installation's import provenance and leaves inbox files in place.
+* tests/machi/test_rukan_analytics.py — mismatch, history-order, remove/reimport, isolation, and logical-idempotency coverage.
+* docs/machi/RUKAN-ANALYTICS.md — documents the identity check, logical skip, and remove-then-refresh behavior.
+* Command Center schema version is 2. A version-1 database drops the old sources table and recreates it with install_id and logical_id. Imported facts stay. Inbox files stay, so the next Refresh rebuilds provenance. sha256 remains the exact-file key. UNIQUE(install_id, logical_id) is the logical key.
 
-## SHAS
+EVIDENCE:
 
-- Canonical baseline: `c649103f244475f6381ba473f4431e0a7f86f803`
-- Final SHA: `404858abde45443d91f9a6f17b301754cc8b4276`
-- Branch: `rukan/analytics-hub-v0.2`
-- Origin: `origin/rukan/analytics-hub-v0.2` equals that SHA
-- `origin/machi` was not moved and remains `c649103f244475f6381ba473f4431e0a7f86f803`
+* focused tests: tests/machi/test_rukan_analytics.py 12 passed, including snapshot, event, and inference install mismatch with empty deployments/snapshots/events/inferences/sources; newer-then-older, older-then-newer, and three shuffled snapshot orders; remove/reimport of a bundle and of a snapshot; deployment B left intact; exact-file refresh imported 0; logical re-serialization added no source row; schema 9 still fails closed; schema 1 upgrades to 2.
+* regression tests: tests/machi 616 passed; tests/acceptance_lab 51 passed, collected separately.
+* ruff check . passed.
+* mypy --strict src/machi: no issues in 189 source files.
+* ui/admin vitest 4 passed; tsc and vite build passed.
+* ui/command-center vitest 5 passed; tsc and vite build passed.
+* wheel: machi-0.1.0-py3-none-any.whl, build id 0.1.0+acd91f319b65, SHA256 afc53d44833509d18c6188d9463e4864caf1c2e46c7ac1fd7d32e28f7b3ec8e7, size 363493, clean_source true.
+* isolated verify_machi.py: verify_ok.
 
-## ARCHITECTURE
+SOURCE SIDE (real-host stages):
 
-Customer-local analytics and the vendor export stay separate. Admin `GET /v1/analytics` reads the deployment journal and inference proofs. `machi analytics export` writes one allow-listed JSONL bundle and does not mutate operational state. Command Center imports that bundle, or an existing support snapshot JSON file, from its inbox into SQLite. The browser is a client. Transport is still manual: export, copy the file into the inbox, Refresh deployments.
+* predecessor: 404858abde45443d91f9a6f17b301754cc8b4276
+* source commit(s): acd91f319b653c8e53a8c1d1eb4a01e26ae08bdf
+* files changed: analytics.py, hub.py, test_rukan_analytics.py, RUKAN-ANALYTICS.md
+* local tests: listed above
+* final source commit: acd91f319b653c8e53a8c1d1eb4a01e26ae08bdf
+* artifact / SHA-256 / build id: machi-0.1.0-py3-none-any.whl / afc53d44833509d18c6188d9463e4864caf1c2e46c7ac1fd7d32e28f7b3ec8e7 / 0.1.0+acd91f319b65
 
-## SQLITE SCHEMA
+DEPLOYMENT SIDE (real-host stages):
 
-Schema version `1` in `command.sqlite`. Tables: `meta`, `sources` (content hash), `rejections`, `deployments`, `snapshots`, `events`, `inferences`. A newer unknown schema version fails closed. There is no upgrade path yet because this is the first version.
+* target host and fingerprint: none; local correction only
+* transferred hash == local hash: not applicable
+* installed build identity: not applicable
+* install/upgrade result: not applicable
+* commands under acceptance: not applicable
+* observations and diagnostics: not applicable
+* acceptance result: local only
+* attempts, if more than one: one
 
-## INBOX / REFRESH
+BEHAVIOR:
 
-`machi command-center serve --data-dir <dir> --port 8780` creates `<dir>/inbox` and scans it on startup and on `POST /v1/refresh`. Supported files are `*.json` support snapshots and `*.jsonl` analytics bundles. Each file is hashed. A known hash is skipped. A valid file imports in one transaction. A malformed file is recorded by basename and reason and does not block other files. Source files are not deleted. The same bundle twice does not duplicate rows. A second snapshot for the same install appends history. Removing a deployment deletes the local rows only.
+* A mismatched snapshot, event, or inference install id rejects the whole bundle before SQLite mutation. No partial rows are written.
+* Import order does not change the newest deployment metadata or the retained snapshot count. Older snapshots stay in history.
+* Remove local copy, leave the inbox files, then Refresh reconstructs that deployment. Removing deployment A does not change deployment B. Source files are not deleted.
+* The same file hash is skipped. A different serialization of the same bundle id or snapshot id does not create a second source row.
+* Still local only: loopback Command Center, SQLite authority, inbox plus Refresh, JSON/JSONL, manual transport, Admin analytics, timelines, inference facts, privacy allow-list. No customer content export, no invented future metrics, and no live, online, or healthy claims.
+* Not started: remote fleet connectivity, authentication, licensing, Knowledge/RAG, Runtime Artifact Registry, Dynamo, LibreChat/Open WebUI, physical testing.
 
-## BUNDLE CONTRACT
+SCOPE:
 
-`rukan.analytics_bundle` version 1. First JSONL record is `kernel.analytics_manifest` with bundle id, install id, exported_at, version, build, commit, privacy policy `rukan.analytics.export.1`, and snapshot/event/inference counts. Counts must match the following records.
+* non-goals preserved: the accepted v0.2 surfaces listed above; origin/machi remains c649103f244475f6381ba473f4431e0a7f86f803
+* adjacent issues recorded: untracked docs/machi/proposals/ was left untracked and was not committed
 
-## EXPORTED RECORD TYPES
+GIT:
 
-- `kernel.support_snapshot` point-in-time summary
-- `kernel.analytics_event` envelope: event id, type, time, install, block, component, outcome, privacy. No payload
-- `kernel.analytics_inference`: proof id, instance, plan, reservation, generation, model identity and kind, request kind, status code when the proof has one, completion tokens when reported otherwise `not_recorded`, structural validity, typed failure, proven or failed
+* branch: rukan/analytics-hub-v0.2
+* working tree: untracked docs/machi/proposals/ only
+* committed: YES
+* pushed: YES (404858a..acd91f3 origin/rukan/analytics-hub-v0.2)
 
-## PRIVACY RULES
+CHECKPOINT:
 
-Export allow-list is `public_ops` and `operational` only. `restricted` and `customer_content` are not exported. Admin local analytics may show restricted envelopes without payloads and counts omitted customer-content events without their bodies. Prohibited keys, including prompt and response, fail the bundle closed. Absolute paths are not stored in rejection rows; the file name is.
+* path: none
+* token/hash: none
 
-## ANALYTICS VIEWS
+QUESTIONS / DECISIONS:
 
-Command Center: deployment inventory, versions, OS/architecture, accelerators, macropath, models, Witness, event failures by type, inference proven/failed, reported completion-token sums, snapshot history, and support envelopes. Admin Analytics: events by outcome, recent timeline, lifecycle counts, proof count, proven/failed, reported completion tokens, and an explicit missing-data list. Neither surface says live, online, offline, healthy, or last-seen.
+* NONE
 
-## FUTURE-METRIC GAPS
+NEXT:
 
-| Designed metric | Active source |
-|---|---|
-| input tokens | not on the native inference proof; not invented |
-| TTFT | not exported as request telemetry |
-| queue time | not persisted |
-| historical request latency | not persisted; tester elapsed time is not history |
-| cost | not persisted |
-| user/team/application usage | not persisted |
-| routing reason | not persisted |
-| utilization | not persisted |
-| SLA/availability | not persisted |
+* Lead review of acd91f319b653c8e53a8c1d1eb4a01e26ae08bdf
+* DO NOT begin it
 
-## TESTS / BUILDS
-
-- `tests/machi`: pass, including architecture, privacy, idempotent refresh, mixed inbox, schema version, and restart
-- `tests/acceptance_lab`: pass, collected separately from `tests/machi`
-- ruff: pass
-- mypy --strict `src/machi`: pass, 189 files
-- Admin vitest 4 passed; Command Center vitest 5 passed
-- both production Vite builds passed
-- Wheel `machi-0.1.0-py3-none-any.whl`, build `0.1.0+404858abde45`, clean, SHA256 `61d7b486c8f2978ef143f0d9cf2a63aa1d8829d4e62efb71dff671ff8129422a`, size 363049, isolated `verify_ok`
-
-## LIMITATIONS
-
-No automatic copy from a customer deployment to the vendor PC. No OS autostart. Command Center dev UI proxies to port 8780. CSV is not a format. Raw logs are not shipped.
-
-## NEXT RECOMMENDATION
-
-Keep the manual inbox. The next useful step is a documented operator copy path, still not a live fleet connection, and only after Lead review.
-
-## GIT STATE
-
-- `rukan/analytics-hub-v0.2` equals origin at `404858abde45443d91f9a6f17b301754cc8b4276`
-- `origin/machi` remains `c649103f244475f6381ba473f4431e0a7f86f803`
-- Working tree clean except untracked `docs/machi/proposals/`
-
-## STOP
-
-STOP. Waiting for Lead review. Remote fleet, authentication, licensing, Knowledge, the Runtime Artifact Registry, Dynamo, LibreChat, and physical testing were not started.
+================================================================================
+============================ PASTE BACK END ====================================
+================================================================================
