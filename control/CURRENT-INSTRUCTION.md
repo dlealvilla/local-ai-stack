@@ -1,739 +1,706 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-Instruction ID: `MACHI-ADMIN-UI-DESIGN-001`
-Status: `READ_ONLY_DESIGN_FEASIBILITY_REVIEW`
+Instruction ID: `RUKAN-DUAL-UI-V0-001`
+Status: `AUTHORIZED_IMPLEMENTATION`
 Accepted product baseline: `stage1/spine-closure` at `4cb89622a4cd3a1a37bf6ab44c4414e4287e8934`
 Stage-1 status: `STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING`
 
-This instruction starts the first post-Stage-1 product-design loop.
+This instruction supersedes `MACHI-ADMIN-UI-DESIGN-001`.
 
-Do **not** implement frontend code yet.
-Do **not** create a new physical host.
-Do **not** start Dynamo, Runtime Artifact Registry, remote auth, central command center, Knowledge/RAG, or another post-Stage-1 workstream.
+The product is now **Rukan**.
 
-The purpose of this run is to take a proposed simple Machi system-administrator UI, challenge it against repository truth, map every visible field/action to real backend capabilities, identify the minimum missing seams, and return an implementation-ready v0 design for Lead review.
+This bundle authorizes the first post-Stage-1 productization implementation: two separate visual applications built over the existing deployment spine.
 
----
+1. **Rukan Admin** — customer-facing, deployment-local, loopback-only v0.
+2. **Rukan Command Center** — business/vendor-facing, initially local on the operator PC, using imported non-content deployment/support snapshots rather than invented live fleet connectivity.
 
-# 1. PRODUCT INTENT
-
-Machi now has a closed Stage-1 deployment spine. The next goal is to make that spine usable and understandable by a system administrator.
-
-The UI must feel like a product, not a visualization of internal Python modules.
-
-Ordinary operation should answer simple questions first:
-
-- Is Machi healthy?
-- What model is running?
-- Which execution path is active?
-- Can I test inference?
-- What models do I have?
-- What deployment is currently active?
-- What host/capacity evidence is Machi using?
-- Why is something refused, unsupported, incomplete, or contradictory?
-
-Technical details should remain available through progressive disclosure for advanced administrators.
-
-The product vision remains binding:
-
-- non-technical administrators should not need CUDA/ROCm/vLLM/VRAM expertise for ordinary administration;
-- core owns concepts and adapters own implementations;
-- provider/runtime choices must not define the product ontology;
-- privacy is local-by-default;
-- unknown/unresolved/refused states remain truthful;
-- explainability matters;
-- self-hosted operation must not depend on vendor connectivity.
+Do not implement Dynamo, Knowledge/RAG, remote Admin, connected fleet telemetry, Runtime Artifact Registry, physical qualification campaigns, or unrelated later-stage work in this bundle.
 
 ---
 
-# 2. BINDING UI ARCHITECTURE DECISIONS
+# 1. PRODUCT OUTCOME
 
-## 2.1 Local first
+At completion, a developer/operator should be able to stand up both applications locally and see real Rukan state without driving internal Python test tools.
 
-The first Admin UI is same-machine / loopback only.
+## Rukan Admin
 
-It is not LAN Admin.
-It is not remote Admin.
-It is not the vendor/business command center.
+A customer administrator can:
 
-A browser UI may call a local Machi control seam only if that seam remains loopback-bound and calls existing Machi services rather than duplicating their authority.
+- open a local Rukan Admin web UI;
+- see whether the current deployment evidence is supported/incomplete/contradictory/failed;
+- see the active execution macropath;
+- see the current model identity and ServingInstance state;
+- see truthful host and SAFE capacity information that the current contracts expose;
+- inspect the Foundation → Model → Plan → Reservation → Instance → Witness chain;
+- inspect/import/acquire models only through existing model operations that are actually implemented;
+- send a real local inference test request to the current authorised READY instance through a Rukan-owned loopback API/control seam;
+- stop/release only where existing lifecycle semantics already permit those actions;
+- receive typed refusals instead of UI-invented success.
 
-## 2.2 UI is not a control plane authority
+## Rukan Command Center
 
-The frontend must not own or recalculate:
+The business operator can:
 
-- host observations;
-- SAFE capacity;
-- Foundation selection;
-- model compatibility/qualification;
-- Plan state;
-- reservations;
-- ServingInstance lifecycle;
-- fallback policy;
-- Witness verdicts.
+- open a separate local Command Center application on their PC;
+- import one or more Rukan Deployment Summary / Support Snapshot files;
+- see a list of imported deployments;
+- open one deployment detail view;
+- inspect real non-content deployment metadata derived from Rukan evidence;
+- inspect safe operational/support event information included in the snapshot;
+- distinguish accepted physical evidence from PHYSICAL_PENDING qualification;
+- never receive customer prompt/response/document content through this export.
 
-It renders those concepts and invokes existing services.
+The Command Center v0 is not live fleet management. It is a truthful first business dashboard built around imported evidence.
 
-The UI may aggregate them into a screen DTO/view model, but aggregation must not create new truth.
+---
 
-## 2.3 Two macropaths, one product
+# 2. PRODUCT RENAME — BINDING
 
-Native/vLLM and Ollama appear as execution paths under Machi.
+Use **Rukan** in all new customer-facing and business-facing product UI, new post-Stage-1 docs, UI titles, web assets and new feature names.
 
-The UI should not create separate “vLLM app” and “Ollama app” experiences.
+Do **not** rename the Python package/module namespace `machi`, persisted contract kinds, ids, environment variables, state-root names, historical checkpoint paths, GitHub handoff branch, or historical evidence inside this bundle.
 
-Use language such as:
+Reason: Stage-1 persisted evidence and schema identity already depend on those internal names. A full technical namespace migration is a separate compatibility/migration workstream.
 
-- Execution path: Native / vLLM
-- Execution path: Ollama
-- Selection mode: AUTO / VLLM / OLLAMA
+Where useful, current technical docs may say:
 
-Do not merge their model identity systems. Native warehouse artifacts and Ollama provider digests stay distinct.
+> Rukan is the product name. `machi` remains the internal package/control namespace pending a dedicated migration.
 
-## 2.4 Embedded inference tester is required
+Historical docs should remain historically truthful.
 
-The first useful UI must include an embedded inference test experience for the current READY local instance.
+---
 
-The user should be able to enter a prompt and see the response.
+# 3. STARTING STATE / BRANCH
 
-This is not currently the same thing as the existing Stage-1 proof helper, which is an acceptance request path.
+Before changing source:
 
-If an interactive request seam does not exist, identify the narrowest new local-only seam required.
+1. sync `control/machi-handoff`;
+2. confirm this instruction id;
+3. inspect current refs and working tree;
+4. confirm the Stage-1 closure tip remains `4cb89622a4cd3a1a37bf6ab44c4414e4287e8934` or identify an explicitly promoted equivalent;
+5. inspect whether `machi` has now been fast-forwarded to the closure tip;
+6. inspect repository frontend/package tooling and any prior UI code before choosing structure.
+
+If canonical `machi` equals the closure tip, branch from it.
+If `machi` is still stale, branch from the exact closure tip and report the discrepancy.
+
+Recommended implementation branch:
+
+`rukan/dual-ui-v0`
+
+Do not use the control branch as product history.
+
+---
+
+# 4. INDUSTRY SOLUTION / FRONTEND SELECTION GATE
+
+Inspect the repository for an existing authoritative frontend stack.
+
+If no frontend stack is already binding, compare only the smallest credible options for two local web applications.
+
+The Lead's current preferred default is:
+
+- TypeScript;
+- React;
+- Vite;
+- static build output;
+- minimal CSS/design-system dependencies;
+- a shared small typed Rukan UI/client package only where useful.
+
+This preference is not permission to add a large framework stack blindly.
+
+Evaluate alternatives on:
+
+- simplicity;
+- static/offline deployment;
+- packaging with a Python product;
+- no required cloud service;
+- accessibility;
+- maintainability;
+- security surface;
+- developer experience;
+- suitability for a future richer Admin UI and Command Center.
+
+If React + Vite is clearly the smallest aligned choice, state `No solution decision required` and proceed.
+
+Do not introduce Next.js, a Node server dependency, Electron, Tauri, or another heavyweight framework unless repository truth demonstrates a concrete v0 requirement.
+
+---
+
+# 5. TWO PLANES — ARCHITECTURAL BOUNDARY
+
+These are two visual products, not one application with two routes.
+
+## Customer plane
+
+`Rukan Admin`
+
+Runs with the local Rukan deployment.
+
+Authority remains local:
+
+- Discover owns host observations;
+- Capacity owns SAFE ceilings;
+- Foundation owns execution-path selection;
+- Model owns model identity/qualification;
+- Plan owns deployment configuration;
+- ResourceManager owns admission;
+- Serve owns execution/lifecycle/inference proof;
+- Witness projects persisted evidence.
+
+The UI only renders and invokes those services through bounded control seams.
+
+## Business plane
+
+`Rukan Command Center`
+
+Runs separately on the business operator PC for v0.
+
+It consumes imported summaries/snapshots.
+
+It must not:
+
+- become an admission authority;
+- become a Serve authority;
+- infer live host truth from stale imported data;
+- claim live online/offline state unless a future connected telemetry contract exists;
+- receive prompts/responses/files;
+- mutate customer deployments remotely.
+
+The two applications may share visual primitives and typed summary models, but not authority.
+
+---
+
+# 6. MINIMUM LOCAL RUKAN CONTROL / READ API
+
+The current CLI/composition root is not a browser API. Build the thinnest local API/service boundary needed by Rukan Admin.
 
 Requirements:
 
-- prompt and generated response stay local;
-- prompt/response are not written into Witness;
-- prompt/response are not added to operational telemetry or vendor export;
-- request must target the current authorized READY ServingInstance;
-- a UI must not bypass Machi lifecycle/admission semantics by talking to arbitrary runtime endpoints discovered outside Machi state;
-- expose only request metadata that Machi genuinely knows/records.
+- bind to loopback only by default;
+- no generic shell/CLI passthrough endpoint;
+- no arbitrary command execution;
+- call existing domain/application services rather than reimplementing their rules;
+- JSON responses should preserve typed Rukan outcomes and unresolved/refusal states;
+- browser UI must not infer success from HTTP 200 alone;
+- state mutations must flow through existing service boundaries;
+- no browser-direct vLLM/Ollama lifecycle control as normal architecture;
+- customer prompt/response content must not be written to operational journal/Witness/vendor export by this API.
 
-## 2.5 Simple before broad
+Define only endpoints actually needed by v0.
 
-Do not build or design v0 around aspirational pages.
+A likely minimum surface includes concepts equivalent to:
 
-The first design target is exactly five core pages:
+- deployment/admin summary;
+- Witness view;
+- current Foundation/runtime choice;
+- current model/instance view;
+- host/capacity summary;
+- model inspect/import/acquire actions where current services can safely support them;
+- safe lifecycle actions already supported;
+- interactive inference request for the current READY instance;
+- deployment/support snapshot export.
 
-1. Overview
-2. Inference
-3. Models
-4. Deployment
-5. System
+Do not copy these endpoint names blindly. Choose a coherent minimal API from repository truth.
 
-Future navigation may be mocked, but must be visually and architecturally labelled as later/deferred.
-
----
-
-# 3. PROPOSED V0 MOCKUP TO REVIEW
-
-The Lead has prepared a visual mockup with the following design intent. Treat this as a proposal to challenge, not a command to implement unsupported functions.
-
-Use three classifications for every field/action:
-
-- `EXISTS_NOW` — backed by current Stage-1 contracts/services/persisted evidence;
-- `THIN_SEAM_REQUIRED` — product capability exists but the UI needs a narrow loopback aggregation/action/inference seam;
-- `DEFERRED` — backend/product capability is not ready and must not be faked.
-
-Return this classification for every important element below.
+Add clear API versioning from the beginning, even if only `v1`.
 
 ---
 
-# 4. PAGE 1 — OVERVIEW
+# 7. EMBEDDED INFERENCE — BINDING DESIGN
 
-## Product question
+Rukan Admin v0 must include an embedded inference tester.
 
-“Can I trust this deployment, and what is running right now?”
+Do **not** use LibreChat as the Admin inference UI.
 
-## Proposed core content
+Preferred architecture:
 
-### Deployment status
+Browser
+→ Rukan local loopback API
+→ current authorised READY ServingInstance / serving provider abstraction
+→ vLLM or Ollama
 
-Show the current `DeploymentWitness` verdict in simple language:
+The browser must not decide which runtime to call.
 
-- Supported
-- Incomplete
-- Contradictory
-- Failed
+The Admin inference screen is an operational test surface, not the employee chat product.
 
-Advanced drill-down may expose cited identities and reason.
+Minimum behaviour:
 
-### Execution path
+- one prompt input;
+- one response display;
+- current model identity;
+- current macropath/runtime provider;
+- status/proof result;
+- completion token count only when current runtime/proof reports it;
+- typed error/refusal;
+- no conversation memory requirement;
+- no file upload;
+- no tools/agents;
+- no RAG;
+- no Markdown/plugin complexity unless already needed for plain model text.
 
-Show:
+If Serve's existing proof API cannot accept an arbitrary operator prompt cleanly, add the smallest new interactive inference seam adjacent to Serve that preserves existing authorization and instance identity.
 
-- Native / vLLM; or
-- Ollama;
-- selection mode/reason where persisted and useful.
+Do not weaken the current InferenceProof privacy rule.
 
-Do not infer the path from process names when Machi has a Foundation/RuntimeChoice record.
-
-### Running model
-
-Show the actual current model identity in human-readable form where metadata exists.
-
-Preserve identity type:
-
-- native warehouse artifact;
-- provider digest/Ollama identity.
-
-Do not invent cross-catalog friendly aliases.
-
-### Instance
-
-Show:
-
-- lifecycle state;
-- health/readiness;
-- whether the matching reservation remains held/released where repository truth supports it.
-
-### Capacity summary
-
-Show only SAFE/evidence-backed values Machi can currently produce.
-
-Do not add GPU utilization, CPU utilization, free-memory gauges, temperatures, or live charts unless those facts genuinely exist in the current product contracts.
-
-### Operator actions
-
-Candidate actions:
-
-- Test inference;
-- Stop current instance;
-- Release reservation after STOPPED.
-
-Assess whether these are genuinely callable through existing composition/services and what minimum local control seam is required.
-
-Do not add force-release, restart-all, kill, failover-now, scale-out, or arbitrary runtime buttons.
-
-### Start/deploy action
-
-Do not assume this belongs in the first increment.
-
-Assess whether a guided “Deploy” action can safely compose the existing Foundation → Model → Plan → Admit → Serve chain without creating a new orchestration authority or duplicating application logic.
-
-Return a recommendation:
-
-- `V0_INCLUDE_GUIDED_DEPLOY`; or
-- `V0_DEFER_GUIDED_DEPLOY`.
-
-Explain why.
+LibreChat/Open WebUI integration is explicitly deferred as a replaceable employee/end-user client workstream.
 
 ---
 
-# 5. PAGE 2 — INFERENCE
+# 8. RUKAN ADMIN V0 — REQUIRED SCREENS
 
-## Product question
+Keep the first UI simple and functional.
 
-“Can I actually use the current deployment?”
+## A. Overview
 
-## Proposed v0 interaction
+Show only truth-backed fields:
 
-A small embedded inference console:
+- Rukan build/version;
+- Witness verdict and concise reason;
+- active macropath / Foundation family;
+- current model identity;
+- current ServingInstance state/health;
+- Reservation state where available;
+- SAFE capacity summary;
+- typed warning/refusal/pending qualification state.
 
-- current ServingInstance / running model display;
-- current execution path;
-- readiness state;
-- prompt text area;
-- Send button;
-- response area;
-- Clear button if purely client-side;
-- request proof metadata that actually exists.
+Actions only if current services support them safely.
 
-Current Serve contracts record information such as:
+No invented uptime %, utilisation chart, SLA, cost, savings or health score.
 
-- request kind;
-- HTTP/protocol status;
-- completion token count when reported;
-- structural validity;
-- typed failure.
+## B. Inference
 
-Do not display latency, prompt tokens, cost, throughput, queue depth, or model quality unless the current product actually records them.
+As defined above.
 
-## Critical design question
+## C. Models
 
-Determine the correct boundary for an interactive request.
+Expose only current real operations and state.
 
-Evaluate at least:
+At minimum, evaluate current support for:
 
-A. Browser → runtime endpoint directly on loopback.
-B. Browser → Machi-owned loopback inference/control endpoint → current READY ServingInstance/runtime.
+- inspect local metadata;
+- local import into warehouse;
+- explicit hub acquire by repository/revision;
+- stored artifact identity;
+- provider digest identity where appropriate;
+- compatibility/qualification/deployability state.
 
-Assess against:
+Do not call this Marketplace.
 
-- Machi ownership of meaning;
-- future runtime replaceability;
-- native vs Ollama path consistency;
-- lifecycle authorization;
-- privacy;
-- future Gateway compatibility;
-- implementation simplicity.
+Do not add ratings, recommended/popular lists, installation counts, model quality ranks or cross-catalog equivalence.
 
-Recommend one.
+## D. Deployment
 
-Do not implement it yet.
-
----
-
-# 6. PAGE 3 — MODELS
-
-## Product question
-
-“What models does Machi know about, what do I have, and can they run?”
-
-The v0 model experience must reflect current reality, not the long-term marketplace vision.
-
-Current repository truth includes operations around:
-
-- model metadata inspection;
-- local import into the owned warehouse;
-- explicit hub repository/revision acquisition;
-- native ModelArtifact/warehouse identity;
-- compatibility/deployability/qualification semantics;
-- separate Ollama provider catalog/digest identity.
-
-## Proposed v0 content
-
-List known/stored/provider model entries that the current product can actually enumerate.
-
-Suggested columns/details only when backed by current contracts:
-
-- display/model name or source reference;
-- identity type;
-- stored/provider state;
-- compatibility/qualification state;
-- execution path/runtime compatibility where truthful;
-- source/revision if current metadata records it.
-
-Candidate actions:
-
-- Inspect local model;
-- Import local artifact;
-- Acquire explicit hub repository + revision.
-
-Do not call the v0 page a “Marketplace” if there is no real browse/search/recommendation service.
-
-## Extended mock only
-
-The product vision supports a future curated, Netflix-like discovery surface of models vetted for current hardware/runtime.
-
-Do not implement that now unless repository truth already provides a real AvailableModels/catalog query suitable for a UI.
-
-If a small real “Available Models” view exists, describe exactly what it can safely show and how it differs from the future catalog UX.
-
----
-
-# 7. PAGE 4 — DEPLOYMENT
-
-## Product question
-
-“How did this model become a running service?”
-
-The proposed screen visualises the chain:
+Visualise the current chain:
 
 Foundation
-→ Model / qualification
+→ Model
 → Plan
 → Reservation
 → ServingInstance
-→ Witness
+→ InferenceProof/Witness
 
-For each layer, show simple status first and technical identifiers in an advanced drawer/details panel.
+Default view should be simple.
 
-Candidate lifecycle actions:
+Provide an advanced detail drawer/section for exact ids/fingerprints/evidence.
 
-- Test;
-- Stop;
-- Release after confirmed STOPPED.
+Only expose lifecycle actions supported by current services and bindings.
 
-Preserve:
+## E. System
 
-- STOP != RELEASE;
-- one ResourceManager ledger;
-- no hidden failover inside Serve;
-- no arbitrary reservation mutation;
-- no provider residency as admission authority.
+Show current observed/derived facts that already exist:
 
-Assess whether any “Restart” control is currently valid or should remain deferred under open Serve debt.
+- OS/architecture;
+- memory evidence;
+- accelerator observations;
+- mount/storage evidence;
+- SAFE capacity;
+- runtime/Foundation readiness;
+- physical qualification state/pending coverage where current records support it.
 
-Do not invent it.
-
----
-
-# 8. PAGE 5 — SYSTEM
-
-## Product question
-
-“What machine does Machi think it is running on, and what can it safely use?”
-
-Proposed v0 content:
-
-- OS / architecture observations;
-- memory observation / SAFE memory capacity where currently available;
-- accelerator observation / exact identity where available;
-- SAFE accelerator memory evidence;
-- storage/mount/SAFE capacity evidence;
-- Foundation/path status;
-- current physical qualification/support note where useful.
-
-Show business-readable labels first.
-
-Advanced drawer may expose evidence/provider details.
-
-Do not turn raw Discover facts into authorization; the screen must distinguish observation from SAFE capacity where needed.
-
-A small “Execution preference” display may show AUTO/VLLM/OLLAMA only if current persisted/request semantics make that meaningful for an admin UI. Assess whether this is a persistent setting, a per-deployment intent, or something else. Do not fake a global setting.
+Progressive disclosure: business/simple wording first, technical evidence second.
 
 ---
 
-# 9. FUTURE MOCK NAVIGATION — NOT V0 FUNCTIONALITY
+# 9. RUKAN COMMAND CENTER V0 — REQUIRED DESIGN
 
-The mockup reserves future information architecture for:
+Build a separate web application.
 
-- Analytics;
-- Logs / Diagnostics;
-- Runtime Artifact Registry / Updates;
-- Remote Admin;
-- Central Command Center;
-- Knowledge;
-- Users / Teams / Permissions;
-- Licensing / entitlements.
+For this bundle it runs locally on the business operator PC and uses imported snapshots.
 
-For each, state:
+## A. Deployment Summary / Support Snapshot contract
 
-- whether any current data exists that could be shown honestly today;
-- why it should or should not appear in v0 navigation;
-- prerequisite backend work before it becomes a real product page.
+First inspect whether an existing Rukan/Machi support/evidence export contract can be reused.
 
-Do not wire a page to placeholder/fake data.
+If not, introduce the smallest Rukan-owned, versioned, non-authoritative export model needed by the Command Center.
 
----
+It must be a projection from persisted product truth, not a second truth source.
 
-# 10. LOCAL ADMIN VS CENTRAL COMMAND CENTER
+The snapshot should include only fields backed by current evidence, for example where available:
 
-Treat them as separate planes.
+- export schema version;
+- deployment/install identity;
+- Rukan build identity;
+- snapshot/export timestamp;
+- install/deployment/first-serve timestamp only if current evidence provides a truthful semantic; otherwise omit it or use a clearly named observed timestamp;
+- OS/architecture;
+- accelerator summary;
+- SAFE capacity summary if appropriate for support;
+- selected Foundation/macropath/runtime generation identity;
+- model identity and model identity kind;
+- qualification/evidence scope;
+- Plan / Reservation / ServingInstance identifiers or safe summaries;
+- Witness verdict/reason;
+- physical qualification status/pending coverage;
+- bounded non-content operational event/support evidence;
+- privacy classification / redaction version if useful.
 
-Local plane:
+Do not export absolute customer file paths if they are not already safe for support export.
+Do not export prompts, responses, documents, RAG data, API keys, secrets, credentials or proprietary file names.
 
-- owns no new domain truth;
-- reads/calls the local Machi control plane;
-- can work fully offline;
-- can show customer-local content where appropriate because it never leaves the host.
+Make snapshot generation deterministic where practical and testable.
 
-Future business/vendor command center:
+## B. Local Command Center store
 
-- deployment inventory;
-- version/support/qualification summaries;
-- health/support signals;
-- permitted non-content operational metadata;
-- optional/consented connectivity.
+Use a simple local persistence option appropriate to the selected frontend/backend shape.
 
-It must not own:
+The store only needs to support:
 
-- customer host truth;
-- ResourceManager;
-- prompts/responses/files;
-- local inference availability.
+- import snapshot file;
+- deduplicate/update by deployment identity + snapshot identity/version;
+- list deployments;
+- retain imported snapshot history if cheap and useful;
+- open deployment detail;
+- remove local imported copy.
 
-Do not design the command center implementation in this run beyond interface implications the local UI must avoid baking in.
+Do not build cloud sync.
 
----
+## C. Deployments screen
 
-# 11. REQUIRED REPOSITORY TRUTH REVIEW
+Columns should be limited to real imported fields, such as:
 
-Before proposing architecture, inspect at minimum:
+- deployment identity / display label if supplied;
+- first observed/deployed timestamp with exact meaning;
+- Rukan version;
+- OS / accelerator summary;
+- selected macropath/runtime;
+- current/imported model identity;
+- Witness status;
+- snapshot age/time.
 
-- `docs/PRODUCT_VISION.md`;
-- `docs/STRATEGY.md`;
-- `docs/machi/ARCHITECTURE.md`;
-- `docs/machi/ROADMAP.md`;
-- `docs/machi/STAGE1-SPINE-CLOSURE.md`;
-- `docs/machi/STAGE1-NEXT-OPTIONS.md`;
-- `docs/machi/STAGE1-PHYSICAL-BACKLOG.md`;
-- `docs/machi/CONTRACTS.md`;
-- `docs/machi/TELEMETRY.md`;
-- `docs/DEBT.md`;
-- current composition root / CLI;
-- Kernel Witness contracts;
-- Capacity contracts;
-- Foundation selection/runtime choice;
-- Model contracts/services/adapters;
-- Plan contracts/services;
-- Admit/ResourceManager;
-- Serve contracts/services/native/Ollama provider path;
-- current tests that prove lifecycle and fallback semantics;
-- packaging/dependency files to determine whether a frontend stack already exists.
+Do not label imported snapshot state as `Live`, `Online`, `Offline`, or `Healthy now`.
 
-Do not infer capabilities from old Kultrun code or untracked proposals.
+## D. Deployment detail
 
----
+Show:
 
-# 12. SCREEN-TO-CONTRACT MATRIX — REQUIRED
+- deployment identity;
+- Rukan version/build;
+- host/stack summary;
+- macropath/Foundation/runtime;
+- model + qualification;
+- Witness;
+- capacity summary;
+- physical qualification/pending coverage;
+- imported operational/support evidence/log timeline;
+- snapshot provenance/time.
 
-Return a table/matrix for every v0 page with columns:
+## E. Support evidence / logs
 
-- Page
-- UI element / action
-- User purpose
-- Current Machi source of truth
-- Exact contract/service/file
-- Classification: `EXISTS_NOW`, `THIN_SEAM_REQUIRED`, `DEFERRED`
-- Read or mutation
-- Security/privacy concern
-- Notes / refusal states
+This view is for safe operational evidence, not customer content.
 
-This matrix is the primary acceptance artifact for the design review.
+Prefer structured EventRecord/support evidence where possible.
 
-Anything that cannot be mapped must be removed from v0 or explicitly marked deferred.
+If raw runtime logs are included, classify/redact them and prove they do not leak prompt/response/customer content before export.
+
+When uncertain, omit raw logs from v0 and expose structured operational events instead.
 
 ---
 
-# 13. MINIMUM LOCAL API / CONTROL SEAM
+# 10. SHARED DESIGN SYSTEM
 
-Machi currently has a CLI/composition root, but no operator HTTP control API according to the Stage-1 closure review.
+Both products should visibly belong to Rukan while remaining distinct planes.
 
-Design the thinnest loopback seam needed by the v0 UI.
+Use a simple dark/light-neutral professional admin style with:
 
-Do not build it.
+- strong status colours only for typed state;
+- simple cards/tables;
+- progressive disclosure;
+- accessible contrast;
+- keyboard-accessible controls;
+- responsive enough for normal laptop/desktop use;
+- no decorative complexity that slows implementation.
 
-Prefer a small Machi-owned API/view layer over duplicating domain behavior in the frontend.
+Suggested product labels:
 
-Propose only endpoints/actions justified by the v0 screens.
+- `Rukan Admin`
+- `Rukan Command Center`
 
-For each proposed endpoint provide:
+Do not create a consumer-chat aesthetic for Admin.
 
-- method;
-- path;
-- read/mutation;
-- request shape;
-- response shape;
-- exact existing service(s) called;
-- possible typed refusal states;
-- whether response contains customer content;
-- whether it is safe only on loopback.
-
-Candidate categories to evaluate, not mandatory paths:
-
-- overview snapshot;
-- deployment detail / Witness;
-- system/capacity snapshot;
-- models list/detail;
-- inspect/import/acquire model;
-- current instance state;
-- interactive inference request;
-- stop instance;
-- release reservation after stop.
-
-Do not expose generic “execute command” or “run arbitrary CLI” endpoints.
+A small shared component/theme package is allowed if it reduces duplication without coupling authority.
 
 ---
 
-# 14. FRONTEND TECHNOLOGY — INDUSTRY SOLUTION SELECTION GATE
+# 11. FRAMEWORK / PROJECT STRUCTURE
 
-Inspect the repository first for any existing frontend/web stack or packaging assumptions.
+Choose repository structure that keeps both apps clearly separate.
 
-If no frontend technology is already authoritative, present the smallest credible options for a same-machine Admin UI.
+One reasonable shape, subject to repository/tooling reality:
 
-Evaluate them against:
+- `ui/admin/`
+- `ui/command-center/`
+- `ui/shared/`
 
-- simplicity;
-- static build / easy bundling;
-- offline operation;
-- dependency footprint;
-- security surface;
-- accessibility;
-- long-term maintainability;
-- ability to grow into the product vision;
-- separation from the future central command center;
-- ease of packaging with Machi;
-- license/redistribution implications.
+or an equivalent small workspace.
 
-Do not choose a complex framework merely because it is popular.
+Do not create a monorepo build system solely for these two small apps unless the repository already uses one.
 
-Run the Industry Solution Selection Gate if two or more materially credible options remain.
+Static assets should be buildable reproducibly.
 
-Return:
+Document how the local Admin assets are served and how the Command Center is started locally.
 
-- options;
-- trade-offs;
-- recommended default;
-- Product Vision Alignment: ALIGNED / ALIGNED_WITH_CONDITIONS / MISALIGNED;
-- what becomes difficult to change later.
-
-No implementation in this run.
+No CDN dependency should be required at runtime.
 
 ---
 
-# 15. V0 VISUAL / INTERACTION PRINCIPLES
+# 12. SECURITY / PRIVACY
 
-Use these design principles when reviewing the mockup:
+## Rukan Admin
 
-- dark, calm operations UI is acceptable, but visual style is secondary to truth;
-- simple status first, technical IDs second;
-- green is not “good” unless Machi has a positive state to support it;
-- typed refusals should be readable in plain language;
-- unsupported and pending are not errors;
-- advanced detail should preserve exact identifiers and provenance;
-- destructive actions require clear state-dependent enablement;
-- no “force” actions in v0;
-- no fake charts;
-- no KPI cards without a real metric source;
-- no empty future pages in the runnable build.
+- loopback only;
+- browser same-machine assumption explicit;
+- no CORS wildcard for arbitrary origins;
+- mutations call bounded service methods;
+- no generic command endpoint;
+- no prompt/response operational telemetry;
+- no secrets returned to browser;
+- no remote admin claim.
 
----
+## Rukan Command Center
 
-# 16. V0 ACCEPTANCE DEFINITION — DESIGN ONLY
+- local-only v0;
+- imported snapshots are untrusted input and must be schema-validated;
+- no execution of imported content;
+- no customer-content fields in schema;
+- local deletion supported;
+- no vendor network service required;
+- no automatic file watching or exfiltration unless explicitly implemented and documented locally.
 
-The design review should finish with an implementation-ready definition of the smallest useful v0.
-
-The target should likely allow an operator to:
-
-1. open Machi locally in a browser;
-2. see whether the current deployment evidence is supported/incomplete/failed;
-3. see the active execution path and current model/instance;
-4. inspect SAFE host/capacity information;
-5. send an interactive prompt to the current READY instance and see the response locally;
-6. inspect known/stored model entries and qualification state;
-7. perform only the model operations genuinely supported by current services;
-8. inspect the Foundation → Model → Plan → Reservation → Instance → Witness chain;
-9. stop the current instance safely;
-10. release the reservation only after stop when permitted;
-11. understand typed refusals and pending physical qualification.
-
-If repository truth shows that one of these cannot be achieved without a substantial new product subsystem, mark it deferred and explain.
+Add tests for malformed/unsupported snapshot versions and oversize/untrusted input where appropriate.
 
 ---
 
-# 17. TEST STRATEGY PROPOSAL
+# 13. TESTING
 
-Do not write tests yet.
+Add meaningful tests at all applicable layers.
 
-Propose the future implementation test layers:
+## Backend/API
 
-- frontend unit/component tests;
-- local API contract tests;
-- domain/service reuse tests;
-- architecture tests proving UI/API do not become new authorities;
-- privacy tests for prompt/response handling;
-- end-to-end local browser test using deterministic/fake backends where appropriate;
-- one later physical acceptance that loads a real accepted deployment and proves the Inference screen, but not in this design run.
+- loopback binding/policy;
+- summary endpoints reflect service truth;
+- unsupported/unresolved states preserved;
+- no direct runtime authority bypass;
+- inference request requires current authorised READY instance;
+- vLLM and Ollama provider paths are presented under one Rukan interface;
+- explicit typed failure handling;
+- model operations call current services;
+- snapshot export excludes prohibited fields;
+- snapshot import validates schema and does not execute input;
+- Command Center dedup/update semantics.
 
-Keep physical breadth campaigns separate.
+## Frontend
 
----
+At minimum test:
 
-# 18. MOCKUP CRITIQUE
+- loading/error/empty states;
+- typed Witness states;
+- Inference send/result/failure state;
+- Models actions only enabled when supported;
+- stop/release state sequencing;
+- snapshot import/list/detail/remove;
+- no fake live badge in Command Center;
+- accessibility basics for navigation/forms/buttons.
 
-Do not simply approve the proposal.
+## Regression
 
-Explicitly identify:
-
-- fields that are not backed by current contracts;
-- actions that are too ambitious for v0;
-- terminology that exposes implementation detail unnecessarily;
-- missing operator-critical state;
-- places where the mockup risks combining native and Ollama identities incorrectly;
-- places where progressive disclosure should replace a main-screen technical field;
-- security risks;
-- future-command-center concerns the local UI should avoid baking in.
-
-Recommend concrete revisions.
-
----
-
-# 19. BRANCH / PROMOTION RECOMMENDATION
-
-Stage-1 closure tip is `4cb89622a4cd3a1a37bf6ab44c4414e4287e8934`.
-
-`machi` was still stale at the Stage-1 close.
-
-For the future implementation, recommend the clean Git sequence:
-
-- whether to fast-forward `machi` first;
-- what branch name should carry the first frontend implementation;
-- what exact predecessor SHA should be used.
-
-Do not move refs in this design review.
+Run existing Stage-1 suites so the UI/API work does not weaken the deployment spine.
 
 ---
 
-# 20. NON-GOALS
+# 14. DOCUMENTATION
+
+Update current product-facing docs to use **Rukan** for the product.
+
+At minimum add/update:
+
+- a short Rukan product naming note;
+- Rukan Admin v0 architecture/readme;
+- Rukan Command Center v0 architecture/readme;
+- local run/build instructions;
+- the two-plane trust model;
+- inference exposure decision;
+- snapshot/export privacy boundary;
+- current functionality vs deferred functionality.
+
+Do not rewrite historical evidence records to pretend they were originally called Rukan.
+
+---
+
+# 15. LIBRECHAT DECISION — RECORD EXPLICITLY
+
+Record this product decision:
+
+- LibreChat is **not** used as the embedded Rukan Admin inference UI in v0.
+- Rukan Admin owns its small operational inference tester.
+- The test request travels through a Rukan-owned local API/control seam and the current authorised Rukan serving instance.
+- LibreChat may later be integrated as an optional replaceable employee-facing chat client through an appropriate standard endpoint/gateway.
+- That future client must not own Rukan deployment/admin semantics.
+
+Do not add LibreChat as a dependency in this bundle.
+
+---
+
+# 16. NON-GOALS / FORBIDDEN SHORTCUTS
 
 Do not implement:
 
-- React/Vue/Svelte/etc. code;
-- local HTTP API code;
-- CSS/design system;
-- interactive inference seam;
-- central command center;
-- authentication;
-- analytics;
+- fake KPIs or dashboards;
+- model marketplace rankings;
+- remote customer control;
+- central live telemetry;
+- tenant/user identity;
+- licensing;
 - Knowledge/RAG;
-- users/teams;
-- entitlements;
-- update manager;
-- Runtime Artifact Registry;
+- Team Brain;
+- agents;
 - Dynamo;
-- new physical campaigns;
-- new model-runtime provider;
-- live request-failure failover;
-- multi-model scheduling depth;
-- remote access.
+- Runtime Artifact Registry;
+- physical GPU/macOS campaigns;
+- Electron/Tauri desktop packaging unless genuinely required by the chosen v0 design;
+- direct browser calls that bypass Rukan lifecycle/admission semantics;
+- arbitrary shell command API;
+- prompt/response export to Command Center.
 
-This is a design/feasibility loop only.
+Do not overbuild visual polish before both products can run and show real data.
 
 ---
 
-# 21. FINAL PASTE-BACK FORMAT
+# 17. ACCEPTANCE — RUKAN ADMIN
 
-Return one structured packet:
+Admin v0 is PASS only if:
+
+- it launches locally;
+- it visibly uses the Rukan name;
+- Overview reads real deployment state;
+- Witness state is rendered truthfully;
+- active macropath/model/instance can be inspected;
+- Inference can perform a real request through the Rukan-owned seam when a READY instance exists, and shows a typed refusal otherwise;
+- Models exposes only implemented operations;
+- Deployment shows the real chain;
+- System shows real host/capacity state;
+- stop/release ordering remains correct;
+- no browser-side runtime selection bypass exists;
+- no fake KPI/marketplace data exists;
+- loopback-only boundary is preserved.
+
+Physical GPU proof is not required in this bundle. Use deterministic/local integration tests and accepted Stage-1 evidence where live accelerator state is unavailable.
+
+---
+
+# 18. ACCEPTANCE — RUKAN COMMAND CENTER
+
+Command Center v0 is PASS only if:
+
+- it launches as a separate local application;
+- it visibly uses the Rukan name;
+- a valid exported snapshot can be imported;
+- one or more imported deployments can be listed;
+- deployment detail renders only supported snapshot fields;
+- snapshot provenance/time is visible;
+- safe operational/support evidence is visible;
+- imported data is clearly not labelled live;
+- malformed/unsupported snapshots fail closed;
+- customer content/secrets are absent from the export schema;
+- Command Center has no remote execution authority;
+- local imported records can be removed.
+
+---
+
+# 19. FULL QUALITY GATES
+
+Run:
+
+- existing `tests/machi`;
+- existing acceptance-lab tests applicable locally;
+- new API tests;
+- new snapshot tests;
+- new frontend tests;
+- architecture/import-boundary tests;
+- Python ruff;
+- Python strict mypy;
+- frontend lint/typecheck/build/test for both apps;
+- clean production builds of both frontends;
+- Python wheel build/isolated verify if Python source/package changes;
+- no unexpected network access for local UI tests.
+
+Fix ordinary implementation defects autonomously and continue.
+
+Return `DECISION_REQUIRED` only for a genuine product/architecture choice that conflicts with this instruction.
+
+---
+
+# 20. FINAL PASTE BACK
+
+Return one complete packet with:
 
 A. EXACT STATUS
 B. EXECUTIVE TL;DR
-C. REPOSITORY / BASELINE TRUTH
-D. PRODUCT-VISION ALIGNMENT
-E. V0 INFORMATION ARCHITECTURE
-F. OVERVIEW PAGE REVIEW
-G. INFERENCE PAGE REVIEW
-H. MODELS PAGE REVIEW
-I. DEPLOYMENT PAGE REVIEW
-J. SYSTEM PAGE REVIEW
-K. SCREEN-TO-CONTRACT MATRIX
-L. INTERACTIVE INFERENCE BOUNDARY DECISION
-M. MINIMUM LOOPBACK API / CONTROL SEAM
-N. FRONTEND TECHNOLOGY OPTIONS
-O. INDUSTRY SOLUTION SELECTION GATE RESULT
-P. V0 INCLUDE / DEFER LIST
-Q. MOCKUP CHANGES RECOMMENDED
-R. SECURITY / PRIVACY BOUNDARY
-S. TEST STRATEGY
-T. FUTURE NAV / EXTENDED MOCK DEPENDENCIES
-U. LOCAL ADMIN VS COMMAND CENTER SEPARATION
-V. BRANCH / PROMOTION RECOMMENDATION
-W. PROPOSED FIRST IMPLEMENTATION BUNDLE
-X. EXACT LEAD DECISIONS STILL REQUIRED
-Y. EXACT NEXT ACTION
-Z. STOP
+C. STARTING / FINAL SHA
+D. BRANCH / ORIGIN / WORKTREE
+E. RUKAN NAMING CHANGES
+F. INTERNAL `machi` NAMESPACE DEFERRED MIGRATION BOUNDARY
+G. FRONTEND SOLUTION GATE / CHOSEN STACK
+H. TWO-PLANE ARCHITECTURE
+I. LOCAL RUKAN API / CONTROL SEAM
+J. EMBEDDED INFERENCE IMPLEMENTATION
+K. LIBRECHAT DECISION
+L. RUKAN ADMIN — OVERVIEW
+M. RUKAN ADMIN — INFERENCE
+N. RUKAN ADMIN — MODELS
+O. RUKAN ADMIN — DEPLOYMENT
+P. RUKAN ADMIN — SYSTEM
+Q. DEPLOYMENT SUMMARY / SUPPORT SNAPSHOT CONTRACT
+R. SNAPSHOT PRIVACY / REDACTION
+S. COMMAND CENTER LOCAL STORE
+T. COMMAND CENTER — DEPLOYMENTS
+U. COMMAND CENTER — DEPLOYMENT DETAIL
+V. COMMAND CENTER — SUPPORT EVIDENCE / LOGS
+W. SECURITY REVIEW
+X. TESTS / QA
+Y. FRONTEND BUILDS / ARTIFACTS
+Z. PYTHON BUILD / VERIFY IF CHANGED
+AA. CURRENT FUNCTIONALITY VS DEFERRED MOCKS
+AB. STAGE-1 REGRESSION
+AC. OPEN DEBT / RISKS
+AD. EXACT NEXT RECOMMENDED UI ITERATION
+AE. GIT STATE
+AF. STOP
 
-Success status:
+On full success use exact status:
 
-`PASS_ADMIN_UI_V0_DESIGN_READY_FOR_LEAD_REVIEW`
+`RUKAN_DUAL_UI_V0_LOCAL_PASS`
 
-If repository truth makes the proposal materially inconsistent with current architecture:
-
-`DECISION_REQUIRED`
-
-If required source evidence is unavailable:
-
-`AWAITING_REPOSITORY_EVIDENCE`
+If one application passes but the other does not, do not report full success. State the exact partial failure.
 
 ---
 
-# 22. PUBLISH / STOP
+# 21. STOP
 
-Publish the complete paste-back through the existing Machi GitHub handoff protocol.
+After publishing the complete paste-back through the GitHub handoff protocol:
 
-Then STOP.
+STOP.
 
-Do not start frontend implementation until Lead review.
+Do not start a connected Command Center, remote Admin, Runtime Artifact Registry, Dynamo, Knowledge, identity, licensing, or physical qualification campaign.
 
-# END INSTRUCTION
+Wait for Lead review and the next UI iteration.
