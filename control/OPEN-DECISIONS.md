@@ -1,52 +1,71 @@
 # Open Decisions
 
-There are **no blocking Lead Developer decisions** for the Stage-1 deployment-spine closure instruction.
+There are **no blocking Lead Developer decisions** for the first local Admin UI design review.
 
-## Binding decisions for Stage-1 closure
+## Binding post-Stage-1 product direction
 
-- **No new physical acceptance campaign is required for this closure bundle.**
-- Existing accepted physical evidence is sufficient to close the **Stage-1 deployment-spine capability** at its currently proven scope:
-  - native/vLLM real qualification + request inference + restart inference on the accepted NVIDIA L40S campaign;
-  - Ollama real Serve/fallback on the accepted NVIDIA A40 Bundle-07 campaign.
-- Remaining hardware/platform breadth is **deferred qualification**, not a Stage-1 closure blocker.
-- NVIDIA Ampere/N1 qualification remains useful future coverage, but it is no longer required merely to close Stage-1.
-- AMD native/vLLM Foundation and downstream execution qualification remain **OPEN / PHYSICAL_PENDING**. Do not claim AMD support from NVIDIA evidence.
-- macOS/Ollama physical qualification remains **OPEN / PHYSICAL_PENDING**. Do not claim macOS Ollama support until a dedicated test is run.
-- Any other currently pending physical proof that is not already supported by accepted evidence should remain explicitly pending rather than being manufactured, inferred, or silently marked PASS.
-- Stage-1 closure must therefore distinguish:
-  - **implementation / architecture / control-path closure**, from
-  - **hardware/provider qualification breadth**.
-- Ollama remains the compatibility/fallback macropath. Native/vLLM remains primary where supported.
-- One ResourceManager ledger remains authoritative across macropaths.
-- Native and Ollama model catalogs remain separate.
-- AUTO fallback remains a control-plane recomputation, not a hidden Serve retry and not live request-failure failover.
-- The tiny-Llama NVIDIA-N1 failure remains valid historical negative evidence. Do not erase it merely because SmolLM2 succeeded elsewhere.
-- The next stage/workstream is **not yet selected**. Cursor must finish Stage-1 closure and return a decision memo comparing sensible post-spine options before implementation continues.
+- Stage 1 remains closed as `STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING` at closure tip `4cb89622a4cd3a1a37bf6ab44c4414e4287e8934`.
+- The **next product-track direction is a simple local operator/admin frontend** so a system administrator can see and interact with the Stage-1 deployment spine without driving pytest or internal developer tooling.
+- The first frontend is **same-machine / loopback only**. It must not create a LAN, remote-admin, or vendor-control promise.
+- The local Admin UI and the future central business/vendor command center are **separate planes**. They may later share explicit APIs/contracts, but they are not one application and do not share authority.
+- The UI must render and invoke Machi-owned contracts/services. It must **not** become a second source of truth for host facts, SAFE capacity, Foundation, model qualification, Plan, ResourceManager, ServingInstance, lifecycle, or Witness.
+- The first UI must include an **embedded inference tester** for the current READY local instance. This requires a narrow local interaction seam if one does not already exist. Prompt and response content remain local and must not be added to operational telemetry, Witness, or vendor export.
+- The first UI should start with only core functions supported by repository truth. **Do not invent dashboards, KPIs, settings, model-marketplace behaviour, analytics, fleet controls, or lifecycle actions merely to make the UI look complete.**
+- The first design target is five pages:
+  - Overview;
+  - Inference;
+  - Models;
+  - Deployment;
+  - System.
+- Future product areas may be mocked for information architecture but are not v0 functionality unless repository truth already supports them.
+- Native/vLLM remains the primary macropath where supported. Ollama remains the compatibility/fallback macropath. The UI must present them as execution paths under one Machi product, not as two products.
+- One ResourceManager remains the sole admission authority. UI actions may call it only through existing services/control seams.
+- Physical qualification breadth remains separate and pending: AMD native/vLLM, macOS/Ollama, NVIDIA Ampere/N1 breadth, and other recorded physical coverage.
+
+## v0 design intent
+
+The Lead's current preferred v0 shape is:
+
+1. **Overview** — Witness status, active macropath, running model identity, ServingInstance health/state, SAFE capacity summary, and only safe lifecycle actions that already exist.
+2. **Inference** — an embedded local prompt/response tester bound to the current READY instance; surface request/proof metadata that Machi actually records.
+3. **Models** — expose the current model operations honestly: inspect, local import, explicit hub acquire, stored/provider identity, and qualification/unsupported state. Do not call this a full marketplace until a real catalog/discovery API exists.
+4. **Deployment** — show the existing Foundation → Model → Plan → Reservation → Instance → Witness chain and allow only existing valid lifecycle actions such as stop and release-after-stop. A future guided deploy flow may be added only if it maps cleanly to the current services.
+5. **System** — observed host information, SAFE capacity evidence, execution-path status, and physical qualification state. Technical identifiers belong behind progressive disclosure.
+
+## Future mock areas — not v0 implementation
+
+- usage analytics/KPI dashboard until a real Machi UsageEvent/analytics product surface exists;
+- central command center / fleet inventory;
+- LAN or remote Admin;
+- Knowledge/RAG administration;
+- Users/Teams/Permissions;
+- Licensing/entitlements;
+- software update UI;
+- Dynamo controls;
+- multi-host placement;
+- live request-failure failover;
+- broad model marketplace semantics not yet implemented.
 
 ## Previously decided and still valid
 
+- Existing accepted physical evidence remains sufficient for Stage-1 capability closure at its bounded scope.
 - AMD managed native prefix/userspace is Machi-owned; host kernel/driver/device prerequisites remain host-owned.
 - Verified existing/provider ROCm userspace may be verified/reused when it matches the approved recipe.
 - OCI runtime image: preserve the seam, build later unless a future decision opens it.
 - ContainerExecutor: deferred.
 - Qualification evidence must not be reused across materially different GPU environments merely by compute capability.
 
-## Superseded prior guidance
+## Decisions intentionally left open for the design review
 
-The earlier statement that **Ampere + Ada are required next** is superseded for Stage-1 closure. Ada/L40S evidence may satisfy the native Stage-1 capability proof; Ampere remains a later hardware-breadth qualification target.
+- The exact frontend technology/framework. Cursor must inspect repository/tooling reality and run the Industry Solution Selection Gate if more than one materially credible option remains.
+- The exact local control/API shape between browser UI and Machi services. Prefer the thinnest replaceable loopback seam that preserves domain authority.
+- Whether the first runnable UI should be read-mostly plus inference/stop/release, or also include a bounded guided deployment action in the same increment. This must be decided from actual service composition, not visual ambition.
+- Whether `machi` should be fast-forwarded to the Stage-1 closure tip before the first frontend implementation branch. The design review should recommend the clean sequence; do not promote during the review.
 
-The earlier pattern of treating the absence of a prebuilt ROCm image as an AMD blocker is superseded. Future AMD testing should begin from host-level prerequisites and allow Machi to provision its owned ROCm-compatible userspace.
+## Later decision gates
 
-## Future decision gates
-
-- Which post-Stage-1 workstream to open:
-  - simple local operator/admin frontend;
-  - central deployment command center / fleet-facing business control plane;
-  - Runtime Artifact Registry / software supply chain;
-  - NVIDIA Dynamo macropath / Stage-2 empirical infrastructure lab;
-  - another roadmap-aligned option identified by the Stage-1 closure review.
-- Whether a simple frontend and command-center workstream should be one bounded product increment or two planes with separate security/identity boundaries.
-- Whether/when to build the OCI runtime image.
-- Whether/when to add a Machi ContainerExecutor.
-- Whether/when to add broader NVIDIA hardware qualification, AMD qualification, and macOS/Ollama qualification campaigns.
-- Any new concrete provider not already accepted.
+- Runtime Artifact Registry scope and sequence relative to frontend v0.2 / installer work.
+- Authentication/authorisation before any non-loopback control surface.
+- Central command center identity, tenancy, consent, and telemetry/export contract.
+- Whether/when to run Dynamo or other runtime/fabric comparisons in the Stage-2 lab.
+- Whether/when to execute the pending AMD, macOS/Ollama, and NVIDIA breadth physical campaigns.
