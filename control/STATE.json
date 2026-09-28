@@ -44,25 +44,7 @@
         "settings"
       ]
     },
-    "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
-    "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
-    "runpod_policy": {
-      "nvidia_max_hourly_usd": 1.5,
-      "amd_max_hourly_usd": 4,
-      "remaining_balance_floor_usd": 0.5,
-      "max_concurrent_pods": 1,
-      "max_pod_lifetime_minutes": 90,
-      "max_provision_retries": 3,
-      "network_volume": false,
-      "hang_action": "stop_and_ask"
-    },
     "rukan_ui_v0_1": {
-      "instruction_id": "RUKAN-DUAL-UI-V0.1-001",
-      "starting_source": "7ff3dff6972f69ba38214a6d30f7a19f272318e0",
-      "branch": "rukan/dual-ui-v0.1",
-      "physical_server": "NONE",
-      "primary_goal": "attach safe lifecycle authority and improve both local UIs",
       "admin": [
         "real_stop_release_if_safe",
         "overview_hierarchy",
@@ -70,6 +52,7 @@
         "deployment_journey",
         "models_system_refinement"
       ],
+      "branch": "rukan/dual-ui-v0.1",
       "command_center": [
         "search_filter",
         "snapshot_history",
@@ -84,11 +67,28 @@
         "dynamo",
         "physical_testing"
       ],
+      "instruction_id": "RUKAN-DUAL-UI-V0.1-001",
+      "physical_server": "NONE",
+      "primary_goal": "attach safe lifecycle authority and improve both local UIs",
+      "starting_source": "7ff3dff6972f69ba38214a6d30f7a19f272318e0",
       "terminal_success_status": "RUKAN_DUAL_UI_V0_1_LOCAL_PASS"
-    }
+    },
+    "runpod_policy": {
+      "amd_max_hourly_usd": 4,
+      "hang_action": "stop_and_ask",
+      "max_concurrent_pods": 1,
+      "max_pod_lifetime_minutes": 90,
+      "max_provision_retries": 3,
+      "network_volume": false,
+      "nvidia_max_hourly_usd": 1.5,
+      "remaining_balance_floor_usd": 0.5
+    },
+    "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
+    "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
   "published_instruction_id": "RUKAN-DUAL-UI-V0.1-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_DUAL_UI_V0_1"
+  "status": "PASTEBACK_PUBLISHED"
 }
