@@ -1,706 +1,569 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-Instruction ID: `RUKAN-DUAL-UI-V0-001`
-Status: `AUTHORIZED_IMPLEMENTATION`
-Accepted product baseline: `stage1/spine-closure` at `4cb89622a4cd3a1a37bf6ab44c4414e4287e8934`
-Stage-1 status: `STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING`
+Instruction ID: `RUKAN-DUAL-UI-V0.1-001`  
+Status: `AUTHORIZED_IMPLEMENTATION`  
+Canonical baseline: `machi` at `7ff3dff6972f69ba38214a6d30f7a19f272318e0`  
+Predecessor: `RUKAN-DUAL-UI-V0-001` / implementation `cd14b3ed8490f7ceb64db50b17646acc4b18eaa1`
 
-This instruction supersedes `MACHI-ADMIN-UI-DESIGN-001`.
+This is the second bounded Rukan UI iteration.
 
-The product is now **Rukan**.
+The goal is to turn the already-running Rukan Admin and Rukan Command Center v0 into a more usable local product without opening new platform domains.
 
-This bundle authorizes the first post-Stage-1 productization implementation: two separate visual applications built over the existing deployment spine.
+No physical server is required for this instruction.
 
-1. **Rukan Admin** — customer-facing, deployment-local, loopback-only v0.
-2. **Rukan Command Center** — business/vendor-facing, initially local on the operator PC, using imported non-content deployment/support snapshots rather than invented live fleet connectivity.
-
-Do not implement Dynamo, Knowledge/RAG, remote Admin, connected fleet telemetry, Runtime Artifact Registry, physical qualification campaigns, or unrelated later-stage work in this bundle.
+Do not start remote fleet connectivity, identity, licensing, Knowledge/RAG, Runtime Artifact Registry, Dynamo, or physical qualification.
 
 ---
 
-# 1. PRODUCT OUTCOME
+# 1. STARTING TRUTH
 
-At completion, a developer/operator should be able to stand up both applications locally and see real Rukan state without driving internal Python test tools.
+Rukan dual UI v0 is accepted.
+
+## Rukan Admin already exists
+
+- Overview
+- Inference
+- Models
+- Deployment
+- System
+- loopback-only `rukan.admin.v1`
+- snapshot export
+- Rukan-native inference seam
+- truthful typed refusals
+- no prompt/response persistence
+- no LibreChat dependency
+
+## Rukan Command Center already exists
+
+- Deployments
+- Deployment Detail
+- Support Evidence
+- Import
+- Settings
+- imported `rukan.support_snapshot`
+- local browser storage only
+- no remote control
+- no live fleet claims
+- no customer content export
+
+## Known usability/operational gap
+
+Admin exposes Stop and Release semantics, but the CLI-launched Admin process does not currently attach the lifecycle runtime/process owner. The UI therefore correctly returns `lifecycle runtime is not attached`.
+
+This iteration should close that gap if repository truth permits a safe bounded solution.
+
+---
+
+# 2. RUNPOD POLICY — CURRENT BINDING TRUTH
+
+No RunPod use is authorized by this instruction.
+
+For future physical work, preserve the current policy:
+
+- NVIDIA hourly ceiling: `≤ $1.50/hour`
+- AMD hourly ceiling: `≤ $4.00/hour`
+- remaining RunPod account-balance floor: `$0.50`
+- one owned Pod at a time
+- max Pod lifetime: 90 minutes
+- max 3 provisioning retries
+- no network volume
+- hang: stop-and-ask
+- existing session/day spend caps remain in force
+
+Do not alter these limits in this UI package.
+
+---
+
+# 3. BRANCH
+
+Sync control and fetch origin.
+
+Confirm canonical `machi` is:
+
+`7ff3dff6972f69ba38214a6d30f7a19f272318e0`
+
+Create:
+
+`rukan/dual-ui-v0.1`
+
+from that exact canonical baseline.
+
+Do not branch from the old `rukan/dual-ui-v0` tip directly unless it is ancestry-equivalent to canonical after the integration merge.
+
+---
+
+# 4. PRIMARY OUTCOME
+
+At completion:
 
 ## Rukan Admin
 
-A customer administrator can:
+A local administrator should be able to:
 
-- open a local Rukan Admin web UI;
-- see whether the current deployment evidence is supported/incomplete/contradictory/failed;
-- see the active execution macropath;
-- see the current model identity and ServingInstance state;
-- see truthful host and SAFE capacity information that the current contracts expose;
-- inspect the Foundation → Model → Plan → Reservation → Instance → Witness chain;
-- inspect/import/acquire models only through existing model operations that are actually implemented;
-- send a real local inference test request to the current authorised READY instance through a Rukan-owned loopback API/control seam;
-- stop/release only where existing lifecycle semantics already permit those actions;
-- receive typed refusals instead of UI-invented success.
+1. open Rukan Admin;
+2. immediately understand whether the deployment is usable;
+3. run a real inference test with clear in-progress/success/refusal/error feedback;
+4. inspect the active model and execution path;
+5. inspect the deployment chain without reading raw ids by default;
+6. safely stop the current managed serving instance;
+7. release its reservation only after Rukan proves release eligibility;
+8. see the resulting state update in the UI;
+9. inspect technical evidence only through progressive disclosure.
 
 ## Rukan Command Center
 
-The business operator can:
+A business operator should be able to:
 
-- open a separate local Command Center application on their PC;
-- import one or more Rukan Deployment Summary / Support Snapshot files;
-- see a list of imported deployments;
-- open one deployment detail view;
-- inspect real non-content deployment metadata derived from Rukan evidence;
-- inspect safe operational/support event information included in the snapshot;
-- distinguish accepted physical evidence from PHYSICAL_PENDING qualification;
-- never receive customer prompt/response/document content through this export.
-
-The Command Center v0 is not live fleet management. It is a truthful first business dashboard built around imported evidence.
+1. import support snapshots;
+2. find a deployment quickly;
+3. see when the imported evidence was exported;
+4. inspect version/host/stack/model/qualification/Witness information;
+5. inspect structured support evidence;
+6. see snapshot history where multiple snapshots for one installation exist;
+7. remove local imported data;
+8. never confuse imported evidence with live connectivity.
 
 ---
 
-# 2. PRODUCT RENAME — BINDING
+# 5. LIFECYCLE WIRING — MAIN ENGINEERING TASK
 
-Use **Rukan** in all new customer-facing and business-facing product UI, new post-Stage-1 docs, UI titles, web assets and new feature names.
+First inspect repository truth around:
 
-Do **not** rename the Python package/module namespace `machi`, persisted contract kinds, ids, environment variables, state-root names, historical checkpoint paths, GitHub handoff branch, or historical evidence inside this bundle.
+- `ServeService`
+- current Native/vLLM process ownership/evidence
+- Ollama provider lifecycle ownership
+- ResourceManager
+- Admin composition
+- CLI process lifetime
+- re-entry/reconciliation semantics
 
-Reason: Stage-1 persisted evidence and schema identity already depend on those internal names. A full technical namespace migration is a separate compatibility/migration workstream.
+The objective is **not** merely to make the buttons clickable.
 
-Where useful, current technical docs may say:
+The objective is:
 
-> Rukan is the product name. `machi` remains the internal package/control namespace pending a dedicated migration.
+> Rukan Admin can invoke the existing authoritative lifecycle services for the current managed instance without bypassing process identity, reservation authority, STOP != RELEASE, or provider-specific ownership.
 
-Historical docs should remain historically truthful.
-
----
-
-# 3. STARTING STATE / BRANCH
-
-Before changing source:
-
-1. sync `control/machi-handoff`;
-2. confirm this instruction id;
-3. inspect current refs and working tree;
-4. confirm the Stage-1 closure tip remains `4cb89622a4cd3a1a37bf6ab44c4414e4287e8934` or identify an explicitly promoted equivalent;
-5. inspect whether `machi` has now been fast-forwarded to the closure tip;
-6. inspect repository frontend/package tooling and any prior UI code before choosing structure.
-
-If canonical `machi` equals the closure tip, branch from it.
-If `machi` is still stale, branch from the exact closure tip and report the discrepancy.
-
-Recommended implementation branch:
-
-`rukan/dual-ui-v0`
-
-Do not use the control branch as product history.
-
----
-
-# 4. INDUSTRY SOLUTION / FRONTEND SELECTION GATE
-
-Inspect the repository for an existing authoritative frontend stack.
-
-If no frontend stack is already binding, compare only the smallest credible options for two local web applications.
-
-The Lead's current preferred default is:
-
-- TypeScript;
-- React;
-- Vite;
-- static build output;
-- minimal CSS/design-system dependencies;
-- a shared small typed Rukan UI/client package only where useful.
-
-This preference is not permission to add a large framework stack blindly.
-
-Evaluate alternatives on:
-
-- simplicity;
-- static/offline deployment;
-- packaging with a Python product;
-- no required cloud service;
-- accessibility;
-- maintainability;
-- security surface;
-- developer experience;
-- suitability for a future richer Admin UI and Command Center.
-
-If React + Vite is clearly the smallest aligned choice, state `No solution decision required` and proceed.
-
-Do not introduce Next.js, a Node server dependency, Electron, Tauri, or another heavyweight framework unless repository truth demonstrates a concrete v0 requirement.
-
----
-
-# 5. TWO PLANES — ARCHITECTURAL BOUNDARY
-
-These are two visual products, not one application with two routes.
-
-## Customer plane
-
-`Rukan Admin`
-
-Runs with the local Rukan deployment.
-
-Authority remains local:
-
-- Discover owns host observations;
-- Capacity owns SAFE ceilings;
-- Foundation owns execution-path selection;
-- Model owns model identity/qualification;
-- Plan owns deployment configuration;
-- ResourceManager owns admission;
-- Serve owns execution/lifecycle/inference proof;
-- Witness projects persisted evidence.
-
-The UI only renders and invokes those services through bounded control seams.
-
-## Business plane
-
-`Rukan Command Center`
-
-Runs separately on the business operator PC for v0.
-
-It consumes imported summaries/snapshots.
-
-It must not:
-
-- become an admission authority;
-- become a Serve authority;
-- infer live host truth from stale imported data;
-- claim live online/offline state unless a future connected telemetry contract exists;
-- receive prompts/responses/files;
-- mutate customer deployments remotely.
-
-The two applications may share visual primitives and typed summary models, but not authority.
-
----
-
-# 6. MINIMUM LOCAL RUKAN CONTROL / READ API
-
-The current CLI/composition root is not a browser API. Build the thinnest local API/service boundary needed by Rukan Admin.
-
-Requirements:
-
-- bind to loopback only by default;
-- no generic shell/CLI passthrough endpoint;
-- no arbitrary command execution;
-- call existing domain/application services rather than reimplementing their rules;
-- JSON responses should preserve typed Rukan outcomes and unresolved/refusal states;
-- browser UI must not infer success from HTTP 200 alone;
-- state mutations must flow through existing service boundaries;
-- no browser-direct vLLM/Ollama lifecycle control as normal architecture;
-- customer prompt/response content must not be written to operational journal/Witness/vendor export by this API.
-
-Define only endpoints actually needed by v0.
-
-A likely minimum surface includes concepts equivalent to:
-
-- deployment/admin summary;
-- Witness view;
-- current Foundation/runtime choice;
-- current model/instance view;
-- host/capacity summary;
-- model inspect/import/acquire actions where current services can safely support them;
-- safe lifecycle actions already supported;
-- interactive inference request for the current READY instance;
-- deployment/support snapshot export.
-
-Do not copy these endpoint names blindly. Choose a coherent minimal API from repository truth.
-
-Add clear API versioning from the beginning, even if only `v1`.
-
----
-
-# 7. EMBEDDED INFERENCE — BINDING DESIGN
-
-Rukan Admin v0 must include an embedded inference tester.
-
-Do **not** use LibreChat as the Admin inference UI.
-
-Preferred architecture:
+## Required invariant
 
 Browser
-→ Rukan local loopback API
-→ current authorised READY ServingInstance / serving provider abstraction
-→ vLLM or Ollama
+→ Rukan loopback API
+→ Rukan lifecycle application service/composition
+→ existing Serve/provider lifecycle semantics
+→ ResourceManager release only after eligibility
 
-The browser must not decide which runtime to call.
+Never:
 
-The Admin inference screen is an operational test surface, not the employee chat product.
+Browser
+→ arbitrary PID kill
 
-Minimum behaviour:
+Never:
 
-- one prompt input;
-- one response display;
-- current model identity;
-- current macropath/runtime provider;
-- status/proof result;
-- completion token count only when current runtime/proof reports it;
-- typed error/refusal;
-- no conversation memory requirement;
-- no file upload;
-- no tools/agents;
-- no RAG;
-- no Markdown/plugin complexity unless already needed for plain model text.
+Browser
+→ direct Ollama/vLLM lifecycle endpoint bypass
 
-If Serve's existing proof API cannot accept an arbitrary operator prompt cleanly, add the smallest new interactive inference seam adjacent to Serve that preserves existing authorization and instance identity.
+Never adopt a process by PID alone.
 
-Do not weaken the current InferenceProof privacy rule.
+## Preferred implementation shape
 
-LibreChat/Open WebUI integration is explicitly deferred as a replaceable employee/end-user client workstream.
+Use the smallest safe composition seam that allows the Admin-serving process to access/reconstruct the existing lifecycle authority.
+
+Possible repository-consistent implementations may include:
+
+- running Admin within an existing long-lived local Rukan supervisor/composition;
+- reconstructing lifecycle services from persisted Rukan evidence only where current identity/re-entry contracts explicitly permit it;
+- a narrow local lifecycle-owner service if an owner process already conceptually exists.
+
+Do **not** invent a new daemon architecture unless current contracts genuinely require one.
+
+If safe cross-process reattachment is not possible under existing contracts, do not weaken the identity rules. Implement the safe subset, document the exact architectural blocker, and return `DECISION_REQUIRED` for that subpart while completing the rest of the bounded UI iteration.
+
+## Tests required
+
+At minimum:
+
+- stop current READY native instance via Admin seam;
+- second stop converges/idempotent according to existing semantics;
+- stop wrong/mismatched instance refused;
+- release while STARTING/READY/STOPPING refused;
+- release after confirmed STOPPED/dead succeeds through ResourceManager;
+- second release converges/refuses consistently with M8 contract;
+- reservation remains held when stop fails;
+- process identity mismatch refuses;
+- provider/Ollama path follows its existing provider lifecycle semantics where current architecture supports it;
+- UI refresh reflects changed state;
+- browser cannot supply arbitrary runtime/provider/PID to override the current chain.
+
+Do not create fake unit-only semantics that differ from current Serve/Admit behavior.
 
 ---
 
-# 8. RUKAN ADMIN V0 — REQUIRED SCREENS
+# 6. ADMIN OVERVIEW — USABILITY PASS
 
-Keep the first UI simple and functional.
+Rework hierarchy, not truth.
 
-## A. Overview
+The first screen should answer, in this order:
 
-Show only truth-backed fields:
+1. **Can I use this deployment?**
+2. **What model is active?**
+3. **How is it running?**
+4. **Is anything requiring attention?**
+5. **What resources are safely available/allocated?**
 
-- Rukan build/version;
-- Witness verdict and concise reason;
-- active macropath / Foundation family;
-- current model identity;
-- current ServingInstance state/health;
-- Reservation state where available;
-- SAFE capacity summary;
-- typed warning/refusal/pending qualification state.
+Use existing fields only.
 
-Actions only if current services support them safely.
+Recommended presentation:
 
-No invented uptime %, utilisation chart, SLA, cost, savings or health score.
+- top deployment state derived from Witness + current chain;
+- active model;
+- macropath/runtime;
+- instance state;
+- reservation state;
+- concise capacity;
+- warnings/pending physical coverage;
+- build/version in secondary detail.
 
-## B. Inference
+Do not create a synthetic health score.
 
-As defined above.
+Do not label imported/stored evidence as current utilization.
 
-## C. Models
+Use plain-language labels with exact technical ids behind expandable detail.
 
-Expose only current real operations and state.
+---
 
-At minimum, evaluate current support for:
+# 7. ADMIN INFERENCE — USABILITY PASS
 
-- inspect local metadata;
-- local import into warehouse;
-- explicit hub acquire by repository/revision;
-- stored artifact identity;
-- provider digest identity where appropriate;
-- compatibility/qualification/deployability state.
+Keep this an operational inference tester, not a full chat product.
 
-Do not call this Marketplace.
+Add only useful bounded UX:
 
-Do not add ratings, recommended/popular lists, installation counts, model quality ranks or cross-catalog equivalence.
+- clear model and macropath context;
+- multiline prompt;
+- configurable `max_tokens` within the existing 1..64 API bound;
+- Send button;
+- in-flight state;
+- disable duplicate sends while a request is active;
+- response text;
+- completion tokens when reported;
+- elapsed request duration measured for the actual request if implemented truthfully;
+- clear typed refusal/error reason;
+- Clear action;
+- local privacy note: response is not stored by the Rukan operational store.
 
-## D. Deployment
+Do not add:
 
-Visualise the current chain:
+- conversation history;
+- saved chats;
+- RAG;
+- file upload;
+- tools;
+- agents;
+- Markdown plugins;
+- model switching;
+- direct runtime endpoint selection.
+
+The Admin tester should remain obviously different from a future employee chat client.
+
+---
+
+# 8. ADMIN DEPLOYMENT — PRODUCTIZE THE BLOCK CHAIN
+
+The current ordered list is truthful but too implementation-shaped.
+
+Create a clearer deployment journey view:
 
 Foundation
 → Model
 → Plan
 → Reservation
-→ ServingInstance
-→ InferenceProof/Witness
+→ Instance
+→ Inference Evidence
+→ Witness
 
-Default view should be simple.
+For each step:
 
-Provide an advanced detail drawer/section for exact ids/fingerprints/evidence.
+- human-readable status;
+- concise meaning;
+- relevant current value;
+- technical id/details behind disclosure.
 
-Only expose lifecycle actions supported by current services and bindings.
+The screen should make Block 5–9 semantics understandable without exposing internal jargon first.
 
-## E. System
+Lifecycle actions:
 
-Show current observed/derived facts that already exist:
+- Stop when applicable and attached;
+- Release only when eligible;
+- disable/refuse honestly otherwise;
+- show operation outcome immediately.
 
-- OS/architecture;
-- memory evidence;
-- accelerator observations;
-- mount/storage evidence;
-- SAFE capacity;
-- runtime/Foundation readiness;
-- physical qualification state/pending coverage where current records support it.
-
-Progressive disclosure: business/simple wording first, technical evidence second.
+Do not add Start/Deploy unless there is already a complete truthful action seam backing it in this baseline.
 
 ---
 
-# 9. RUKAN COMMAND CENTER V0 — REQUIRED DESIGN
+# 9. ADMIN MODELS / SYSTEM — SMALL REFINEMENT ONLY
 
-Build a separate web application.
+Do not expand scope into a marketplace.
 
-For this bundle it runs locally on the business operator PC and uses imported snapshots.
+Models:
 
-## A. Deployment Summary / Support Snapshot contract
+- improve labels around warehouse artifact vs provider digest;
+- make unavailable operations visibly disabled with a reason;
+- preserve explicit local inspect/import/hub acquire semantics;
+- show qualification/deployability only where actually present.
 
-First inspect whether an existing Rukan/Machi support/evidence export contract can be reused.
+System:
 
-If not, introduce the smallest Rukan-owned, versioned, non-authoritative export model needed by the Command Center.
+- improve formatting of bytes into human-readable values while retaining exact bytes in detail;
+- distinguish observed hardware from SAFE capacity;
+- preserve unresolved/not_recorded;
+- show physical qualification/pending coverage clearly.
 
-It must be a projection from persisted product truth, not a second truth source.
+No utilization graphs unless real utilization evidence exists.
 
-The snapshot should include only fields backed by current evidence, for example where available:
+---
 
-- export schema version;
-- deployment/install identity;
-- Rukan build identity;
-- snapshot/export timestamp;
-- install/deployment/first-serve timestamp only if current evidence provides a truthful semantic; otherwise omit it or use a clearly named observed timestamp;
-- OS/architecture;
-- accelerator summary;
-- SAFE capacity summary if appropriate for support;
-- selected Foundation/macropath/runtime generation identity;
-- model identity and model identity kind;
-- qualification/evidence scope;
-- Plan / Reservation / ServingInstance identifiers or safe summaries;
-- Witness verdict/reason;
-- physical qualification status/pending coverage;
-- bounded non-content operational event/support evidence;
-- privacy classification / redaction version if useful.
+# 10. COMMAND CENTER — V0.1 USABILITY
 
-Do not export absolute customer file paths if they are not already safe for support export.
-Do not export prompts, responses, documents, RAG data, API keys, secrets, credentials or proprietary file names.
+Do not add network connectivity.
 
-Make snapshot generation deterministic where practical and testable.
+Improve the existing local imported-evidence workflow.
 
-## B. Local Command Center store
+## Deployments list
 
-Use a simple local persistence option appropriate to the selected frontend/backend shape.
+Add bounded local-only features:
 
-The store only needs to support:
+- search/filter by install id, version, OS/accelerator, macropath, model, Witness;
+- sort by latest snapshot export time;
+- show number of imported snapshots per deployment;
+- show latest evidence timestamp as **Evidence exported** or **Snapshot age**, never Last Seen/Online.
 
-- import snapshot file;
-- deduplicate/update by deployment identity + snapshot identity/version;
-- list deployments;
-- retain imported snapshot history if cheap and useful;
-- open deployment detail;
-- remove local imported copy.
+If computing snapshot age, derive it from local current time and `exported_at` and label it explicitly as snapshot age.
 
-Do not build cloud sync.
+## Deployment detail
 
-## C. Deployments screen
+Improve hierarchy:
 
-Columns should be limited to real imported fields, such as:
-
-- deployment identity / display label if supplied;
-- first observed/deployed timestamp with exact meaning;
-- Rukan version;
-- OS / accelerator summary;
-- selected macropath/runtime;
-- current/imported model identity;
-- Witness status;
-- snapshot age/time.
-
-Do not label imported snapshot state as `Live`, `Online`, `Offline`, or `Healthy now`.
-
-## D. Deployment detail
-
-Show:
-
-- deployment identity;
-- Rukan version/build;
-- host/stack summary;
-- macropath/Foundation/runtime;
-- model + qualification;
+- identity/version;
+- hardware;
+- execution stack;
+- model/qualification;
 - Witness;
-- capacity summary;
-- physical qualification/pending coverage;
-- imported operational/support evidence/log timeline;
-- snapshot provenance/time.
+- capacity;
+- evidence timestamps;
+- pending physical coverage.
 
-## E. Support evidence / logs
+Add a visible banner:
 
-This view is for safe operational evidence, not customer content.
+`Imported evidence — not live deployment status`
 
-Prefer structured EventRecord/support evidence where possible.
+## Snapshot history
 
-If raw runtime logs are included, classify/redact them and prove they do not leak prompt/response/customer content before export.
+Where multiple snapshots are already retained for the same install id:
 
-When uncertain, omit raw logs from v0 and expose structured operational events instead.
+- show their exported timestamps;
+- schema/build/version;
+- Witness verdict;
+- model/macropath summary;
+- allow selecting an older snapshot for inspection.
 
----
+Do not invent diff semantics unless you implement a deterministic field-by-field local comparison.
 
-# 10. SHARED DESIGN SYSTEM
+## Support evidence
 
-Both products should visibly belong to Rukan while remaining distinct planes.
+Keep structured event envelopes only.
 
-Use a simple dark/light-neutral professional admin style with:
-
-- strong status colours only for typed state;
-- simple cards/tables;
-- progressive disclosure;
-- accessible contrast;
-- keyboard-accessible controls;
-- responsive enough for normal laptop/desktop use;
-- no decorative complexity that slows implementation.
-
-Suggested product labels:
-
-- `Rukan Admin`
-- `Rukan Command Center`
-
-Do not create a consumer-chat aesthetic for Admin.
-
-A small shared component/theme package is allowed if it reduces duplication without coupling authority.
+No raw log ingestion in this iteration.
 
 ---
 
-# 11. FRAMEWORK / PROJECT STRUCTURE
+# 11. VISUAL / ACCESSIBILITY PASS
 
-Choose repository structure that keeps both apps clearly separate.
+Keep the implementation lightweight.
 
-One reasonable shape, subject to repository/tooling reality:
+No redesign framework migration.
 
-- `ui/admin/`
-- `ui/command-center/`
-- `ui/shared/`
+Improve:
 
-or an equivalent small workspace.
+- spacing and hierarchy;
+- consistent status treatments;
+- table readability;
+- responsive layout at normal desktop widths;
+- keyboard focus visibility;
+- accessible labels;
+- semantic headings;
+- loading/empty/error states.
 
-Do not create a monorepo build system solely for these two small apps unless the repository already uses one.
+Use the existing shared theme; do not introduce a large design-system dependency.
 
-Static assets should be buildable reproducibly.
-
-Document how the local Admin assets are served and how the Command Center is started locally.
-
-No CDN dependency should be required at runtime.
-
----
-
-# 12. SECURITY / PRIVACY
-
-## Rukan Admin
-
-- loopback only;
-- browser same-machine assumption explicit;
-- no CORS wildcard for arbitrary origins;
-- mutations call bounded service methods;
-- no generic command endpoint;
-- no prompt/response operational telemetry;
-- no secrets returned to browser;
-- no remote admin claim.
-
-## Rukan Command Center
-
-- local-only v0;
-- imported snapshots are untrusted input and must be schema-validated;
-- no execution of imported content;
-- no customer-content fields in schema;
-- local deletion supported;
-- no vendor network service required;
-- no automatic file watching or exfiltration unless explicitly implemented and documented locally.
-
-Add tests for malformed/unsupported snapshot versions and oversize/untrusted input where appropriate.
+Rukan Admin and Command Center may visually relate but must remain clearly distinct products.
 
 ---
 
-# 13. TESTING
+# 12. LOCAL STAND-UP / VISUAL EVIDENCE
 
-Add meaningful tests at all applicable layers.
+Run both applications locally against deterministic test/demo evidence.
 
-## Backend/API
+Create a reproducible local demonstration method that does **not** fake backend capabilities.
 
-- loopback binding/policy;
-- summary endpoints reflect service truth;
-- unsupported/unresolved states preserved;
-- no direct runtime authority bypass;
-- inference request requires current authorised READY instance;
-- vLLM and Ollama provider paths are presented under one Rukan interface;
-- explicit typed failure handling;
-- model operations call current services;
-- snapshot export excludes prohibited fields;
-- snapshot import validates schema and does not execute input;
-- Command Center dedup/update semantics.
+Acceptable:
 
-## Frontend
+- test fixtures that are explicitly labelled fixture/demo evidence;
+- a temporary local state root populated through current contracts/test helpers;
+- a snapshot fixture derived from the real SupportSnapshot contract.
 
-At minimum test:
+Capture screenshots of:
 
-- loading/error/empty states;
-- typed Witness states;
-- Inference send/result/failure state;
-- Models actions only enabled when supported;
-- stop/release state sequencing;
-- snapshot import/list/detail/remove;
-- no fake live badge in Command Center;
-- accessibility basics for navigation/forms/buttons.
+## Admin
 
-## Regression
+- Overview
+- Inference
+- Deployment
 
-Run existing Stage-1 suites so the UI/API work does not weaken the deployment spine.
+## Command Center
+
+- Deployments
+- Deployment Detail
+- Support Evidence or Snapshot History
+
+If the repository environment lacks a safe screenshot mechanism, document exact local commands and DOM/test evidence instead. Do not introduce a browser automation framework only for screenshots unless it is already available or trivially justified.
+
+No physical inference host is required.
 
 ---
 
-# 14. DOCUMENTATION
-
-Update current product-facing docs to use **Rukan** for the product.
-
-At minimum add/update:
-
-- a short Rukan product naming note;
-- Rukan Admin v0 architecture/readme;
-- Rukan Command Center v0 architecture/readme;
-- local run/build instructions;
-- the two-plane trust model;
-- inference exposure decision;
-- snapshot/export privacy boundary;
-- current functionality vs deferred functionality.
-
-Do not rewrite historical evidence records to pretend they were originally called Rukan.
-
----
-
-# 15. LIBRECHAT DECISION — RECORD EXPLICITLY
-
-Record this product decision:
-
-- LibreChat is **not** used as the embedded Rukan Admin inference UI in v0.
-- Rukan Admin owns its small operational inference tester.
-- The test request travels through a Rukan-owned local API/control seam and the current authorised Rukan serving instance.
-- LibreChat may later be integrated as an optional replaceable employee-facing chat client through an appropriate standard endpoint/gateway.
-- That future client must not own Rukan deployment/admin semantics.
-
-Do not add LibreChat as a dependency in this bundle.
-
----
-
-# 16. NON-GOALS / FORBIDDEN SHORTCUTS
-
-Do not implement:
-
-- fake KPIs or dashboards;
-- model marketplace rankings;
-- remote customer control;
-- central live telemetry;
-- tenant/user identity;
-- licensing;
-- Knowledge/RAG;
-- Team Brain;
-- agents;
-- Dynamo;
-- Runtime Artifact Registry;
-- physical GPU/macOS campaigns;
-- Electron/Tauri desktop packaging unless genuinely required by the chosen v0 design;
-- direct browser calls that bypass Rukan lifecycle/admission semantics;
-- arbitrary shell command API;
-- prompt/response export to Command Center.
-
-Do not overbuild visual polish before both products can run and show real data.
-
----
-
-# 17. ACCEPTANCE — RUKAN ADMIN
-
-Admin v0 is PASS only if:
-
-- it launches locally;
-- it visibly uses the Rukan name;
-- Overview reads real deployment state;
-- Witness state is rendered truthfully;
-- active macropath/model/instance can be inspected;
-- Inference can perform a real request through the Rukan-owned seam when a READY instance exists, and shows a typed refusal otherwise;
-- Models exposes only implemented operations;
-- Deployment shows the real chain;
-- System shows real host/capacity state;
-- stop/release ordering remains correct;
-- no browser-side runtime selection bypass exists;
-- no fake KPI/marketplace data exists;
-- loopback-only boundary is preserved.
-
-Physical GPU proof is not required in this bundle. Use deterministic/local integration tests and accepted Stage-1 evidence where live accelerator state is unavailable.
-
----
-
-# 18. ACCEPTANCE — RUKAN COMMAND CENTER
-
-Command Center v0 is PASS only if:
-
-- it launches as a separate local application;
-- it visibly uses the Rukan name;
-- a valid exported snapshot can be imported;
-- one or more imported deployments can be listed;
-- deployment detail renders only supported snapshot fields;
-- snapshot provenance/time is visible;
-- safe operational/support evidence is visible;
-- imported data is clearly not labelled live;
-- malformed/unsupported snapshots fail closed;
-- customer content/secrets are absent from the export schema;
-- Command Center has no remote execution authority;
-- local imported records can be removed.
-
----
-
-# 19. FULL QUALITY GATES
+# 13. TEST / QA GATES
 
 Run:
 
-- existing `tests/machi`;
-- existing acceptance-lab tests applicable locally;
-- new API tests;
-- new snapshot tests;
-- new frontend tests;
-- architecture/import-boundary tests;
-- Python ruff;
-- Python strict mypy;
-- frontend lint/typecheck/build/test for both apps;
-- clean production builds of both frontends;
-- Python wheel build/isolated verify if Python source/package changes;
-- no unexpected network access for local UI tests.
+Backend:
+- full `tests/machi`
+- `tests/acceptance_lab`
+- new Admin lifecycle/API tests
+- snapshot/privacy tests
+- architecture tests
+- ruff
+- mypy --strict
 
-Fix ordinary implementation defects autonomously and continue.
+Admin:
+- unit/component tests
+- TypeScript no-emit check
+- production Vite build
 
-Return `DECISION_REQUIRED` only for a genuine product/architecture choice that conflicts with this instruction.
+Command Center:
+- store/import/history/search tests
+- TypeScript no-emit check
+- production Vite build
 
----
+Packaging:
+- repository-owned wheel build if Python changed
+- isolated verification if Python changed
 
-# 20. FINAL PASTE BACK
+Regression:
 
-Return one complete packet with:
-
-A. EXACT STATUS
-B. EXECUTIVE TL;DR
-C. STARTING / FINAL SHA
-D. BRANCH / ORIGIN / WORKTREE
-E. RUKAN NAMING CHANGES
-F. INTERNAL `machi` NAMESPACE DEFERRED MIGRATION BOUNDARY
-G. FRONTEND SOLUTION GATE / CHOSEN STACK
-H. TWO-PLANE ARCHITECTURE
-I. LOCAL RUKAN API / CONTROL SEAM
-J. EMBEDDED INFERENCE IMPLEMENTATION
-K. LIBRECHAT DECISION
-L. RUKAN ADMIN — OVERVIEW
-M. RUKAN ADMIN — INFERENCE
-N. RUKAN ADMIN — MODELS
-O. RUKAN ADMIN — DEPLOYMENT
-P. RUKAN ADMIN — SYSTEM
-Q. DEPLOYMENT SUMMARY / SUPPORT SNAPSHOT CONTRACT
-R. SNAPSHOT PRIVACY / REDACTION
-S. COMMAND CENTER LOCAL STORE
-T. COMMAND CENTER — DEPLOYMENTS
-U. COMMAND CENTER — DEPLOYMENT DETAIL
-V. COMMAND CENTER — SUPPORT EVIDENCE / LOGS
-W. SECURITY REVIEW
-X. TESTS / QA
-Y. FRONTEND BUILDS / ARTIFACTS
-Z. PYTHON BUILD / VERIFY IF CHANGED
-AA. CURRENT FUNCTIONALITY VS DEFERRED MOCKS
-AB. STAGE-1 REGRESSION
-AC. OPEN DEBT / RISKS
-AD. EXACT NEXT RECOMMENDED UI ITERATION
-AE. GIT STATE
-AF. STOP
-
-On full success use exact status:
-
-`RUKAN_DUAL_UI_V0_LOCAL_PASS`
-
-If one application passes but the other does not, do not report full success. State the exact partial failure.
+- Stage-1 native/vLLM primary semantics unchanged;
+- Ollama fallback semantics unchanged;
+- one ResourceManager authority unchanged;
+- STOP != RELEASE unchanged;
+- no prompt/response persistence/export;
+- Command Center still non-authoritative/import-only.
 
 ---
 
-# 21. STOP
+# 14. NON-GOALS
 
-After publishing the complete paste-back through the GitHub handoff protocol:
+Do not implement:
 
-STOP.
+- remote Admin;
+- connected fleet heartbeat;
+- cloud Command Center;
+- authentication/tenancy;
+- users/teams;
+- licensing;
+- Runtime Artifact Registry;
+- Knowledge/RAG;
+- employee chat application;
+- LibreChat/Open WebUI integration;
+- Dynamo;
+- new runtime providers;
+- physical AMD/macOS/Ampere testing;
+- new RunPod Pods;
+- usage analytics dashboard unless current real data contracts already make a tiny display trivial and directly relevant — default is defer;
+- model marketplace/recommendation.
 
-Do not start a connected Command Center, remote Admin, Runtime Artifact Registry, Dynamo, Knowledge, identity, licensing, or physical qualification campaign.
+---
 
-Wait for Lead review and the next UI iteration.
+# 15. DOCUMENTATION
+
+Update current Rukan UI docs with:
+
+- exact run commands;
+- architecture boundary;
+- lifecycle attachment behavior;
+- local security model;
+- inference privacy;
+- Command Center import semantics;
+- screenshot/demo workflow;
+- deferred features.
+
+Do not rewrite historical Machi evidence.
+
+---
+
+# 16. ACCEPTANCE
+
+PASS requires:
+
+- both UIs still run locally;
+- lifecycle wiring is safe and functional, OR an exact genuine architecture blocker is reported without weakening invariants;
+- Admin inference UX improved;
+- Admin Overview/Deployment clarity improved;
+- Command Center search/history/evidence usability improved;
+- no live-fleet claim introduced;
+- no customer content exported;
+- all relevant tests/builds pass;
+- clean pushed branch.
+
+Preferred terminal status when lifecycle is fully closed:
+
+`RUKAN_DUAL_UI_V0_1_LOCAL_PASS`
+
+If the only unresolved item is a genuine lifecycle ownership architecture decision:
+
+`DECISION_REQUIRED_LIFECYCLE_ATTACHMENT`
+
+Do not use PASS if Stop/Release are visually presented as functional when they are not.
+
+---
+
+# 17. PASTE BACK
+
+Return:
+
+A. exact status  
+B. TL;DR  
+C. starting/final SHA  
+D. branch/worktree/origin  
+E. lifecycle ownership analysis  
+F. Stop implementation  
+G. Release implementation  
+H. native lifecycle tests  
+I. Ollama lifecycle disposition  
+J. Admin Overview changes  
+K. Admin Inference changes  
+L. Admin Deployment changes  
+M. Models/System refinement  
+N. Command Center Deployments changes  
+O. snapshot history  
+P. Support evidence changes  
+Q. visual/accessibility changes  
+R. screenshots/demo evidence  
+S. security/privacy review  
+T. full QA  
+U. build artifacts  
+V. remaining limitations  
+W. recommended next UI iteration  
+X. git state  
+Y. STOP
+
+Then STOP for Lead review.
+
+# END INSTRUCTION
