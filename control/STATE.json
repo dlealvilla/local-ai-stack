@@ -1,43 +1,55 @@
 {
-  "schema": "machi.lead_handoff.v1",
-  "source_repository": "dlealvilla/ai-stack",
   "control_branch": "control/machi-handoff",
-  "instruction_id": "RUKAN-DUAL-UI-V0-001",
-  "published_instruction_id": "RUKAN-DUAL-UI-V0-001",
-  "expected_pasteback_instruction_id": "RUKAN-DUAL-UI-V0-001",
   "expected_cursor_action": "implement_rukan_admin_and_command_center_v0",
-  "status": "AWAITING_CURSOR_RUKAN_DUAL_UI_V0",
+  "expected_pasteback_instruction_id": "RUKAN-DUAL-UI-V0-001",
+  "instruction_id": "RUKAN-DUAL-UI-V0-001",
   "program": {
-    "name": "rukan-post-stage1-productisation",
-    "product_name": "Rukan",
-    "internal_namespace": "machi",
-    "canonical_branch": "machi",
     "canonical_baseline": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
-    "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
+    "canonical_branch": "machi",
+    "internal_namespace": "machi",
+    "name": "rukan-post-stage1-productisation",
     "next_action": "cursor_build_both_local_visual_products_then_lead_iterate",
-    "rukan_admin": {
-      "plane": "customer_local",
-      "network_scope": "loopback_only_v0",
-      "pages": ["overview", "inference", "models", "deployment", "system"],
-      "embedded_inference": "rukan_native_required",
-      "librechat": "deferred_optional_end_user_client",
-      "success_requirement": "real_truth_backed_local_ui"
-    },
-    "rukan_command_center": {
-      "plane": "business_vendor_local_pc",
-      "connectivity_v0": "imported_non_content_snapshots",
-      "screens": ["deployments", "deployment_detail", "support_evidence", "imports", "settings"],
-      "remote_control": false,
-      "live_fleet_telemetry": false,
-      "customer_content_export": false
-    },
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
       "NVIDIA_Ampere_N1_breadth",
       "other_recorded_physical_coverage"
     ],
+    "product_name": "Rukan",
+    "rukan_admin": {
+      "embedded_inference": "rukan_native_required",
+      "librechat": "deferred_optional_end_user_client",
+      "network_scope": "loopback_only_v0",
+      "pages": [
+        "overview",
+        "inference",
+        "models",
+        "deployment",
+        "system"
+      ],
+      "plane": "customer_local",
+      "success_requirement": "real_truth_backed_local_ui"
+    },
+    "rukan_command_center": {
+      "connectivity_v0": "imported_non_content_snapshots",
+      "customer_content_export": false,
+      "live_fleet_telemetry": false,
+      "plane": "business_vendor_local_pc",
+      "remote_control": false,
+      "screens": [
+        "deployments",
+        "deployment_detail",
+        "support_evidence",
+        "imports",
+        "settings"
+      ]
+    },
+    "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
+    "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
     "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
-  }
+  },
+  "published_instruction_id": "RUKAN-DUAL-UI-V0-001",
+  "schema": "machi.lead_handoff.v1",
+  "source_repository": "dlealvilla/ai-stack",
+  "status": "PASTEBACK_PUBLISHED"
 }
