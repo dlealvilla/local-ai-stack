@@ -1,398 +1,161 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-Instruction ID: `RUKAN-ANALYTICS-HUB-V0.2-001`
-Status: `AUTHORIZED_IMPLEMENTATION`
-Canonical baseline: `machi` at `c649103f244475f6381ba473f4431e0a7f86f803`
-Predecessor: `RUKAN-DUAL-UI-V0.1-001` / `add9ac3f5acb2d9f4bc335dedc49a274df4d4193`
+Instruction ID: `RUKAN-ANALYTICS-HUB-V0.2-FIX-001`
+Status: `AUTHORIZED_CORRECTION`
+Predecessor instruction: `RUKAN-ANALYTICS-HUB-V0.2-001`
+Correction starting source: `404858abde45443d91f9a6f17b301754cc8b4276`
+Branch: `rukan/analytics-hub-v0.2`
 
-Build the next bounded Rukan product increment: turn Command Center into a persistent local business data hub and add a small local Analytics page to Rukan Admin.
+The v0.2 implementation is close but is NOT yet accepted.
 
-No physical server is required.
+Do not expand scope. Fix the following provenance/history defects, add regression tests, rerun the complete v0.2 QA gates, publish paste-back, and STOP.
 
-## Product outcome
+## 1. Bundle installation identity must fail closed
 
-### Rukan Command Center
-Run as a long-lived local service on the business operator PC.
+Current problem:
 
-It must:
-- own a persistent local datastore;
-- own an inbox/import directory;
-- serve the Command Center UI;
-- expose a **Refresh deployments** action;
-- scan all supported files in the inbox;
-- validate and import only new valid records idempotently;
-- retain deployment/snapshot/event history across browser and service restarts;
-- aggregate data across multiple deployments;
-- remain non-authoritative for customer-host truth.
+`AnalyticsBundle._check_counts` verifies snapshot install ids against the manifest, but does not verify `AnalyticsEvent.install_id` or `AnalyticsInference.install_id`.
 
-The browser must no longer be the durable data authority.
+The Command Center importer then stores event/inference rows under `bundle.manifest.install_id`, silently overriding the record's own claimed installation identity.
 
-### Rukan Admin
-Add a small **Analytics** page over the deployment's own local journal/store using only active truth-backed Rukan facts.
+This can misattribute an untrusted/malformed record to the wrong deployment.
 
-## Data principles
+Required behavior:
 
-Preserve the existing separation:
-1. operational state = authoritative current contracts;
-2. EventRecord journal = append-only record of what happened;
-3. metrics = derived/rebuildable projections;
-4. logs = debugging, not analytics.
+- every support snapshot in a bundle must belong to the manifest install id;
+- every analytics event in a bundle must have the same install id as the manifest;
+- every analytics inference in a bundle must have the same install id as the manifest;
+- any mismatch fails the whole bundle before SQLite mutation;
+- importer must never silently replace a source record's installation identity with the manifest identity as a way to make a malformed bundle fit.
 
-Keep three data domains distinct:
-- customer-local operational/usage analytics;
-- business/vendor product telemetry + support analytics;
-- future licensing/entitlement data.
+Keep generated Rukan bundles unchanged when valid.
 
-Do not mix licensing into this work.
+Add negative tests for mismatched event install id and mismatched inference install id. Prove transaction rollback and no partial rows.
 
-## Canonical interchange
+## 2. Snapshot count must remain truthful when older history arrives later
 
-Do not use CSV as the canonical Rukan-to-Command-Center format.
+Current problem:
 
-Use versioned JSON/JSONL because it preserves typed identities, timestamps, schemas, unresolved values, privacy classes and provenance.
+`_apply_snapshot` recomputes the number of stored snapshots, but the deployments UPSERT updates `snapshot_count` only when the imported snapshot is at least as new as `latest_exported_at`.
 
-CSV may be added later as a human convenience adapter only.
+If an older previously unseen snapshot arrives after a newer snapshot:
+- snapshot history correctly gains a row;
+- latest deployment metadata should stay on the newer snapshot;
+- but `deployments.snapshot_count` remains stale.
 
-Keep `rukan.support_snapshot` as a compact point-in-time support summary. Do not overload it into the complete analytics feed.
+Required behavior:
 
-Add a separate versioned analytics export, preferably one transportable JSONL file such as:
+- latest deployment metadata must continue to reflect the newest `exported_at`;
+- snapshot_count must reflect the actual number of retained snapshots regardless of import order;
+- importing older history must not regress latest version/model/Witness/etc.;
+- importing snapshots in arbitrary order must converge to the same database state.
 
-`rukan.analytics_bundle.v1.jsonl`
+Prefer separating "latest projection update" from "history count update" rather than weakening the latest timestamp guard.
 
-The bundle should have a manifest record with:
-- bundle schema/version;
-- bundle id;
-- install id;
-- exported_at;
-- Rukan version/build/commit when known;
-- included dataset kinds and counts;
-- export/privacy policy version.
+Add tests:
+- newer then older;
+- older then newer;
+- three snapshots shuffled;
+- snapshot_count is correct;
+- latest metadata is always from the newest snapshot.
 
-Subsequent typed records may include only supported active Rukan facts.
+## 3. Remove + Refresh must be recoverable
 
-## Export what actually exists now
+Current problem:
 
-At minimum evaluate/include:
+`CommandHub.remove(install_id)` deletes snapshots/events/inferences/deployment rows but leaves the source hash records in `sources`.
 
-### Support snapshot
-The existing `rukan.support_snapshot`.
+If the source files remain in the inbox, Refresh sees their hashes as already imported and skips them, so the removed deployment cannot be reconstructed from the files the operator still has.
 
-### Event timeline
-Exportable EventRecord facts from the current journal.
+Required product behavior:
 
-Business export rules:
-- customer_content: NEVER;
-- restricted: default exclude;
-- public_ops: eligible;
-- operational: eligible only through explicit allow-list projection.
+"Remove local copy" removes the Command Center's imported local database representation. If supported source files for that deployment remain in the inbox, a later Refresh must be able to ingest them again.
 
-Do not blindly export arbitrary payloads.
+Fix provenance/schema as needed.
 
-Useful event projection fields include event id/type, timestamps, install/run/host identities where permitted, block/component, outcome, privacy and specifically allow-listed safe payload fields.
+The source/import table should retain enough source identity to associate an imported source with its installation and preferably logical bundle/snapshot identity, not only content hash.
 
-### Inference facts
-Active `InferenceProof` contains useful non-content facts:
-- proof id;
-- instance/plan/fingerprint/reservation/generation/artifact ids;
-- request kind;
-- status code;
-- completion tokens when reported;
-- structural validity;
-- typed failure.
+Because v0.2 has not been accepted/promoted yet, it is acceptable to correct the initial schema before canonical release. Preserve explicit schema version handling and tests.
 
-Export a bounded projection of those facts. Never prompt or response text.
+Required tests:
+- import bundle -> remove deployment -> Refresh same unchanged file -> deployment returns;
+- same for a standalone support snapshot;
+- removing deployment A must not make deployment B's sources eligible or delete B data;
+- normal Refresh without Remove remains idempotent;
+- source files are never deleted by Remove.
 
-### Other active facts
-Include additional non-content analytics-ready facts only when current Rukan contracts already define stable meaning and they add value.
+## 4. Logical duplicate provenance
 
-Avoid redundant duplication when support snapshot + events already carry the information.
+While correcting `sources`, inspect whether the same logical bundle/snapshot with different byte serialization can create duplicate source-provenance rows.
 
-## Do not invent future metrics
+Use the smallest robust identity:
+- content hash for exact file idempotency;
+- stable bundle id or snapshot id where available for logical idempotency.
 
-The telemetry architecture reserves richer measures, but active Rukan does not yet persist all of them.
+Do not over-engineer a generic ingestion framework.
 
-Do not synthesize or claim, unless repository truth proves they now exist:
-- input tokens;
-- TTFT;
-- queue time;
-- cost;
-- user/team/application usage;
-- requested vs actual routed model;
-- route reason;
-- utilization percentages;
-- SLA/availability;
-- historical latency.
+Facts remain deduplicated by their existing stable ids.
 
-The Admin inference seam's current elapsed time is not historical fleet telemetry.
+## 5. Preserve all accepted v0.2 behavior
 
-Return a gap table:
-`DESIGNED FUTURE METRIC -> ACTIVE RUKAN SOURCE MISSING`.
-
-Do not import the old Kultrun UsageEvent wholesale without a separate product decision.
-
-## Deployment-side export
-
-Add a Rukan-owned read-only analytics export command/service using the internal machi namespace as needed.
-
-Conceptually:
-
-`rukan analytics export --output ...`
-
-It must:
-- read persisted Rukan state/journal/proofs;
-- not mutate operational state;
-- write one versioned export bundle;
-- require no network;
-- fail closed on prohibited content;
-- report included/skipped counts;
-- never export prompts/responses/documents/secrets/paths/raw logs.
-
-## Command Center local service
-
-Replace browser localStorage as durable authority.
-
-Preferred implementation:
-- Python;
-- loopback only;
-- SQLite via stdlib;
-- static Command Center assets served locally for product use;
-- Vite remains development tooling.
-
-Add a command equivalent to:
-
-`machi command-center serve --data-dir <dir> --port <port>`
-
-Use an owned data root containing at least:
-- SQLite database;
-- inbox directory;
-- optional bounded rejected/import metadata.
-
-Do not delete arbitrary source files.
-
-Design it as a long-running local service. If no existing cross-platform service manager exists, do not invent OS startup registration in this bundle; document boot/login autostart as later installer integration.
-
-## Inbox + Refresh
-
-The UI must have a clear **Refresh deployments** button.
-
-Refresh must:
-1. scan the inbox;
-2. identify supported Rukan snapshot/bundle files;
-3. content-hash or otherwise stably identify each source;
-4. validate schema/version;
-5. enforce privacy/export restrictions;
-6. validate bundle identity/count consistency;
-7. import transactionally;
-8. deduplicate stable source records;
-9. retain provenance;
-10. update all views.
-
-Scanning the same bundle twice must not duplicate data.
-
-Newer bundles for the same installation append history.
-
-Malformed files must not block valid files. Show rejected count/reason.
-
-Automatic scan on service startup is encouraged. Background polling is not required.
-
-## SQLite model
-
-Keep it small, versioned and migratable.
-
-Represent concepts equivalent to:
-- deployments/installations;
-- imported source files/bundles;
-- support snapshots;
-- event envelopes;
-- inference facts;
-- rejected/import-error evidence.
-
-Preserve Rukan source identities. Do not collapse install id, install-run id, host id, model identity, plan, reservation, instance or proof into one ambiguous id.
-
-Use transactions and schema versioning.
-
-## Command Center UI
-
-Keep the existing screens, now backed by the local service/database.
-
-Header:
-- service status;
-- last refresh;
-- latest imported/rejected counts;
-- Refresh deployments.
-
-Deployments:
-- search/sort/history;
-- snapshot count;
-- evidence exported time;
-- simple truthful aggregate counts/distributions for known deployments, versions, macropaths, Witness outcomes and accelerator models.
-
-Never show online/offline/healthy from imported files.
-
-Deployment detail:
-- Summary;
-- Timeline;
-- Inference analytics;
-- Snapshots;
-- Support evidence.
-
-Timeline:
-- imported EventRecord projections;
-- useful filtering by event type/outcome/block.
-
-Inference analytics:
-- total persisted proof/request facts;
-- completed/failed facts;
-- reported completion-token totals/averages only when available;
-- status/failure distribution;
-- model/artifact identity where supported.
-
-Clearly label unrecorded metrics.
-
-Add a simple cross-deployment Analytics section for imported truth-backed facts such as:
-- Rukan version;
-- OS/architecture;
-- accelerator;
-- macropath/runtime;
-- model identities;
-- Witness outcomes;
-- event failures;
-- inference success/failure;
-- reported completion tokens.
-
-No decorative fake KPI cards.
-
-## Rukan Admin local Analytics
-
-Add an Analytics page powered directly by local Rukan records.
-
-Minimum truth-backed views:
-- event counts by outcome;
-- recent/event timeline;
-- lifecycle event counts;
-- inference proof count;
-- successful/failed inference facts;
-- reported completion-token total where available;
-- current runtime/model context;
-- explicit missing-data labels.
-
-Local Admin may see locally permitted data that is not vendor-exportable. Do not loosen export privacy because Admin can see it.
-
-## Privacy hard gate
-
-Never export:
-- prompts;
-- generated responses;
-- messages;
-- documents;
-- RAG context;
-- proprietary file contents;
-- credentials/secrets;
-- absolute paths;
-- arbitrary raw logs;
-- customer_content records;
-- restricted records unless a future explicit projection authorizes them.
-
-Use allow-list projection, not denylist-only sanitization.
-
-Add negative privacy tests.
-
-## Transport limitation
-
-There is no automatic customer-to-business transport yet.
-
-v0.2 truth is:
-
-Deployment
--> analytics export bundle
--> manual/external file transfer
--> Command Center inbox
--> Refresh
-
-Do not claim sync, heartbeat or fleet connectivity.
-
-## Migration
-
-Current v0.1 browser snapshot workflow must remain usable.
+Do not change:
+- loopback-only Command Center;
+- SQLite durable authority;
+- inbox + Refresh model;
+- JSON/JSONL canonical interchange;
+- manual/external transport only;
+- Rukan Admin Analytics;
+- privacy allow-list;
+- no raw logs;
+- no prompts/responses/documents;
+- no live/online/healthy claims;
+- no invented future metrics;
+- no remote fleet/auth/licensing/Knowledge/Registry/Dynamo/LibreChat/physical work.
+
+## 6. QA
+
+Run all prior v0.2 gates plus the new correction tests.
 
 At minimum:
-- manual existing support snapshot JSON files can be placed in the inbox;
-- they import into the new service/database;
-- browser localStorage is no longer durable authority.
-
-Do not attempt to scrape arbitrary browser profiles.
-
-## QA
-
-Run:
+- bundle count validation;
+- snapshot install mismatch;
+- event install mismatch;
+- inference install mismatch;
+- transaction rollback on identity mismatch;
+- shuffled snapshot history convergence;
+- remove/reimport bundle;
+- remove/reimport snapshot;
+- multi-deployment removal isolation;
+- exact-file refresh idempotency;
+- logical source idempotency if implemented;
+- persistence/restart;
+- privacy negative tests;
 - full tests/machi;
 - tests/acceptance_lab;
-- bundle serialization/readback;
-- privacy allow-list and prohibited-content cases;
-- idempotent refresh;
-- duplicate bundle;
-- mixed valid/invalid inbox;
-- transaction rollback;
-- SQLite schema/migration;
-- service restart persistence;
-- multiple deployments and multiple bundles per deployment;
-- timeline and inference aggregation;
-- Admin local analytics;
-- architecture tests;
 - ruff;
 - mypy strict;
-- both frontend test/typecheck/build suites;
-- wheel build and isolated verify if Python changes.
+- Admin tests/typecheck/build;
+- Command Center tests/typecheck/build;
+- wheel build + isolated verify if Python changes.
 
-No physical testing.
+## 7. Terminal status
 
-## Non-goals
-
-Do not build:
-- automatic deployment-to-vendor transport;
-- cloud Command Center;
-- remote control;
-- online/offline heartbeat;
-- auth/tenancy;
-- licensing/billing;
-- Knowledge/RAG;
-- agents/Team Brain;
-- Dynamo;
-- Runtime Artifact Registry;
-- LibreChat/Open WebUI;
-- raw log shipping;
-- Postgres/Kafka/data lake;
-- Parquet unless a concrete need emerges;
-- CSV as canonical format;
-- new usage ontology;
-- RunPod tests.
-
-## Acceptance
-
-Pass only if:
-- v0.1 behavior remains intact;
-- Command Center has a persistent local service + SQLite store;
-- inbox + Refresh works in one action;
-- refresh is idempotent;
-- existing support snapshots import;
-- versioned analytics bundles import;
-- implemented safe active Rukan analytics are captured;
-- timelines and inference analytics work;
-- aggregate analytics are truth-backed;
-- Rukan Admin has local Analytics;
-- privacy tests pass;
-- transport remains explicitly manual/external;
-- full QA/build pass;
-- pushed branch clean.
-
-Use branch:
-
-`rukan/analytics-hub-v0.2`
-
-Terminal success:
+Only return:
 
 `RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS`
 
-Paste back exact status, SHAs, architecture, SQLite schema, inbox/refresh behavior, bundle contract, exported record types, privacy rules, analytics views, future-metric gaps, tests/builds, limitations, next recommendation, git state, then STOP.
+when these corrections pass and the branch is clean/pushed.
+
+Paste back:
+- exact status;
+- final SHA;
+- fixes for all three defects;
+- schema/provenance changes;
+- added tests;
+- full QA/build evidence;
+- remaining limitations;
+- git state.
+
+Then STOP.
 
 # END INSTRUCTION
