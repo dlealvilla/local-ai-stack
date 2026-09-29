@@ -163,6 +163,7 @@ function Deployments({
               <th>Last report</th>
               <th>Report age</th>
               <th>Cadence</th>
+              <th>Clock</th>
               <th>Evidence exported</th>
               <th>Snapshot age</th>
             </tr>
@@ -187,6 +188,7 @@ function Deployments({
                 <td>{item.last_report_received_at ?? "not_recorded"}</td>
                 <td>{reportAge(item.last_report_received_at, Date.now())}</td>
                 <td>{cadenceLabel(item.last_report_received_at, Date.now(), item.cadence_seconds)}</td>
+                <td>{item.clock_skew ?? "none"}</td>
                 <td>{item.latest_exported_at}</td>
                 <td>{snapshotAge(item.latest_exported_at, Date.now())}</td>
               </tr>

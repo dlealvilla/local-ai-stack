@@ -9,7 +9,8 @@ from machi.kernel.schema import Contract, contract, meaning
 
 USER_STATUSES = frozenset({"active", "suspended", "deactivated"})
 TEAM_STATUSES = frozenset({"active", "archived"})
-ACCESS = frozenset({"allow", "deny"})
+ACCESS = frozenset({"allow", "deny", "inherit"})
+GRANTS = frozenset({"allow", "deny"})
 SUBJECTS = frozenset({"user", "team"})
 _TOKEN_MAX = 240
 
@@ -88,13 +89,14 @@ class AccessIntent(Contract):
     def __post_init__(self) -> None:
         if self.subject_kind not in SUBJECTS:
             raise ValidationError("access intent subject is unknown")
+        allowed = ACCESS if self.subject_kind == "user" else GRANTS
         for label, value in (
             ("platform", self.platform_access),
             ("inference", self.inference_access),
             ("model selection", self.model_selection),
             ("agent builder", self.agent_builder),
         ):
-            if value not in ACCESS:
+            if value not in allowed:
                 raise ValidationError(f"access intent {label} is unknown")
 
 
@@ -110,7 +112,10 @@ class EffectiveAccess(Contract):
     inference_access: str = meaning("effective allow or deny")
     model_selection: str = meaning("effective allow or deny")
     agent_builder: str = meaning("effective allow or deny")
-    provenance: str = meaning("which rule produced the result")
+    platform_provenance: str = meaning("rule for platform access")
+    inference_provenance: str = meaning("rule for inference access")
+    model_selection_provenance: str = meaning("rule for model selection")
+    agent_builder_provenance: str = meaning("rule for agent builder")
     configured: bool = meaning("the directory can express intent")
     enforcement: str = meaning("gateway_not_available until an employee gateway exists")
 

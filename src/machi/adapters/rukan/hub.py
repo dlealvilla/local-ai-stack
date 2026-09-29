@@ -6,18 +6,20 @@ import hashlib
 import json
 import sqlite3
 import threading
+import time
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from machi.adapters.rukan.secrets import restrict_owned
 from machi.kernel.analytics import AnalyticsBundle, load_bundle
 from machi.kernel.errors import ValidationError
 from machi.kernel.schema import to_dict
 from machi.kernel.snapshot import SupportSnapshot, accept_snapshot
 
 API_NAME = "rukan.command.v1"
-SCHEMA_VERSION = "4"
+SCHEMA_VERSION = "5"
 _LOOPBACK = "127.0.0.1"
 _MAX_BODY = 64_000
 
@@ -35,9 +37,15 @@ class CommandHub:
         )
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
-        self._db.execute("PRAGMA busy_timeout=2000")
+        self._db.execute("PRAGMA busy_timeout=4000")
         self._migrate()
+        self._restrict()
         self.refresh()
+
+    def _restrict(self) -> None:
+        restrict_owned(self.data_dir)
+        for name in ("command.sqlite", "command.sqlite-wal", "command.sqlite-shm"):
+            restrict_owned(self.data_dir / name)
 
     def close(self) -> None:
         with self._lock:
@@ -123,7 +131,8 @@ class CommandHub:
                        architecture, accelerator_summary, macropath,
                        model_identity, witness_verdict, snapshot_count,
                        last_report_received_at, last_report_sequence,
-                       last_trigger, report_gap, cadence_profile, cadence_seconds
+                       last_trigger, report_gap, cadence_profile, cadence_seconds,
+                       telemetry_stream_id, clock_skew
                 FROM deployments
                 ORDER BY latest_exported_at DESC
                 """
@@ -463,9 +472,29 @@ class CommandHub:
         del bundle_id
 
     def _migrate(self) -> None:
+        for attempt in range(40):
+            try:
+                self._migrate_once()
+                return
+            except sqlite3.OperationalError as exc:
+                message = str(exc).lower()
+                retry = "already exists" in message or "locked" in message
+                if attempt == 39 or not retry:
+                    raise
+                time.sleep(0.05)
+
+    def _migrate_once(self) -> None:
         self._db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")  # noqa: E501
         version = self._meta("schema_version")
         if version is None:
+            present = self._db.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name = 'sources'
+                """
+            ).fetchone()
+            if present is not None:
+                raise sqlite3.OperationalError("schema initialization is locked")
             self._db.executescript(
                 """
                 CREATE TABLE sources (
@@ -500,7 +529,9 @@ class CommandHub:
                     last_trigger TEXT NOT NULL DEFAULT 'not_recorded',
                     report_gap TEXT NOT NULL DEFAULT 'none',
                     cadence_profile TEXT NOT NULL DEFAULT 'not_recorded',
-                    cadence_seconds INTEGER NOT NULL DEFAULT 0
+                    cadence_seconds INTEGER NOT NULL DEFAULT 0,
+                    telemetry_stream_id TEXT NOT NULL DEFAULT '',
+                    clock_skew TEXT NOT NULL DEFAULT 'none'
                 );
                 CREATE TABLE credentials (
                     key_id TEXT PRIMARY KEY,
@@ -531,7 +562,8 @@ class CommandHub:
                     latency_ms_sum TEXT NOT NULL,
                     latency_sample_count INTEGER NOT NULL,
                     gap TEXT NOT NULL,
-                    document TEXT NOT NULL
+                    document TEXT NOT NULL,
+                    stream_id TEXT NOT NULL DEFAULT ''
                 );
                 CREATE TABLE usage_rollups (
                     report_id TEXT NOT NULL,
@@ -603,6 +635,8 @@ class CommandHub:
                     failure TEXT NOT NULL,
                     outcome TEXT NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS reports_stream_seq
+                    ON reports(install_id, stream_id, sequence);
                 """
             )
             self._set_meta("schema_version", SCHEMA_VERSION)
@@ -632,11 +666,41 @@ class CommandHub:
             version = "3"
         if version == "3":
             self._upgrade_cadence()
+            version = "4"
+        if version == "4":
+            self._upgrade_stream()
             self._set_meta("schema_version", SCHEMA_VERSION)
             self._db.commit()
             return
         if version != SCHEMA_VERSION:
             raise ValidationError("command center schema version is not supported")
+
+    def _upgrade_stream(self) -> None:
+        deployment_columns = {
+            row[1] for row in self._db.execute("PRAGMA table_info(deployments)")
+        }
+        if "telemetry_stream_id" not in deployment_columns:
+            self._db.execute(
+                "ALTER TABLE deployments ADD COLUMN telemetry_stream_id "
+                "TEXT NOT NULL DEFAULT ''"
+            )
+            self._db.execute(
+                "ALTER TABLE deployments ADD COLUMN clock_skew "
+                "TEXT NOT NULL DEFAULT 'none'"
+            )
+        report_columns = {
+            row[1] for row in self._db.execute("PRAGMA table_info(reports)")
+        }
+        if report_columns and "stream_id" not in report_columns:
+            self._db.execute(
+                "ALTER TABLE reports ADD COLUMN stream_id TEXT NOT NULL DEFAULT ''"
+            )
+        self._db.execute(
+            """
+            CREATE INDEX IF NOT EXISTS reports_stream_seq
+            ON reports(install_id, stream_id, sequence)
+            """
+        )
 
     def _upgrade_cadence(self) -> None:
         columns = {row[1] for row in self._db.execute("PRAGMA table_info(deployments)")}
@@ -755,9 +819,9 @@ def serve_command_center(
         raise ValidationError("Rukan Command Center binds to loopback only")
     httpd = _server(hub, host, port, static_dir)
     try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
+        from machi.adapters.rukan.server import serve_until_stopped
+
+        serve_until_stopped(httpd)
     finally:
         httpd.server_close()
         hub.close()
@@ -787,6 +851,12 @@ def _server(
 
         def log_message(self, *_args: object) -> None:
             return
+
+        def handle_error(self, _request: object, _client: object) -> None:
+            try:
+                _write(self, 500, _envelope("refused", "request failed", {}))
+            except (OSError, RuntimeError):
+                return
 
     return ThreadingHTTPServer((host, port), Handler)
 

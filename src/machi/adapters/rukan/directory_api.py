@@ -92,13 +92,15 @@ def people_action(
                 now=now,
             ))
         if action == "set_intent":
+            kind = str(payload.get("subject_kind", "user"))
+            fallback = "inherit" if kind == "user" else "deny"
             return ("ok", "access intent saved", directory.set_intent(
-                subject_kind=str(payload.get("subject_kind", "user")),
+                subject_kind=kind,
                 subject_id=str(payload.get("subject_id", "")),
-                platform_access=str(payload.get("platform_access", "deny")),
-                inference_access=str(payload.get("inference_access", "deny")),
-                model_selection=str(payload.get("model_selection", "deny")),
-                agent_builder=str(payload.get("agent_builder", "deny")),
+                platform_access=str(payload.get("platform_access", fallback)),
+                inference_access=str(payload.get("inference_access", fallback)),
+                model_selection=str(payload.get("model_selection", fallback)),
+                agent_builder=str(payload.get("agent_builder", fallback)),
                 actor="local_admin_ui",
                 now=now,
             ))

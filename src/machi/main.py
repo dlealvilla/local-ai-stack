@@ -1397,30 +1397,96 @@ def _export_rukan_analytics(ns: argparse.Namespace) -> int:
     return 0
 
 
+def _ui_dir(explicit: str | None, product: str) -> Path | None:
+    if explicit:
+        return Path(explicit)
+    from machi.adapters.rukan.assets import packaged_static
+
+    return packaged_static(product)
+
+
 def _acceptance_preflight(ns: argparse.Namespace) -> int:
-    """Print later-test prerequisites. This does not open ports or spend money."""
-    print("admin    loopback only; do not publish it")
-    print("tunnel   ssh -L 8765:127.0.0.1:8765 <user>@<customer-host>")
-    print("intake   HTTPS certificate and key are required off loopback")
-    print("cadence  development profile is 120 seconds")
-    print("people   customer-local; not exported")
+    """Check a later real-server test. This does not open ports or spend money."""
+    import json
+    import os
+    import socket
+    import ssl
+    import sys
+
+    checks: list[dict[str, str]] = []
+
+    def add(name: str, ok: bool, detail: str) -> None:
+        checks.append(
+            {"name": name, "result": "PASS" if ok else "BLOCKED", "detail": detail}
+        )
+
+    add("python", sys.version_info >= (3, 11), sys.version.split()[0])
+    add("posix_credentials", os.name == "posix", os.name)
+    add("admin_loopback", True, "Admin refuses a non-loopback bind")
+    add("public_admin", True, "do not publish Admin; use an SSH tunnel")
+    wheel = getattr(ns, "wheel", None)
+    if wheel:
+        add("wheel", Path(wheel).is_file(), str(wheel))
+    else:
+        add("wheel", False, "pass --wheel with the frozen artifact")
+    for product in ("admin", "command-center"):
+        present = _ui_dir(None, product) is not None
+        add(f"packaged_{product}", present, "wheel static" if present else "missing")
     if ns.data_dir:
         root = Path(ns.data_dir)
-        root.mkdir(parents=True, exist_ok=True)
-        probe = root / ".preflight-write"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink()
-        print(f"data     writable {root}")
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            probe = root / ".preflight-write"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            add("data_dir", True, str(root))
+        except OSError as exc:
+            add("data_dir", False, str(exc))
     else:
-        print("data     pass --data-dir to check a Command Center root")
+        add("data_dir", False, "pass --data-dir")
     for label, value in (("cert", ns.cert), ("key", ns.key)):
-        if value and not Path(value).is_file():
-            print(f"{label}     missing {value}")
-            return 1
-        if value:
-            print(f"{label}     present")
+        if not value:
+            add(label, False, f"pass --{label}")
+            continue
+        add(label, Path(value).is_file(), str(value))
+    if ns.cert and ns.key and Path(ns.cert).is_file() and Path(ns.key).is_file():
+        try:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(ns.cert, ns.key)
+            add("cert_key_pair", True, "loaded together")
+        except (OSError, ssl.SSLError) as exc:
+            add("cert_key_pair", False, str(exc))
+    endpoint = getattr(ns, "endpoint", None)
+    if endpoint:
+        add("endpoint_https", str(endpoint).startswith("https://"), str(endpoint))
+    else:
+        add("endpoint_https", False, "pass --endpoint https://...")
+    for label, value in (
+        ("admin_port", getattr(ns, "admin_port", None)),
+        ("ui_port", getattr(ns, "ui_port", None)),
+        ("intake_port", getattr(ns, "intake_port", None)),
+    ):
+        if not value:
+            continue
+        sock = socket.socket()
+        try:
+            sock.bind(("127.0.0.1", int(value)))
+            add(label, True, f"127.0.0.1:{value} available")
+        except OSError as exc:
+            add(label, False, str(exc))
+        finally:
+            sock.close()
+    blocked = [item for item in checks if item["result"] == "BLOCKED"]
+    result = "BLOCKED" if blocked else "PASS"
+    for item in checks:
+        print(f"{item['result']:7} {item['name']:22} {item['detail']}")
+    print(f"result   {result}")
+    print("cadence  select Development (120 seconds) explicitly for this test")
+    print("tunnel   ssh -L 8765:127.0.0.1:8765 <user>@<customer-host>")
     print("spend    none")
-    return 0
+    if getattr(ns, "json", False):
+        print(json.dumps({"result": result, "checks": checks}))
+    return 1 if blocked else 0
 
 
 def _serve_rukan_intake(ns: argparse.Namespace) -> int:
@@ -1441,9 +1507,9 @@ def _serve_rukan_intake(ns: argparse.Namespace) -> int:
     print(f"bind     {ns.host}:{ns.port}")
     print("write    POST /v1/telemetry/reports")
     try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
+        from machi.adapters.rukan.server import serve_until_stopped
+
+        serve_until_stopped(httpd)
     finally:
         httpd.server_close()
         hub.close()
@@ -1498,7 +1564,7 @@ def _serve_rukan_command_center(ns: argparse.Namespace) -> int:
     serve_command_center(
         hub,
         port=ns.port,
-        static_dir=Path(ns.static_dir) if ns.static_dir else None,
+        static_dir=_ui_dir(ns.static_dir, "command-center"),
     )
     return 0
 
@@ -1520,7 +1586,7 @@ def _serve_rukan_admin(ns: argparse.Namespace) -> int:
         Path(ns.store_dir),
         identity(),
         journal_dir=Path(ns.journal_dir) if ns.journal_dir else None,
-        static_dir=Path(ns.static_dir) if ns.static_dir else None,
+        static_dir=_ui_dir(ns.static_dir, "admin"),
         handlers=AdminHandlers(
             complete=store_completer(Path(ns.store_dir), ns.provider_base),
             inspect_model=lambda body: _admin_inspect(ns, body),
@@ -2063,6 +2129,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     preflight.add_argument("--data-dir", default=None)
     preflight.add_argument("--cert", default=None)
     preflight.add_argument("--key", default=None)
+    preflight.add_argument("--wheel", default=None)
+    preflight.add_argument("--endpoint", default=None)
+    preflight.add_argument("--admin-port", default=None, type=int)
+    preflight.add_argument("--ui-port", default=None, type=int)
+    preflight.add_argument("--intake-port", default=None, type=int)
+    preflight.add_argument("--json", action="store_true")
     admin_serve.add_argument(
         "--provider-base",
         default="http://127.0.0.1:11434",

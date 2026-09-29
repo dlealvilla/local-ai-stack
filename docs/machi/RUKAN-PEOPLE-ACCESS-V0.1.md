@@ -10,16 +10,20 @@ not a vendor export.
 - Team: `team_` id, name, description, `active` or `archived`.
 - Membership: explicit user and team. Removing a membership keeps the row
   and marks it inactive.
-- Access intent: allow or deny for platform access, inference, model
-  selection, and agent builder. A team intent is a grant. A user intent
-  can allow or deny.
+- Access intent is stored per capability. A user may allow, deny, or
+  inherit. A team may allow or deny. Inherit is refused on a team.
+  Overriding one capability does not pin the others.
 
 ## Resolution
 
-1. Suspended or deactivated users deny every future capability.
-2. A user platform deny denies the rest.
-3. Otherwise each capability uses explicit user deny, then explicit user
-   allow, then any active team's allow, then deny.
+1. Suspended or deactivated users deny every capability. Provenance is
+   `user_status`.
+2. Platform access is resolved first. If it is not allow, inference,
+   model selection, and agent builder are deny with provenance
+   `platform_parent`.
+3. Otherwise each capability uses user deny, then user allow, then any
+   active team's allow, then default deny. Missing user intent inherits.
+   Each capability keeps its own provenance.
 
 The projection always says `enforcement: gateway_not_available`.
 It does not create a session.

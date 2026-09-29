@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import secrets
 import ssl
@@ -82,11 +83,15 @@ def accept_report(
     with hub._lock:
         row = hub._db.execute(
             """
-            SELECT key_id, install_id, status FROM credentials WHERE secret_sha256 = ?
+            SELECT key_id, install_id, status, secret_sha256
+            FROM credentials WHERE secret_sha256 = ?
             """,
             (digest,),
         ).fetchone()
-        if row is None or str(row["status"]) != "active":
+        if row is None or not hmac.compare_digest(str(row["secret_sha256"]), digest):
+            _reject(hub, "unknown", "credential rejected")
+            raise ValidationError("telemetry credential was rejected")
+        if str(row["status"]) != "active":
             _reject(hub, str(row["key_id"]) if row else "unknown", "credential rejected")  # noqa: E501
             raise ValidationError("telemetry credential was rejected")
         key_id = str(row["key_id"])
@@ -108,6 +113,21 @@ def accept_report(
                 _reject(hub, key_id, "report id was reused with a different body")
                 raise ValidationError("telemetry report id was reused")
             return {"report_id": report.report_id, "duplicate": True, "key_id": key_id}
+        clash = hub._db.execute(
+            """
+            SELECT report_id FROM reports
+            WHERE install_id = ? AND sequence = ? AND stream_id = ? AND report_id != ?
+            """,
+            (
+                report.install_id,
+                report.sequence,
+                report.telemetry_stream_id,
+                report.report_id,
+            ),
+        ).fetchone()
+        if clash is not None:
+            _reject(hub, key_id, "report sequence collided")
+            raise ValidationError("telemetry report sequence collided")
         current = hub._db.execute(
             "SELECT last_report_sequence FROM deployments WHERE install_id = ?",
             (report.install_id,),
@@ -124,8 +144,8 @@ def accept_report(
                     report_id, install_id, sequence, generated_at, received_at,
                     triggers, version, build_id, key_id, body_sha256, outcome,
                     event_count, rollup_count, requests, output_tokens, input_tokens,
-                    latency_ms_sum, latency_sample_count, gap, document
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    latency_ms_sum, latency_sample_count, gap, document, stream_id
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     report.report_id, report.install_id, report.sequence, report.generated_at,  # noqa: E501
@@ -134,10 +154,11 @@ def accept_report(
                     report.rollup_count, report.cumulative.requests,
                     report.cumulative.output_tokens_total, report.cumulative.input_tokens_total,  # noqa: E501
                     report.cumulative.latency_ms_sum, report.cumulative.latency_sample_count,  # noqa: E501
-                    "pending", body,
+                    "pending", body, report.telemetry_stream_id,
                 ),
             )
-            gap, high = _reconcile(hub, report.install_id)
+            gap, high = _reconcile(hub, report.install_id, report.telemetry_stream_id)
+            skew = _clock_skew(report.generated_at, received_at)
             for item in report.rollups:
                 hub._db.execute(
                     """
@@ -180,13 +201,16 @@ def accept_report(
                         last_trigger = ?,
                         report_gap = ?,
                         cadence_profile = ?,
-                        cadence_seconds = ?
+                        cadence_seconds = ?,
+                        telemetry_stream_id = ?,
+                        clock_skew = ?
                     WHERE install_id = ?
                     """,
                     (
                         received_at.isoformat(), report.sequence,
                         report.trigger_reasons[0], gap, report.cadence_profile,
-                        report.cadence_seconds, report.install_id,
+                        report.cadence_seconds, report.telemetry_stream_id, skew,
+                        report.install_id,
                     ),
                 )
             else:
@@ -194,12 +218,14 @@ def accept_report(
                     """
                     UPDATE deployments SET
                         last_report_received_at = ?,
-                        report_gap = ?
+                        report_gap = ?,
+                        clock_skew = ?
                     WHERE install_id = ?
                     """,
-                    (received_at.isoformat(), gap, report.install_id),
+                    (received_at.isoformat(), gap, skew, report.install_id),
                 )
             hub._db.commit()
+            _compact_documents(hub, report.install_id)
         except Exception:
             hub._db.rollback()
             raise
@@ -381,6 +407,12 @@ def bind_intake(
         def log_message(self, *_args: object) -> None:
             return
 
+        def handle_error(self, _request: object, _client: object) -> None:
+            try:
+                _write(self, 500, "request failed")
+            except (OSError, RuntimeError):
+                return
+
     httpd = ThreadingHTTPServer((host, port), Handler)
     if certfile:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -389,9 +421,47 @@ def bind_intake(
     return httpd
 
 
-def _reconcile(hub: CommandHub, install_id: str) -> tuple[str, int]:
+def _compact_documents(hub: CommandHub, install_id: str) -> None:
+    """Drop old raw bodies. Structured report rows stay."""
+    hub._db.execute(
+        """
+        UPDATE reports SET document = ''
+        WHERE install_id = ? AND document != '' AND report_id NOT IN (
+            SELECT report_id FROM reports WHERE install_id = ?
+            ORDER BY sequence DESC LIMIT 200
+        )
+        """,
+        (install_id, install_id),
+    )
+    hub._db.execute(
+        """
+        DELETE FROM intake_rejections WHERE id NOT IN (
+            SELECT id FROM intake_rejections ORDER BY id DESC LIMIT 500
+        )
+        """
+    )
+    hub._db.commit()
+
+
+def _clock_skew(generated: str, received: datetime) -> str:
+    try:
+        stamp = datetime.fromisoformat(generated)
+    except ValueError:
+        return "unparsed"
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=UTC)
+    delta = (stamp - received).total_seconds()
+    if delta > 7200:
+        return "source_clock_ahead"
+    if delta < -7200:
+        return "source_clock_behind"
+    return "none"
+
+
+def _reconcile(hub: CommandHub, install_id: str, stream_id: str) -> tuple[str, int]:
     rows = hub._db.execute(
-        "SELECT sequence FROM reports WHERE install_id = ?", (install_id,)
+        "SELECT sequence FROM reports WHERE install_id = ? AND stream_id = ?",
+        (install_id, stream_id),
     ).fetchall()
     found = {int(row["sequence"]) for row in rows}
     if not found:

@@ -49,6 +49,8 @@ type Monitoring = {
   last_success_at: string;
   queued: number;
   last_error: string;
+  usage_accounting_status?: string;
+  usage_records_dropped?: number;
   categories: string[];
   exclusions: string[];
   deployment_settings: string;
@@ -235,8 +237,8 @@ export function MonitoringSettings() {
   const [endpoint, setEndpoint] = useState("");
   const [keyId, setKeyId] = useState("");
   const [secret, setSecret] = useState("");
-  const [profile, setProfile] = useState("development");
-  const [cadence, setCadence] = useState(120);
+  const [profile, setProfile] = useState("production");
+  const [cadence, setCadence] = useState(21600);
   const [enabled, setEnabled] = useState(false);
   const [localTest, setLocalTest] = useState(false);
   const [notice, setNotice] = useState("");
@@ -246,8 +248,8 @@ export function MonitoringSettings() {
     if (!document) return;
     setState(document.body);
     setEndpoint(document.body.endpoint);
-    setProfile(document.body.cadence_profile || "development");
-    setCadence(document.body.cadence_seconds || 120);
+    setProfile(document.body.cadence_profile || "production");
+    setCadence(document.body.cadence_seconds || 21600);
     setEnabled(document.body.enabled);
     if (document.body.key_id !== "not_configured") setKeyId(document.body.key_id);
   }
@@ -280,7 +282,13 @@ export function MonitoringSettings() {
         <label>Endpoint <input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} /></label>
         <label>Key id <input value={keyId} onChange={(event) => setKeyId(event.target.value)} /></label>
         <label>Secret, entered once <input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} autoComplete="off" /></label>
-        <p className="banner">Development reporting cadence — every 2 minutes. Production remains every 6 hours.</p>
+        <p className="banner">
+          {profile === "development"
+            ? "Development reporting cadence — every 2 minutes. This is the testing profile, not the product default."
+            : profile === "custom"
+              ? "Custom reporting cadence."
+              : "Production reporting cadence — every 6 hours."}
+        </p>
         <label>Profile
           <select value={profile} onChange={(event) => setProfile(event.target.value)}>
             <option value="development">Development — every 2 minutes</option>
@@ -289,7 +297,7 @@ export function MonitoringSettings() {
           </select>
         </label>
         {profile === "custom" ? <label>Custom seconds <input type="number" min={60} max={86400} value={cadence} onChange={(event) => setCadence(Number(event.target.value))} /></label> : null}
-        <p>Current interval {state?.cadence_seconds ?? 120} seconds. Stable phase {state?.phase_seconds ?? 0} seconds.</p>
+        <p>Current interval {state?.cadence_seconds ?? 21600} seconds. Stable phase {state?.phase_seconds ?? 0} seconds. Accounting {state?.usage_accounting_status ?? "complete"}.</p>
         <label>Loopback test HTTP <input type="checkbox" checked={localTest} onChange={(event) => setLocalTest(event.target.checked)} /></label>
         <button type="submit">Save monitoring</button>
       </form>
@@ -313,8 +321,44 @@ export function MonitoringSettings() {
   );
 }
 
-type Person = { user_id: string; display_name: string; email_display: string; status: string };
-type Team = { team_id: string; name: string; status: string };
+type Choice = "inherit" | "allow" | "deny";
+type Intent = {
+  platform_access: Choice;
+  inference_access: Choice;
+  model_selection: Choice;
+  agent_builder: Choice;
+};
+type Effective = Intent & {
+  platform_provenance: string;
+  inference_provenance: string;
+  model_selection_provenance: string;
+  agent_builder_provenance: string;
+  enforcement: string;
+};
+type Person = {
+  user_id: string;
+  display_name: string;
+  email_display: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  external_ref: string;
+  team_ids: string[];
+  intent: Intent;
+  effective: Effective;
+};
+type Team = {
+  team_id: string;
+  name: string;
+  status: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+  member_count: number;
+  member_ids: string[];
+  intent: Intent;
+};
+const CAPABILITIES = ["platform_access", "inference_access", "model_selection", "agent_builder"] as const;
 
 export function People() {
   const [users, setUsers] = useState<Person[]>([]);
@@ -322,23 +366,43 @@ export function People() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [team, setTeam] = useState("");
+  const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
-  async function reload() {
-    const document = await readJson<{ body: { users: Person[]; teams: Team[]; banner: string } }>("/v1/people");
-    setUsers(document?.body.users ?? []);
-    setTeams(document?.body.teams ?? []);
-    setNotice(document?.body.banner ?? "");
+  const [error, setError] = useState("");
+  const [selected, setSelected] = useState("");
+  async function reload(next = query) {
+    const response = await fetch("/v1/people", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "list", query: next }),
+    });
+    const document = (await response.json()) as { body: { users: Person[]; teams: Team[]; banner: string } };
+    setUsers(document.body.users ?? []);
+    setTeams(document.body.teams ?? []);
+    setNotice(document.body.banner ?? "");
   }
-  useEffect(() => { void reload(); }, []);
+  useEffect(() => { void reload(""); }, []);
   async function post(body: object) {
-    await fetch("/v1/people", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const response = await fetch("/v1/people", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const document = (await response.json()) as { outcome: string; reason: string };
+    setError(document.outcome === "ok" ? "" : document.reason);
     await reload();
   }
+  const focus = users.find((item) => item.user_id === selected) ?? null;
   return (
     <section>
       <h1>People</h1>
-      <p className="banner">{notice || "Employee login and chat endpoint are not enabled yet. Access settings here prepare future provisioning."}</p>
+      <p className="banner">{notice || "Employee login and chat are not enabled yet. Access settings here prepare future provisioning."}</p>
+      {error ? <p className="banner">{error}</p> : null}
       <p>{users.filter((item) => item.status === "active").length} active users · {teams.length} teams</p>
+      <form className="stack" onSubmit={(event) => { event.preventDefault(); void reload(query); }}>
+        <label>Search <input value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+        <button type="submit">Filter</button>
+      </form>
       <form className="stack" onSubmit={(event) => { event.preventDefault(); void post({ action: "create_user", email, display_name: name }); }}>
         <label>Name <input value={name} onChange={(event) => setName(event.target.value)} /></label>
         <label>Email <input value={email} onChange={(event) => setEmail(event.target.value)} /></label>
@@ -350,23 +414,118 @@ export function People() {
       </form>
       <h2>Users</h2>
       <table>
-        <thead><tr><th>Name</th><th>Email</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Effective platform</th><th></th></tr></thead>
         <tbody>
           {users.map((user) => (
             <tr key={user.user_id}>
               <td>{user.display_name}</td>
               <td>{user.email_display}</td>
               <td>{user.status}</td>
-              <td>
-                <button type="button" onClick={() => void post({ action: "set_status", user_id: user.user_id, status: user.status === "active" ? "suspended" : "active" })}>Suspend or reactivate</button>
-              </td>
+              <td>{user.effective?.platform_access}</td>
+              <td><button type="button" onClick={() => setSelected(user.user_id)}>Details</button></td>
             </tr>
           ))}
         </tbody>
       </table>
+      {focus ? <PersonDetail user={focus} teams={teams} post={post} /> : null}
       <h2>Teams</h2>
-      <ul>{teams.map((item) => <li key={item.team_id}>{item.name} · {item.status}</li>)}</ul>
+      {teams.map((item) => (
+        <TeamDetail key={item.team_id} team={item} users={users} post={post} />
+      ))}
       <p className="muted">Configured — enforcement begins when the employee gateway is enabled. This directory is not sent to Command Center.</p>
     </section>
+  );
+}
+
+function PersonDetail({ user, teams, post }: { user: Person; teams: Team[]; post: (body: object) => Promise<void> }) {
+  const [displayName, setDisplayName] = useState(user.display_name);
+  const [email, setEmail] = useState(user.email_display);
+  const [intent, setIntent] = useState<Intent>(user.intent);
+  const [teamId, setTeamId] = useState(teams[0]?.team_id ?? "");
+  useEffect(() => {
+    setDisplayName(user.display_name);
+    setEmail(user.email_display);
+    setIntent(user.intent);
+  }, [user]);
+  return (
+    <article className="card">
+      <h3>{user.display_name}</h3>
+      <p>Id {user.user_id}</p>
+      <p>Created {user.created_at} · updated {user.updated_at}</p>
+      <p>External reference {user.external_ref}</p>
+      <form className="stack" onSubmit={(event) => { event.preventDefault(); void post({ action: "update_user", user_id: user.user_id, display_name: displayName, email }); }}>
+        <label>Name <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>
+        <label>Email <input value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+        <button type="submit">Save user</button>
+      </form>
+      <p>
+        {user.status === "active" ? <button type="button" onClick={() => void post({ action: "set_status", user_id: user.user_id, status: "suspended" })}>Suspend</button> : null}
+        {user.status === "suspended" ? <button type="button" onClick={() => void post({ action: "set_status", user_id: user.user_id, status: "active" })}>Reactivate</button> : null}
+        {user.status !== "deactivated" ? <button type="button" onClick={() => { if (window.confirm("Deactivate this user? This cannot be undone.")) void post({ action: "set_status", user_id: user.user_id, status: "deactivated" }); }}>Deactivate</button> : null}
+      </p>
+      <h4>Memberships</h4>
+      <ul>{user.team_ids.map((id) => <li key={id}>{teams.find((item) => item.team_id === id)?.name ?? id} <button type="button" onClick={() => void post({ action: "remove_membership", user_id: user.user_id, team_id: id })}>Remove</button></li>)}</ul>
+      <form className="stack" onSubmit={(event) => { event.preventDefault(); void post({ action: "add_membership", user_id: user.user_id, team_id: teamId }); }}>
+        <label>Team
+          <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
+            {teams.map((item) => <option key={item.team_id} value={item.team_id}>{item.name}</option>)}
+          </select>
+        </label>
+        <button type="submit">Add membership</button>
+      </form>
+      <h4>Configured access</h4>
+      <IntentFields intent={intent} allowInherit onChange={setIntent} />
+      <button type="button" onClick={() => void post({ action: "set_intent", subject_kind: "user", subject_id: user.user_id, ...intent })}>Save access intent</button>
+      <h4>Effective access</h4>
+      <ul>
+        <li>platform_access: {user.effective?.platform_access} · {user.effective?.platform_provenance}</li>
+        <li>inference_access: {user.effective?.inference_access} · {user.effective?.inference_provenance}</li>
+        <li>model_selection: {user.effective?.model_selection} · {user.effective?.model_selection_provenance}</li>
+        <li>agent_builder: {user.effective?.agent_builder} · {user.effective?.agent_builder_provenance}</li>
+      </ul>
+      <p>Enforcement {user.effective?.enforcement}. Platform access is the parent gate.</p>
+    </article>
+  );
+}
+
+function TeamDetail({ team, users, post }: { team: Team; users: Person[]; post: (body: object) => Promise<void> }) {
+  const [name, setName] = useState(team.name);
+  const [intent, setIntent] = useState<Intent>(team.intent);
+  useEffect(() => { setName(team.name); setIntent(team.intent); }, [team]);
+  return (
+    <article className="card">
+      <h3>{team.name} · {team.status} · {team.member_count} members</h3>
+      <p>Id {team.team_id} · created {team.created_at} · updated {team.updated_at}</p>
+      <form className="stack" onSubmit={(event) => { event.preventDefault(); void post({ action: "update_team", team_id: team.team_id, name }); }}>
+        <label>Name <input value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <button type="submit">Save team</button>
+      </form>
+      <p>
+        {team.status === "active"
+          ? <button type="button" onClick={() => void post({ action: "set_team_status", team_id: team.team_id, status: "archived" })}>Archive</button>
+          : <button type="button" onClick={() => void post({ action: "set_team_status", team_id: team.team_id, status: "active" })}>Reactivate</button>}
+      </p>
+      <ul>{team.member_ids.map((id) => <li key={id}>{users.find((item) => item.user_id === id)?.display_name ?? id}</li>)}</ul>
+      <IntentFields intent={intent} allowInherit={false} onChange={setIntent} />
+      <button type="button" onClick={() => void post({ action: "set_intent", subject_kind: "team", subject_id: team.team_id, ...intent })}>Save team access</button>
+    </article>
+  );
+}
+
+function IntentFields({ intent, allowInherit, onChange }: { intent: Intent; allowInherit: boolean; onChange: (next: Intent) => void }) {
+  const choices: Choice[] = allowInherit ? ["inherit", "allow", "deny"] : ["allow", "deny"];
+  return (
+    <div className="stack">
+      {CAPABILITIES.map((name) => (
+        <label key={name}>{name}
+          <select
+            value={intent?.[name] ?? (allowInherit ? "inherit" : "deny")}
+            onChange={(event) => onChange({ ...intent, [name]: event.target.value as Choice })}
+          >
+            {choices.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
+          </select>
+        </label>
+      ))}
+    </div>
   );
 }

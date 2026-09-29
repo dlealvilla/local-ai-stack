@@ -16,6 +16,8 @@ export type DeploymentRow = {
   last_trigger?: string;
   cadence_profile?: string;
   cadence_seconds?: number;
+  clock_skew?: string;
+  telemetry_stream_id?: string;
 };
 
 export function cadenceText(profile: string | undefined, seconds: number | undefined): string {

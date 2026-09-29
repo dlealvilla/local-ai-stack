@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import signal
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -142,7 +143,7 @@ class AdminApplication:
         secret = body.get("secret")
         if not all(isinstance(item, str) and item for item in (endpoint, key_id, secret)):  # noqa: E501
             return _envelope("refused", "endpoint, key id, and secret are required", {})
-        profile = body.get("profile", "development")
+        profile = body.get("profile", "production")
         custom = body.get("custom_seconds")
         if not isinstance(profile, str):
             return _envelope("refused", "telemetry profile is unknown", {})
@@ -362,6 +363,27 @@ def bind_admin(
     return _server(application, host, port)
 
 
+def serve_until_stopped(httpd: ThreadingHTTPServer) -> None:
+    """Serve until SIGINT or SIGTERM. The handler does not print a traceback."""
+
+    def _stop(_signum: int, _frame: object) -> None:
+        raise KeyboardInterrupt
+
+    previous = {
+        signal.SIGINT: signal.getsignal(signal.SIGINT),
+        signal.SIGTERM: signal.getsignal(signal.SIGTERM),
+    }
+    signal.signal(signal.SIGINT, _stop)
+    signal.signal(signal.SIGTERM, _stop)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        signal.signal(signal.SIGINT, previous[signal.SIGINT])
+        signal.signal(signal.SIGTERM, previous[signal.SIGTERM])
+
+
 def serve_admin(
     application: AdminApplication,
     *,
@@ -375,9 +397,7 @@ def serve_admin(
     agent.start()
     httpd = _server(application, host, port)
     try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
+        serve_until_stopped(httpd)
     finally:
         agent.stop()
         httpd.server_close()
@@ -400,6 +420,9 @@ def _server(
 
         def log_message(self, *_args: object) -> None:
             return
+
+        def handle_error(self, _request: object, _client: object) -> None:
+            _quiet_failure(self)
 
     return ThreadingHTTPServer((host, port), Handler)
 
@@ -523,6 +546,13 @@ def _serve_static(handler: BaseHTTPRequestHandler, root: Path, path: str) -> boo
     handler.end_headers()
     handler.wfile.write(data)
     return True
+
+
+def _quiet_failure(handler: BaseHTTPRequestHandler) -> None:
+    try:
+        _write(handler, 500, _envelope("refused", "request failed", {}))
+    except (OSError, RuntimeError):
+        return
 
 
 def _write(

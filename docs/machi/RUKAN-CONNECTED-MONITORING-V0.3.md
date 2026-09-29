@@ -103,7 +103,8 @@ periodic slot.
 
 | Profile | Interval | Phase |
 |---|---|---|
-| development, current default | 120 seconds | 0–10 seconds, stable |
+| production, product default | 21600 seconds | 0–900 seconds, stable |
+| development, explicit test profile | 120 seconds | 0–10 seconds, stable |
 | production | 21600 seconds | 0–900 seconds, stable |
 | custom | 60–86400 seconds | short intervals use the 10 second phase cap |
 

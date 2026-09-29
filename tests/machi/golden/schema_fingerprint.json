@@ -3814,12 +3814,33 @@
         "may_be_unresolved": false,
         "meaning": "effective allow or deny"
       },
-      "provenance": {
+      "platform_provenance": {
         "type": "str",
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "which rule produced the result"
+        "meaning": "rule for platform access"
+      },
+      "inference_provenance": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rule for inference access"
+      },
+      "model_selection_provenance": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rule for model selection"
+      },
+      "agent_builder_provenance": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rule for agent builder"
       },
       "configured": {
         "type": "bool",
@@ -4082,6 +4103,27 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "previous report id, or not_recorded"
+      },
+      "telemetry_stream_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "local telemetry stream; reset starts a new one"
+      },
+      "usage_records_dropped": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "local usage rows that failed to persist"
+      },
+      "usage_accounting_status": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "complete or degraded"
       },
       "window_start": {
         "type": "str",

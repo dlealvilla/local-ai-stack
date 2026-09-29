@@ -119,6 +119,9 @@ class OperationalReport(Contract):
     build_id: str = meaning("build id, or not_recorded")
     source_commit: str = meaning("source commit, or not_recorded")
     previous_report_id: str = meaning("previous report id, or not_recorded")
+    telemetry_stream_id: str = meaning("local telemetry stream; reset starts a new one")
+    usage_records_dropped: int = meaning("local usage rows that failed to persist")
+    usage_accounting_status: str = meaning("complete or degraded")
     window_start: str = meaning("start of incremental facts")
     window_end: str = meaning("end of incremental facts")
     privacy_policy: str = meaning("telemetry allow-list version")
@@ -138,6 +141,12 @@ class OperationalReport(Contract):
             raise ValidationError("operational report sequence is invalid")
         if self.sequence < 1:
             raise ValidationError("operational report sequence starts at 1")
+        if self.usage_accounting_status not in {"complete", "degraded"}:
+            raise ValidationError("usage accounting status is unknown")
+        dropped = self.usage_records_dropped
+        if type(dropped) is not int or dropped < 0:
+            raise ValidationError("usage dropped count is invalid")
+        _token("stream", self.telemetry_stream_id)
         if self.cadence_profile not in PROFILES:
             raise ValidationError("operational report cadence profile is unknown")
         expected = interval_seconds(

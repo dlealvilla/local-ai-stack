@@ -65,3 +65,13 @@ def read_credential(store_root: Path) -> dict[str, str] | None:
 
 def secret_hash(secret: str) -> str:
     return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
+def restrict_owned(path: Path) -> None:
+    """Restrict a Rukan-owned file on POSIX. Other hosts are unchanged."""
+    if os.name != "posix" or not path.exists():
+        return
+    if path.is_dir():
+        path.chmod(_DIR_MODE)
+        return
+    path.chmod(_MODE)

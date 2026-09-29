@@ -55,20 +55,17 @@ def main() -> int:
         ],
         env=env,
     )
-    intake = subprocess.Popen(
+    intake = _intake(root, env)
+    command = subprocess.Popen(
         [
-            sys.executable, "-m", "machi.main", "command-center", "intake",
-            "--data-dir", str(root / "cc"), "--host", "127.0.0.1",
-            "--port", "8792", "--local-test",
+            sys.executable, "-m", "machi.main", "command-center", "serve",
+            "--data-dir", str(root / "cc"), "--port", "8793",
         ],
         env=env,
     )
-    try:
-        _wait("http://127.0.0.1:8791/v1/monitoring", 20)
-        _wait("http://127.0.0.1:8792/v1/telemetry/reports", 20)
-    except SystemExit:
-        # Intake is write-only, so GET 404 still proves the process is up.
-        pass
+    _wait("http://127.0.0.1:8791/v1/monitoring", 20)
+    _wait("http://127.0.0.1:8792/v1/telemetry/reports", 20)
+    _wait("http://127.0.0.1:8793/v1/status", 20)
     issued = subprocess.run(
         [
             sys.executable, "-m", "machi.main", "command-center", "credential",
@@ -95,28 +92,83 @@ def main() -> int:
         },
     )
     _post("http://127.0.0.1:8791/v1/monitoring/test", {})
-    deadline = time.monotonic() + 420
-    periodic: list[str] = []
-    while time.monotonic() < deadline and len(periodic) < 2:
+    _post(
+        "http://127.0.0.1:8791/v1/people",
+        {
+            "action": "create_user",
+            "email": "canary.soak@example.test",
+            "display_name": "Canary Soak",
+        },
+    )
+    started = time.monotonic()
+    intake_stopped = False
+    intake_restored = False
+    admin_restarted = False
+    while time.monotonic() - started < 900:
+        elapsed = time.monotonic() - started
+        if elapsed >= 180 and not intake_stopped:
+            intake.send_signal(15)
+            intake.wait(timeout=20)
+            intake_stopped = True
+            print("intake   stopped")
+        if elapsed >= 360 and intake_stopped and not intake_restored:
+            intake = _intake(root, env)
+            _wait("http://127.0.0.1:8792/v1/telemetry/reports", 20)
+            intake_restored = True
+            print("intake   restored")
+            _post("http://127.0.0.1:8791/v1/monitoring/test", {})
+        if elapsed >= 520 and not admin_restarted:
+            admin.send_signal(15)
+            admin.wait(timeout=20)
+            admin = subprocess.Popen(
+                [
+                    sys.executable, "-m", "machi.main", "admin", "serve",
+                    "--store-dir", str(root / "store"), "--port", "8791",
+                ],
+                env=env,
+            )
+            _wait("http://127.0.0.1:8791/v1/monitoring", 20)
+            admin_restarted = True
+            print("admin    restarted")
         time.sleep(5)
-        periodic = _periodic(root / "cc" / "command.sqlite")
+    periodic = _periodic(root / "cc" / "command.sqlite")
     print(f"root     {root}")
     print(f"periodic {len(periodic)}")
     for stamp in periodic:
         print(f"generated {stamp}")
-    admin.send_signal(2)
-    intake.send_signal(2)
+    admin.send_signal(15)
+    intake.send_signal(15)
+    command.send_signal(15)
     admin.wait(timeout=20)
     intake.wait(timeout=20)
-    if len(periodic) < 2:
+    command.wait(timeout=20)
+    raw = (root / "cc" / "command.sqlite").read_bytes()
+    if b"canary.soak@example.test" in raw or b"Canary Soak" in raw:
+        print("privacy  failed")
         return 1
-    first = _parse(periodic[0])
-    second = _parse(periodic[1])
-    gap = (second - first).total_seconds()
-    print(f"gap_s    {gap}")
-    if not 110 <= gap <= 140:
+    if len(periodic) < 3 or len(periodic) > 12:
+        print("cadence  unexpected report count")
+        return 1
+    gaps = [
+        (_parse(periodic[index + 1]) - _parse(periodic[index])).total_seconds()
+        for index in range(len(periodic) - 1)
+    ]
+    print(f"gaps     {gaps}")
+    if any(gap < 100 for gap in gaps):
+        print("phase    jitter")
         return 1
     return 0
+
+
+def _intake(root: Path, env: dict[str, str]) -> subprocess.Popen[bytes]:
+    return subprocess.Popen(
+        [
+            sys.executable, "-m", "machi.main", "command-center", "intake",
+            "--data-dir", str(root / "cc"), "--host", "127.0.0.1",
+            "--port", "8792", "--local-test",
+        ],
+        env=env,
+    )
 
 
 def _periodic(path: Path) -> list[str]:

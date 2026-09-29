@@ -74,7 +74,8 @@ Completion tokens are included only when a stored proof reports them.
 ## Connected reporting
 
 A deployment can also compose `kernel.operational_report` version 1.
-The default cadence is six hours plus a stable jitter under 15 minutes.
+The product default cadence is production: 21600 seconds, with a stable
+phase of 0–900 seconds. Development, 120 seconds, is explicit.
 Material lifecycle, model, runtime, capacity, and telemetry-setting
 changes coalesce into one report. The report carries usage rollups and
 cumulative counters, not prompts or responses. Upload uses HTTPS and a

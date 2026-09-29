@@ -10,7 +10,10 @@ import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
-from machi.kernel.errors import ValidationError
+from machi.adapters.rukan.read import load_records
+from machi.adapters.rukan.secrets import restrict_owned
+from machi.install.contracts import InstallRecord
+from machi.kernel.errors import PersistenceError, UnknownKindError, ValidationError
 from machi.kernel.people import (
     AccessIntent,
     DirectoryMembership,
@@ -33,7 +36,10 @@ class Directory:
         self._db = sqlite3.connect(self.store_root / "directory.sqlite", check_same_thread=False)  # noqa: E501
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
+        self._db.execute("PRAGMA busy_timeout=4000")
         self._migrate()
+        self._bind_install()
+        self._restrict()
 
     def close(self) -> None:
         with self._lock:
@@ -128,11 +134,19 @@ class Directory:
         needle = query.strip().lower()
         with self._lock:
             rows = self._db.execute("SELECT * FROM users ORDER BY display_name").fetchall()  # noqa: E501
-        found = []
-        for row in rows:
-            if needle and needle not in str(row["email_normalized"]) and needle not in str(row["display_name"]).lower():  # noqa: E501
-                continue
-            found.append(dict(row))
+            found = []
+            for row in rows:
+                haystack = str(row["email_normalized"]) + " " + str(row["display_name"]).lower()  # noqa: E501
+                if needle and needle not in haystack:
+                    continue
+                item = dict(row)
+                user_id = str(row["user_id"])
+                item["team_ids"] = self.memberships_for_user(user_id)
+                intent = self._intent("user", user_id)
+                item["intent"] = intent or dict.fromkeys(_CAPABILITIES, "inherit")
+                found.append(item)
+        for item in found:
+            item["effective"] = self.effective(str(item["user_id"]))
         return found
 
     def create_team(self, *, name: str, description: str, actor: str, now: datetime) -> dict[str, object]:  # noqa: E501
@@ -207,7 +221,36 @@ class Directory:
         needle = query.strip().lower()
         with self._lock:
             rows = self._db.execute("SELECT * FROM teams ORDER BY name").fetchall()
-        return [dict(row) for row in rows if not needle or needle in str(row["name"]).lower()]  # noqa: E501
+            visible = [
+                row for row in rows if not needle or needle in str(row["name"]).lower()
+            ]
+            counted = {
+                str(row["team_id"]): int(row["n"])
+                for row in self._db.execute(
+                    """
+                    SELECT team_id, COUNT(*) AS n FROM memberships
+                    WHERE active = 1 GROUP BY team_id
+                    """
+                )
+            }
+            members = [
+                (str(row["team_id"]), str(row["user_id"]))
+                for row in self._db.execute(
+                    "SELECT team_id, user_id FROM memberships WHERE active = 1"
+                )
+            ]
+            listed = []
+            for row in visible:
+                team_id = str(row["team_id"])
+                item = dict(row)
+                item["member_count"] = counted.get(team_id, 0)
+                item["member_ids"] = [
+                    user_id for owner, user_id in members if owner == team_id
+                ]
+                intent = self._intent("team", team_id)
+                item["intent"] = intent or dict.fromkeys(_CAPABILITIES, "deny")
+                listed.append(item)
+        return listed
 
     def add_membership(self, user_id: str, team_id: str, *, actor: str, now: datetime) -> dict[str, object]:  # noqa: E501
         with self._lock:
@@ -322,28 +365,7 @@ class Directory:
                 for team_id in teams
                 if (item := self._intent("team", team_id)) is not None
             ]
-        if user.status != "active":
-            values = dict.fromkeys(_CAPABILITIES, "deny")
-            provenance = "user_status"
-        elif user_intent is not None and user_intent["platform_access"] == "deny":
-            values = dict.fromkeys(_CAPABILITIES, "deny")
-            provenance = "user_platform_deny"
-        else:
-            values = {}
-            provenance = "default_deny"
-            for name in _CAPABILITIES:
-                user_value = user_intent[name] if user_intent else ""
-                if user_value == "deny":
-                    values[name] = "deny"
-                    provenance = "user_deny"
-                elif user_value == "allow":
-                    values[name] = "allow"
-                    provenance = "user_allow"
-                elif any(item[name] == "allow" for item in team_intents):
-                    values[name] = "allow"
-                    provenance = "team_grant"
-                else:
-                    values[name] = "deny"
+        values, reasons = _resolve(user.status, user_intent, team_intents)
         projection = EffectiveAccess(
             user_id=user_id,
             status=user.status,
@@ -352,7 +374,10 @@ class Directory:
             inference_access=values["inference_access"],
             model_selection=values["model_selection"],
             agent_builder=values["agent_builder"],
-            provenance=provenance,
+            platform_provenance=reasons["platform_access"],
+            inference_provenance=reasons["inference_access"],
+            model_selection_provenance=reasons["model_selection"],
+            agent_builder_provenance=reasons["agent_builder"],
             configured=True,
             enforcement="gateway_not_available",
         )
@@ -364,7 +389,10 @@ class Directory:
             "inference_access": projection.inference_access,
             "model_selection": projection.model_selection,
             "agent_builder": projection.agent_builder,
-            "provenance": projection.provenance,
+            "platform_provenance": projection.platform_provenance,
+            "inference_provenance": projection.inference_provenance,
+            "model_selection_provenance": projection.model_selection_provenance,
+            "agent_builder_provenance": projection.agent_builder_provenance,
             "configured": True,
             "enforcement": "gateway_not_available",
         }
@@ -466,6 +494,10 @@ class Directory:
         path = self.store_root / "directory-audit.jsonl"
         with path.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
+        if path.stat().st_size >= 200_000:
+            kept = path.read_text(encoding="utf-8").splitlines()[-400:]
+            path.write_text("".join(item + "\n" for item in kept), encoding="utf-8")
+        restrict_owned(path)
 
     def _migrate(self) -> None:
         self._db.executescript(
@@ -514,6 +546,108 @@ class Directory:
             "INSERT OR IGNORE INTO meta(key, value) VALUES ('schema', '1')"
         )
         self._db.commit()
+
+    def _bind_install(self) -> None:
+        resolved = _local_install_id(self.store_root)
+        stored = self._meta("install_id")
+        if stored in {None, "", "not_recorded"}:
+            self._set_meta("install_id", resolved)
+            self._db.commit()
+            return
+        if resolved in {"", "not_recorded"} or stored == resolved:
+            return
+        raise ValidationError("directory install binding does not match this store")
+
+    def _restrict(self) -> None:
+        restrict_owned(self.store_root)
+        for name in (
+            "directory.sqlite",
+            "directory.sqlite-wal",
+            "directory.sqlite-shm",
+            "directory-audit.jsonl",
+        ):
+            restrict_owned(self.store_root / name)
+
+    def _meta(self, key: str) -> str | None:
+        row = self._db.execute(
+            "SELECT value FROM meta WHERE key = ?", (key,)
+        ).fetchone()
+        if row is None:
+            return None
+        return str(row["value"])
+
+    def _set_meta(self, key: str, value: str) -> None:
+        self._db.execute(
+            """
+            INSERT INTO meta(key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, value),
+        )
+
+
+def _local_install_id(root: Path) -> str:
+    try:
+        records = [
+            item
+            for item in load_records(root, InstallRecord)
+            if isinstance(item, InstallRecord)
+        ]
+    except (OSError, ValidationError, PersistenceError, UnknownKindError) as exc:
+        raise ValidationError("directory cannot read the install record") from exc
+    if not records:
+        return "not_recorded"
+    latest = max(records, key=lambda item: item.created_at)
+    return str(latest.install_id)
+
+
+def _resolve(
+    status: str,
+    user_intent: dict[str, str] | None,
+    team_intents: list[dict[str, str]],
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Per-capability rule. Platform deny closes the other capabilities."""
+    values: dict[str, str] = {}
+    reasons: dict[str, str] = {}
+    if status != "active":
+        for name in _CAPABILITIES:
+            values[name] = "deny"
+            reasons[name] = "user_status"
+        return values, reasons
+    platform, platform_reason = _one(
+        "platform_access", user_intent, team_intents, parent_allow=True
+    )
+    values["platform_access"] = platform
+    reasons["platform_access"] = platform_reason
+    for name in _CAPABILITIES:
+        if name == "platform_access":
+            continue
+        if platform != "allow":
+            values[name] = "deny"
+            reasons[name] = "platform_parent"
+            continue
+        choice, reason = _one(name, user_intent, team_intents, parent_allow=True)
+        values[name] = choice
+        reasons[name] = reason
+    return values, reasons
+
+
+def _one(
+    name: str,
+    user_intent: dict[str, str] | None,
+    team_intents: list[dict[str, str]],
+    *,
+    parent_allow: bool,
+) -> tuple[str, str]:
+    del parent_allow
+    user_value = "inherit" if user_intent is None else user_intent.get(name, "inherit")
+    if user_value == "deny":
+        return "deny", "user_deny"
+    if user_value == "allow":
+        return "allow", "user_allow"
+    if any(item.get(name) == "allow" for item in team_intents):
+        return "allow", "team_grant"
+    return "deny", "default_deny"
 
 
 def _email(value: str) -> tuple[str, str]:

@@ -181,8 +181,9 @@ analytics-failure rule).
 Rukan v0.3 adds an explicit opt-in operational report. It is still not
 required for local inference. The customer Admin process owns the
 outbox. Command Center intake accepts the report and does not operate
-the deployment. The current default profile reports every 120 seconds.
-Production remains 21600 seconds. People names and emails are not part
+the deployment. The product default profile is production, every 21600
+seconds. Development, every 120 seconds, is an explicit test selection.
+People names and emails are not part
 of the report. Human identity is not part of the report.
 
 Sanitizer is allow-list, not denylist. Paths, prompts, purpose strings

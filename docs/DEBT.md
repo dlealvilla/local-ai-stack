@@ -3072,6 +3072,44 @@ To make real: a bounded settings change that invalidates dependent state,
 Retire when:  that mutation seam exists and is tested.
 Status:       OPEN
 
+### R-03-02 — Admin has no human authentication
+Label:        GA
+Owner stage:  Rukan v0.3 production readiness
+Subsystem:    Admin
+Authorizes:   NO
+What:         Admin trusts the OS account on the host. It binds to loopback
+              only. Remote use is an SSH tunnel.
+Why now:      Employee and administrator login are not in this product.
+To make real: a human authentication design that does not publish Admin
+              as a workaround.
+Retire when:  that design is accepted and tested.
+Status:       OPEN
+
+### R-03-03 — Windows secure credential files are not implemented
+Label:        GA
+Owner stage:  Rukan v0.3 production readiness
+Subsystem:    telemetry credentials
+Authorizes:   NO
+What:         Owner-only file modes are POSIX. Non-POSIX hosts are not
+              given a weaker substitute.
+Why now:      The pilot envelope is POSIX.
+To make real: a Windows secure-secret adapter.
+Retire when:  that adapter exists and is tested.
+Status:       OPEN
+
+### R-03-04 — Telemetry does not rotate the operational journal
+Label:        GA
+Owner stage:  Rukan v0.3 production readiness
+Subsystem:    telemetry
+Authorizes:   NO
+What:         The report cursor is a byte offset into one journal file.
+              A shrink is visible as `journal_truncated` and does not skip
+              ahead. Rotation is not supported.
+Why now:      The current journal writer does not rotate.
+To make real: an explicit rotation record and a cursor that can follow it.
+Retire when:  rotation is a product behavior and is tested.
+Status:       OPEN
+
 ## Retired entries
 
 Retired entries stay in this file with their retiring stage and date,

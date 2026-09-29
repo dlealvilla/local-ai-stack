@@ -74,6 +74,18 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _stage_ui(target: Path) -> None:
+    """Copy Vite production builds into the wheel. Node is not a runtime."""
+    mapping = {
+        "admin": REPOSITORY / "ui" / "admin" / "dist",
+        "command-center": REPOSITORY / "ui" / "command-center" / "dist",
+    }
+    for name, source in mapping.items():
+        if not (source / "index.html").is_file():
+            raise SystemExit(f"missing production UI build: {source}")
+        shutil.copytree(source, target / name)
+
+
 def build(*, keep_dist: bool = False) -> MachiBuild:
     commit, clean = source_state()
     version = project_version()
@@ -96,6 +108,7 @@ def build(*, keep_dist: bool = False) -> MachiBuild:
     staging = Path(tempfile.mkdtemp(prefix="machi-build-"))
     try:
         shutil.copytree(PACKAGE, staging / "src" / "machi")
+        _stage_ui(staging / "src" / "machi" / "adapters" / "rukan" / "static")
         shutil.copyfile(CONFIG, staging / "pyproject.toml")
         (staging / "src" / "machi" / "BUILD.json").write_text(
             json.dumps(manifest, indent=2) + "\n", encoding="utf-8"

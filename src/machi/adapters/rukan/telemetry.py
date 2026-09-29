@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import sqlite3
 import ssl
 import threading
@@ -15,11 +16,15 @@ from pathlib import Path
 
 from machi.adapters.journal.jsonl import JOURNAL_FILENAME
 from machi.adapters.rukan.project import export_snapshot, project_admin
-from machi.adapters.rukan.secrets import read_credential, write_credential
+from machi.adapters.rukan.secrets import (
+    read_credential,
+    restrict_owned,
+    write_credential,
+)
 from machi.kernel.analytics import AnalyticsEvent
 from machi.kernel.build import BuildIdentity
 from machi.kernel.cadence import (
-    DEVELOPMENT,
+    PRODUCTION,
     interval_seconds,
     next_slot,
     phase_seconds,
@@ -91,8 +96,9 @@ class TelemetryStore:
         self._db = sqlite3.connect(self.store_root / "rukan-telemetry.sqlite", check_same_thread=False)  # noqa: E501
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
-        self._db.execute("PRAGMA busy_timeout=2000")
+        self._db.execute("PRAGMA busy_timeout=4000")
         self._migrate()
+        self._restrict()
 
     def close(self) -> None:
         with self._lock:
@@ -105,29 +111,42 @@ class TelemetryStore:
             if "prompt" in encoded or "response" in encoded:
                 return False
             with self._lock:
+                self._db.execute("BEGIN IMMEDIATE")
+                seq_row = self._db.execute(
+                    "SELECT COALESCE(MAX(usage_seq), 0) AS n FROM usage"
+                ).fetchone()
+                seq = int(seq_row["n"]) + 1
                 self._db.execute(
                     """
                     INSERT OR IGNORE INTO usage(
-                        usage_id, request_id, occurred_at, purpose, install_id,
-                        instance_id, plan_id, reservation_id, generation_id,
-                        model_identity, model_identity_kind, macropath, outcome,
-                        failure, status_code, input_tokens, output_tokens,
-                        latency_ms, runtime_duration_ms, version, build_id
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        usage_id, usage_seq, request_id, occurred_at, purpose,
+                        install_id, instance_id, plan_id, reservation_id,
+                        generation_id, model_identity, model_identity_kind,
+                        macropath, outcome, failure, status_code, input_tokens,
+                        output_tokens, latency_ms, runtime_duration_ms, version,
+                        build_id
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
-                        usage.usage_id, usage.request_id, usage.occurred_at, usage.purpose,  # noqa: E501
-                        usage.install_id, usage.instance_id, usage.plan_id,
-                        usage.reservation_id, usage.generation_id, usage.model_identity,
-                        usage.model_identity_kind, usage.macropath, usage.outcome,
-                        usage.failure, usage.status_code, usage.input_tokens,
-                        usage.output_tokens, usage.latency_ms, usage.runtime_duration_ms,  # noqa: E501
-                        usage.version, usage.build_id,
+                        usage.usage_id, seq, usage.request_id, usage.occurred_at,
+                        usage.purpose, usage.install_id, usage.instance_id,
+                        usage.plan_id, usage.reservation_id, usage.generation_id,
+                        usage.model_identity, usage.model_identity_kind,
+                        usage.macropath, usage.outcome, usage.failure,
+                        usage.status_code, usage.input_tokens, usage.output_tokens,
+                        usage.latency_ms, usage.runtime_duration_ms, usage.version,
+                        usage.build_id,
                     ),
                 )
                 self._db.commit()
             return True
         except (sqlite3.Error, ValidationError, TypeError, ValueError):
+            try:
+                with self._lock:
+                    self._db.rollback()
+            except sqlite3.Error:
+                pass
+            self._note_drop()
             return False
 
     def aggregate(self, *, start: str | None = None, end: str | None = None) -> dict[str, object]:  # noqa: E501
@@ -146,11 +165,18 @@ class TelemetryStore:
         actor: str,
         now: datetime,
         local_test: bool = False,
-        profile: str = DEVELOPMENT,
+        profile: str = PRODUCTION,
         custom_seconds: int | None = None,
     ) -> dict[str, object]:
         _endpoint(endpoint, local_test=local_test)
         seconds = interval_seconds(profile, custom_seconds)
+        if (
+            enabled
+            and profile == PRODUCTION
+            and install_id in {"", "not_recorded"}
+            and not local_test
+        ):
+            raise ValidationError("production reporting requires a resolved install id")
         write_credential(
             self.store_root,
             key_id=key_id,
@@ -206,8 +232,22 @@ class TelemetryStore:
                 "endpoint": self._meta("endpoint") or "",
                 "key_id": self._meta("key_id") or "not_configured",
                 "credential_status": "configured" if self._meta("key_id") else "missing",  # noqa: E501
-                "cadence_profile": self._meta("cadence_profile") or DEVELOPMENT,
-                "cadence_seconds": int(self._meta("cadence_seconds") or str(interval_seconds(DEVELOPMENT))),  # noqa: E501
+                "cadence_profile": self._meta("cadence_profile") or PRODUCTION,
+                "cadence_seconds": int(
+                    self._meta("cadence_seconds") or str(interval_seconds(PRODUCTION))
+                ),
+                "usage_records_dropped": int(
+                    self._meta("usage_records_dropped") or "0"
+                ),
+                "usage_accounting_status": (
+                    "degraded"
+                    if int(self._meta("usage_records_dropped") or "0")
+                    else "complete"
+                ),
+                "telemetry_stream_id": (
+                    self._meta("telemetry_stream_id") or "not_recorded"
+                ),
+                "last_tick_error": self._meta("last_tick_error") or "",
                 "phase_seconds": int(self._meta("cadence_phase_seconds") or "0"),
                 "next_report_at": self._meta("next_periodic_at") or "not_scheduled",
                 "last_success_at": (
@@ -245,8 +285,12 @@ class TelemetryStore:
                 if not self._queued():
                     self._maybe_compose(now)
             sent = self._send(now, transport) if self._flag("enabled") else False
+            self._retain()
             return {"composed": True, "sent": sent}
-        except (sqlite3.Error, ValidationError, OSError, TypeError, ValueError):
+        except (sqlite3.Error, ValidationError, OSError, TypeError, ValueError) as exc:
+            with self._lock:
+                self._set("last_tick_error", str(exc)[:240])
+                self._db.commit()
             return {"composed": False, "sent": False}
 
     def send_test(self, now: datetime, transport: Callable[..., str] | None = None) -> dict[str, object]:  # noqa: E501
@@ -272,6 +316,8 @@ class TelemetryStore:
                 verdict = str(getattr(event.payload, "verdict", ""))
                 if verdict in {"failed", "contradictory"}:
                     reasons.append("witness_attention")
+        frozen = self._frozen_triggers()
+        reasons = [reason for reason in reasons if reason not in frozen]
         if reasons:
             immediate = any(item in IMMEDIATE for item in reasons)
             self.note(reasons, now, immediate=immediate)
@@ -297,6 +343,8 @@ class TelemetryStore:
         safe = view.safe_accelerator_bytes
         if previous_safe and previous_safe != safe:
             reasons.append("safe_capacity_changed")
+        frozen = self._frozen_triggers()
+        reasons = [reason for reason in reasons if reason not in frozen]
         if reasons:
             self.note(reasons, now, immediate=False)
 
@@ -321,12 +369,26 @@ class TelemetryStore:
             sequence = int(self._meta("next_sequence") or "1")
             previous = self._meta("last_acked") or NOT_RECORDED
             window_start = self._meta("window_start") or generated
-            profile = self._meta("cadence_profile") or DEVELOPMENT
-            cadence = int(self._meta("cadence_seconds") or str(interval_seconds(DEVELOPMENT)))  # noqa: E501
+            profile = self._meta("cadence_profile") or PRODUCTION
+            raw_cadence = self._meta("cadence_seconds") or str(
+                interval_seconds(PRODUCTION)
+            )
+            cadence = int(raw_cadence)
             phase = int(self._meta("cadence_phase_seconds") or "0")
+            ack_usage = int(self._meta("ack_usage_seq") or "0")
             events, offset, more = self._read_events_locked()
-            rollups = _rollups(self._usage_rows(window_start, generated))
-            cumulative = _cumulative(self._usage_rows(None, None))
+            usage_rows = self._usage_since_locked(ack_usage)
+            proposed_usage = ack_usage
+            if usage_rows:
+                proposed_usage = max(int(row["usage_seq"]) for row in usage_rows)
+            self._proposed_usage_seq = proposed_usage
+            rollups = _rollups(usage_rows)
+            cumulative = _cumulative(self._usage_through_locked(proposed_usage))
+            dropped = int(self._meta("usage_records_dropped") or "0")
+            stream = self._stream_id()
+            defect = getattr(self, "_journal_defect", "")
+        if defect:
+            reasons = tuple(dict.fromkeys((*reasons, str(defect))))
         if more:
             reasons = tuple(dict.fromkeys((*reasons, "event_backlog")))
         report = OperationalReport(
@@ -343,6 +405,9 @@ class TelemetryStore:
             build_id=self.build.build_id or NOT_RECORDED,
             source_commit=self.build.source_commit or NOT_RECORDED,
             previous_report_id=previous,
+            telemetry_stream_id=stream,
+            usage_records_dropped=dropped,
+            usage_accounting_status="degraded" if dropped else "complete",
             window_start=window_start,
             window_end=generated,
             privacy_policy="rukan.telemetry.export.1",
@@ -375,8 +440,9 @@ class TelemetryStore:
             INSERT INTO outbox(
                 report_id, sequence, body, state, attempts,
                 next_attempt_at, last_error, created_at, delivered_at,
-                proposed_journal_offset, proposed_window_start, includes_periodic
-            ) VALUES (?, ?, ?, 'queued', 0, ?, '', ?, '', ?, ?, ?)
+                proposed_journal_offset, proposed_window_start, includes_periodic,
+                proposed_usage_seq
+            ) VALUES (?, ?, ?, 'queued', 0, ?, '', ?, '', ?, ?, ?, ?)
             """,
             (
                 report.report_id,
@@ -387,6 +453,7 @@ class TelemetryStore:
                 int(getattr(self, "_proposed_offset", 0)),
                 report.window_end,
                 1 if "periodic" in included else 0,
+                int(getattr(self, "_proposed_usage_seq", 0)),
             ),
         )
         for reason in included:
@@ -444,7 +511,7 @@ class TelemetryStore:
         row = self._db.execute(
             """
             SELECT sequence, body, proposed_journal_offset, proposed_window_start,
-                   includes_periodic
+                   includes_periodic, proposed_usage_seq
             FROM outbox WHERE report_id = ?
             """,
             (report_id,),
@@ -464,6 +531,7 @@ class TelemetryStore:
         self._set("next_sequence", str(int(row["sequence"]) + 1))
         self._set("window_start", str(row["proposed_window_start"]))
         self._set("journal_offset", str(int(row["proposed_journal_offset"])))
+        self._set("ack_usage_seq", str(int(row["proposed_usage_seq"] or 0)))
         self._set("last_macropath", report.snapshot.macropath)
         self._set("last_model", report.snapshot.model_identity)
         self._set("last_version", report.version)
@@ -479,7 +547,7 @@ class TelemetryStore:
         if not path.is_file():
             return []
         with self._lock:
-            offset = int(self._meta("journal_offset") or "0")
+            offset = self._scan_floor_locked()
         found: list[EventRecord] = []
         for line in path.read_bytes()[offset:].splitlines():
             try:
@@ -504,12 +572,19 @@ class TelemetryStore:
             return [], 0, False
         offset = int(self._meta("journal_offset") or "0")
         data = path.read_bytes()
+        if len(data) < offset:
+            self._journal_defect = "journal_truncated"
+            return [], offset, False
+        self._journal_defect = ""
         chunk = data[offset:]
         events: list[AnalyticsEvent] = []
         consumed = offset
         more = False
         install_id = self._meta("install_id") or NOT_RECORDED
-        for line in chunk.splitlines(keepends=True):
+        lines = chunk.splitlines(keepends=True)
+        if lines and not lines[-1].endswith((b"\n", b"\r")):
+            lines = lines[:-1]
+        for line in lines:
             consumed += len(line)
             text = line.decode("utf-8", errors="replace").strip()
             if not text:
@@ -569,6 +644,114 @@ class TelemetryStore:
         with self._lock:
             return self._meta(key) == "true"
 
+    def _restrict(self) -> None:
+        restrict_owned(self.store_root)
+        for name in (
+            "rukan-telemetry.sqlite",
+            "rukan-telemetry.sqlite-wal",
+            "rukan-telemetry.sqlite-shm",
+            "telemetry-actions.jsonl",
+        ):
+            restrict_owned(self.store_root / name)
+
+    def _stream_id(self) -> str:
+        current = self._meta("telemetry_stream_id")
+        if current:
+            return current
+        minted = "tstream_" + secrets.token_hex(8)
+        self._set("telemetry_stream_id", minted)
+        return minted
+
+    def _note_drop(self) -> None:
+        try:
+            with self._lock:
+                current = int(self._meta("usage_records_dropped") or "0")
+                self._set("usage_records_dropped", str(current + 1))
+                self._db.commit()
+        except sqlite3.Error:
+            return
+
+    def _scan_floor_locked(self) -> int:
+        ack = int(self._meta("journal_offset") or "0")
+        row = self._db.execute(
+            """
+            SELECT proposed_journal_offset FROM outbox
+            WHERE state = 'queued' ORDER BY sequence DESC LIMIT 1
+            """
+        ).fetchone()
+        if row is None:
+            return ack
+        return max(ack, int(row["proposed_journal_offset"]))
+
+    def _frozen_triggers(self) -> set[str]:
+        with self._lock:
+            row = self._db.execute(
+                """
+                SELECT body FROM outbox
+                WHERE state = 'queued' ORDER BY sequence DESC LIMIT 1
+                """
+            ).fetchone()
+        if row is None:
+            return set()
+        try:
+            document = json.loads(str(row["body"]))
+        except json.JSONDecodeError:
+            return set()
+        reasons = (
+            document.get("trigger_reasons") if isinstance(document, dict) else None
+        )
+        if not isinstance(reasons, list):
+            return set()
+        return {str(item) for item in reasons}
+
+    def _usage_since_locked(self, ack_seq: int) -> list[sqlite3.Row]:
+        return list(
+            self._db.execute(
+                "SELECT * FROM usage WHERE usage_seq > ? ORDER BY usage_seq",
+                (ack_seq,),
+            )
+        )
+
+    def _usage_through_locked(self, proposed: int) -> list[sqlite3.Row]:
+        return list(
+            self._db.execute(
+                "SELECT * FROM usage WHERE usage_seq <= ? ORDER BY usage_seq",
+                (proposed,),
+            )
+        )
+
+    def _retain(self) -> None:
+        with self._lock:
+            self._db.execute(
+                """
+                DELETE FROM outbox WHERE state = 'delivered' AND report_id NOT IN (
+                    SELECT report_id FROM outbox WHERE state = 'delivered'
+                    ORDER BY sequence DESC LIMIT 48
+                )
+                """
+            )
+            ack = int(self._meta("ack_usage_seq") or "0")
+            self._db.execute(
+                """
+                DELETE FROM usage WHERE usage_seq <= ? AND usage_seq NOT IN (
+                    SELECT usage_seq FROM usage WHERE usage_seq <= ?
+                    ORDER BY usage_seq DESC LIMIT 2000
+                )
+                """,
+                (ack, ack),
+            )
+            self._db.commit()
+        self._restrict()
+        self._trim_actions()
+
+    def _trim_actions(self) -> None:
+        path = self.store_root / "telemetry-actions.jsonl"
+        if not path.is_file() or path.stat().st_size < 200_000:
+            return
+        lines = path.read_text(encoding="utf-8").splitlines()[-400:]
+        path.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+        restrict_owned(path)
+
     def _usage_rows(self, start: str | None, end: str | None) -> list[sqlite3.Row]:
         query = "SELECT * FROM usage WHERE 1 = 1"
         values: list[str] = []
@@ -600,6 +783,7 @@ class TelemetryStore:
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS usage (
                 usage_id TEXT PRIMARY KEY,
+                usage_seq INTEGER NOT NULL DEFAULT 0,
                 request_id TEXT NOT NULL,
                 occurred_at TEXT NOT NULL,
                 purpose TEXT NOT NULL,
@@ -633,14 +817,21 @@ class TelemetryStore:
                 delivered_at TEXT NOT NULL DEFAULT '',
                 proposed_journal_offset INTEGER NOT NULL DEFAULT 0,
                 proposed_window_start TEXT NOT NULL DEFAULT '',
-                includes_periodic INTEGER NOT NULL DEFAULT 0
+                includes_periodic INTEGER NOT NULL DEFAULT 0,
+                proposed_usage_seq INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS pending (
                 reason TEXT PRIMARY KEY,
                 flush_at TEXT NOT NULL
             );
+            CREATE INDEX IF NOT EXISTS usage_by_seq ON usage(usage_seq);
             """
         )
+        usage_columns = {row[1] for row in self._db.execute("PRAGMA table_info(usage)")}
+        if "usage_seq" not in usage_columns:
+            self._db.execute(
+                "ALTER TABLE usage ADD COLUMN usage_seq INTEGER NOT NULL DEFAULT 0"
+            )
         columns = {row[1] for row in self._db.execute("PRAGMA table_info(outbox)")}
         for name, ddl in (
             ("delivered_at", "ALTER TABLE outbox ADD COLUMN delivered_at TEXT NOT NULL DEFAULT ''"),  # noqa: E501
@@ -656,13 +847,19 @@ class TelemetryStore:
                 "includes_periodic",
                 "ALTER TABLE outbox ADD COLUMN includes_periodic INTEGER NOT NULL DEFAULT 0",  # noqa: E501
             ),
+            (
+                "proposed_usage_seq",
+                "ALTER TABLE outbox ADD COLUMN proposed_usage_seq INTEGER NOT NULL DEFAULT 0",  # noqa: E501
+            ),
         ):
             if name not in columns:
                 self._db.execute(ddl)
         if self._meta("schema") is None:
             self._set("schema", _SCHEMA)
-            self._set("cadence_profile", DEVELOPMENT)
-            self._set("cadence_seconds", str(interval_seconds(DEVELOPMENT)))
+            self._set("cadence_profile", PRODUCTION)
+            self._set("cadence_seconds", str(interval_seconds(PRODUCTION)))
+            self._set("ack_usage_seq", "0")
+            self._set("usage_records_dropped", "0")
             self._set("cadence_phase_seconds", "0")
             self._set("enabled", "false")
             self._set("next_sequence", "1")

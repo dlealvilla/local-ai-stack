@@ -1,7 +1,11 @@
 # Rukan v0.3 real-user acceptance playbook
 
-This is the later campaign. Do not run it until a customer host and a
-business-side intake exist. This document does not provision either.
+This is the later campaign for Daniel. Do not run it until a customer
+host and a business-side intake exist. This document does not provision
+either and does not spend money.
+
+The test uses a frozen wheel. It does not need a repository checkout
+and it does not need Node.
 
 ## Topology
 
@@ -18,20 +22,49 @@ Daniel's browser
 business host
   Command Center on 127.0.0.1:8780
   intake HTTPS on a reachable address, port 8781
+
+customer telemetry
+  machine-authenticated HTTPS
+  POST /v1/telemetry/reports
 ```
 
-Admin is not published to the internet. The tunnel is the access path
-until human authentication exists.
+Admin stays on loopback. The SSH tunnel is the administrator path.
+Do not bind Admin to a public address.
+
+## Install the frozen wheel
+
+On each host, in a fresh virtual environment:
+
+```text
+python3 -m venv /opt/rukan-venv
+/opt/rukan-venv/bin/pip install <frozen-wheel>
+```
+
+Confirm `PYTHONPATH` is empty. Confirm `python -c "import machi"` works
+without a source checkout.
 
 ## Preconditions
 
 ```text
-python -m machi.main acceptance preflight --data-dir <command-center-dir> --cert <cert> --key <key>
+python -m machi.main acceptance preflight \
+  --wheel <frozen-wheel> \
+  --data-dir <command-center-dir> \
+  --cert <cert> \
+  --key <key> \
+  --endpoint https://<business-host>:8781/v1/telemetry/reports \
+  --admin-port 8765 \
+  --ui-port 8780 \
+  --intake-port 8781 \
+  --json
 ```
 
-The command checks that the data directory is writable and that later
-certificate paths exist when they are passed. It does not open a port
-and it does not spend money.
+Expect `result PASS`. A `BLOCKED` line names the exact missing piece.
+The command does not open a listening service and it does not spend money.
+
+The product cadence default is Production, every 6 hours (21600 seconds).
+This acceptance test must select Development, every 2 minutes (120 seconds),
+in Admin Settings before enabling reporting. A wheel built from a
+development tree does not inherit that 2-minute cadence.
 
 Evidence belongs outside git:
 
@@ -47,24 +80,25 @@ acceptance-evidence/
 
 Do not commit hostnames, addresses, secrets, or screenshots that show them.
 
-## Commands for the later session
+## Commands
 
-Customer host, from the accepted wheel or checkout:
+Customer host:
 
 ```text
 python -m machi.main admin serve \
   --store-dir <store> \
   --journal-dir <journal> \
-  --static-dir ui/admin/dist \
   --port 8765
 ```
+
+Do not pass `--static-dir`. The wheel serves the packaged Admin UI.
+Expect `bind 127.0.0.1:8765`.
 
 Business host:
 
 ```text
 python -m machi.main command-center serve \
   --data-dir <cc-dir> \
-  --static-dir ui/command-center/dist \
   --port 8780
 
 python -m machi.main command-center intake \
@@ -79,9 +113,9 @@ python -m machi.main command-center credential issue \
   --install-id <install-id>
 ```
 
-Copy the secret once into Admin Settings. Profile stays Development
-(120 seconds) for this test. Production is 21600 seconds and is not the
-test default.
+The credential command prints the secret once. Copy it into Admin
+Settings with the key id and the HTTPS endpoint. Set the profile to
+Development and enable reporting. Leave loopback test HTTP off.
 
 Tunnel from the operator machine:
 
@@ -89,25 +123,38 @@ Tunnel from the operator machine:
 ssh -L 8765:127.0.0.1:8765 <user>@<customer-host>
 ```
 
-## Steps
+Then open `http://127.0.0.1:8765/`.
 
-1. Start Admin from the accepted artifact and open it through the tunnel.
-2. Read Overview and System. Confirm there is no live-health score.
-3. Open Models. Confirm cards keep artifact or digest identity.
-4. Use only controls that the UI enables. Do not invent a deploy button.
-5. Run one operator inference. Record input tokens, output tokens, and latency.
-6. Open People. Create two users and two teams. Assign a membership.
-7. Set a team inference grant and a user deny. Confirm the effective view
-   still says gateway enforcement is not available.
-8. Pair telemetry. Send a test report. Confirm Command Center shows it.
-9. Wait through two development heartbeats. Record generated time and ACK time.
-10. Change the reporting profile or custom interval. Confirm a settings report.
-11. Stop serving, then release. Confirm those reports.
-12. Stop the intake process. Run another inference. Confirm Admin still works
-    and the outbox stays queued.
-13. Start intake again. Confirm the queued report is acknowledged.
-14. Confirm Command Center has no email, display name, prompt, or response.
-15. Stop Admin and Command Center with SIGINT.
+## Expected observations
+
+1. Admin Overview loads from the packaged UI. There is no live-health score.
+2. System shows stored facts. Unknown stays unknown.
+3. Models show artifact or digest identity. There is no Recommended row.
+4. Only enabled controls are used. There is no extra deploy button.
+5. One operator inference records input tokens, output tokens, and latency
+   in Admin usage. The prompt and response are not stored.
+6. People can create two users and two teams, edit a name, add and remove
+   a membership, archive a team, and save per-capability intent.
+   Effective access shows a provenance per capability. The banner says
+   employee login and chat are not enabled.
+7. A user platform deny makes inference, model selection, and agent builder
+   deny even when those intents are allow.
+8. A test report appears in Command Center. The secret is not in the URL
+   or the Command Center database.
+9. Development heartbeats arrive about 120 seconds apart. The report shows
+   profile `development` and `120` seconds. Production stays 21600 unless
+   that profile is selected.
+10. Changing the profile sends a settings report and does not wait for the
+    old interval.
+11. Stop, then release, produce separate reports. Stop does not release
+    the reservation by itself.
+12. Stopping intake leaves Admin inference working. The outbox stays queued.
+    Usage recorded while intake is down appears once after the ACK.
+13. Restoring intake acknowledges the queued report. The same report is
+    not applied twice.
+14. Command Center has no email, display name, prompt, or response.
+15. SIGINT or SIGTERM stops Admin, Command Center, and intake without a
+    traceback. Restart keeps People, the outbox, and accepted reports.
 
 ## systemd examples
 
@@ -116,13 +163,13 @@ repository.
 
 ```text
 # rukan-admin.service
-ExecStart=python -m machi.main admin serve --store-dir /var/lib/rukan/store --port 8765
+ExecStart=/opt/rukan-venv/bin/python -m machi.main admin serve --store-dir /var/lib/rukan/store --port 8765
 # rukan-command.service
-ExecStart=python -m machi.main command-center serve --data-dir /var/lib/rukan/command --port 8780
+ExecStart=/opt/rukan-venv/bin/python -m machi.main command-center serve --data-dir /var/lib/rukan/command --port 8780
 ```
 
 ## Cleanup
 
-Delete only the test store directory, command-center data directory, and
-`acceptance-evidence/` created for this campaign. Do not run Steward
+Delete only the test store directory, the command-center data directory,
+and `acceptance-evidence/` created for this campaign. Do not run Steward
 reclaim as a substitute.
