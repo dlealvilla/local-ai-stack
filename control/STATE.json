@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "fix_rukan_v0_3_people_ui_and_trigger_semantics",
-  "expected_pasteback_instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FIX-002",
-  "instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FIX-002",
+  "expected_cursor_action": "run_rukan_v0_3_production_readiness_gate",
+  "expected_pasteback_instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
+  "instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_fix_people_ui_effective_access_and_trigger_resurrection_then_lead_review",
+    "next_action": "cursor_audit_harden_and_prove_v0_3_production_candidate_then_lead_review",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -168,7 +168,7 @@
           "effective_access_per_capability_provenance",
           "queued_report_trigger_resurrection"
         ],
-        "status": "CORRECTION_REQUIRED"
+        "status": "SUPERSEDED_BY_PRODUCTION_READINESS_GATE"
       }
     },
     "rukan_ui_v0_1": {
@@ -212,10 +212,39 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "rukan_v0_3_production_readiness_gate": {
+      "instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
+      "starting_source": "fd13ede7553011033a140d1206982f54536b7032",
+      "branch": "rukan/connected-monitoring-v0.3",
+      "external_server_test": false,
+      "paid_infrastructure": false,
+      "target": "bounded_production_candidate_ready_for_server_acceptance",
+      "required_terminal_statuses": [
+        "RUKAN_V0_3_PRODUCTION_CANDIDATE_READY_FOR_SERVER_ACCEPTANCE",
+        "RUKAN_V0_3_NOT_READY_FOR_SERVER_ACCEPTANCE"
+      ],
+      "mandatory_audits": [
+        "authority_and_architecture",
+        "telemetry_state_machine",
+        "usage_delivery_races",
+        "event_cursor_integrity",
+        "stream_reset_semantics",
+        "retention",
+        "sqlite_concurrency",
+        "security_and_privacy",
+        "people_access_policy",
+        "artifact_only_install",
+        "migrations",
+        "restart_and_io_failure",
+        "mini_fleet",
+        "ui_backend_coherence",
+        "server_acceptance_playbook"
+      ]
+    }
   },
-  "published_instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FIX-002",
+  "published_instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_V0_3_FINAL_FIX"
+  "status": "AWAITING_CURSOR_RUKAN_V0_3_PRODUCTION_READINESS_GATE"
 }
