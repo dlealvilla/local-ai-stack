@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import stat
 import threading
 from datetime import UTC, datetime, timedelta
@@ -250,7 +251,7 @@ def test_concurrent_command_center_open_migrates_once(tmp_path: Path) -> None:
         thread.join()
     assert errors == []
     hub = CommandHub(tmp_path)
-    assert hub._meta("schema_version") == "5"
+    assert hub._meta("schema_version") == "6"
     hub.close()
 
 
@@ -260,7 +261,7 @@ def test_schema_four_upgrades_to_five(tmp_path: Path) -> None:
     hub._db.commit()
     hub.close()
     upgraded = CommandHub(tmp_path)
-    assert upgraded._meta("schema_version") == "5"
+    assert upgraded._meta("schema_version") == "6"
     columns = {row[1] for row in upgraded._db.execute("PRAGMA table_info(reports)")}
     assert "stream_id" in columns
     upgraded.close()
@@ -450,6 +451,190 @@ def test_ten_deployments_report_without_crossing_usage(tmp_path: Path) -> None:
     hub.close()
 
 
+def test_cumulative_does_not_regress_when_usage_is_compacted(tmp_path: Path) -> None:
+    store = _enabled(tmp_path)
+    for index in range(2005):
+        assert store.record_usage(_usage(index, tokens=3)) is True
+    store.note(("test_report",), NOW, immediate=True)
+    assert store.tick(NOW, transport=_ack)["sent"] is True
+    before = json.loads(
+        store._db.execute("SELECT body FROM outbox").fetchone()["body"]
+    )["cumulative"]
+    store._retain()
+    assert store.record_usage(_usage(3000, tokens=5)) is True
+    store.note(("test_report",), NOW + timedelta(seconds=1), immediate=True)
+    assert store.tick(NOW + timedelta(seconds=1), transport=_ack)["sent"] is True
+    after = json.loads(
+        store._db.execute(
+            "SELECT body FROM outbox ORDER BY sequence DESC"
+        ).fetchone()["body"]
+    )["cumulative"]
+    assert before["requests"] == 2005
+    assert after["requests"] == 2006
+    assert int(after["output_tokens_total"]) == 2005 * 3 + 5
+    assert after["succeeded"] == 2006
+    store._retain()
+    assert int(store._meta("compacted_requests") or "0") >= 5
+    store.close()
+    restored = TelemetryStore(tmp_path, None, BUILD)
+    again = restored._cumulative_through_locked(2006)
+    assert again.requests == 2006
+    restored.close()
+
+
+def test_rollup_limit_does_not_acknowledge_omitted_groups(tmp_path: Path) -> None:
+    store = _enabled(tmp_path)
+    for index in range(33):
+        assert store.record_usage(_usage(index, model=f"mart_{index:02d}")) is True
+    store.note(("test_report",), NOW, immediate=True)
+    refused = store.tick(NOW, transport=_refuse)
+    assert refused["sent"] is False
+    body = json.loads(
+        store._db.execute("SELECT body FROM outbox").fetchone()["body"]
+    )
+    assert body["rollup_count"] == 32
+    assert "usage_backlog" in body["trigger_reasons"]
+    assert int(store._meta("ack_usage_seq") or "0") == 0
+    assert store.tick(NOW + timedelta(seconds=61), transport=_ack)["sent"] is True
+    store.close()
+    restored = TelemetryStore(tmp_path, None, BUILD)
+    restored._set("enabled", "true")
+    restored._db.commit()
+    restored.note(("test_report",), NOW + timedelta(seconds=2), immediate=True)
+    assert restored.tick(NOW + timedelta(seconds=2), transport=_ack)["sent"] is True
+    bodies = [
+        json.loads(row["body"])
+        for row in restored._db.execute("SELECT body FROM outbox ORDER BY sequence")
+    ]
+    assert bodies[1]["rollup_count"] == 1
+    sent = sum(item["requests"] for body in bodies for item in body["rollups"])
+    assert sent == 33
+    restored.close()
+
+
+def test_legacy_usage_rows_receive_unique_sequences(tmp_path: Path) -> None:
+    path = tmp_path / "rukan-telemetry.sqlite"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO meta(key, value) VALUES ('schema', '1');
+        INSERT INTO meta(key, value)
+        VALUES ('window_start', '2026-09-29T04:30:00+00:00');
+        CREATE TABLE usage (
+            usage_id TEXT PRIMARY KEY,
+            request_id TEXT NOT NULL,
+            occurred_at TEXT NOT NULL,
+            purpose TEXT NOT NULL,
+            install_id TEXT NOT NULL,
+            instance_id TEXT NOT NULL,
+            plan_id TEXT NOT NULL,
+            reservation_id TEXT NOT NULL,
+            generation_id TEXT NOT NULL,
+            model_identity TEXT NOT NULL,
+            model_identity_kind TEXT NOT NULL,
+            macropath TEXT NOT NULL,
+            outcome TEXT NOT NULL,
+            failure TEXT NOT NULL,
+            status_code INTEGER NOT NULL,
+            input_tokens TEXT NOT NULL,
+            output_tokens TEXT NOT NULL,
+            latency_ms TEXT NOT NULL,
+            runtime_duration_ms TEXT NOT NULL,
+            version TEXT NOT NULL,
+            build_id TEXT NOT NULL
+        );
+        """
+    )
+    stamps = ("2026-09-29T04:00:00+00:00", "2026-09-29T05:00:00+00:00")
+    for index, stamp in enumerate(stamps):
+        connection.execute(
+            """
+            INSERT INTO usage(
+                usage_id, request_id, occurred_at, purpose, install_id, instance_id,
+                plan_id, reservation_id, generation_id, model_identity,
+                model_identity_kind, macropath, outcome, failure, status_code,
+                input_tokens, output_tokens, latency_ms, runtime_duration_ms,
+                version, build_id
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                f"usg_legacy_{index}", f"req_{index}", stamp, "operator_test",
+                "not_recorded", "srv", "not_recorded", "not_recorded", "not_recorded",
+                "mart_one", "warehouse_artifact", "vllm", "completed", "none", 200,
+                "1", "1", "10", "not_recorded", "0.1.0", "0.1.0+test",
+            ),
+        )
+    connection.commit()
+    connection.close()
+    store = TelemetryStore(tmp_path, None, BUILD)
+    sequences = [
+        int(row["usage_seq"])
+        for row in store._db.execute("SELECT usage_seq FROM usage ORDER BY usage_seq")
+    ]
+    assert sequences == [1, 2]
+    assert store._meta("ack_usage_seq") == "1"
+    assert store._meta("legacy_usage_migration_uncertain") == "true"
+    store.close()
+    again = TelemetryStore(tmp_path, None, BUILD)
+    assert [
+        int(row["usage_seq"])
+        for row in again._db.execute("SELECT usage_seq FROM usage ORDER BY usage_seq")
+    ] == [1, 2]
+    again.close()
+
+
+def test_new_telemetry_stream_becomes_current(tmp_path: Path) -> None:
+    hub = CommandHub(tmp_path / "hub")
+    record = _install(tmp_path / "deploy")
+    issued = issue_credential(hub, str(record.install_id), NOW)
+    store = _enabled(tmp_path / "deploy", install_id=str(record.install_id))
+    store.note(("test_report",), NOW, immediate=True)
+    assert store.tick(NOW, transport=_ack)["sent"] is True
+    first = store._db.execute("SELECT body FROM outbox").fetchone()["body"]
+    accept_report(hub, first, issued["secret"], received_at=NOW)
+    stream_a = json.loads(first)["telemetry_stream_id"]
+    hub._db.execute(
+        "UPDATE deployments SET last_report_sequence = 100 WHERE install_id = ?",
+        (str(record.install_id),),
+    )
+    hub._db.commit()
+    store.close()
+    for suffix in ("", "-wal", "-shm"):
+        leftover = tmp_path / "deploy" / f"rukan-telemetry.sqlite{suffix}"
+        if leftover.exists():
+            leftover.unlink()
+    reset = _enabled(tmp_path / "deploy", install_id=str(record.install_id))
+    reset.note(("test_report",), NOW + timedelta(seconds=1), immediate=True)
+    assert reset.tick(NOW + timedelta(seconds=1), transport=_ack)["sent"] is True
+    second = reset._db.execute("SELECT body FROM outbox").fetchone()["body"]
+    accept_report(hub, second, issued["secret"], received_at=NOW + timedelta(seconds=1))
+    stream_b = json.loads(second)["telemetry_stream_id"]
+    assert stream_b != stream_a
+    current = hub._db.execute(
+        "SELECT telemetry_stream_id, last_report_sequence FROM deployments"
+    ).fetchone()
+    assert current["telemetry_stream_id"] == stream_b
+    assert int(current["last_report_sequence"]) == 1
+    late = json.loads(first)
+    late["report_id"] = "rpt_latehistorylate"
+    late["sequence"] = 100
+    accept_report(
+        hub, json.dumps(late), issued["secret"], received_at=NOW + timedelta(seconds=2)
+    )
+    after = hub._db.execute(
+        "SELECT telemetry_stream_id, last_report_sequence, report_gap FROM deployments"
+    ).fetchone()
+    assert after["telemetry_stream_id"] == stream_b
+    assert int(after["last_report_sequence"]) == 1
+    cursors = hub._db.execute(
+        "SELECT stream_id, high_sequence FROM report_cursors ORDER BY stream_id"
+    ).fetchall()
+    assert {str(row["stream_id"]) for row in cursors} == {stream_a, stream_b}
+    hub.close()
+    reset.close()
+
+
 def _enabled(path: Path, install_id: str = "not_recorded") -> TelemetryStore:
     store = TelemetryStore(path, None, BUILD)
     store._set("enabled", "true")
@@ -462,7 +647,7 @@ def _enabled(path: Path, install_id: str = "not_recorded") -> TelemetryStore:
     return store
 
 
-def _usage(index: int) -> InferenceUsage:
+def _usage(index: int, *, model: str = "mart_one", tokens: int = 2) -> InferenceUsage:
     return InferenceUsage(
         usage_id=f"usg_{index:04d}",
         request_id=f"req_{index:04d}",
@@ -473,14 +658,14 @@ def _usage(index: int) -> InferenceUsage:
         plan_id="not_recorded",
         reservation_id="not_recorded",
         generation_id="not_recorded",
-        model_identity="mart_one",
+        model_identity=model,
         model_identity_kind="warehouse_artifact",
         macropath="vllm",
         outcome="completed",
         failure="none",
         status_code=200,
         input_tokens="4",
-        output_tokens="2",
+        output_tokens=str(tokens),
         latency_ms="18",
         runtime_duration_ms="not_recorded",
         version="0.1.0",

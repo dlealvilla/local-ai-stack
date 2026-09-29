@@ -129,11 +129,28 @@ def accept_report(
             _reject(hub, key_id, "report sequence collided")
             raise ValidationError("telemetry report sequence collided")
         current = hub._db.execute(
-            "SELECT last_report_sequence FROM deployments WHERE install_id = ?",
+            """
+            SELECT last_report_sequence, telemetry_stream_id
+            FROM deployments WHERE install_id = ?
+            """,
             (report.install_id,),
         ).fetchone()
         current_high = int(current["last_report_sequence"]) if current else 0
-        latest = report.sequence >= current_high
+        current_stream = str(current["telemetry_stream_id"]) if current else ""
+        seen = hub._db.execute(
+            """
+            SELECT high_sequence FROM report_cursors
+            WHERE install_id = ? AND stream_id = ?
+            """,
+            (report.install_id, report.telemetry_stream_id),
+        ).fetchone()
+        same_stream = report.telemetry_stream_id == current_stream
+        establishes = (
+            not current_stream
+            or (seen is None and report.sequence == 1 and not same_stream)
+        )
+        on_current = same_stream or establishes
+        latest = on_current and (establishes or report.sequence >= current_high)
         hub._db.execute("BEGIN")
         try:
             if latest:
@@ -180,13 +197,14 @@ def accept_report(
                 )
             hub._db.execute(
                 """
-                INSERT INTO report_cursors(install_id, high_sequence, gap)
-                VALUES (?, ?, ?)
-                ON CONFLICT(install_id) DO UPDATE SET
+                INSERT INTO report_cursors(
+                    install_id, stream_id, high_sequence, gap
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(install_id, stream_id) DO UPDATE SET
                     high_sequence = excluded.high_sequence,
                     gap = excluded.gap
                 """,
-                (report.install_id, high, gap),
+                (report.install_id, report.telemetry_stream_id, high, gap),
             )
             hub._db.execute(
                 "UPDATE reports SET gap = ? WHERE report_id = ?",
@@ -213,7 +231,7 @@ def accept_report(
                         report.install_id,
                     ),
                 )
-            else:
+            elif on_current:
                 hub._db.execute(
                     """
                     UPDATE deployments SET
@@ -237,7 +255,13 @@ def reporting_view(hub: CommandHub, now: datetime) -> dict[str, object]:
         accepted = hub._db.execute("SELECT COUNT(*) AS n FROM reports").fetchone()["n"]
         rejected = hub._db.execute("SELECT COUNT(*) AS n FROM intake_rejections").fetchone()["n"]  # noqa: E501
         gaps = hub._db.execute(
-            "SELECT COUNT(*) AS n FROM report_cursors WHERE gap != 'none'"
+            """
+            SELECT COUNT(*) AS n FROM report_cursors AS cursors
+            JOIN deployments
+              ON deployments.install_id = cursors.install_id
+             AND deployments.telemetry_stream_id = cursors.stream_id
+            WHERE cursors.gap != 'none'
+            """
         ).fetchone()["n"]
         recent = [
             dict(row)
@@ -428,7 +452,7 @@ def _compact_documents(hub: CommandHub, install_id: str) -> None:
         UPDATE reports SET document = ''
         WHERE install_id = ? AND document != '' AND report_id NOT IN (
             SELECT report_id FROM reports WHERE install_id = ?
-            ORDER BY sequence DESC LIMIT 200
+            ORDER BY received_at DESC, report_id DESC LIMIT 200
         )
         """,
         (install_id, install_id),

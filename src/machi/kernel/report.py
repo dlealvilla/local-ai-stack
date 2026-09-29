@@ -120,6 +120,7 @@ class OperationalReport(Contract):
     source_commit: str = meaning("source commit, or not_recorded")
     previous_report_id: str = meaning("previous report id, or not_recorded")
     telemetry_stream_id: str = meaning("local telemetry stream; reset starts a new one")
+    stream_started_at: str = meaning("when this local stream was minted")
     usage_records_dropped: int = meaning("local usage rows that failed to persist")
     usage_accounting_status: str = meaning("complete or degraded")
     window_start: str = meaning("start of incremental facts")
@@ -147,6 +148,8 @@ class OperationalReport(Contract):
         if type(dropped) is not int or dropped < 0:
             raise ValidationError("usage dropped count is invalid")
         _token("stream", self.telemetry_stream_id)
+        if not self.stream_started_at or len(self.stream_started_at) > 80:
+            raise ValidationError("operational report stream start is missing")
         if self.cadence_profile not in PROFILES:
             raise ValidationError("operational report cadence profile is unknown")
         expected = interval_seconds(

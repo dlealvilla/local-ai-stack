@@ -4111,6 +4111,13 @@
         "may_be_unresolved": false,
         "meaning": "local telemetry stream; reset starts a new one"
       },
+      "stream_started_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "when this local stream was minted"
+      },
       "usage_records_dropped": {
         "type": "int",
         "optional": false,

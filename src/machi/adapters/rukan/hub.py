@@ -19,7 +19,7 @@ from machi.kernel.schema import to_dict
 from machi.kernel.snapshot import SupportSnapshot, accept_snapshot
 
 API_NAME = "rukan.command.v1"
-SCHEMA_VERSION = "5"
+SCHEMA_VERSION = "6"
 _LOOPBACK = "127.0.0.1"
 _MAX_BODY = 64_000
 
@@ -587,9 +587,11 @@ class CommandHub:
                     )
                 );
                 CREATE TABLE report_cursors (
-                    install_id TEXT PRIMARY KEY,
+                    install_id TEXT NOT NULL,
+                    stream_id TEXT NOT NULL,
                     high_sequence INTEGER NOT NULL,
-                    gap TEXT NOT NULL
+                    gap TEXT NOT NULL,
+                    PRIMARY KEY (install_id, stream_id)
                 );
                 CREATE TABLE intake_rejections (
                     id INTEGER PRIMARY KEY,
@@ -669,11 +671,42 @@ class CommandHub:
             version = "4"
         if version == "4":
             self._upgrade_stream()
+            version = "5"
+        if version == "5":
+            self._upgrade_cursors()
             self._set_meta("schema_version", SCHEMA_VERSION)
             self._db.commit()
             return
         if version != SCHEMA_VERSION:
             raise ValidationError("command center schema version is not supported")
+
+    def _upgrade_cursors(self) -> None:
+        columns = {
+            row[1] for row in self._db.execute("PRAGMA table_info(report_cursors)")
+        }
+        if "stream_id" in columns:
+            return
+        self._db.executescript(
+            """
+            CREATE TABLE report_cursors_v6 (
+                install_id TEXT NOT NULL,
+                stream_id TEXT NOT NULL,
+                high_sequence INTEGER NOT NULL,
+                gap TEXT NOT NULL,
+                PRIMARY KEY (install_id, stream_id)
+            );
+            INSERT INTO report_cursors_v6(install_id, stream_id, high_sequence, gap)
+            SELECT cursors.install_id,
+                   COALESCE(NULLIF(deployments.telemetry_stream_id, ''), 'legacy'),
+                   cursors.high_sequence,
+                   cursors.gap
+            FROM report_cursors AS cursors
+            LEFT JOIN deployments
+              ON deployments.install_id = cursors.install_id;
+            DROP TABLE report_cursors;
+            ALTER TABLE report_cursors_v6 RENAME TO report_cursors;
+            """
+        )
 
     def _upgrade_stream(self) -> None:
         deployment_columns = {

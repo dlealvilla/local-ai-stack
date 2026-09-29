@@ -33,6 +33,7 @@ from machi.kernel.errors import ValidationError
 from machi.kernel.events import EventRecord
 from machi.kernel.privacy import PrivacyClass
 from machi.kernel.report import (
+    MAX_ROLLUPS,
     OperationalReport,
     UsageCumulative,
     UsageFailureCount,
@@ -377,20 +378,25 @@ class TelemetryStore:
             phase = int(self._meta("cadence_phase_seconds") or "0")
             ack_usage = int(self._meta("ack_usage_seq") or "0")
             events, offset, more = self._read_events_locked()
-            usage_rows = self._usage_since_locked(ack_usage)
+            pending_usage = self._usage_since_locked(ack_usage)
+            usage_rows, usage_backlog = _usage_prefix(pending_usage, MAX_ROLLUPS)
             proposed_usage = ack_usage
             if usage_rows:
-                proposed_usage = max(int(row["usage_seq"]) for row in usage_rows)
+                proposed_usage = int(usage_rows[-1]["usage_seq"])
             self._proposed_usage_seq = proposed_usage
             rollups = _rollups(usage_rows)
-            cumulative = _cumulative(self._usage_through_locked(proposed_usage))
+            cumulative = self._cumulative_through_locked(proposed_usage)
             dropped = int(self._meta("usage_records_dropped") or "0")
+            uncertain = self._meta("legacy_usage_migration_uncertain") == "true"
             stream = self._stream_id()
+            started = self._meta("stream_started_at") or generated
             defect = getattr(self, "_journal_defect", "")
         if defect:
             reasons = tuple(dict.fromkeys((*reasons, str(defect))))
         if more:
             reasons = tuple(dict.fromkeys((*reasons, "event_backlog")))
+        if usage_backlog:
+            reasons = tuple(dict.fromkeys((*reasons, "usage_backlog")))
         report = OperationalReport(
             report_id=report_id_for(view.install_id, sequence, generated, reasons),
             schema_name="rukan.operational_report",
@@ -406,17 +412,18 @@ class TelemetryStore:
             source_commit=self.build.source_commit or NOT_RECORDED,
             previous_report_id=previous,
             telemetry_stream_id=stream,
+            stream_started_at=started,
             usage_records_dropped=dropped,
-            usage_accounting_status="degraded" if dropped else "complete",
+            usage_accounting_status="degraded" if dropped or uncertain else "complete",
             window_start=window_start,
             window_end=generated,
             privacy_policy="rukan.telemetry.export.1",
             snapshot=snapshot,
             events=tuple(events[:MAX_EVENTS]),
-            rollups=tuple(rollups[:32]),
+            rollups=tuple(rollups),
             cumulative=cumulative,
             event_count=min(len(events), MAX_EVENTS),
-            rollup_count=min(len(rollups), 32),
+            rollup_count=len(rollups),
         )
         dump_report(report)
         if persist:
@@ -656,11 +663,13 @@ class TelemetryStore:
 
     def _stream_id(self) -> str:
         current = self._meta("telemetry_stream_id")
-        if current:
-            return current
-        minted = "tstream_" + secrets.token_hex(8)
-        self._set("telemetry_stream_id", minted)
-        return minted
+        if not current:
+            current = "tstream_" + secrets.token_hex(8)
+            self._set("telemetry_stream_id", current)
+            self._set("stream_started_at", datetime.now(UTC).isoformat())
+        elif not self._meta("stream_started_at"):
+            self._set("stream_started_at", datetime.now(UTC).isoformat())
+        return current
 
     def _note_drop(self) -> None:
         try:
@@ -712,13 +721,20 @@ class TelemetryStore:
             )
         )
 
-    def _usage_through_locked(self, proposed: int) -> list[sqlite3.Row]:
-        return list(
+    def _cumulative_through_locked(self, proposed: int) -> UsageCumulative:
+        base = _cumulative_from_meta(self._meta)
+        through = int(self._meta("compacted_through_usage_seq") or "0")
+        rows = list(
             self._db.execute(
-                "SELECT * FROM usage WHERE usage_seq <= ? ORDER BY usage_seq",
-                (proposed,),
+                """
+                SELECT * FROM usage
+                WHERE usage_seq > ? AND usage_seq <= ?
+                ORDER BY usage_seq
+                """,
+                (through, proposed),
             )
         )
+        return _merge_cumulative(base, _cumulative(rows))
 
     def _retain(self) -> None:
         with self._lock:
@@ -731,15 +747,33 @@ class TelemetryStore:
                 """
             )
             ack = int(self._meta("ack_usage_seq") or "0")
-            self._db.execute(
-                """
-                DELETE FROM usage WHERE usage_seq <= ? AND usage_seq NOT IN (
-                    SELECT usage_seq FROM usage WHERE usage_seq <= ?
-                    ORDER BY usage_seq DESC LIMIT 2000
+            through = int(self._meta("compacted_through_usage_seq") or "0")
+            doomed = list(
+                self._db.execute(
+                    """
+                    SELECT * FROM usage
+                    WHERE usage_seq <= ? AND usage_seq > ?
+                      AND usage_seq NOT IN (
+                        SELECT usage_seq FROM usage WHERE usage_seq <= ?
+                        ORDER BY usage_seq DESC LIMIT 2000
+                      )
+                    """,
+                    (ack, through, ack),
                 )
-                """,
-                (ack, ack),
             )
+            if doomed:
+                folded = _merge_cumulative(
+                    _cumulative_from_meta(self._meta), _cumulative(doomed)
+                )
+                _store_cumulative(self._set, folded)
+                self._set(
+                    "compacted_through_usage_seq",
+                    str(max(int(row["usage_seq"]) for row in doomed)),
+                )
+                self._db.executemany(
+                    "DELETE FROM usage WHERE usage_id = ?",
+                    [(str(row["usage_id"]),) for row in doomed],
+                )
             self._db.commit()
         self._restrict()
         self._trim_actions()
@@ -824,7 +858,6 @@ class TelemetryStore:
                 reason TEXT PRIMARY KEY,
                 flush_at TEXT NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS usage_by_seq ON usage(usage_seq);
             """
         )
         usage_columns = {row[1] for row in self._db.execute("PRAGMA table_info(usage)")}
@@ -832,6 +865,16 @@ class TelemetryStore:
             self._db.execute(
                 "ALTER TABLE usage ADD COLUMN usage_seq INTEGER NOT NULL DEFAULT 0"
             )
+        self._backfill_usage_sequences()
+        self._db.execute(
+            "CREATE INDEX IF NOT EXISTS usage_by_seq ON usage(usage_seq)"
+        )
+        self._db.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS usage_seq_unique
+            ON usage(usage_seq) WHERE usage_seq > 0
+            """
+        )
         columns = {row[1] for row in self._db.execute("PRAGMA table_info(outbox)")}
         for name, ddl in (
             ("delivered_at", "ALTER TABLE outbox ADD COLUMN delivered_at TEXT NOT NULL DEFAULT ''"),  # noqa: E501
@@ -864,6 +907,41 @@ class TelemetryStore:
             self._set("enabled", "false")
             self._set("next_sequence", "1")
             self._db.commit()
+
+    def _backfill_usage_sequences(self) -> None:
+        """Assign sequences to legacy rows. Timestamp windows are not exact."""
+        rows = list(
+            self._db.execute(
+                """
+                SELECT rowid, occurred_at, usage_seq
+                FROM usage ORDER BY occurred_at, rowid
+                """
+            )
+        )
+        if not rows:
+            return
+        sequences = [int(row["usage_seq"]) for row in rows]
+        if 0 not in sequences and len(sequences) == len(set(sequences)):
+            return
+        window = self._meta("window_start")
+        delivered = [
+            row
+            for row in rows
+            if window is not None and str(row["occurred_at"]) < window
+        ]
+        delivered_ids = {int(row["rowid"]) for row in delivered}
+        pending = [row for row in rows if int(row["rowid"]) not in delivered_ids]
+        self._set("legacy_usage_migration_uncertain", "true")
+        ordered = delivered + pending
+        for sequence, row in enumerate(ordered, start=1):
+            self._db.execute(
+                "UPDATE usage SET usage_seq = ? WHERE rowid = ?",
+                (sequence, int(row["rowid"])),
+            )
+        existing = self._meta("ack_usage_seq")
+        if existing is None or int(existing) == 0:
+            self._set("ack_usage_seq", str(len(delivered)))
+        self._db.commit()
 
     def _meta(self, key: str) -> str | None:
         row = self._db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()  # noqa: E501
@@ -1039,6 +1117,82 @@ def _public_rollup(item: UsageRollup) -> dict[str, object]:
         "average_latency_ms": _average(item.latency_ms_sum, item.latency_sample_count),
         "failures": [{"failure": failure.failure, "count": failure.count} for failure in item.failures],  # noqa: E501
     }
+
+
+def _usage_prefix(
+    rows: list[sqlite3.Row], limit: int
+) -> tuple[list[sqlite3.Row], bool]:
+    """Keep a sequence prefix whose distinct groups fit in one report."""
+    included: list[sqlite3.Row] = []
+    keys: set[tuple[str, str, str, str, str]] = set()
+    for row in rows:
+        key = (
+            str(row["model_identity"]),
+            str(row["model_identity_kind"]),
+            str(row["macropath"]),
+            str(row["purpose"]),
+            str(row["outcome"]),
+        )
+        if key not in keys and len(keys) >= limit:
+            return included, True
+        keys.add(key)
+        included.append(row)
+    return included, False
+
+
+def _cumulative_from_meta(meta: Callable[[str], str | None]) -> UsageCumulative:
+    return UsageCumulative(
+        requests=int(meta("compacted_requests") or "0"),
+        succeeded=int(meta("compacted_succeeded") or "0"),
+        failed=int(meta("compacted_failed") or "0"),
+        input_tokens_total=meta("compacted_input_tokens") or NOT_RECORDED,
+        input_sample_count=int(meta("compacted_input_samples") or "0"),
+        output_tokens_total=meta("compacted_output_tokens") or NOT_RECORDED,
+        output_sample_count=int(meta("compacted_output_samples") or "0"),
+        latency_ms_sum=meta("compacted_latency_sum") or NOT_RECORDED,
+        latency_sample_count=int(meta("compacted_latency_samples") or "0"),
+    )
+
+
+def _store_cumulative(store: Callable[[str, str], None], item: UsageCumulative) -> None:
+    store("compacted_requests", str(item.requests))
+    store("compacted_succeeded", str(item.succeeded))
+    store("compacted_failed", str(item.failed))
+    store("compacted_input_tokens", item.input_tokens_total)
+    store("compacted_input_samples", str(item.input_sample_count))
+    store("compacted_output_tokens", item.output_tokens_total)
+    store("compacted_output_samples", str(item.output_sample_count))
+    store("compacted_latency_sum", item.latency_ms_sum)
+    store("compacted_latency_samples", str(item.latency_sample_count))
+
+
+def _merge_cumulative(base: UsageCumulative, extra: UsageCumulative) -> UsageCumulative:
+    return UsageCumulative(
+        requests=base.requests + extra.requests,
+        succeeded=base.succeeded + extra.succeeded,
+        failed=base.failed + extra.failed,
+        input_tokens_total=_add_amount(
+            base.input_tokens_total, extra.input_tokens_total
+        ),
+        input_sample_count=base.input_sample_count + extra.input_sample_count,
+        output_tokens_total=_add_amount(
+            base.output_tokens_total, extra.output_tokens_total
+        ),
+        output_sample_count=base.output_sample_count + extra.output_sample_count,
+        latency_ms_sum=_add_amount(base.latency_ms_sum, extra.latency_ms_sum),
+        latency_sample_count=base.latency_sample_count + extra.latency_sample_count,
+    )
+
+
+def _add_amount(left: str, right: str) -> str:
+    if left == NOT_RECORDED and right == NOT_RECORDED:
+        return NOT_RECORDED
+    total = 0
+    if left != NOT_RECORDED:
+        total += int(left)
+    if right != NOT_RECORDED:
+        total += int(right)
+    return str(total)
 
 
 def _rollups(rows: list[sqlite3.Row]) -> list[UsageRollup]:

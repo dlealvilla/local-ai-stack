@@ -86,6 +86,19 @@ POSIX files for telemetry, the directory, Command Center, and
 credentials are mode `0600`. Non-POSIX hosts are not given a weaker
 mode.
 
+## Lead-review corrections
+
+Lead review withheld the first production-candidate claim at
+`5aaa43d81645c8266f3cad11b91aa57e93d59b96`. These four defects were real.
+They are closed in the follow-up implementation.
+
+| ID | Was | Closure |
+| --- | --- | --- |
+| PR-08 | PILOT_BLOCKER. Cumulative totals were computed only from retained raw rows, so compaction could make later reports smaller. | A compacted base is updated in the same transaction as the delete. Cumulative is base plus retained rows through the proposed sequence. |
+| PR-09 | PILOT_BLOCKER. A report could acknowledge every pending usage row while exporting only 32 rollup groups. | The report freezes a usage-sequence prefix that fits in 32 groups. Later rows stay unacknowledged and are sent on the next report. `usage_backlog` records the remainder. |
+| PR-10 | PILOT_BLOCKER. Legacy rows gained `usage_seq` 0 and then disappeared from `usage_seq > ack`. | Migration assigns unique increasing sequences. Rows strictly before the legacy `window_start` are treated as already delivered. Rows at or after that timestamp stay pending. Because a timestamp window is not an exact cursor, `legacy_usage_migration_uncertain` marks accounting degraded instead of inventing certainty. |
+| PR-11 | SERVER_ACCEPTANCE_BLOCKER. A new stream with sequence 1 was compared with the old stream's high sequence and treated as out of order. | Cursors are keyed by install and stream. A new stream becomes current only when its first accepted report is sequence 1, or when the deployment has no current stream. Later reports from an older stream stay history. Raw report bodies are retained by receiver time, not by sequence. Cumulative counters are per stream. Command Center install totals come from accepted incremental rollups. |
+
 ## Findings
 
 | ID | Class | Finding |
