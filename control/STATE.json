@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "fix_rukan_v0_3_post_audit_accountability_blockers",
-  "expected_pasteback_instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
-  "instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
+  "expected_cursor_action": "run_rukan_v0_3_closure_and_server_campaign",
+  "expected_pasteback_instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
+  "instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_fix_usage_retention_rollup_migration_and_stream_semantics_then_lead_review",
+    "next_action": "cursor_finish_accountability_fix_then_autonomously_run_bounded_server_campaign",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -236,8 +236,9 @@
           "legacy_usage_sequence_not_backfilled",
           "telemetry_stream_reset_not_current_stream_aware"
         ],
-        "status": "CORRECTION_REQUIRED",
-        "lead_acceptance": "WITHHELD"
+        "status": "PREREQUISITE_GATE_A",
+        "lead_acceptance": "WITHHELD",
+        "orchestrated_by": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001"
       }
     },
     "runpod_policy": {
@@ -252,10 +253,30 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "rukan_v0_3_server_campaign": {
+      "instruction_id": "RUKAN-V0.3-SERVER-CAMPAIGN-001",
+      "orchestrator_instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
+      "prerequisite_instruction": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
+      "diagnostic_iterations_max": 5,
+      "diagnostic_clean_streak_required": 2,
+      "confidence_runs_required": 3,
+      "confidence_fresh_servers": true,
+      "one_pod_at_a_time": true,
+      "nvidia_only": true,
+      "campaign_spend_target_usd": 15,
+      "external_server_testing": true,
+      "paid_infrastructure": true,
+      "persistent_campaign_command_center": true,
+      "terminal_statuses": [
+        "RUKAN_V0_3_SERVER_CAMPAIGN_PASS",
+        "RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY"
+      ],
+      "state": "AUTHORIZED_QUEUED"
+    }
   },
-  "published_instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
+  "published_instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_V0_3_POST_AUDIT_FIX"
+  "status": "AWAITING_CURSOR_RUKAN_V0_3_CLOSURE_AND_SERVER_CAMPAIGN"
 }
