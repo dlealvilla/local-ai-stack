@@ -1,5 +1,269 @@
 # Open Decisions
 
+## Rukan v0.4 User Access Gateway / LibreChat / MCP — binding direction
+
+This phase begins only after Rukan v0.3 server campaign closure. The v0.3 confidence candidate is currently source `77923d0587a7ca4519a1a90dd5097a89ca4844e2`, wheel SHA256 `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`; C1 passed and C2/C3 remain pending only because L40S placement was unavailable.
+
+### 1. Product architecture: LibreChat is a client, Rukan Gateway is the authority
+
+The employee-facing inference path becomes:
+
+```text
+Employee / application
+        |
+        | enterprise identity or Rukan API credential
+        v
+LibreChat / other OpenAI-compatible client
+        |
+        v
+Rukan User Gateway
+  - authenticate principal
+  - resolve Rukan User/Team AccessContext
+  - authorize inference/model selection
+  - route only to an authorized READY ServingInstance
+  - record principal-attributed non-content usage
+        |
+        v
+Serve / vLLM / provider path
+```
+
+- LibreChat remains replaceable and must not become Rukan's identity, policy, routing, or usage authority.
+- Users never receive a direct vLLM/Ollama/Serve endpoint.
+- Rukan Gateway exposes a standards-oriented OpenAI-compatible API so future clients can connect without a LibreChat dependency.
+- Direct Serve ports remain private to the host/control plane.
+- Rukan Admin remains the customer administrator control plane; employee inference uses a separate network/API surface.
+
+### 2. Approved email is provisioning identity, not long-term authentication identity
+
+Rukan Admin provisions a local User with:
+- stable Rukan user id;
+- approved normalized email;
+- status;
+- team memberships;
+- access intent/policy.
+
+For federated access:
+- prefer enterprise OIDC access tokens;
+- validate token signature, issuer, audience, expiry/not-before, and configured claims;
+- first successful authenticated request may bind a provisioned Rukan user by approved email to the stable external identity `issuer + subject`;
+- after binding, stable external subject is authoritative; email remains profile/reconciliation data;
+- a different subject presenting the same email does not silently take over the user;
+- suspended/deactivated Rukan user denies access even when the enterprise IdP token is valid.
+
+Email/header values supplied by LibreChat are metadata only and must never be sufficient authorization by themselves.
+
+### 3. Enterprise security layering, not a proprietary security stack
+
+Rukan is not a replacement for customer cybersecurity infrastructure.
+
+Design every user-facing surface so normal enterprise controls can sit around it:
+
+```text
+Corporate LAN / private cloud / VPN / ZTNA
+        |
+Firewall / load balancer / reverse proxy / WAF (customer choice)
+        |
+Enterprise IdP (Entra / Okta / Keycloak / equivalent)
+        |
+LibreChat + Rukan Gateway
+```
+
+Rukan should provide:
+- TLS-capable HTTP APIs;
+- OIDC/JWT validation seam;
+- configurable trusted reverse-proxy boundaries;
+- private/loopback bind defaults where sensible;
+- standard Authorization headers;
+- secure secret storage adapters;
+- clear audit/accountability;
+- no assumption that the product must be directly Internet exposed.
+
+Do not build a proprietary VPN, firewall, WAF, endpoint-security, SIEM, PKI, or identity provider.
+
+LibreChat may use OIDC, SAML, or LDAP for its own login, but the preferred Rukan Gateway production path is a bearer identity that Rukan can independently validate, especially OIDC. SAML/LDAP-only environments can later use a standard identity-aware proxy/bridge; preserve an IdentityAssertionVerifier port rather than hard-coding one vendor.
+
+### 4. Rukan user API credentials for generic clients
+
+To let a provisioned user connect Rukan inference to other OpenAI-compatible applications:
+
+- optionally allow administrator-approved per-user Rukan API credentials / personal access tokens;
+- token is bound to one Rukan user, scopes, issue time, expiry, status, and optional client label;
+- token secret shown once and stored only as a verifier/hash;
+- revocable;
+- disabled if user/platform/inference access is disabled;
+- never grants more capability than the user's resolved AccessContext;
+- no token ever points directly to Serve.
+
+Enterprise OIDC remains preferred for browser/SSO scenarios. Rukan credentials are a product API-access mechanism, not a replacement for corporate SSO.
+
+### 5. LibreChat integration
+
+Use LibreChat as the first employee chat/workspace client because it:
+- supports OpenAI-compatible custom endpoints;
+- supports OIDC/SAML/LDAP authentication;
+- supports dynamic user/OpenID headers on configured endpoints;
+- supports token/context display;
+- supports Agents and MCP.
+
+Pin one exact tested LibreChat release/container digest for the Rukan adapter. Do not follow latest implicitly.
+
+Preferred inference configuration:
+- LibreChat custom OpenAI-compatible endpoint points to Rukan Gateway, not vLLM;
+- where the pinned LibreChat release supports it, pass the signed-in user's live OIDC access token in `Authorization: Bearer ...` to Rukan Gateway;
+- optional LibreChat user id/email/conversation headers are correlation metadata only, not authorization;
+- if direct OIDC token forwarding is not available in the selected stable LibreChat release, Cursor must design a standards-based trusted-client assertion/token-exchange alternative; it may not fall back to trusting an unsigned email header from any network caller.
+
+Do not fork LibreChat unless there is no viable standard/config/API integration. Prefer config/admin APIs/adapters.
+
+### 6. User usage accounting
+
+Extend active inference usage so employee traffic has a stable principal attribution:
+
+- Rukan `user_id`;
+- optional effective team context;
+- client/application id;
+- request purpose/class;
+- model/runtime;
+- input tokens when reported;
+- output tokens when reported;
+- latency;
+- outcome/failure.
+
+No prompt/response content.
+
+Accounting invariants:
+
+```text
+EmployeeDeploymentInputTokens  = SUM(UserInputTokens)
+EmployeeDeploymentOutputTokens = SUM(UserOutputTokens)
+EmployeeDeploymentTotalTokens  = SUM(UserInputTokens + UserOutputTokens)
+```
+
+for all employee/user traffic in the same time window.
+
+Operational traffic remains separate:
+
+```text
+AllInference =
+  EmployeeTraffic
+  + OperatorTests
+  + AcceptanceProbes
+  + Other explicitly classified system traffic
+```
+
+This separation prevents qualification/Admin tests from inflating employee adoption.
+
+Every employee inference request must resolve exactly one Rukan user before model execution.
+
+Multiple team membership must not double-count usage. If team analytics are implemented, each request needs one explicit accounting team context or must be classified `unassigned`; do not duplicate one user's tokens into every team membership.
+
+### 7. Token display
+
+Users should see token usage.
+
+For LibreChat:
+- enable/use its native token/context usage display with the standard usage fields returned by Rukan Gateway;
+- keep Rukan's usage ledger authoritative;
+- verify the pinned LibreChat version renders Rukan-reported input/output usage correctly for streaming and non-streaming responses.
+
+Also provide a Rukan user-safe self-usage query/surface:
+- own requests/tokens by 24h/7d/30d/all retained;
+- input/output/total;
+- model breakdown;
+- no access to other users.
+
+Avoid forking LibreChat merely to add a lifetime-usage widget. If LibreChat cannot display Rukan-authoritative cumulative totals through supported extension/config surfaces, provide a small Rukan "My Usage / Connections" user page or API and link to it rather than coupling Rukan to a LibreChat fork.
+
+Admin local Analytics should show per-user usage and prove that the user rows sum exactly to the deployment employee total.
+
+Vendor Command Center continues to exclude names/emails/user lists. It may receive deployment-level employee request/token aggregates only if explicitly added to the non-content telemetry allow-list.
+
+### 8. MCP: role and boundary
+
+MCP is NOT the inference transport.
+
+Two distinct paths:
+
+```text
+MODEL PATH
+LibreChat / client
+  -> Rukan Gateway
+  -> model inference
+
+TOOL / DATA PATH
+LibreChat Agent (MCP Host)
+  -> MCP client connection
+  -> approved MCP server
+  -> enterprise tool/data source
+```
+
+MCP gives the model/application standardized:
+- tools;
+- resources;
+- prompts.
+
+Initial product direction:
+- leverage LibreChat's MCP host/client support instead of rebuilding an MCP host inside Rukan;
+- Rukan Admin owns a governed connection/catalog policy seam describing which MCP servers are approved and which users/teams may use them;
+- prefer remote Streamable HTTP MCP for multi-user enterprise deployments;
+- local stdio MCP is primarily for single-user/local developer use and should not become the default multi-user server path;
+- use OAuth/OIDC per-user authorization to MCP servers when available;
+- do not pass user OAuth credentials into model prompts;
+- external MCP credentials belong in the client/secret/auth layer, not the model or inference usage record.
+
+Rukan should not build a full MCP proxy/broker in this phase unless architecture review proves it is necessary for enforceable policy. Prefer a thin Rukan policy/catalog + LibreChat execution model first.
+
+If users are allowed to add their own MCP connections, make that an explicit administrator-controlled capability. Enterprise default should be admin-approved connections only.
+
+Future Git Brain / Company Brain services should be designed so they can themselves expose MCP servers/resources/tools, making them usable from LibreChat, Cursor, VS Code, and other MCP hosts without client-specific integrations.
+
+### 9. MCP access model
+
+Extend current access intent only as needed, with bounded capabilities such as:
+- MCP use;
+- MCP connection creation/configuration;
+- Agent use;
+- Agent creation.
+
+Do not invent a general RBAC framework.
+
+If projecting Rukan policies into LibreChat, use documented LibreChat admin/config/access APIs where stable. Rukan's gateway inference authorization remains authoritative regardless of LibreChat UI permissions.
+
+### 10. Rukan Gateway data/content boundary
+
+Gateway necessarily handles prompt/response transiently to perform inference, but:
+- prompts/responses remain unpersisted by Rukan operational analytics by default;
+- usage/audit stores only non-content facts;
+- no customer messages go to vendor Command Center;
+- per-user usage stays customer-local;
+- vendor telemetry remains deployment-level aggregate only unless a future explicit opt-in decision changes that.
+
+### 11. Network surfaces
+
+Keep planes distinct:
+
+- Rukan Admin: administrator surface, private/loopback/admin network;
+- Rukan User Gateway: employee/application inference API, designed for private network or customer-controlled reverse proxy exposure;
+- LibreChat: employee UI, customer network exposure according to enterprise policy;
+- direct Serve/vLLM/Ollama ports: never employee/public API;
+- Command Center: vendor/business plane remains separate from customer inference.
+
+### 12. Server campaign expectations for v0.4
+
+After local architecture/implementation:
+- run iterative server diagnostics until two consecutive clean product runs;
+- then three fresh confidence runs on one exact frozen artifact;
+- server topology should include:
+  - Rukan Admin/control plane;
+  - Rukan User Gateway;
+  - LibreChat pinned version;
+  - standards-compliant test OIDC/JWT issuer or enterprise-compatible test IdP;
+  - Command Center;
+  - real NVIDIA model deployment/inference;
+- test at least two allowed users plus denied/suspended users;
+- prove identity binding, user policy, token attribution, exact aggregate conservation, LibreChat inference, direct OpenAI-compatible API access, optional Rukan user API credential, and at least one MCP connection;
+- iterate/fix product defects under version control before confidence.
+
 ## Rukan v0.3 product deployment closure after server D1 — binding
 
 Server diagnostic D1 proved the packaged product shell, telemetry, People, Command Center, and verified vLLM foundation on a real NVIDIA L40S host, but exposed two product blockers before a real inference deployment chain could be completed:
