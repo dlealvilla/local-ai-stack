@@ -1,5 +1,94 @@
 # Open Decisions
 
+## Rukan v0.3 bounded production-readiness gate — binding
+
+The next gate is not a claim that the entire long-term Company Brain is GA-ready. It is a **bounded production-readiness gate for the currently implemented Rukan v0.3 pilot product**:
+
+- customer-local Admin, loopback-only;
+- deployment/model/inference/system/analytics/activity/People/settings surfaces currently implemented;
+- Stage-1 Blocks 0–9 authority;
+- local People/Teams/access-intent directory;
+- non-content inference usage accounting;
+- automatic one-way operational reporting;
+- machine-authenticated TLS telemetry intake;
+- business Command Center portfolio/analytics/reporting;
+- no employee login/gateway/chat/RAG/agent builder;
+- no remote customer control.
+
+A production-readiness PASS must mean that this bounded product can be installed from its release artifact, operated on supported hosts, restarted/upgraded safely, and used for a controlled pilot/server acceptance without relying on source checkout, fake data, hidden manual repairs, or unverified architectural assumptions.
+
+### Readiness classification
+
+Cursor/Lead must distinguish:
+
+1. **SERVER_ACCEPTANCE_BLOCKER** — likely to make the upcoming real-server campaign fail or corrupt/lose/security-misstate data. Must be fixed before server testing.
+2. **PILOT_BLOCKER** — unacceptable for a controlled customer pilot, but may not prevent a narrow lab server test. Must be fixed before pilot.
+3. **GA_BLOCKER** — required before general commercial production/GA but intentionally outside the current bounded pilot (for example human administrator authentication or a Windows secret-storage adapter where that platform is not yet declared supported).
+4. **DEFERRED_PRODUCT** — later Company Brain capability, not a defect in this bounded scope.
+
+Do not label something production-ready merely because tests pass. State the supported deployment envelope and unresolved GA blockers explicitly.
+
+### Telemetry cadence
+
+- One authoritative duration policy remains mandatory.
+- Development/server-acceptance profile: **120 seconds**.
+- Production profile: **21,600 seconds / 6 hours**.
+- A production-mode deployment must not accidentally inherit the 2-minute development cadence merely because the binary was built during development.
+- The selected profile must be explicit, inspectable and persisted.
+- The upcoming server campaign will intentionally select the development profile to accelerate observation.
+- Commercial/pilot documentation must identify the production profile as the normal operating setting.
+
+### Artifact-only operation
+
+A release candidate is not ready for server acceptance unless:
+- a clean wheel/release artifact can be installed into a fresh environment without repository checkout;
+- Node/npm/Vite are not required on the target host at runtime;
+- production Admin and Command Center static assets are packaged or otherwise delivered by the release artifact;
+- CLI/service commands can discover those packaged assets without hard-coded repository-relative paths;
+- build identity and source provenance remain inspectable.
+
+### Data-delivery correctness
+
+Inference usage export must be audited for race- and boundary-free delivery. Timestamp windows alone are insufficient if they can double-count same-boundary records or lose a usage row inserted after a report snapshot with an earlier occurred_at. Prefer an ACK-owned stable local usage sequence/cursor or prove an alternative cannot lose/duplicate rows under concurrency.
+
+Operational reports must remain:
+- at-least-once;
+- ACK-owned;
+- idempotent receiver-side;
+- resilient to restart;
+- bounded in storage;
+- explicit about stream/reset continuity.
+
+### Persistence and retention
+
+Production readiness requires:
+- migration transactions/failure tests;
+- crash/restart tests;
+- sensitive-file permissions on supported platforms;
+- explicit retention/compaction policies so 2-minute development reporting cannot grow customer/Command Center stores without bound;
+- no deletion of unacknowledged data;
+- preserved rollups/accountability when raw delivered envelopes are compacted.
+
+### Security envelope
+
+Until human administrator authentication exists:
+- Admin remains loopback-only;
+- remote administrator testing uses SSH/local forwarding;
+- this is acceptable for controlled pilot/server acceptance but is a **GA limitation**, not something to hide.
+- external telemetry intake is the only non-loopback product surface in this stage;
+- production non-loopback intake requires verified TLS and machine authentication;
+- local-test TLS/HTTP exceptions must be impossible to enable accidentally on a non-loopback bind.
+
+### People/access semantics
+
+Before future gateway work:
+- People UI must expose the real directory capabilities;
+- platform access is the parent gate for subordinate capabilities;
+- per-capability access provenance must be truthful;
+- user/team policy inheritance/override semantics must be explicitly coherent and tested;
+- PII stays customer-local;
+- current configuration must never be described as enforced employee access until gateway authentication/authorization actually exists.
+
 ## Development telemetry cadence / acceptance readiness — binding
 
 - Telemetry cadence becomes a typed, centrally configurable policy expressed internally in **seconds**, not an hours-only field.
