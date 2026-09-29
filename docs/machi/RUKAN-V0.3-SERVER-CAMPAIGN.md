@@ -101,3 +101,17 @@ What did not finish:
 - Confidence runs C1, C2, and C3 were not started
 
 The test-only library install is not the accepted product fix.
+
+## D2 candidate wheel
+
+Built from a clean tree after the deployment closure.
+
+- Source: `f08b46ff1d37a28e95c041ddc1da4d77b6068d9b`
+- Wheel: `machi-0.1.0-py3-none-any.whl`
+- SHA256: `a337167aa04dfa48bf35d634254193631b4a979eca72d2ca9cdce612617f921f`
+- Size: 571293
+- Build: `0.1.0+f08b46ff1d37`
+- `clean` true
+- Isolated install imported `huggingface_hub` 0.36.2 with no extra pip install
+- Inspect of SmolLM2-135M-Instruct resolved revision `12fd25f77366fa6b3b4b768ec3050bf629380bac`
+- Acquire on this Mac, which has no managed vLLM interpreter, returned `runtime_capability_unresolved` rather than `source_unavailable`
