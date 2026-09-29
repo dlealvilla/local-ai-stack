@@ -96,6 +96,117 @@ To let a provisioned user connect Rukan inference to other OpenAI-compatible app
 
 Enterprise OIDC remains preferred for browser/SSO scenarios. Rukan credentials are a product API-access mechanism, not a replacement for corporate SSO.
 
+### 5A. LibreChat must sit behind a replaceable User Workspace / Client Adapter boundary
+
+LibreChat is an accelerator, not a foundation dependency.
+
+Rukan must define its own employee-workspace contracts independently from LibreChat. The integration should look conceptually like:
+
+```text
+                    RUKAN PRODUCT CONTRACTS
+
+Rukan User Gateway
+OpenAI-compatible inference API
+Identity / AccessContext
+Usage API
+Approved MCP catalog/policy
+Agent/Workspace policy seams
+        |
+        +------------------------------+
+        |                              |
+        v                              v
+LibreChatAdapter                Future RukanWorkspaceAdapter
+        |                              |
+    LibreChat                   first-party Rukan UI
+```
+
+The adapter must own LibreChat-specific:
+- configuration files/environment;
+- container lifecycle/health;
+- custom endpoint projection;
+- OIDC/client identity forwarding configuration;
+- supported role/group/config projection where used;
+- MCP server projection;
+- future agent/template projection if used;
+- version/capability detection.
+
+Rukan core must not:
+- import LibreChat internal code;
+- depend on LibreChat MongoDB schema;
+- treat LibreChat user ids as Rukan User ids;
+- treat LibreChat agents as Rukan's canonical agent ontology;
+- treat LibreChat MCP configuration as Rukan's canonical MCP policy;
+- require LibreChat for direct OpenAI-compatible API access;
+- require LibreChat for future first-party Workspace.
+
+Pin one supported LibreChat version/container digest behind the adapter. Detect incompatible versions and fail clearly instead of depending on undocumented internals.
+
+### 5B. First-party Rukan Workspace is a planned product path, not a prerequisite for v0.4
+
+Rukan should preserve the option to own its employee experience.
+
+A future first-party Rukan Workspace can reasonably include:
+- chat/conversation UI;
+- streaming inference;
+- model selector constrained by Gateway policy;
+- own usage display;
+- file/context attachment surfaces;
+- MCP connection/tool picker;
+- agent builder;
+- saved agents/workspaces;
+- prompt/templates;
+- conversation search/history;
+- Team Brain/Git Brain integration.
+
+Do not build the full first-party Workspace in v0.4 if that delays proving the access/gateway infrastructure.
+
+However, v0.4 MUST establish contracts that make a later first-party client straightforward:
+- standard Rukan Gateway API;
+- self-service `My Usage` API;
+- user connection/credential API;
+- Rukan-owned MCP catalog/policy contracts;
+- Rukan-owned agent/workspace metadata interfaces if agent projection into LibreChat is implemented;
+- no LibreChat-specific identity in core records.
+
+### 5C. Build-vs-reuse decision
+
+The design review must assess a staged path:
+
+**Phase 1 — reuse LibreChat behind adapter**
+- fastest path to usable employee chat;
+- validates Gateway, identity, user accounting, MCP, access policy;
+- avoids spending the current infrastructure milestone on commodity chat UX.
+
+**Phase 2 — thin first-party Rukan Workspace**
+- native chat;
+- model/access-aware experience;
+- My Usage;
+- Connections;
+- MCP tool chooser;
+- Rukan-native visual language.
+
+**Phase 3 — Rukan Agent Builder**
+- Rukan-owned AgentDefinition/AgentRevision contracts;
+- model policy;
+- system/instruction template;
+- allowed MCP tools/connections;
+- knowledge/resource bindings later;
+- execution policy;
+- sharing/team ownership;
+- audit/versioning;
+- export/projection adapters to clients such as LibreChat where useful.
+
+Cursor must recommend exact boundaries after architecture review. It should not blindly preserve LibreChat as the permanent UI if a thin first-party client becomes cheaper/cleaner once the Gateway exists.
+
+The core architectural requirement is that replacing LibreChat later must NOT require redesigning:
+- identity;
+- access policy;
+- routing;
+- usage accounting;
+- MCP governance;
+- deployment/Serve;
+- customer/vendor privacy boundaries.
+
 ### 5. LibreChat integration
 
 Use LibreChat as the first employee chat/workspace client because it:
