@@ -1,5 +1,162 @@
 # Open Decisions
 
+## Rukan v0.4 Lead review — Gateway hardening before first-party Workspace
+
+Independent Lead review of source `459d34b34f2238b5af108c0fe822c4637603b754` accepts the overall v0.4 architecture but finds four unresolved PILOT_BLOCKER-level correctness/security/UX issues before the User Access Gateway can be treated as a stable foundation for the first-party Rukan Workspace.
+
+### 1. Streaming must be truly end-to-end
+
+Current `StoreChat.complete(..., stream=True)` performs `response.read()` before parsing SSE. This buffers the entire vLLM response before Rukan yields any chunk to the client.
+
+That is not acceptable as production chat streaming.
+
+Required:
+- open upstream request;
+- parse SSE incrementally;
+- forward content chunks to the downstream client as they arrive;
+- preserve final upstream usage event;
+- record accounting exactly once;
+- release concurrency on completion, upstream failure, client disconnect, timeout, or generator close;
+- do not persist response content;
+- do not buffer full completion solely for token accounting.
+
+Measure:
+- time-to-first-byte/chunk at Gateway boundary;
+- total duration separately if available.
+
+The first downstream chunk should be observable before upstream completion in a deterministic streaming integration test.
+
+### 2. Enterprise OIDC must support discovery and signing-key rotation
+
+Current verifier accepts a static in-memory JWKS only.
+
+That is useful for deterministic tests but not sufficient as the primary enterprise adapter.
+
+Add a production OIDC configuration/provider seam using a mature OIDC/JWT library:
+- configured issuer;
+- OpenID discovery document;
+- `jwks_uri`;
+- HTTPS by default;
+- bounded fetch/connect/read timeouts;
+- issuer consistency check;
+- cache keys;
+- refresh on unknown `kid`;
+- bounded cache lifetime;
+- safe failure when discovery/JWKS unavailable;
+- signature/issuer/audience/exp/nbf/sub validation;
+- supported algorithms allow-list;
+- no bearer token logging.
+
+Keep injected static JWKS as a deterministic test adapter/fixture, not the production-only story.
+
+Physically or locally prove key rotation:
+- token signed with key A succeeds;
+- provider rotates to key B;
+- first B request causes bounded refresh and succeeds;
+- removed/unknown invalid key fails.
+
+### 3. API credential scopes must be enforced at every route
+
+Current behavior:
+- chat checks `inference`;
+- self usage checks `self_usage`;
+- model listing does not require `models`;
+- MCP may be called using a Rukan API credential based only on user policy even though current credential scopes do not include MCP.
+
+This violates least privilege.
+
+Required route authorization:
+- `GET /v1/models` -> `models` scope for API credentials;
+- `POST /v1/chat/completions` -> `inference`;
+- `GET /v1/me/usage` -> `self_usage`;
+- MCP:
+  - either add an explicit `mcp` scope and require it;
+  - or explicitly deny Rukan API-credential authentication on MCP in v0.4 and require OIDC.
+Choose the simpler truthful policy after design review.
+
+`GET /v1/me` may be identity/self-profile if authenticated, but must not leak capabilities beyond the principal.
+
+Tests must cover every route × scope combination.
+
+### 4. User/deployment accounting must be crash-consistent
+
+Current Gateway accounting writes:
+1. `InferenceUsage` into TelemetryStore;
+2. `PrincipalUsage` into GatewayLedger.
+
+These are separate commits/databases.
+
+A process crash, disk error, or lock failure between writes can produce:
+- deployment usage without user usage;
+- user usage without deployment usage if ordering changes later;
+- permanent reconciliation mismatch.
+
+The product requirement is stronger than a happy-path equality assertion.
+
+Introduce one durable Gateway usage source-of-truth / delivery state.
+
+Preferred pattern:
+- append one canonical customer-local `GatewayUsageEvent` containing both deployment and principal attribution facts;
+- assign stable usage id;
+- transactionally persist it once;
+- derive/project:
+  - principal/user analytics;
+  - deployment employee usage / telemetry input
+  through idempotent projections/cursors;
+- projection failure remains retryable and visible;
+- no prompt/response content;
+- existing operational `InferenceUsage` for user_request may become an idempotent projection from the canonical Gateway usage event.
+
+An alternative transactional/outbox design is acceptable if it provides equivalent crash consistency and exact reconciliation.
+
+Required failure injection:
+- crash after canonical append before deployment projection;
+- crash after deployment projection before principal projection;
+- restart/reconcile;
+- final result contains exactly one deployment usage and exactly one principal usage with same usage id;
+- no double counting.
+
+Admin reconciliation must distinguish:
+- match;
+- projection_pending/degraded;
+- true mismatch/corruption.
+
+### 5. LibreChat physical proof remains pending
+
+The adapter pin is currently:
+- LibreChat `v0.8.8-rc4`;
+- commit `361553f3322d7b9bb547d0a9c2c5aaefc2934901`;
+- manifest digest `sha256:929f4491cb9a87d6beb02e9e9ce9a54d4ee05bc56b65b1debe5b1f28a327a4fb`.
+
+This pin is a current pre-release, while `v0.8.7` is the latest stable tag. The chosen rc4 is acceptable only because the required live OpenID token/header behavior is being intentionally validated. Record this as a deliberate compatibility choice, not "stable LibreChat".
+
+The physical server diagnostics used RunPod images without Docker, so LibreChat itself was not run.
+
+Before v0.4 confidence:
+- obtain a Docker/container-capable host or otherwise run the exact pinned LibreChat release through a supported isolated process/container path;
+- prove actual OIDC login/token reuse;
+- prove the custom endpoint forwards the live OpenID bearer to Rukan Gateway;
+- prove model list/chat/streaming;
+- prove MCP configuration against the Rukan broker;
+- prove suspended/unprovisioned user is denied by Rukan;
+- do not inspect/write LibreChat DB to make the test pass.
+
+The adapter remains replaceable. This physical proof is compatibility evidence, not a reason to make LibreChat core.
+
+### 6. Confidence readiness
+
+The corrected D2 server run is valuable but it is only one clean diagnostic.
+
+Before confidence:
+- close items 1–4 locally;
+- run local architecture/security/failure tests;
+- run LibreChat physical compatibility at least once;
+- obtain two consecutive clean v0.4 full-stack diagnostics on the same behavioral candidate;
+- then freeze exact Rukan wheel + LibreChat digest + deployment manifest;
+- run C1/C2/C3 fresh confidence hosts.
+
+All confidence runs must re-prove the underlying v0.3 deployment lifecycle.
+
 ## v0.3 physical-confidence stock deferral / v0.4 forward-development gate — binding
 
 The v0.3 frozen candidate:
