@@ -1633,6 +1633,37 @@ def _serve_rukan_admin(ns: argparse.Namespace) -> int:
     return 0
 
 
+def _serve_rukan_gateway(ns: argparse.Namespace) -> int:
+    """Bind the employee gateway. It does not admit and does not expose Serve."""
+    from machi.adapters.rukan.gateway import GatewayService, StoreChat
+    from machi.adapters.rukan.gateway_http import serve_gateway
+    from machi.adapters.rukan.oidc import OIDCBearerVerifier
+    from machi.kernel.build import identity
+
+    document = json.loads(Path(ns.jwks).read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise ValidationError("oidc jwks is empty")
+    build = identity()
+    service = GatewayService(
+        Path(ns.store_dir),
+        build,
+        OIDCBearerVerifier(
+            issuer=ns.issuer, audience=ns.audience, jwks=document
+        ),
+        StoreChat(Path(ns.store_dir), build),
+    )
+    print("product  Rukan User Gateway")
+    print(f"bind     {ns.host}:{ns.port}")
+    serve_gateway(
+        service,
+        host=ns.host,
+        port=ns.port,
+        tls_cert=Path(ns.tls_cert) if ns.tls_cert else None,
+        tls_key=Path(ns.tls_key) if ns.tls_key else None,
+    )
+    return 0
+
+
 def _admin_inspect(
     ns: argparse.Namespace, body: dict[str, object]
 ) -> tuple[str, str, dict[str, object]]:
@@ -2126,6 +2157,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     admin_serve.add_argument("--static-dir", default=None)
     admin_serve.add_argument("--port", type=int, default=8765)
     admin_serve.add_argument("--state-root", default=None)
+
+    gateway = sub.add_parser(
+        "gateway",
+        help="serve the Rukan User Gateway; this does not admit",
+    )
+    gateway_sub = gateway.add_subparsers(dest="gateway_command", required=True)
+    gateway_serve = gateway_sub.add_parser(
+        "serve",
+        help="authenticate employees and account inference",
+    )
+    gateway_serve.add_argument("--store-dir", required=True)
+    gateway_serve.add_argument("--issuer", required=True)
+    gateway_serve.add_argument("--audience", required=True)
+    gateway_serve.add_argument("--jwks", required=True)
+    gateway_serve.add_argument("--host", default="127.0.0.1")
+    gateway_serve.add_argument("--port", type=int, default=8787)
+    gateway_serve.add_argument("--tls-cert", default=None)
+    gateway_serve.add_argument("--tls-key", default=None)
 
     analytics = sub.add_parser(
         "analytics",
@@ -2702,6 +2751,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if ns.command == "admin" and ns.admin_command == "serve":
             return _serve_rukan_admin(ns)
+        if ns.command == "gateway" and ns.gateway_command == "serve":
+            return _serve_rukan_gateway(ns)
         if ns.command == "analytics" and ns.analytics_command == "export":
             return _export_rukan_analytics(ns)
         if ns.command == "command-center" and ns.command_center_command == "serve":

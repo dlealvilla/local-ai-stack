@@ -52,7 +52,7 @@ def test_directory_users_teams_and_effective_access(tmp_path: Path) -> None:
     directory.set_team_status(str(platform["team_id"]), "active", actor="local_admin_ui", now=NOW)  # noqa: E501
     granted = directory.effective(str(grace["user_id"]))
     assert granted["inference_access"] == "allow"
-    assert granted["enforcement"] == "gateway_not_available"
+    assert granted["enforcement"] == "rukan_user_gateway"
     directory.set_intent(
         subject_kind="user",
         subject_id=str(grace["user_id"]),
@@ -118,6 +118,6 @@ def test_people_api_round_trip(tmp_path: Path) -> None:
     assert created["outcome"] == "ok"
     listed = app.people(None)
     assert listed["body"]["users"]
-    assert listed["body"]["enforcement"] == "gateway_not_available"
+    assert listed["body"]["enforcement"] == "rukan_user_gateway"
     dumped = json.dumps(listed)
     assert "password" not in dumped

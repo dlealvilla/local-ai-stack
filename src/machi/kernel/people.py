@@ -12,6 +12,18 @@ TEAM_STATUSES = frozenset({"active", "archived"})
 ACCESS = frozenset({"allow", "deny", "inherit"})
 GRANTS = frozenset({"allow", "deny"})
 SUBJECTS = frozenset({"user", "team"})
+ENFORCEMENT = "rukan_user_gateway"
+CAPABILITIES = (
+    "platform_access",
+    "inference_access",
+    "model_selection",
+    "agent_builder",
+    "agent_use",
+    "api_credential",
+    "workspace",
+    "mcp_use",
+    "mcp_connect",
+)
 _TOKEN_MAX = 240
 
 
@@ -85,6 +97,11 @@ class AccessIntent(Contract):
     model_selection: str = meaning("allow or deny")
     agent_builder: str = meaning("allow or deny")
     updated_at: str = meaning("UTC")
+    agent_use: str = meaning("allow, deny, or inherit", default="inherit")
+    api_credential: str = meaning("allow, deny, or inherit", default="inherit")
+    workspace: str = meaning("allow, deny, or inherit", default="inherit")
+    mcp_use: str = meaning("allow, deny, or inherit", default="inherit")
+    mcp_connect: str = meaning("allow, deny, or inherit", default="inherit")
 
     def __post_init__(self) -> None:
         if self.subject_kind not in SUBJECTS:
@@ -95,6 +112,11 @@ class AccessIntent(Contract):
             ("inference", self.inference_access),
             ("model selection", self.model_selection),
             ("agent builder", self.agent_builder),
+            ("agent use", self.agent_use),
+            ("api credential", self.api_credential),
+            ("workspace", self.workspace),
+            ("mcp use", self.mcp_use),
+            ("mcp connect", self.mcp_connect),
         ):
             if value not in allowed:
                 raise ValidationError(f"access intent {label} is unknown")
@@ -117,10 +139,24 @@ class EffectiveAccess(Contract):
     model_selection_provenance: str = meaning("rule for model selection")
     agent_builder_provenance: str = meaning("rule for agent builder")
     configured: bool = meaning("the directory can express intent")
-    enforcement: str = meaning("gateway_not_available until an employee gateway exists")
+    enforcement: str = meaning("rukan_user_gateway enforces employee access")
+    agent_use: str = meaning("effective allow or deny", default="deny")
+    api_credential: str = meaning("effective allow or deny", default="deny")
+    workspace: str = meaning("effective allow or deny", default="deny")
+    mcp_use: str = meaning("effective allow or deny", default="deny")
+    mcp_connect: str = meaning("effective allow or deny", default="deny")
+    agent_use_provenance: str = meaning("rule for agent use", default="default_deny")
+    api_credential_provenance: str = meaning(
+        "rule for api credentials", default="default_deny"
+    )
+    workspace_provenance: str = meaning("rule for workspace", default="default_deny")
+    mcp_use_provenance: str = meaning("rule for mcp use", default="default_deny")
+    mcp_connect_provenance: str = meaning(
+        "rule for mcp connections", default="default_deny"
+    )
 
     def __post_init__(self) -> None:
-        if self.enforcement != "gateway_not_available":
+        if self.enforcement != ENFORCEMENT:
             raise ValidationError("employee gateway enforcement is not available")
         _text("user", self.user_id)
 

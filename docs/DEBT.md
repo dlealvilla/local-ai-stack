@@ -3143,6 +3143,21 @@ To make real: two further clean confidence servers on that frozen wheel,
 Retire when:  that physical evidence exists and is recorded as such.
 Status:       OPEN
 
+### R-04-01 — MCP hostname checks are not connection-pinned
+Label:        PROVISIONAL
+Owner stage:  Rukan user access gateway v0.4
+Subsystem:    adapters/rukan mcp policy
+Authorizes:   YES — admin-approved exact URLs may be called
+What:         A hostname is resolved and classified before the request.
+              The HTTP client may resolve it again. An approved URL whose
+              name changes address between those steps is not pinned.
+Why now:      The v0.4 broker had to refuse metadata and unapproved
+              private targets without a new network stack.
+To make real: connect to the address that was classified, with the
+              original host only as the HTTP host.
+Retire when:  that pinned connection is tested, including a rebinding case.
+Status:       OPEN
+
 ## Retired entries
 
 Retired entries stay in this file with their retiring stage and date,
