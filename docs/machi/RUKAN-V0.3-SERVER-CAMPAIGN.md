@@ -238,3 +238,21 @@ Clean on the same corrected wheel as D4. Streak is 2. Confidence starts again fr
 - Wheel SHA256: `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`
 - Build: `0.1.0+77923d0587a7`
 - D4 and D5 both used this wheel. Do not rebuild it for C1, C2, or C3.
+
+## Confidence C1
+
+Clean on the frozen wheel. Confidence streak is 1. C1 included the intake outage.
+
+- Pod `gmwt3z2qiujx4m`, NVIDIA L40S, secure, CUDA 13.0, US-MO-1, `$1.09/hour`
+- Created `2026-09-29T11:51:42Z`, terminated after the evidence below
+- Install `inst_9881a22ecc8be565`
+- Deploy `dop_98a5278e8bc10fec` reached `ready`
+- Plan `plan_14ead074541306eb`
+- Reservation `rsv_aa822ce8149dca33` stayed reserved after STOP and was released after RELEASE
+- Instance `sin_3b5841cb05afcc33`; recorded pids were absent after STOP
+- Qualification `qev_7925ea0c58e9180b`
+- Three inferences: 3 input tokens, 8 output tokens
+- Admin restart kept that ready operation
+- Intake was stopped, the next send recorded `Connection refused` with one report queued, and restoring intake cleared the error and delivered later reports
+- Reports included `deployment_ready`, five `periodic` reports, `deployment_stopped`, and `reservation_released`
+- The test prompt was not stored
