@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "harden_v0_4_gateway_and_continue_full_stack_server_campaign",
-  "expected_pasteback_instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
-  "instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
+  "expected_cursor_action": "run_v0_4_gateway_hardening_then_employee_access_product_closure",
+  "expected_pasteback_instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
+  "instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
   "program": {
     "canonical_baseline": "16084a5b21a0cca25bfe60070ad862832c80fb51",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_fix_true_streaming_oidc_discovery_scope_enforcement_and_crash_consistent_accounting_then_continue_server_campaign",
+    "next_action": "cursor_complete_gateway_hardening_then_full_employee_access_product_closure_and_physical_confidence",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -374,10 +374,37 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "rukan_v0_4_employee_access_product_closure": {
+      "master_instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
+      "phase_1_instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
+      "phase_2_instruction_id": "RUKAN-V0.4-EMPLOYEE-ACCESS-PRODUCT-CLOSURE-001",
+      "branch": "rukan/user-access-gateway-v0.4",
+      "next_product_increment": "first_party_rukan_workspace",
+      "do_not_build_native_workspace_yet": true,
+      "terminal_statuses": [
+        "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_CLOSED",
+        "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_NOT_READY"
+      ],
+      "required_final_evidence": [
+        "true_end_to_end_streaming",
+        "enterprise_oidc_discovery_and_jwks_rotation",
+        "complete_api_credential_scope_enforcement",
+        "crash_consistent_usage_accounting",
+        "physical_librechat",
+        "user_lifecycle_and_identity_recovery",
+        "gateway_tls_and_proxy_boundary",
+        "workspace_adapter_lifecycle",
+        "mcp_governance_and_target_security",
+        "migrations_backup_recovery",
+        "load_and_failure_injection",
+        "two_clean_full_stack_diagnostics",
+        "three_fresh_confidence_runs"
+      ]
+    }
   },
-  "published_instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
+  "published_instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_V0_4_GATEWAY_HARDENING"
+  "status": "AWAITING_CURSOR_V0_4_HARDEN_AND_PRODUCT_CLOSE"
 }
