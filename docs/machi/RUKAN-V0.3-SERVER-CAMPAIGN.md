@@ -256,3 +256,7 @@ Clean on the frozen wheel. Confidence streak is 1. C1 included the intake outage
 - Intake was stopped, the next send recorded `Connection refused` with one report queued, and restoring intake cleared the error and delivered later reports
 - Reports included `deployment_ready`, five `periodic` reports, `deployment_stopped`, and `reservation_released`
 - The test prompt was not stored
+
+## Confidence C2
+
+Not started. After C1, secure L40S stock returned `NONE`. Three placement attempts created no pod. C3 was not started. Confidence streak stays 1 of 3 on the frozen wheel above.
