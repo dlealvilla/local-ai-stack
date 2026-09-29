@@ -31,12 +31,15 @@
       "success_requirement": "real_truth_backed_local_ui"
     },
     "rukan_analytics_hub_v0_2": {
+      "acceptance": "RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS",
+      "accepted_source": "acd91f319b653c8e53a8c1d1eb4a01e26ae08bdf",
       "admin": {
         "add_page": "analytics",
         "source": "local_journal_store",
         "vendor_export_boundary": "separate"
       },
       "branch": "rukan/analytics-hub-v0.2",
+      "canonical_merge": "d38a8e855f099f353e1ac090b990014eed67a826",
       "command_center": {
         "automatic_transport": false,
         "canonical_interchange": "versioned_json_jsonl",
@@ -56,10 +59,7 @@
       "instruction_id": "RUKAN-ANALYTICS-HUB-V0.2-001",
       "physical_server": "NONE",
       "starting_source": "c649103f244475f6381ba473f4431e0a7f86f803",
-      "terminal_success_status": "RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS",
-      "accepted_source": "acd91f319b653c8e53a8c1d1eb4a01e26ae08bdf",
-      "canonical_merge": "d38a8e855f099f353e1ac090b990014eed67a826",
-      "acceptance": "RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS"
+      "terminal_success_status": "RUKAN_ANALYTICS_HUB_V0_2_LOCAL_PASS"
     },
     "rukan_command_center": {
       "connectivity_v0": "imported_non_content_snapshots",
@@ -73,6 +73,48 @@
         "support_evidence",
         "imports",
         "settings"
+      ]
+    },
+    "rukan_connected_monitoring_v0_3": {
+      "admin_focus": [
+        "overview",
+        "models_streaming_library",
+        "deployment",
+        "inference",
+        "analytics",
+        "activity",
+        "system",
+        "settings"
+      ],
+      "automatic_transport": true,
+      "branch": "rukan/connected-monitoring-v0.3",
+      "command_center_focus": [
+        "overview",
+        "deployments",
+        "analytics",
+        "models",
+        "reporting_intake",
+        "settings"
+      ],
+      "external_acceptance_statuses": [
+        "RUKAN_CONNECTED_MONITORING_V0_3_CONNECTED_PASS",
+        "RUKAN_CONNECTED_MONITORING_V0_3_LOCAL_PASS_EXTERNAL_ENDPOINT_REQUIRED"
+      ],
+      "human_authentication": false,
+      "instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
+      "machine_authentication": true,
+      "periodic_report_hours": 6,
+      "remote_control": false,
+      "starting_source": "d38a8e855f099f353e1ac090b990014eed67a826",
+      "usage_accounting": [
+        "requests",
+        "input_tokens_when_reported",
+        "output_tokens_when_reported",
+        "latency",
+        "outcome",
+        "purpose",
+        "model",
+        "runtime"
       ]
     },
     "rukan_ui_v0_1": {
@@ -116,52 +158,10 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
-    "rukan_connected_monitoring_v0_3": {
-      "instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
-      "starting_source": "d38a8e855f099f353e1ac090b990014eed67a826",
-      "branch": "rukan/connected-monitoring-v0.3",
-      "periodic_report_hours": 6,
-      "automatic_transport": true,
-      "machine_authentication": true,
-      "human_authentication": false,
-      "remote_control": false,
-      "usage_accounting": [
-        "requests",
-        "input_tokens_when_reported",
-        "output_tokens_when_reported",
-        "latency",
-        "outcome",
-        "purpose",
-        "model",
-        "runtime"
-      ],
-      "admin_focus": [
-        "overview",
-        "models_streaming_library",
-        "deployment",
-        "inference",
-        "analytics",
-        "activity",
-        "system",
-        "settings"
-      ],
-      "command_center_focus": [
-        "overview",
-        "deployments",
-        "analytics",
-        "models",
-        "reporting_intake",
-        "settings"
-      ],
-      "external_acceptance_statuses": [
-        "RUKAN_CONNECTED_MONITORING_V0_3_CONNECTED_PASS",
-        "RUKAN_CONNECTED_MONITORING_V0_3_LOCAL_PASS_EXTERNAL_ENDPOINT_REQUIRED"
-      ]
-    }
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
   "published_instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_CONNECTED_MONITORING_V0_3"
+  "status": "PASTEBACK_PUBLISHED"
 }
