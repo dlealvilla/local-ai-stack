@@ -202,6 +202,18 @@
     },
     "rukan_v0_3_production_readiness_gate": {
       "branch": "rukan/connected-monitoring-v0.3",
+      "correction": {
+        "issues": [
+          "cumulative_usage_regresses_after_retention",
+          "rollup_group_cap_acks_unsent_usage",
+          "legacy_usage_sequence_not_backfilled",
+          "telemetry_stream_reset_not_current_stream_aware"
+        ],
+        "lead_acceptance": "WITHHELD",
+        "orchestrated_by": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
+        "starting_source": "5aaa43d81645c8266f3cad11b91aa57e93d59b96",
+        "status": "PREREQUISITE_GATE_A"
+      },
       "external_server_test": false,
       "instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
       "mandatory_audits": [
@@ -227,19 +239,27 @@
         "RUKAN_V0_3_NOT_READY_FOR_SERVER_ACCEPTANCE"
       ],
       "starting_source": "fd13ede7553011033a140d1206982f54536b7032",
-      "target": "bounded_production_candidate_ready_for_server_acceptance",
-      "correction": {
-        "starting_source": "5aaa43d81645c8266f3cad11b91aa57e93d59b96",
-        "issues": [
-          "cumulative_usage_regresses_after_retention",
-          "rollup_group_cap_acks_unsent_usage",
-          "legacy_usage_sequence_not_backfilled",
-          "telemetry_stream_reset_not_current_stream_aware"
-        ],
-        "status": "PREREQUISITE_GATE_A",
-        "lead_acceptance": "WITHHELD",
-        "orchestrated_by": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001"
-      }
+      "target": "bounded_production_candidate_ready_for_server_acceptance"
+    },
+    "rukan_v0_3_server_campaign": {
+      "campaign_spend_target_usd": 15,
+      "confidence_fresh_servers": true,
+      "confidence_runs_required": 3,
+      "diagnostic_clean_streak_required": 2,
+      "diagnostic_iterations_max": 5,
+      "external_server_testing": true,
+      "instruction_id": "RUKAN-V0.3-SERVER-CAMPAIGN-001",
+      "nvidia_only": true,
+      "one_pod_at_a_time": true,
+      "orchestrator_instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
+      "paid_infrastructure": true,
+      "persistent_campaign_command_center": true,
+      "prerequisite_instruction": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
+      "state": "AUTHORIZED_QUEUED",
+      "terminal_statuses": [
+        "RUKAN_V0_3_SERVER_CAMPAIGN_PASS",
+        "RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY"
+      ]
     },
     "runpod_policy": {
       "amd_max_hourly_usd": 4,
@@ -253,30 +273,10 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
-    "rukan_v0_3_server_campaign": {
-      "instruction_id": "RUKAN-V0.3-SERVER-CAMPAIGN-001",
-      "orchestrator_instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
-      "prerequisite_instruction": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
-      "diagnostic_iterations_max": 5,
-      "diagnostic_clean_streak_required": 2,
-      "confidence_runs_required": 3,
-      "confidence_fresh_servers": true,
-      "one_pod_at_a_time": true,
-      "nvidia_only": true,
-      "campaign_spend_target_usd": 15,
-      "external_server_testing": true,
-      "paid_infrastructure": true,
-      "persistent_campaign_command_center": true,
-      "terminal_statuses": [
-        "RUKAN_V0_3_SERVER_CAMPAIGN_PASS",
-        "RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY"
-      ],
-      "state": "AUTHORIZED_QUEUED"
-    }
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
   "published_instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_V0_3_CLOSURE_AND_SERVER_CAMPAIGN"
+  "status": "PASTEBACK_PUBLISHED"
 }
