@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "fix_rukan_connected_monitoring_v0_3_correctness",
-  "expected_pasteback_instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-FIX-001",
-  "instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-FIX-001",
+  "expected_cursor_action": "finish_rukan_v0_3_functional_product",
+  "expected_pasteback_instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
+  "instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_fix_v0_3_scheduling_ack_and_sequence_semantics_then_lead_review",
+    "next_action": "cursor_finish_v0_3_monitoring_people_and_server_test_readiness_then_lead_review",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -118,6 +118,7 @@
       ],
       "correction": {
         "starting_source": "0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4",
+        "status": "SUPERSEDED_BY_FUNCTIONAL_FINISH",
         "issues": [
           "periodic_schedule_independent_of_event_reports",
           "ack_owned_source_cursors",
@@ -125,8 +126,7 @@
           "delivery_timestamp_truth",
           "out_of_order_report_summary_and_gap_reconciliation",
           "ack_report_id_validation"
-        ],
-        "status": "CORRECTION_REQUIRED"
+        ]
       }
     },
     "rukan_ui_v0_1": {
@@ -170,10 +170,42 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "rukan_functional_v0_3_finish": {
+      "instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
+      "branch": "rukan/connected-monitoring-v0.3",
+      "current_candidate": "0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4",
+      "telemetry_profiles": {
+        "development": {
+          "interval_seconds": 120,
+          "default_now": true
+        },
+        "production": {
+          "interval_seconds": 21600,
+          "default_now": false
+        }
+      },
+      "people_foundation": {
+        "local_only": true,
+        "users": true,
+        "teams": true,
+        "memberships": true,
+        "access_intent": true,
+        "employee_authentication": false,
+        "employee_gateway": false,
+        "vendor_export_pii": false
+      },
+      "server_acceptance": {
+        "prepare_only": true,
+        "run_external": false,
+        "admin_remote_access": "ssh_tunnel_until_human_auth",
+        "paid_infrastructure": false
+      },
+      "terminal_success_status": "RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY"
+    }
   },
-  "published_instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-FIX-001",
+  "published_instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_CONNECTED_MONITORING_V0_3_FIX"
+  "status": "AWAITING_CURSOR_RUKAN_V0_3_FUNCTIONAL_FINISH"
 }
