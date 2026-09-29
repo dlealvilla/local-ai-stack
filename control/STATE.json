@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "close_product_deployment_path_and_resume_server_campaign",
-  "expected_pasteback_instruction_id": "RUKAN-V0.3-DEPLOYMENT-CLOSURE-AND-CAMPAIGN-RESUME-001",
-  "instruction_id": "RUKAN-V0.3-DEPLOYMENT-CLOSURE-AND-CAMPAIGN-RESUME-001",
+  "expected_cursor_action": "close_v0_3_confidence_then_build_v0_4_user_access_gateway",
+  "expected_pasteback_instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
+  "instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_fix_clean_model_acquisition_add_real_admin_deploy_orchestrator_then_resume_server_campaign_at_d2",
+    "next_action": "cursor_finish_v0_3_c2_c3_promote_then_design_build_and_physically_test_v0_4_user_access_gateway",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -311,10 +311,49 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "rukan_v0_4_user_access_gateway": {
+      "instruction_id": "RUKAN-V0.4-USER-ACCESS-GATEWAY-MCP-001",
+      "orchestrator_instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
+      "prerequisite": {
+        "v0_3_source": "77923d0587a7ca4519a1a90dd5097a89ca4844e2",
+        "v0_3_wheel_sha256": "6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33",
+        "c1": "PASS",
+        "c2": "PENDING_STOCK",
+        "c3": "PENDING"
+      },
+      "branch": "rukan/user-access-gateway-v0.4",
+      "core_components": [
+        "rukan_user_gateway",
+        "identity_verifier",
+        "identity_binding",
+        "user_api_credentials",
+        "workspace_adapter_contract",
+        "librechat_adapter",
+        "principal_attributed_usage",
+        "my_usage",
+        "mcp_catalog_policy",
+        "future_rukan_workspace_seam"
+      ],
+      "librechat_dependency_policy": "replaceable_adapter_only",
+      "employee_inference_direct_serve": false,
+      "preferred_identity": "OIDC",
+      "generic_openai_api": true,
+      "per_user_usage": true,
+      "mcp_role": "tool_and_data_plane_not_inference",
+      "first_party_workspace_future": true,
+      "diagnostic_server_iterations_max": 8,
+      "diagnostic_clean_streak_required": 2,
+      "confidence_runs_required": 3,
+      "terminal_statuses": [
+        "RUKAN_V0_4_BLOCKED_BY_V0_3_CONFIDENCE",
+        "RUKAN_V0_4_USER_ACCESS_NOT_READY",
+        "RUKAN_V0_4_USER_ACCESS_GATEWAY_SERVER_CAMPAIGN_PASS"
+      ]
+    }
   },
-  "published_instruction_id": "RUKAN-V0.3-DEPLOYMENT-CLOSURE-AND-CAMPAIGN-RESUME-001",
+  "published_instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_RUKAN_V0_4_USER_ACCESS_BUILDOUT"
 }
