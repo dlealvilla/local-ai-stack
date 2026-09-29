@@ -1,5 +1,163 @@
 # Open Decisions
 
+## Rukan v0.3 product deployment closure after server D1 — binding
+
+Server diagnostic D1 proved the packaged product shell, telemetry, People, Command Center, and verified vLLM foundation on a real NVIDIA L40S host, but exposed two product blockers before a real inference deployment chain could be completed:
+
+1. the clean Machi/Rukan wheel uses the Hugging Face model-source adapter but does not declare the required `huggingface_hub` runtime dependency;
+2. the Stage-1 Plan, ResourceManager, and Serve capabilities exist internally, but the shipped Rukan Admin/CLI/API does not yet expose one complete administrator product action that takes an exact stored model through recomputation, planning, admission, serving, readiness, inference, STOP, and RELEASE.
+
+These are now SERVER_ACCEPTANCE_BLOCKERS.
+
+### Model acquisition packaging
+
+- The release artifact must declare every Python dependency required by a supported product path.
+- Rukan must not depend on a transitive dependency that happens to exist inside a managed vLLM environment.
+- The Hugging Face adapter may remain optional at architecture level, but if the shipped Admin exposes HUB acquisition as a supported action, the normal Rukan artifact must install the adapter dependency required to execute that action.
+- Pin or bound the dependency using the project's existing dependency policy after verifying a tested compatible version; do not leave an accidental unbounded latest dependency if avoidable.
+- A clean isolated wheel installation must acquire the small public acceptance model without a manual `pip install`.
+
+### Deployment orchestration product seam
+
+Introduce one Rukan-owned customer-local deployment orchestration service/control API that composes existing domain owners without replacing them.
+
+Conceptually:
+
+```text
+Admin / local product API
+        |
+        | select exact model + bounded desired settings
+        v
+Rukan Deployment Orchestrator
+        |
+        +--> reconstruct trusted local state
+        +--> recompute current Capacity/Foundation/Model feasibility
+        +--> compose DeploymentPlan
+        +--> ResourceManager.admit()
+        +--> Serve.start()
+        +--> wait for READY
+        +--> expose resulting ServingInstance
+```
+
+Authority remains:
+
+- Model domain owns artifact/eligibility facts;
+- Plan owns deployment configuration;
+- ResourceManager remains sole physical admission authority;
+- Serve owns process lifecycle;
+- telemetry only observes;
+- browser never submits arbitrary pid/port/runtime/provider/reservation/fingerprint.
+
+The orchestrator owns workflow coordination, idempotency, error mapping, and product-facing operation state only.
+
+### Product workflow
+
+For the current bounded v0.3 pilot, Admin must support a truthful path equivalent to:
+
+```text
+Browse/inspect exact model
+        ↓
+Acquire/store exact artifact
+        ↓
+Deploy
+        ↓
+Preparing
+  ✓ host/capacity recomputed
+  ✓ foundation/runtime verified
+  ✓ model compatible
+  ✓ plan created
+  ✓ resources admitted
+  ✓ runtime started
+        ↓
+READY
+        ↓
+Admin inference tester
+        ↓
+STOP
+        ↓
+RELEASE
+```
+
+Do not expose "Deploy" until this backing operation is real.
+
+The exact artifact/digest remains authoritative even when the UI groups models by family/generation/variant.
+
+### Recompute-before-execute
+
+A Deploy request must not trust stale UI projections.
+
+At invocation:
+- resolve current Install/state root;
+- reconstruct current verified foundation/generation;
+- load and verify the exact stored model artifact;
+- recompute current capacity;
+- validate model/runtime/capacity compatibility;
+- create a fresh DeploymentConfiguration/Plan;
+- request ResourceManager admission;
+- start Serve only with the exact admitted plan/reservation;
+- fail closed if any dependency is stale/unresolved/incompatible.
+
+No reuse of a prior reservation or plan after model/runtime/resource changes unless the architecture explicitly proves it remains current.
+
+### Idempotency / failure compensation
+
+The Deploy operation must be safe under retries and partial failure.
+
+At minimum:
+- a repeated request for the exact already-READY deployment converges to that instance rather than duplicating it;
+- plan failure creates no reservation/process;
+- admission rejection creates no process;
+- Serve start failure leaves the reservation in a truthful state and exposes a deliberate release/recovery path;
+- if the orchestrator can safely release a reservation created by the same failed operation after confirmed no-process state, do so explicitly and record evidence; otherwise retain the hold and show the required administrator recovery action rather than guessing;
+- API/network retry after the backend has already started the operation must not create duplicate reservations/instances;
+- STOP remains distinct from RELEASE.
+
+### Operation persistence
+
+Use an explicit customer-local operation/workflow record if necessary to make deploy status/retry/restart truthful.
+
+It should contain non-secret references such as:
+- operation id;
+- selected artifact id;
+- requested bounded configuration;
+- plan id;
+- reservation id;
+- serving instance id;
+- state/outcome;
+- timestamps;
+- typed failure;
+- actor origin.
+
+Do not duplicate the authoritative full Plan/Reservation/Serve records.
+
+### UI
+
+Admin Models/Deployment should provide a coherent business-admin experience:
+- selected model card/detail;
+- Deploy action;
+- bounded settings only where backend feasibility supports them;
+- clear preparation/progress states;
+- READY state;
+- current model/runtime/context/resource facts;
+- Test inference;
+- STOP;
+- RELEASE after STOP;
+- technical details via progressive disclosure.
+
+Do not put advanced knobs on Overview.
+
+### Campaign continuation
+
+After local product closure:
+- build a new immutable artifact;
+- perform a clean artifact-only local acceptance of acquire → deploy → READY → >=3 inference requests → STOP → RELEASE;
+- then resume the existing `rukan/v0.3-server-campaign` as the next diagnostic iteration, D2;
+- D1 remains evidence and counts as diagnostic iteration 1;
+- diagnostic maximum remains D5;
+- the clean-run streak is currently zero because D1 found product blockers;
+- two consecutive clean diagnostics are still required before confidence;
+- confidence still requires C1/C2/C3 fresh servers on one identical final artifact.
+
 ## Rukan v0.3 autonomous server campaign — binding
 
 The post-audit accountability correction is followed by one autonomous bounded server campaign. This campaign is authorized only after the correction reaches:
