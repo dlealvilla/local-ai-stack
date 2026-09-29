@@ -4,7 +4,7 @@
   "expected_pasteback_instruction_id": "RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001",
   "instruction_id": "RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001",
   "program": {
-    "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
+    "canonical_baseline": "16084a5b21a0cca25bfe60070ad862832c80fb51",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
@@ -261,7 +261,9 @@
       "target": "bounded_production_candidate_ready_for_server_acceptance"
     },
     "rukan_v0_3_server_campaign": {
+      "bounded_acceptance_status": "RUKAN_V0_3_IMPLEMENTATION_ACCEPTED_PHYSICAL_CONFIDENCE_PENDING",
       "campaign_spend_target_usd": 15,
+      "canonical_sha": "16084a5b21a0cca25bfe60070ad862832c80fb51",
       "clean_streak": 0,
       "confidence_fresh_servers": true,
       "confidence_runs_required": 3,
@@ -284,7 +286,9 @@
         "D4",
         "D5"
       ],
+      "downstream_development_blocked": false,
       "external_server_testing": true,
+      "historical_confidence_complete": false,
       "instruction_id": "RUKAN-V0.3-SERVER-CAMPAIGN-001",
       "next_diagnostic": "D2",
       "nvidia_only": true,
@@ -292,19 +296,16 @@
       "orchestrator_instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
       "paid_infrastructure": true,
       "persistent_campaign_command_center": true,
+      "physical_confidence_debt": [
+        "C2",
+        "C3"
+      ],
       "prerequisite_instruction": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
       "state": "IMPLEMENTATION_ACCEPTED_PENDING_LEAD_MERGE_REVIEW",
       "terminal_statuses": [
         "RUKAN_V0_3_SERVER_CAMPAIGN_PASS",
         "RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY"
-      ],
-      "physical_confidence_debt": [
-        "C2",
-        "C3"
-      ],
-      "historical_confidence_complete": false,
-      "downstream_development_blocked": false,
-      "bounded_acceptance_status": "RUKAN_V0_3_IMPLEMENTATION_ACCEPTED_PHYSICAL_CONFIDENCE_PENDING"
+      ]
     },
     "rukan_v0_4_user_access_gateway": {
       "branch": "rukan/user-access-gateway-v0.4",
@@ -339,12 +340,12 @@
         "v0_3_source": "77923d0587a7ca4519a1a90dd5097a89ca4844e2",
         "v0_3_wheel_sha256": "6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33"
       },
+      "prerequisite_policy": "v0_3_bounded_acceptance_permitted_with_stock_only_confidence_debt",
       "terminal_statuses": [
         "RUKAN_V0_4_BLOCKED_BY_V0_3_CONFIDENCE",
         "RUKAN_V0_4_USER_ACCESS_NOT_READY",
         "RUKAN_V0_4_USER_ACCESS_GATEWAY_SERVER_CAMPAIGN_PASS"
-      ],
-      "prerequisite_policy": "v0_3_bounded_acceptance_permitted_with_stock_only_confidence_debt"
+      ]
     },
     "runpod_policy": {
       "amd_max_hourly_usd": 4,
