@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "implement_rukan_connected_monitoring_v0_3",
-  "expected_pasteback_instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
-  "instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
+  "expected_cursor_action": "fix_rukan_connected_monitoring_v0_3_correctness",
+  "expected_pasteback_instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-FIX-001",
+  "instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-FIX-001",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_review_challenge_implement_and_stand_up_connected_monitoring_v0_3_then_lead_review",
+    "next_action": "cursor_fix_v0_3_scheduling_ack_and_sequence_semantics_then_lead_review",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -115,7 +115,19 @@
         "purpose",
         "model",
         "runtime"
-      ]
+      ],
+      "correction": {
+        "starting_source": "0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4",
+        "issues": [
+          "periodic_schedule_independent_of_event_reports",
+          "ack_owned_source_cursors",
+          "no_silent_unacked_report_drop",
+          "delivery_timestamp_truth",
+          "out_of_order_report_summary_and_gap_reconciliation",
+          "ack_report_id_validation"
+        ],
+        "status": "CORRECTION_REQUIRED"
+      }
     },
     "rukan_ui_v0_1": {
       "admin": [
@@ -160,8 +172,8 @@
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
     "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
-  "published_instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-001",
+  "published_instruction_id": "RUKAN-CONNECTED-MONITORING-V0.3-FIX-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_RUKAN_CONNECTED_MONITORING_V0_3_FIX"
 }
