@@ -211,3 +211,30 @@ Clean on the corrected wheel. Streak is 1. Next is D5 on this same wheel.
 - Development cadence 120. Reports included `deployment_ready`, `deployment_stopped`, `reservation_released`, and three `periodic` reports
 - Command Center usage was 3 requests, 9 input tokens, 24 output tokens
 - The test prompt was not stored
+
+## Diagnostic D5
+
+Clean on the same corrected wheel as D4. Streak is 2. Confidence starts again from zero on that wheel.
+
+- Pod `2gnvk17pysp5l3`, NVIDIA L40S, secure, CUDA 13.0, `$1.09/hour`
+- Created `2026-09-29T11:19:15Z`, terminated after the evidence below
+- The first placement attempt found no instance; the retry created this pod
+- Install `inst_da8bc8a893a00829`
+- Deploy `dop_4eb54fdab63a56ff` reached `ready`
+- Plan `plan_3f5c1b171cf22494`
+- Reservation `rsv_dfc8b14dff003471` stayed reserved after STOP and was released after RELEASE
+- Instance `sin_d4dab59e45d90a37`; recorded pids were absent after STOP
+- Qualification `qev_ec1815d856631259`
+- Three inferences: 3 input tokens, 8 output tokens
+- Admin restart kept that ready operation
+- Development cadence 120
+- Reports included `deployment_ready`, four `periodic` reports, and `deployment_stopped,reservation_released`
+- Command Center usage was 3 requests, 9 input tokens, 24 output tokens
+- The test prompt was not stored
+
+## Frozen confidence candidate
+
+- Source: `77923d0587a7ca4519a1a90dd5097a89ca4844e2`
+- Wheel SHA256: `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`
+- Build: `0.1.0+77923d0587a7`
+- D4 and D5 both used this wheel. Do not rebuild it for C1, C2, or C3.
