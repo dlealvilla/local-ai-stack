@@ -115,3 +115,29 @@ Built from a clean tree after the deployment closure.
 - Isolated install imported `huggingface_hub` 0.36.2 with no extra pip install
 - Inspect of SmolLM2-135M-Instruct resolved revision `12fd25f77366fa6b3b4b768ec3050bf629380bac`
 - Acquire on this Mac, which has no managed vLLM interpreter, returned `runtime_capability_unresolved` rather than `source_unavailable`
+
+## Diagnostic D2
+
+Clean. Streak is 1. The next diagnostic is D3 on the same wheel.
+
+- Pod `nr2agrcigvr43k`, NVIDIA L40S, secure, CUDA 13.0, US-MO-1
+- Price stated before creation: `$1.09/hour`
+- Created `2026-09-29T09:50:56Z`, terminated after the evidence below
+- Install `inst_0ace142e715584a2`
+- Foundation generation `fgen_7b2b244f9a4e7043`, vLLM `0.18.0`, torch `2.10.0+cu130`
+- Artifact `mart_7ff1b147d6c56cd6`, revision `12fd25f77366fa6b3b4b768ec3050bf629380bac`
+- Admin acquire stored that artifact with no extra pip install
+- Deploy operation `dop_dd0b79ed9a8231f3` reached `ready`
+- Plan `plan_327f3025d4dfdd51`
+- Reservation `rsv_2c817e2752ff5fe2` was `RESERVED` after STOP and `released` after RELEASE
+- Serving instance `sin_9fd71986914d7dd1`; both recorded pids were absent after STOP
+- Qualification `qev_ae3caf57009d3ea5`
+- Three inference requests on that instance: 3 input tokens, 8 output tokens, latency about 0.03–0.037 seconds
+- The same deploy request returned the same operation and instance
+- Admin restart reconstructed that same ready operation
+- Command Center stored the deployment as `vllm` / `mart_7ff1b147d6c56cd6`
+- Usage rollup: 3 requests, 9 input tokens, 24 output tokens
+- Development cadence 120 seconds; the installed production interval remains 21600
+- Reports included `deployment_ready`, four `periodic` reports, then `deployment_stopped,reservation_released`
+- The Command Center database did not contain the test prompt
+- No manual database repair and no manual dependency install
