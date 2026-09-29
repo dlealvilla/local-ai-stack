@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "accept_v0_3_with_physical_confidence_pending_then_execute_v0_4_buildout",
-  "expected_pasteback_instruction_id": "RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001",
-  "instruction_id": "RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001",
+  "expected_cursor_action": "harden_v0_4_gateway_and_continue_full_stack_server_campaign",
+  "expected_pasteback_instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
+  "instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
   "program": {
     "canonical_baseline": "16084a5b21a0cca25bfe60070ad862832c80fb51",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_merge_v0_3_as_implementation_accepted_physical_confidence_pending_then_build_and_test_v0_4",
+    "next_action": "cursor_fix_true_streaming_oidc_discovery_scope_enforcement_and_crash_consistent_accounting_then_continue_server_campaign",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -345,7 +345,22 @@
         "RUKAN_V0_4_BLOCKED_BY_V0_3_CONFIDENCE",
         "RUKAN_V0_4_USER_ACCESS_NOT_READY",
         "RUKAN_V0_4_USER_ACCESS_GATEWAY_SERVER_CAMPAIGN_PASS"
-      ]
+      ],
+      "lead_review": {
+        "source_sha": "459d34b34f2238b5af108c0fe822c4637603b754",
+        "evidence_tip": "ff92569a7ce4d644aef9ae2011d8735014c04778",
+        "status": "CORRECTION_REQUIRED",
+        "blockers": [
+          "gateway_streaming_is_buffered_not_end_to_end",
+          "production_oidc_lacks_discovery_and_jwks_rotation",
+          "api_credential_scopes_not_enforced_on_all_routes",
+          "principal_and_deployment_usage_writes_not_crash_consistent",
+          "librechat_not_physically_run"
+        ]
+      },
+      "next_diagnostic": "D3",
+      "clean_streak": 0,
+      "confidence_runs_completed": 0
     },
     "runpod_policy": {
       "amd_max_hourly_usd": 4,
@@ -361,8 +376,8 @@
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
     "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
-  "published_instruction_id": "RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001",
+  "published_instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_V0_4_GATEWAY_HARDENING"
 }
