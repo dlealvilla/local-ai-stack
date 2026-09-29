@@ -91,10 +91,40 @@ rejected by the existing content-key check.
 ## Failure
 
 Upload, composition, and usage recording failures are local. They do
-not fail inference, stop, or release. The outbox keeps at most 24
-unacknowledged reports. The oldest queued report is dropped only after
-lifetime counters remain in the usage store for the next report.
-Retry backoff starts at 30 seconds and caps at one hour.
+not fail inference, stop, or release. One unacknowledged report stays
+queued. It is not deleted to make room. Retry backoff starts at 30
+seconds and caps at one hour. Only an acknowledgement that names that
+report id advances the journal cursor, usage window, sequence, and
+periodic slot.
+
+## Cadence
+
+`machi.kernel.cadence` is the only interval table.
+
+| Profile | Interval | Phase |
+|---|---|---|
+| development, current default | 120 seconds | 0–10 seconds, stable |
+| production | 21600 seconds | 0–900 seconds, stable |
+| custom | 60–86400 seconds | short intervals use the 10 second phase cap |
+
+The phase is an offset from the Unix epoch. It is not added again on
+every interval. Event reports and test reports do not move the next
+periodic slot. Changing the profile does.
+
+## People
+
+Users, teams, memberships, and access intent live in `directory.sqlite`
+on the customer host. Effective access is a projection for a future
+gateway. Enforcement is `gateway_not_available`. Names and emails are
+not fields on an operational report. The resolver rule is explicit user
+deny, then explicit user allow, then an active team grant, then deny.
+A suspended or deactivated user denies everything.
+
+## Later server test
+
+The playbook is `RUKAN-REAL-USER-ACCEPTANCE-V0.3.md`. Admin stays on
+loopback and is reached through an SSH tunnel. This run does not
+provision a public host.
 
 ## Not in this increment
 

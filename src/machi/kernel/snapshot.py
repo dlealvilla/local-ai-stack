@@ -29,6 +29,9 @@ _EXTRA_FORBIDDEN = frozenset(
         "rag",
         "file_path",
         "absolute_path",
+        "email",
+        "email_display",
+        "email_normalized",
     }
 )
 

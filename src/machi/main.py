@@ -1397,6 +1397,32 @@ def _export_rukan_analytics(ns: argparse.Namespace) -> int:
     return 0
 
 
+def _acceptance_preflight(ns: argparse.Namespace) -> int:
+    """Print later-test prerequisites. This does not open ports or spend money."""
+    print("admin    loopback only; do not publish it")
+    print("tunnel   ssh -L 8765:127.0.0.1:8765 <user>@<customer-host>")
+    print("intake   HTTPS certificate and key are required off loopback")
+    print("cadence  development profile is 120 seconds")
+    print("people   customer-local; not exported")
+    if ns.data_dir:
+        root = Path(ns.data_dir)
+        root.mkdir(parents=True, exist_ok=True)
+        probe = root / ".preflight-write"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        print(f"data     writable {root}")
+    else:
+        print("data     pass --data-dir to check a Command Center root")
+    for label, value in (("cert", ns.cert), ("key", ns.key)):
+        if value and not Path(value).is_file():
+            print(f"{label}     missing {value}")
+            return 1
+        if value:
+            print(f"{label}     present")
+    print("spend    none")
+    return 0
+
+
 def _serve_rukan_intake(ns: argparse.Namespace) -> int:
     """Bind the write-only intake. Command Center reads stay on the other port."""
     from machi.adapters.rukan.hub import CommandHub
@@ -1416,6 +1442,8 @@ def _serve_rukan_intake(ns: argparse.Namespace) -> int:
     print("write    POST /v1/telemetry/reports")
     try:
         httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
     finally:
         httpd.server_close()
         hub.close()
@@ -2023,6 +2051,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     command_key.add_argument("--data-dir", required=True)
     command_key.add_argument("--install-id", default=None)
     command_key.add_argument("--key-id", default=None)
+    acceptance = sub.add_parser(
+        "acceptance",
+        help="non-mutating checks for a later real-user Rukan test",
+    )
+    acceptance_sub = acceptance.add_subparsers(dest="acceptance_command", required=True)
+    preflight = acceptance_sub.add_parser(
+        "preflight",
+        help="describe test prerequisites without provisioning or spending",
+    )
+    preflight.add_argument("--data-dir", default=None)
+    preflight.add_argument("--cert", default=None)
+    preflight.add_argument("--key", default=None)
     admin_serve.add_argument(
         "--provider-base",
         default="http://127.0.0.1:11434",
@@ -2534,6 +2574,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _serve_rukan_intake(ns)
         if ns.command == "command-center" and ns.command_center_command == "credential":
             return _rukan_credential(ns)
+        if ns.command == "acceptance" and ns.acceptance_command == "preflight":
+            return _acceptance_preflight(ns)
         if ns.command == "serve" and ns.serve_command == "policy":
             print(f"policy   {SERVE_POLICY_VERSION}")
             print(f"bind     {BIND_SCOPE}")

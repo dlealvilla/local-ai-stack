@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from machi.adapters.rukan.complete import Completion
+from machi.adapters.rukan.directory import Directory
 from machi.adapters.rukan.library import model_library
 from machi.adapters.rukan.lifecycle import LifecycleOwner
 from machi.adapters.rukan.local_analytics import local_analytics
@@ -79,6 +80,7 @@ class AdminApplication:
         self.clock = clock or SystemClock()
         self.lifecycle = lifecycle
         self.telemetry = TelemetryStore(self.store_root, self.journal_dir, build)
+        self.directory = Directory(self.store_root)
 
     def summary(self) -> dict[str, object]:
         view = project_admin(
@@ -108,11 +110,15 @@ class AdminApplication:
         return _envelope("ok", "usage", body)
 
     def activity(self) -> dict[str, object]:
-        return _envelope(
-            "ok",
-            "activity",
-            {"rows": activity_feed(self.store_root, self.journal_dir), "live_claim": False},  # noqa: E501
-        )
+        rows = activity_feed(self.store_root, self.journal_dir)
+        rows.extend(self.directory.audit_rows())
+        return _envelope("ok", "activity", {"rows": rows[-50:], "live_claim": False})
+
+    def people(self, body: dict[str, object] | None = None) -> dict[str, object]:
+        from machi.adapters.rukan.directory_api import people_action
+
+        outcome, reason, payload = people_action(self.directory, body, self.clock.now())
+        return _envelope(outcome, reason, payload)
 
     def library(self) -> dict[str, object]:
         return _envelope(
@@ -136,9 +142,12 @@ class AdminApplication:
         secret = body.get("secret")
         if not all(isinstance(item, str) and item for item in (endpoint, key_id, secret)):  # noqa: E501
             return _envelope("refused", "endpoint, key id, and secret are required", {})
-        cadence = body.get("cadence_hours", 6)
-        if isinstance(cadence, bool) or not isinstance(cadence, int):
-            return _envelope("refused", "cadence is outside 1..24 hours", {})
+        profile = body.get("profile", "development")
+        custom = body.get("custom_seconds")
+        if not isinstance(profile, str):
+            return _envelope("refused", "telemetry profile is unknown", {})
+        if custom is not None and (isinstance(custom, bool) or not isinstance(custom, int)):  # noqa: E501
+            return _envelope("refused", "custom telemetry cadence is invalid", {})
         enabled = body.get("enabled") is True
         local_test = body.get("local_test") is True
         try:
@@ -148,10 +157,11 @@ class AdminApplication:
                 secret=str(secret),
                 install_id=view.install_id,
                 enabled=enabled,
-                cadence_hours=cadence,
                 actor="local_admin_ui",
                 now=self.clock.now(),
                 local_test=local_test,
+                profile=profile,
+                custom_seconds=custom if isinstance(custom, int) else None,
             )
         except ValidationError as exc:
             return _envelope("refused", exc.message, {})
@@ -366,9 +376,13 @@ def serve_admin(
     httpd = _server(application, host, port)
     try:
         httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
     finally:
         agent.stop()
         httpd.server_close()
+        application.telemetry.close()
+        application.directory.close()
 
 
 def _server(
@@ -419,6 +433,9 @@ def _dispatch(
     if method == "GET" and path == "/v1/monitoring":
         _write(handler, 200, application.monitoring())
         return
+    if method == "GET" and path == "/v1/people":
+        _write(handler, 200, application.people(None))
+        return
     if method == "GET" and path == "/v1/monitoring/preview":
         _write(handler, 200, application.preview_report())
         return
@@ -438,6 +455,7 @@ def _dispatch(
         "/v1/lifecycle/release": application.release,
         "/v1/monitoring": application.configure_monitoring,
         "/v1/monitoring/test": application.test_report,
+        "/v1/people": application.people,
     }
     if path in routes:
         _write(handler, 200, routes[path](body))

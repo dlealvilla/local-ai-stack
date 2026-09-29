@@ -14,7 +14,16 @@ export type DeploymentRow = {
   last_report_received_at?: string;
   report_gap?: string;
   last_trigger?: string;
+  cadence_profile?: string;
+  cadence_seconds?: number;
 };
+
+export function cadenceText(profile: string | undefined, seconds: number | undefined): string {
+  if (profile === "development" || seconds === 120) return "Development cadence: every 2 min";
+  if (profile === "production" || seconds === 21600) return "Production cadence: every 6 h";
+  if (seconds && seconds > 0) return `Custom cadence: every ${seconds}s`;
+  return "Cadence not reported";
+}
 
 export function reportAge(receivedAt: string | undefined, nowMs: number): string {
   if (!receivedAt || receivedAt === "not_recorded") return "no report yet";
@@ -25,11 +34,17 @@ export function reportAge(receivedAt: string | undefined, nowMs: number): string
   return `report received ${hours}h ago`;
 }
 
-export function cadenceLabel(receivedAt: string | undefined, nowMs: number): string {
+export function cadenceLabel(
+  receivedAt: string | undefined,
+  nowMs: number,
+  cadenceSeconds?: number,
+): string {
   if (!receivedAt || receivedAt === "not_recorded") return "no report yet";
   const then = Date.parse(receivedAt);
   if (Number.isNaN(then)) return "report age unavailable";
-  const late = nowMs - then > (6 * 60 + 15) * 60_000;
+  const interval = cadenceSeconds && cadenceSeconds >= 60 ? cadenceSeconds : 21600;
+  const slack = interval <= 600 ? 15_000 : 900_000;
+  const late = nowMs - then > interval * 1000 + slack;
   return late ? "reporting later than scheduled" : "report inside the expected cadence";
 }
 

@@ -3115,6 +3115,60 @@
       }
     }
   },
+  "kernel.access_intent@1": {
+    "python": "AccessIntent",
+    "fields": {
+      "subject_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "user or team"
+      },
+      "subject_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "user id or team id"
+      },
+      "platform_access": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow or deny"
+      },
+      "inference_access": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow or deny"
+      },
+      "model_selection": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow or deny"
+      },
+      "agent_builder": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow or deny"
+      },
+      "updated_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      }
+    }
+  },
   "kernel.alive@1": {
     "python": "KernelAlivePayload",
     "fields": {
@@ -3553,6 +3607,236 @@
       }
     }
   },
+  "kernel.directory_membership@1": {
+    "python": "DirectoryMembership",
+    "fields": {
+      "user_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "user"
+      },
+      "team_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "team"
+      },
+      "active": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "whether the membership is current"
+      },
+      "created_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      },
+      "actor_origin": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who recorded the membership"
+      }
+    }
+  },
+  "kernel.directory_team@1": {
+    "python": "DirectoryTeam",
+    "fields": {
+      "team_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "platform-minted team id"
+      },
+      "name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "admin label"
+      },
+      "description": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "optional description, or empty"
+      },
+      "status": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "active or archived"
+      },
+      "created_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      },
+      "updated_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      }
+    }
+  },
+  "kernel.directory_user@1": {
+    "python": "DirectoryUser",
+    "fields": {
+      "user_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "platform-minted user id"
+      },
+      "email_normalized": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "lowercase email used for uniqueness"
+      },
+      "email_display": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "email as entered"
+      },
+      "display_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "name shown in Admin"
+      },
+      "status": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "active, suspended, or deactivated"
+      },
+      "created_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      },
+      "updated_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      },
+      "external_ref": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "future IdP reference, or not_recorded"
+      },
+      "actor_origin": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "who recorded the last change"
+      }
+    }
+  },
+  "kernel.effective_access@1": {
+    "python": "EffectiveAccess",
+    "fields": {
+      "user_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "user"
+      },
+      "status": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "directory status"
+      },
+      "team_ids": {
+        "type": "tuple[str, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "active team memberships"
+      },
+      "platform_access": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective allow or deny"
+      },
+      "inference_access": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective allow or deny"
+      },
+      "model_selection": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective allow or deny"
+      },
+      "agent_builder": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective allow or deny"
+      },
+      "provenance": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "which rule produced the result"
+      },
+      "configured": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "the directory can express intent"
+      },
+      "enforcement": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "gateway_not_available until an employee gateway exists"
+      }
+    }
+  },
   "kernel.inference_usage@1": {
     "python": "InferenceUsage",
     "fields": {
@@ -3743,12 +4027,26 @@
         "may_be_unresolved": false,
         "meaning": "UTC composition time"
       },
-      "cadence_hours": {
+      "cadence_profile": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "development, production, or custom"
+      },
+      "cadence_seconds": {
         "type": "int",
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "configured periodic interval"
+        "meaning": "periodic interval in seconds"
+      },
+      "cadence_phase_seconds": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable per-install phase inside the interval"
       },
       "trigger_reasons": {
         "type": "tuple[str, ...]",

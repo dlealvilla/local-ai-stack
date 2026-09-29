@@ -7,6 +7,7 @@ import json
 from dataclasses import dataclass
 
 from machi.kernel.analytics import AnalyticsEvent
+from machi.kernel.cadence import PROFILES, interval_seconds, phase_limit
 from machi.kernel.errors import ValidationError
 from machi.kernel.schema import Contract, contract, from_dict, meaning, to_dict
 from machi.kernel.snapshot import SupportSnapshot, reject_customer_content
@@ -110,7 +111,9 @@ class OperationalReport(Contract):
     install_id: str = meaning("deployment install id")
     sequence: int = meaning("deployment report sequence, starting at 1")
     generated_at: str = meaning("UTC composition time")
-    cadence_hours: int = meaning("configured periodic interval")
+    cadence_profile: str = meaning("development, production, or custom")
+    cadence_seconds: int = meaning("periodic interval in seconds")
+    cadence_phase_seconds: int = meaning("stable per-install phase inside the interval")
     trigger_reasons: tuple[str, ...] = meaning("why this report was composed")
     version: str = meaning("Rukan version")
     build_id: str = meaning("build id, or not_recorded")
@@ -135,8 +138,17 @@ class OperationalReport(Contract):
             raise ValidationError("operational report sequence is invalid")
         if self.sequence < 1:
             raise ValidationError("operational report sequence starts at 1")
-        if self.cadence_hours < 1 or self.cadence_hours > 24:
-            raise ValidationError("operational report cadence is outside 1..24 hours")
+        if self.cadence_profile not in PROFILES:
+            raise ValidationError("operational report cadence profile is unknown")
+        expected = interval_seconds(
+            self.cadence_profile,
+            self.cadence_seconds if self.cadence_profile == "custom" else None,
+        )
+        if self.cadence_seconds != expected:
+            raise ValidationError("operational report cadence seconds do not match the profile")  # noqa: E501
+        limit = phase_limit(self.cadence_profile, self.cadence_seconds)
+        if type(self.cadence_phase_seconds) is not int or not 0 <= self.cadence_phase_seconds <= limit:  # noqa: E501
+            raise ValidationError("operational report cadence phase is outside the profile")  # noqa: E501
         if not self.trigger_reasons or len(self.trigger_reasons) > MAX_TRIGGERS:
             raise ValidationError("operational report triggers are missing or too many")
         for reason in self.trigger_reasons:

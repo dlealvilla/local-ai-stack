@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { SupportSnapshot } from "../../shared/snapshot";
-import { cadenceLabel, filterRows, history, reportAge, snapshotAge, type DeploymentRow } from "./query";
+import { cadenceLabel, cadenceText, filterRows, history, reportAge, snapshotAge, type DeploymentRow } from "./query";
 import { CommandSettings, ModelLandscape, Portfolio, Reporting } from "./surfaces";
 
 const PAGES = ["Overview", "Deployments", "Detail", "Analytics", "Models", "Reporting", "Settings", "Import"] as const;
@@ -159,6 +159,7 @@ function Deployments({
               <th>Model</th>
               <th>Witness</th>
               <th>Snapshots</th>
+              <th>Cadence</th>
               <th>Last report</th>
               <th>Report age</th>
               <th>Cadence</th>
@@ -182,9 +183,10 @@ function Deployments({
                 <td>{item.model_identity}</td>
                 <td>{item.witness_verdict}</td>
                 <td>{item.snapshot_count}</td>
+                <td>{cadenceText(item.cadence_profile, item.cadence_seconds)}</td>
                 <td>{item.last_report_received_at ?? "not_recorded"}</td>
                 <td>{reportAge(item.last_report_received_at, Date.now())}</td>
-                <td>{cadenceLabel(item.last_report_received_at, Date.now())}</td>
+                <td>{cadenceLabel(item.last_report_received_at, Date.now(), item.cadence_seconds)}</td>
                 <td>{item.latest_exported_at}</td>
                 <td>{snapshotAge(item.latest_exported_at, Date.now())}</td>
               </tr>

@@ -64,3 +64,6 @@ validation/
 
 # Development-only Lead Developer ↔ Cursor handoff cache
 .machi-handoff/
+
+# Later real-user acceptance evidence. Do not commit host details.
+acceptance-evidence/

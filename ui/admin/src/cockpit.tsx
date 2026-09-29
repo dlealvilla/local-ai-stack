@@ -42,7 +42,9 @@ type Monitoring = {
   endpoint: string;
   key_id: string;
   credential_status: string;
-  cadence_hours: number;
+  cadence_profile: string;
+  cadence_seconds: number;
+  phase_seconds: number;
   next_report_at: string;
   last_success_at: string;
   queued: number;
@@ -233,7 +235,8 @@ export function MonitoringSettings() {
   const [endpoint, setEndpoint] = useState("");
   const [keyId, setKeyId] = useState("");
   const [secret, setSecret] = useState("");
-  const [cadence, setCadence] = useState(6);
+  const [profile, setProfile] = useState("development");
+  const [cadence, setCadence] = useState(120);
   const [enabled, setEnabled] = useState(false);
   const [localTest, setLocalTest] = useState(false);
   const [notice, setNotice] = useState("");
@@ -243,7 +246,8 @@ export function MonitoringSettings() {
     if (!document) return;
     setState(document.body);
     setEndpoint(document.body.endpoint);
-    setCadence(document.body.cadence_hours);
+    setProfile(document.body.cadence_profile || "development");
+    setCadence(document.body.cadence_seconds || 120);
     setEnabled(document.body.enabled);
     if (document.body.key_id !== "not_configured") setKeyId(document.body.key_id);
   }
@@ -252,7 +256,15 @@ export function MonitoringSettings() {
     const response = await fetch("/v1/monitoring", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ endpoint, key_id: keyId, secret, cadence_hours: cadence, enabled, local_test: localTest }),
+      body: JSON.stringify({
+        endpoint,
+        key_id: keyId,
+        secret,
+        profile,
+        custom_seconds: profile === "custom" ? cadence : undefined,
+        enabled,
+        local_test: localTest,
+      }),
     });
     const document = (await response.json()) as { reason: string };
     setSecret("");
@@ -268,7 +280,16 @@ export function MonitoringSettings() {
         <label>Endpoint <input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} /></label>
         <label>Key id <input value={keyId} onChange={(event) => setKeyId(event.target.value)} /></label>
         <label>Secret, entered once <input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} autoComplete="off" /></label>
-        <label>Cadence hours (1–24, 6 is the default) <input type="number" min={1} max={24} value={cadence} onChange={(event) => setCadence(Number(event.target.value))} /></label>
+        <p className="banner">Development reporting cadence — every 2 minutes. Production remains every 6 hours.</p>
+        <label>Profile
+          <select value={profile} onChange={(event) => setProfile(event.target.value)}>
+            <option value="development">Development — every 2 minutes</option>
+            <option value="production">Production — every 6 hours</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        {profile === "custom" ? <label>Custom seconds <input type="number" min={60} max={86400} value={cadence} onChange={(event) => setCadence(Number(event.target.value))} /></label> : null}
+        <p>Current interval {state?.cadence_seconds ?? 120} seconds. Stable phase {state?.phase_seconds ?? 0} seconds.</p>
         <label>Loopback test HTTP <input type="checkbox" checked={localTest} onChange={(event) => setLocalTest(event.target.checked)} /></label>
         <button type="submit">Save monitoring</button>
       </form>
@@ -288,6 +309,64 @@ export function MonitoringSettings() {
       <p>{state?.deployment_settings_reason}</p>
       <p className="muted">Context, concurrency, placement, and reserve stay visible on Deployment and System. They are not edited here.</p>
       {notice ? <p>{notice}</p> : null}
+    </section>
+  );
+}
+
+type Person = { user_id: string; display_name: string; email_display: string; status: string };
+type Team = { team_id: string; name: string; status: string };
+
+export function People() {
+  const [users, setUsers] = useState<Person[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [team, setTeam] = useState("");
+  const [notice, setNotice] = useState("");
+  async function reload() {
+    const document = await readJson<{ body: { users: Person[]; teams: Team[]; banner: string } }>("/v1/people");
+    setUsers(document?.body.users ?? []);
+    setTeams(document?.body.teams ?? []);
+    setNotice(document?.body.banner ?? "");
+  }
+  useEffect(() => { void reload(); }, []);
+  async function post(body: object) {
+    await fetch("/v1/people", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    await reload();
+  }
+  return (
+    <section>
+      <h1>People</h1>
+      <p className="banner">{notice || "Employee login and chat endpoint are not enabled yet. Access settings here prepare future provisioning."}</p>
+      <p>{users.filter((item) => item.status === "active").length} active users · {teams.length} teams</p>
+      <form className="stack" onSubmit={(event) => { event.preventDefault(); void post({ action: "create_user", email, display_name: name }); }}>
+        <label>Name <input value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label>Email <input value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+        <button type="submit">Add user</button>
+      </form>
+      <form className="stack" onSubmit={(event) => { event.preventDefault(); void post({ action: "create_team", name: team, description: "" }); }}>
+        <label>Team <input value={team} onChange={(event) => setTeam(event.target.value)} /></label>
+        <button type="submit">Add team</button>
+      </form>
+      <h2>Users</h2>
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {users.map((user) => (
+            <tr key={user.user_id}>
+              <td>{user.display_name}</td>
+              <td>{user.email_display}</td>
+              <td>{user.status}</td>
+              <td>
+                <button type="button" onClick={() => void post({ action: "set_status", user_id: user.user_id, status: user.status === "active" ? "suspended" : "active" })}>Suspend or reactivate</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h2>Teams</h2>
+      <ul>{teams.map((item) => <li key={item.team_id}>{item.name} · {item.status}</li>)}</ul>
+      <p className="muted">Configured — enforcement begins when the employee gateway is enabled. This directory is not sent to Command Center.</p>
     </section>
   );
 }

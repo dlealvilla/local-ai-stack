@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 import ssl
@@ -19,6 +18,12 @@ from machi.adapters.rukan.project import export_snapshot, project_admin
 from machi.adapters.rukan.secrets import read_credential, write_credential
 from machi.kernel.analytics import AnalyticsEvent
 from machi.kernel.build import BuildIdentity
+from machi.kernel.cadence import (
+    DEVELOPMENT,
+    interval_seconds,
+    next_slot,
+    phase_seconds,
+)
 from machi.kernel.errors import ValidationError
 from machi.kernel.events import EventRecord
 from machi.kernel.privacy import PrivacyClass
@@ -28,6 +33,7 @@ from machi.kernel.report import (
     UsageFailureCount,
     UsageRollup,
     dump_report,
+    load_report,
     report_id_for,
 )
 from machi.kernel.schema import from_dict, to_dict
@@ -54,7 +60,6 @@ MATERIAL = {
 }
 IMMEDIATE = frozenset({"deployment_failed", "admission_rejected", "witness_attention"})
 COALESCE_SECONDS = 45
-MAX_QUEUED = 24
 MAX_EVENTS = 64
 _SCHEMA = "1"
 
@@ -72,18 +77,6 @@ EXCLUSIONS = (
     "credentials",
     "absolute paths",
 )
-
-
-def jitter_seconds(install_id: str) -> int:
-    """Stable 0..899 second offset. Not used as an identity."""
-    digest = hashlib.sha256(f"rukan-telemetry-jitter\n{install_id}".encode()).digest()
-    return int.from_bytes(digest[:4], "big") % 900
-
-
-def cadence_interval(hours: int, install_id: str) -> timedelta:
-    if hours < 1 or hours > 24:
-        raise ValidationError("telemetry cadence is outside 1..24 hours")
-    return timedelta(hours=hours, seconds=jitter_seconds(install_id))
 
 
 class TelemetryStore:
@@ -150,14 +143,14 @@ class TelemetryStore:
         secret: str,
         install_id: str,
         enabled: bool,
-        cadence_hours: int,
         actor: str,
         now: datetime,
         local_test: bool = False,
+        profile: str = DEVELOPMENT,
+        custom_seconds: int | None = None,
     ) -> dict[str, object]:
         _endpoint(endpoint, local_test=local_test)
-        if cadence_hours < 1 or cadence_hours > 24:
-            raise ValidationError("telemetry cadence is outside 1..24 hours")
+        seconds = interval_seconds(profile, custom_seconds)
         write_credential(
             self.store_root,
             key_id=key_id,
@@ -167,17 +160,23 @@ class TelemetryStore:
         )
         reasons = ["telemetry_settings"]
         with self._lock:
-            previous = self._meta("cadence_hours")
+            previous = self._meta("cadence_profile")
+            previous_seconds = self._meta("cadence_seconds")
             self._set("endpoint", endpoint)
             self._set("key_id", key_id)
             self._set("install_id", install_id)
             self._set("enabled", "true" if enabled else "false")
-            self._set("cadence_hours", str(cadence_hours))
+            self._set("cadence_profile", profile)
+            self._set("cadence_seconds", str(seconds))
             self._set("local_test", "true" if local_test else "false")
-            if self._meta("next_periodic_at") is None:
-                due = now + cadence_interval(cadence_hours, install_id)
-                self._set("next_periodic_at", due.isoformat())
-            if previous is not None and previous != str(cadence_hours):
+            changed = previous not in {None, profile} or (
+                previous_seconds is not None and previous_seconds != str(seconds)
+            )
+            if self._meta("next_periodic_at") is None or changed:
+                phase = phase_seconds(install_id, profile, seconds)
+                self._set("cadence_phase_seconds", str(phase))
+                self._set("next_periodic_at", next_slot(now, seconds, phase).isoformat())  # noqa: E501
+            if changed:
                 reasons.append("cadence_changed")
             self._note(reasons, now, immediate=True)
             self._action(now, "telemetry_settings", "pass", actor, key_id)
@@ -191,7 +190,7 @@ class TelemetryStore:
             ).fetchone()["n"]
             last = self._db.execute(
                 """
-                SELECT created_at, last_error FROM outbox
+                SELECT delivered_at, created_at, last_error FROM outbox
                 WHERE state = 'delivered' ORDER BY sequence DESC LIMIT 1
                 """
             ).fetchone()
@@ -207,10 +206,13 @@ class TelemetryStore:
                 "endpoint": self._meta("endpoint") or "",
                 "key_id": self._meta("key_id") or "not_configured",
                 "credential_status": "configured" if self._meta("key_id") else "missing",  # noqa: E501
-                "cadence_hours": int(self._meta("cadence_hours") or "6"),
-                "jitter_seconds": jitter_seconds(self._meta("install_id") or "not_recorded"),  # noqa: E501
+                "cadence_profile": self._meta("cadence_profile") or DEVELOPMENT,
+                "cadence_seconds": int(self._meta("cadence_seconds") or str(interval_seconds(DEVELOPMENT))),  # noqa: E501
+                "phase_seconds": int(self._meta("cadence_phase_seconds") or "0"),
                 "next_report_at": self._meta("next_periodic_at") or "not_scheduled",
-                "last_success_at": last["created_at"] if last else "not_recorded",
+                "last_success_at": (
+                    str(last["delivered_at"] or last["created_at"]) if last else "not_recorded"  # noqa: E501
+                ),
                 "queued": int(queued),
                 "last_error": error["last_error"] if error else "",
                 "categories": list(DATA_CATEGORIES),
@@ -233,7 +235,7 @@ class TelemetryStore:
             self._db.commit()
 
     def tick(
-        self, now: datetime, transport: Callable[..., bool] | None = None
+        self, now: datetime, transport: Callable[..., str] | None = None
     ) -> dict[str, object]:
         """Compose at most one report and attempt one send. Never raises."""
         try:
@@ -247,7 +249,7 @@ class TelemetryStore:
         except (sqlite3.Error, ValidationError, OSError, TypeError, ValueError):
             return {"composed": False, "sent": False}
 
-    def send_test(self, now: datetime, transport: Callable[..., bool] | None = None) -> dict[str, object]:  # noqa: E501
+    def send_test(self, now: datetime, transport: Callable[..., str] | None = None) -> dict[str, object]:  # noqa: E501
         self.note(("test_report",), now, immediate=True)
         with self._lock:
             self._set("enabled", self._meta("enabled") or "false")
@@ -319,7 +321,9 @@ class TelemetryStore:
             sequence = int(self._meta("next_sequence") or "1")
             previous = self._meta("last_acked") or NOT_RECORDED
             window_start = self._meta("window_start") or generated
-            cadence = int(self._meta("cadence_hours") or "6")
+            profile = self._meta("cadence_profile") or DEVELOPMENT
+            cadence = int(self._meta("cadence_seconds") or str(interval_seconds(DEVELOPMENT)))  # noqa: E501
+            phase = int(self._meta("cadence_phase_seconds") or "0")
             events, offset, more = self._read_events_locked()
             rollups = _rollups(self._usage_rows(window_start, generated))
             cumulative = _cumulative(self._usage_rows(None, None))
@@ -331,7 +335,9 @@ class TelemetryStore:
             install_id=view.install_id,
             sequence=sequence,
             generated_at=generated,
-            cadence_hours=cadence,
+            cadence_profile=profile,
+            cadence_seconds=cadence,
+            cadence_phase_seconds=phase,
             trigger_reasons=reasons,
             version=self.build.version,
             build_id=self.build.build_id or NOT_RECORDED,
@@ -349,44 +355,44 @@ class TelemetryStore:
         )
         dump_report(report)
         if persist:
+            self._proposed_offset = offset
+        else:
             del offset
         return report
 
     def _compose(self, now: datetime, reasons: tuple[str, ...]) -> None:
+        """Freeze one report. Authoritative cursors wait for a matching ACK."""
+        queued = self._db.execute(
+            "SELECT COUNT(*) AS n FROM outbox WHERE state = 'queued'"
+        ).fetchone()["n"]
+        if int(queued) > 0:
+            return
         report = self._build(now, reasons, persist=True)
         body = dump_report(report)
-        queued = self._db.execute("SELECT COUNT(*) AS n FROM outbox WHERE state = 'queued'").fetchone()["n"]  # noqa: E501
-        if int(queued) >= MAX_QUEUED:
-            self._db.execute(
-                """
-                DELETE FROM outbox WHERE report_id = (
-                    SELECT report_id FROM outbox WHERE state = 'queued'
-                    ORDER BY sequence ASC LIMIT 1
-                )
-                """
-            )
+        included = set(report.trigger_reasons)
         self._db.execute(
             """
             INSERT INTO outbox(
                 report_id, sequence, body, state, attempts,
-                next_attempt_at, last_error, created_at
-            ) VALUES (?, ?, ?, 'queued', 0, ?, '', ?)
+                next_attempt_at, last_error, created_at, delivered_at,
+                proposed_journal_offset, proposed_window_start, includes_periodic
+            ) VALUES (?, ?, ?, 'queued', 0, ?, '', ?, '', ?, ?, ?)
             """,
-            (report.report_id, report.sequence, body, now.isoformat(), now.isoformat()),
+            (
+                report.report_id,
+                report.sequence,
+                body,
+                now.isoformat(),
+                now.isoformat(),
+                int(getattr(self, "_proposed_offset", 0)),
+                report.window_end,
+                1 if "periodic" in included else 0,
+            ),
         )
-        self._set("next_sequence", str(report.sequence + 1))
-        self._set("window_start", report.window_end)
-        _events, offset, _more = self._read_events_locked()
-        self._set("journal_offset", str(offset))
-        self._set("last_macropath", report.snapshot.macropath)
-        self._set("last_model", report.snapshot.model_identity)
-        self._set("last_version", report.version)
-        self._set("last_safe", report.snapshot.safe_accelerator_bytes)
-        due = now + cadence_interval(report.cadence_hours, report.install_id)
-        self._set("next_periodic_at", due.isoformat())
-        self._db.execute("DELETE FROM pending")
+        for reason in included:
+            self._db.execute("DELETE FROM pending WHERE reason = ?", (reason,))
 
-    def _send(self, now: datetime, transport: Callable[..., bool] | None, *, force: bool = False) -> bool:  # noqa: E501
+    def _send(self, now: datetime, transport: Callable[..., str] | None, *, force: bool = False) -> bool:  # noqa: E501
         with self._lock:
             row = self._db.execute(
                 """
@@ -407,21 +413,18 @@ class TelemetryStore:
             secret = loaded["secret"]
             endpoint = loaded["endpoint"] or endpoint
         sender = transport if transport is not None else post_report
+        expected = str(row["report_id"])
         try:
-            ack = sender(endpoint, secret, str(row["body"]), local_test=local_test)
-            ok = bool(ack)
-            error = "" if ok else "upload was not acknowledged"
+            acked = sender(endpoint, secret, str(row["body"]), local_test=local_test)
+            ok = str(acked) == expected
+            error = "" if ok else "acknowledgement report id does not match"
         except (ValidationError, OSError, urllib.error.URLError, TimeoutError) as exc:
             ok = False
             error = str(exc)[:240]
         with self._lock:
             if ok:
-                self._db.execute(
-                    "UPDATE outbox SET state = 'delivered', last_error = '' WHERE report_id = ?",  # noqa: E501
-                    (row["report_id"],),
-                )
-                self._set("last_acked", str(row["report_id"]))
-                self._action(now, "report_uploaded", "pass", "telemetry_agent", str(row["report_id"]))  # noqa: E501
+                self._apply_ack(now, expected)
+                self._action(now, "report_uploaded", "pass", "telemetry_agent", expected)  # noqa: E501
             else:
                 attempts = int(row["attempts"]) + 1
                 delay = min(3600, 30 * (2 ** min(attempts, 6)))
@@ -436,6 +439,38 @@ class TelemetryStore:
                 self._action(now, "report_upload_failed", "fail", "telemetry_agent", "upload")  # noqa: E501
             self._db.commit()
         return ok
+
+    def _apply_ack(self, now: datetime, report_id: str) -> None:
+        row = self._db.execute(
+            """
+            SELECT sequence, body, proposed_journal_offset, proposed_window_start,
+                   includes_periodic
+            FROM outbox WHERE report_id = ?
+            """,
+            (report_id,),
+        ).fetchone()
+        self._db.execute(
+            """
+            UPDATE outbox
+            SET state = 'delivered', last_error = '', delivered_at = ?
+            WHERE report_id = ?
+            """,
+            (now.isoformat(), report_id),
+        )
+        if row is None:
+            return
+        report = load_report(str(row["body"]))
+        self._set("last_acked", report_id)
+        self._set("next_sequence", str(int(row["sequence"]) + 1))
+        self._set("window_start", str(row["proposed_window_start"]))
+        self._set("journal_offset", str(int(row["proposed_journal_offset"])))
+        self._set("last_macropath", report.snapshot.macropath)
+        self._set("last_model", report.snapshot.model_identity)
+        self._set("last_version", report.version)
+        self._set("last_safe", report.snapshot.safe_accelerator_bytes)
+        if int(row["includes_periodic"]):
+            nxt = next_slot(now, report.cadence_seconds, report.cadence_phase_seconds)
+            self._set("next_periodic_at", nxt.isoformat())
 
     def _raw_events(self) -> list[EventRecord]:
         if self.journal_dir is None:
@@ -594,7 +629,11 @@ class TelemetryStore:
                 attempts INTEGER NOT NULL,
                 next_attempt_at TEXT NOT NULL,
                 last_error TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                delivered_at TEXT NOT NULL DEFAULT '',
+                proposed_journal_offset INTEGER NOT NULL DEFAULT 0,
+                proposed_window_start TEXT NOT NULL DEFAULT '',
+                includes_periodic INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS pending (
                 reason TEXT PRIMARY KEY,
@@ -602,9 +641,29 @@ class TelemetryStore:
             );
             """
         )
+        columns = {row[1] for row in self._db.execute("PRAGMA table_info(outbox)")}
+        for name, ddl in (
+            ("delivered_at", "ALTER TABLE outbox ADD COLUMN delivered_at TEXT NOT NULL DEFAULT ''"),  # noqa: E501
+            (
+                "proposed_journal_offset",
+                "ALTER TABLE outbox ADD COLUMN proposed_journal_offset INTEGER NOT NULL DEFAULT 0",  # noqa: E501
+            ),
+            (
+                "proposed_window_start",
+                "ALTER TABLE outbox ADD COLUMN proposed_window_start TEXT NOT NULL DEFAULT ''",  # noqa: E501
+            ),
+            (
+                "includes_periodic",
+                "ALTER TABLE outbox ADD COLUMN includes_periodic INTEGER NOT NULL DEFAULT 0",  # noqa: E501
+            ),
+        ):
+            if name not in columns:
+                self._db.execute(ddl)
         if self._meta("schema") is None:
             self._set("schema", _SCHEMA)
-            self._set("cadence_hours", "6")
+            self._set("cadence_profile", DEVELOPMENT)
+            self._set("cadence_seconds", str(interval_seconds(DEVELOPMENT)))
+            self._set("cadence_phase_seconds", "0")
             self._set("enabled", "false")
             self._set("next_sequence", "1")
             self._db.commit()
@@ -668,11 +727,13 @@ def activity_feed(store_root: Path, journal_dir: Path | None) -> list[dict[str, 
     return rows[-50:]
 
 
-def post_report(endpoint: str, secret: str, body: str, *, local_test: bool = False) -> bool:  # noqa: E501
-    """Upload one frozen report. Refuses plaintext except explicit loopback tests."""
+def post_report(endpoint: str, secret: str, body: str, *, local_test: bool = False) -> str:  # noqa: E501
+    """Upload one frozen report. The return value is the ACK report id."""
     _endpoint(endpoint, local_test=local_test)
     if not secret:
         raise ValidationError("telemetry credential is missing")
+    sent = json.loads(body)
+    expected = sent.get("report_id") if isinstance(sent, dict) else None
     request = urllib.request.Request(
         endpoint,
         data=body.encode("utf-8"),
@@ -690,7 +751,13 @@ def post_report(endpoint: str, secret: str, body: str, *, local_test: bool = Fal
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         raise ValidationError("telemetry upload was refused") from exc
-    return isinstance(payload, dict) and payload.get("outcome") == "accepted"
+    if not isinstance(payload, dict):
+        raise ValidationError("telemetry acknowledgement does not name this report")
+    nested = payload.get("body")
+    acked = nested.get("report_id") if isinstance(nested, dict) else None
+    if payload.get("outcome") != "accepted" or acked != expected:
+        raise ValidationError("telemetry acknowledgement does not name this report")
+    return str(acked)
 
 
 def _endpoint(endpoint: str, *, local_test: bool) -> None:

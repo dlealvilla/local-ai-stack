@@ -108,10 +108,16 @@ def accept_report(
                 _reject(hub, key_id, "report id was reused with a different body")
                 raise ValidationError("telemetry report id was reused")
             return {"report_id": report.report_id, "duplicate": True, "key_id": key_id}
-        gap, high = _sequence(hub, report.install_id, report.sequence)
+        current = hub._db.execute(
+            "SELECT last_report_sequence FROM deployments WHERE install_id = ?",
+            (report.install_id,),
+        ).fetchone()
+        current_high = int(current["last_report_sequence"]) if current else 0
+        latest = report.sequence >= current_high
         hub._db.execute("BEGIN")
         try:
-            hub._apply_snapshot(report.snapshot, report.report_id)
+            if latest:
+                hub._apply_snapshot(report.snapshot, report.report_id)
             hub._db.execute(
                 """
                 INSERT INTO reports(
@@ -128,9 +134,10 @@ def accept_report(
                     report.rollup_count, report.cumulative.requests,
                     report.cumulative.output_tokens_total, report.cumulative.input_tokens_total,  # noqa: E501
                     report.cumulative.latency_ms_sum, report.cumulative.latency_sample_count,  # noqa: E501
-                    gap, body,
+                    "pending", body,
                 ),
             )
+            gap, high = _reconcile(hub, report.install_id)
             for item in report.rollups:
                 hub._db.execute(
                     """
@@ -161,19 +168,37 @@ def accept_report(
                 (report.install_id, high, gap),
             )
             hub._db.execute(
-                """
-                UPDATE deployments SET
-                    last_report_received_at = ?,
-                    last_report_sequence = ?,
-                    last_trigger = ?,
-                    report_gap = ?
-                WHERE install_id = ?
-                """,
-                (
-                    received_at.isoformat(), report.sequence,
-                    report.trigger_reasons[0], gap, report.install_id,
-                ),
+                "UPDATE reports SET gap = ? WHERE report_id = ?",
+                ("out_of_order" if not latest else gap, report.report_id),
             )
+            if latest:
+                hub._db.execute(
+                    """
+                    UPDATE deployments SET
+                        last_report_received_at = ?,
+                        last_report_sequence = ?,
+                        last_trigger = ?,
+                        report_gap = ?,
+                        cadence_profile = ?,
+                        cadence_seconds = ?
+                    WHERE install_id = ?
+                    """,
+                    (
+                        received_at.isoformat(), report.sequence,
+                        report.trigger_reasons[0], gap, report.cadence_profile,
+                        report.cadence_seconds, report.install_id,
+                    ),
+                )
+            else:
+                hub._db.execute(
+                    """
+                    UPDATE deployments SET
+                        last_report_received_at = ?,
+                        report_gap = ?
+                    WHERE install_id = ?
+                    """,
+                    (received_at.isoformat(), gap, report.install_id),
+                )
             hub._db.commit()
         except Exception:
             hub._db.rollback()
@@ -238,14 +263,17 @@ def portfolio_view(hub: CommandHub, now: datetime) -> dict[str, object]:
         later = 0
         within = 0
         for row in hub._db.execute(
-            "SELECT last_report_received_at FROM deployments"
+            "SELECT last_report_received_at, cadence_seconds FROM deployments"
         ):
             stamp = str(row["last_report_received_at"])
             if stamp in {"", "not_recorded"}:
                 later += 1
                 continue
+            seconds = int(row["cadence_seconds"] or 0)
+            limit = seconds if seconds >= 60 else 21_600
+            slack = 15 if limit <= 600 else 900
             age = now - datetime.fromisoformat(stamp)
-            if age > timedelta(hours=6, minutes=15):
+            if age > timedelta(seconds=limit + slack):
                 later += 1
             else:
                 within += 1
@@ -361,16 +389,18 @@ def bind_intake(
     return httpd
 
 
-def _sequence(hub: CommandHub, install_id: str, sequence: int) -> tuple[str, int]:
-    row = hub._db.execute(
-        "SELECT high_sequence FROM report_cursors WHERE install_id = ?", (install_id,)
-    ).fetchone()
-    high = int(row["high_sequence"]) if row else 0
-    if sequence > high + 1 and high > 0:
-        return f"gap_after:{high}", sequence
-    if sequence <= high:
-        return "out_of_order", high
-    return "none", sequence
+def _reconcile(hub: CommandHub, install_id: str) -> tuple[str, int]:
+    rows = hub._db.execute(
+        "SELECT sequence FROM reports WHERE install_id = ?", (install_id,)
+    ).fetchall()
+    found = {int(row["sequence"]) for row in rows}
+    if not found:
+        return "none", 0
+    high = max(found)
+    missing = [str(item) for item in range(1, high + 1) if item not in found]
+    if not missing:
+        return "none", high
+    return "missing:" + ",".join(missing[:8]), high
 
 
 def _reject(hub: CommandHub, key_id: str, reason: str) -> None:

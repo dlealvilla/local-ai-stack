@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import subprocess
 import threading
 from datetime import UTC, datetime, timedelta
@@ -20,9 +19,10 @@ from machi.adapters.rukan.intake import (
     revoke_credential,
 )
 from machi.adapters.rukan.server import AdminApplication, AdminHandlers
-from machi.adapters.rukan.telemetry import TelemetryStore, jitter_seconds, post_report
+from machi.adapters.rukan.telemetry import TelemetryStore, post_report
 from machi.adapters.rukan.tokens import ollama_usage, openai_usage
 from machi.kernel.build import BuildIdentity, BuildOrigin
+from machi.kernel.cadence import DEVELOPMENT, PRODUCTION, next_slot, phase_seconds
 from machi.kernel.errors import ValidationError
 from machi.kernel.report import load_report
 from machi.kernel.usage import InferenceUsage
@@ -71,19 +71,25 @@ def test_recording_failure_does_not_fail_inference(tmp_path: Path) -> None:
     assert result["outcome"] in {"completed", "refused"}
 
 
-def test_jitter_is_stable_and_bounded() -> None:
-    assert jitter_seconds("inst_a") == jitter_seconds("inst_a")
-    assert 0 <= jitter_seconds("inst_a") < 900
-    assert jitter_seconds("inst_a") != jitter_seconds("inst_b")
+def test_phase_is_stable_and_does_not_accumulate() -> None:
+    phase = phase_seconds("inst_a", DEVELOPMENT, 120)
+    assert phase == phase_seconds("inst_a", DEVELOPMENT, 120)
+    assert 0 <= phase <= 10
+    first = next_slot(NOW, 120, phase)
+    second = next_slot(first, 120, phase)
+    third = next_slot(second, 120, phase)
+    assert (second - first).total_seconds() == 120
+    assert (third - second).total_seconds() == 120
+    assert first.second == phase or first.second == phase % 60
 
 
 def test_material_trigger_coalesces_and_failure_flushes(tmp_path: Path) -> None:
     store = _enabled(tmp_path)
     store.note(("deployment_ready", "plan_changed"), NOW)
-    quiet = store.tick(NOW + timedelta(seconds=10), transport=lambda *_a, **_k: True)
+    quiet = store.tick(NOW + timedelta(seconds=10), transport=_ack)
     assert quiet["sent"] is False
     store.note(("deployment_failed",), NOW + timedelta(seconds=11), immediate=True)
-    flushed = store.tick(NOW + timedelta(seconds=11), transport=lambda *_a, **_k: False)
+    flushed = store.tick(NOW + timedelta(seconds=11), transport=_refuse)
     assert flushed["sent"] is False
     queued = store._db.execute("SELECT COUNT(*) AS n FROM outbox").fetchone()["n"]
     assert queued == 1
@@ -93,12 +99,14 @@ def test_material_trigger_coalesces_and_failure_flushes(tmp_path: Path) -> None:
 def test_outbox_retries_and_survives_restart(tmp_path: Path) -> None:
     store = _enabled(tmp_path)
     store.note(("test_report",), NOW, immediate=True)
-    store.tick(NOW, transport=lambda *_a, **_k: False)
+    before = store._meta("journal_offset")
+    store.tick(NOW, transport=_refuse)
+    assert store._meta("journal_offset") == before
     store.close()
     restored = TelemetryStore(tmp_path, None, BUILD)
     restored._set("enabled", "true")
     restored._db.commit()
-    sent = restored.tick(NOW + timedelta(minutes=2), transport=lambda *_a, **_k: True)
+    sent = restored.tick(NOW + timedelta(minutes=2), transport=_ack)
     assert sent["sent"] is True
     state = restored._db.execute("SELECT state FROM outbox").fetchone()["state"]
     assert state == "delivered"
@@ -115,14 +123,14 @@ def test_intake_auth_gap_and_idempotency(tmp_path: Path) -> None:
         secret=issued["secret"],
         install_id="not_recorded",
         enabled=True,
-        cadence_hours=6,
+        profile=PRODUCTION,
         actor="local_cli",
         now=NOW,
         local_test=True,
     )
     store.record_usage(_usage())
     store.note(("deployment_ready",), NOW, immediate=True)
-    store.tick(NOW, transport=lambda *_a, **_k: False)
+    store.tick(NOW, transport=_refuse)
     body = store._db.execute("SELECT body FROM outbox").fetchone()["body"]
     first = accept_report(hub, body, issued["secret"], received_at=NOW)
     second = accept_report(hub, body, issued["secret"], received_at=NOW)
@@ -140,7 +148,7 @@ def test_intake_auth_gap_and_idempotency(tmp_path: Path) -> None:
     fresh = issue_credential(hub, "not_recorded", NOW)
     # The first key was revoked. Issue a new key for the same install.
     accepted = accept_report(hub, gapped, fresh["secret"], received_at=NOW)
-    assert accepted["gap"] == "gap_after:1"
+    assert accepted["gap"] == "missing:2"
     poisoned = body.replace(
         '"privacy_policy": "rukan.telemetry.export.1"',
         '"privacy_policy": "rukan.telemetry.export.1", "prompt": "secret"',
@@ -174,7 +182,7 @@ def test_plaintext_intake_fails_closed_and_local_test_is_explicit(tmp_path: Path
             secret=issued["secret"],
             install_id="not_recorded",
             enabled=True,
-            cadence_hours=6,
+            profile=PRODUCTION,
             actor="local_cli",
             now=NOW,
             local_test=True,
@@ -215,7 +223,7 @@ def test_https_loopback_intake(tmp_path: Path) -> None:
             secret=issued["secret"],
             install_id="not_recorded",
             enabled=True,
-            cadence_hours=6,
+            profile=PRODUCTION,
             actor="scheduler",
             now=NOW,
             local_test=True,
@@ -228,13 +236,34 @@ def test_https_loopback_intake(tmp_path: Path) -> None:
         hub.close()
 
 
-def test_queue_is_bounded(tmp_path: Path) -> None:
+def test_unacknowledged_report_is_not_deleted(tmp_path: Path) -> None:
     store = _enabled(tmp_path)
-    for index in range(26):
-        store.note((f"settings_{index}"[:40],), NOW, immediate=True)
-        store._compose(NOW + timedelta(seconds=index), (f"settings_{index}"[:40],))
-    count = store._db.execute("SELECT COUNT(*) AS n FROM outbox WHERE state = 'queued'").fetchone()["n"]  # noqa: E501
-    assert count <= 24
+    store.note(("test_report",), NOW, immediate=True)
+    store._compose(NOW, ("test_report",))
+    first = store._db.execute("SELECT report_id FROM outbox").fetchone()["report_id"]
+    store._compose(NOW, ("deployment_ready",))
+    rows = store._db.execute("SELECT report_id FROM outbox").fetchall()
+    assert [row["report_id"] for row in rows] == [first]
+    store.close()
+
+
+def test_wrong_ack_does_not_advance_cursor(tmp_path: Path) -> None:
+    store = _enabled(tmp_path)
+    store.note(("test_report",), NOW, immediate=True)
+    store.tick(NOW, transport=_wrong)
+    assert store._meta("last_acked") in {None, ""}
+    assert store._db.execute("SELECT state FROM outbox").fetchone()["state"] == "queued"
+    store.close()
+
+
+def test_event_report_does_not_move_periodic_schedule(tmp_path: Path) -> None:
+    store = _enabled(tmp_path)
+    due = store._meta("next_periodic_at")
+    store.note(("deployment_ready",), NOW, immediate=True)
+    store.tick(NOW, transport=_ack)
+    assert store._meta("next_periodic_at") == due
+    delivered = store._db.execute("SELECT delivered_at FROM outbox").fetchone()["delivered_at"]  # noqa: E501
+    assert delivered == NOW.isoformat()
     store.close()
 
 
@@ -242,7 +271,9 @@ def _enabled(path: Path) -> TelemetryStore:
     store = TelemetryStore(path, None, BUILD)
     store._set("enabled", "true")
     store._set("install_id", "not_recorded")
-    store._set("cadence_hours", "6")
+    store._set("cadence_profile", "development")
+    store._set("cadence_seconds", "120")
+    store._set("cadence_phase_seconds", "0")
     store._set("next_periodic_at", (NOW + timedelta(hours=6)).isoformat())
     store._db.commit()
     return store
@@ -283,5 +314,16 @@ def _gap(body: str) -> str:
     return text
 
 
-def _touch_db(path: Path) -> None:
-    sqlite3.connect(path).close()
+def _ack(_endpoint: str, _secret: str, body: str, local_test: bool = False) -> str:
+    del _endpoint, _secret, local_test
+    return str(json.loads(body)["report_id"])
+
+
+def _refuse(_endpoint: str, _secret: str, body: str, local_test: bool = False) -> str:
+    del _endpoint, _secret, body, local_test
+    raise ValidationError("telemetry upload was refused")
+
+
+def _wrong(_endpoint: str, _secret: str, body: str, local_test: bool = False) -> str:
+    del _endpoint, _secret, body, local_test
+    return "rpt_other"

@@ -20,7 +20,9 @@ Customer-local loopback UI over the Stage-1 spine.
 - Analytics: usage requests, tokens, latency, purpose, and runtime,
   plus the existing operational-event view.
 - Activity: local action rows with actor origin, not a person name.
-- Settings: monitoring enablement, endpoint, key id, six-hour cadence,
+- People: local users, teams, memberships, and future access intent.
+  Employee login is not enabled. The directory is not exported.
+- Settings: monitoring enablement, development or production profile, endpoint, key id,
   privacy categories, preview, and send test report. Deployment
   performance controls stay read-only until Plan recomputation exists.
 - Models are a library of exact artifacts and digests. Family is shown

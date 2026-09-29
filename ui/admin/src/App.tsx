@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, CockpitOverview, ModelLibrary, MonitoringSettings, UsageAnalytics } from "./cockpit";
+import { Activity, CockpitOverview, ModelLibrary, MonitoringSettings, People, UsageAnalytics } from "./cockpit";
 import {
   canSendInference,
   formatBytes,
@@ -10,7 +10,7 @@ import {
   type Summary,
 } from "./logic";
 
-const PAGES = ["Overview", "Models", "Deployment", "Inference", "Analytics", "Activity", "System", "Settings"] as const;
+const PAGES = ["Overview", "Models", "Deployment", "Inference", "Analytics", "Activity", "People", "System", "Settings"] as const;
 type Page = (typeof PAGES)[number];
 
 export function App() {
@@ -83,6 +83,7 @@ export function App() {
         ) : null}
         {!loading && page === "Analytics" ? <><UsageAnalytics /><Analytics /></> : null}
         {!loading && page === "Activity" ? <Activity /> : null}
+        {!loading && page === "People" ? <People /> : null}
         {!loading && page === "Settings" ? <MonitoringSettings /> : null}
       </main>
     </>

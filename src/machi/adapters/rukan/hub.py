@@ -17,7 +17,7 @@ from machi.kernel.schema import to_dict
 from machi.kernel.snapshot import SupportSnapshot, accept_snapshot
 
 API_NAME = "rukan.command.v1"
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 _LOOPBACK = "127.0.0.1"
 _MAX_BODY = 64_000
 
@@ -123,7 +123,7 @@ class CommandHub:
                        architecture, accelerator_summary, macropath,
                        model_identity, witness_verdict, snapshot_count,
                        last_report_received_at, last_report_sequence,
-                       last_trigger, report_gap
+                       last_trigger, report_gap, cadence_profile, cadence_seconds
                 FROM deployments
                 ORDER BY latest_exported_at DESC
                 """
@@ -498,7 +498,9 @@ class CommandHub:
                     last_report_received_at TEXT NOT NULL DEFAULT 'not_recorded',
                     last_report_sequence INTEGER NOT NULL DEFAULT 0,
                     last_trigger TEXT NOT NULL DEFAULT 'not_recorded',
-                    report_gap TEXT NOT NULL DEFAULT 'none'
+                    report_gap TEXT NOT NULL DEFAULT 'none',
+                    cadence_profile TEXT NOT NULL DEFAULT 'not_recorded',
+                    cadence_seconds INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE TABLE credentials (
                     key_id TEXT PRIMARY KEY,
@@ -627,11 +629,24 @@ class CommandHub:
             version = "2"
         if version == "2":
             self._upgrade_reports()
+            version = "3"
+        if version == "3":
+            self._upgrade_cadence()
             self._set_meta("schema_version", SCHEMA_VERSION)
             self._db.commit()
             return
         if version != SCHEMA_VERSION:
             raise ValidationError("command center schema version is not supported")
+
+    def _upgrade_cadence(self) -> None:
+        columns = {row[1] for row in self._db.execute("PRAGMA table_info(deployments)")}
+        if "cadence_profile" not in columns:
+            self._db.execute(
+                "ALTER TABLE deployments ADD COLUMN cadence_profile TEXT NOT NULL DEFAULT 'not_recorded'"  # noqa: E501
+            )
+            self._db.execute(
+                "ALTER TABLE deployments ADD COLUMN cadence_seconds INTEGER NOT NULL DEFAULT 0"  # noqa: E501
+            )
 
     def _upgrade_reports(self) -> None:
         columns = {row[1] for row in self._db.execute("PRAGMA table_info(deployments)")}
@@ -741,6 +756,8 @@ def serve_command_center(
     httpd = _server(hub, host, port, static_dir)
     try:
         httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
     finally:
         httpd.server_close()
         hub.close()
