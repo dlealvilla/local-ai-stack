@@ -483,7 +483,7 @@ class CommandHub:
                 retry = "already exists" in message or "locked" in message
                 if attempt == 79 or not retry:
                     raise
-                time.sleep(0.05)
+                time.sleep(0.25)
 
     def _migrate_once(self) -> None:
         self._db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")  # noqa: E501

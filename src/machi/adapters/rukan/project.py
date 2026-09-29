@@ -359,7 +359,9 @@ def _chain(
             provider_quals=provider_quals,
             envelope=envelope,
         )
-    latest = _latest_instance(native_instances, provider_instances)
+    latest = _latest_instance(
+        native_instances, provider_instances, releases
+    )
     if latest is None:
         return _empty(contradictory=False, basis="no_instance")
     kind, instance = latest
@@ -695,14 +697,19 @@ def _observed_at(item: Contract) -> dt.datetime:
 def _latest_instance(
     native: tuple[ServingInstance, ...],
     provider: tuple[ProviderServingInstance, ...],
+    releases: tuple[ReservationRelease, ...] = (),
 ) -> tuple[str, ServingInstance | ProviderServingInstance] | None:
+    """Prefer a hold that is still reserved over a higher instance id."""
+    released = {item.reservation_id for item in releases}
     rows: list[tuple[str, str, ServingInstance | ProviderServingInstance]] = [
         ("native", item.instance_id, item) for item in native
     ]
     rows.extend(("provider", item.instance_id, item) for item in provider)
-    if not rows:
+    held = [item for item in rows if item[2].reservation_id not in released]
+    pool = held or rows
+    if not pool:
         return None
-    kind, _identity, instance = max(rows, key=lambda item: item[1])
+    kind, _identity, instance = max(pool, key=lambda item: item[1])
     return kind, instance
 
 

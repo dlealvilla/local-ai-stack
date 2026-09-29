@@ -162,6 +162,27 @@ Clean. Streak is 2. The frozen candidate is the D2 wheel. Confidence runs use th
 
 ## Frozen confidence candidate
 
+That candidate was invalidated by C1. It is not the confidence wheel.
+
 - Source: `f08b46ff1d37a28e95c041ddc1da4d77b6068d9b`
 - Wheel SHA256: `a337167aa04dfa48bf35d634254193631b4a979eca72d2ca9cdce612617f921f`
 - Build: `0.1.0+f08b46ff1d37`
+
+## Confidence C1
+
+Not clean. The confidence streak is 0. The clean diagnostic streak is 0. The next step is a corrected wheel and diagnostic D4.
+
+- Pod `fm4lse85w8orj2`, NVIDIA L40S, secure, CUDA 13.0, US-MO-1, `$1.09/hour`
+- Created `2026-09-29T10:29:18Z`, terminated after the defect below
+- One create attempt returned HTTP 500 and left no pod; the retry created this pod
+- Install `inst_3d636d9d1d833d43`
+- Deploy `dop_7cd87d2aba85f5b8` reached `ready` on the frozen wheel
+- Plan `plan_5cdc5e61594163d0`
+- Deployment reservation `rsv_662c098855459fd4` was still `RESERVED` after the product RELEASE
+- The product RELEASE acted on probe reservation `rsv_221147b6a8639676` because the stopped chain chose the lexicographically greater instance id
+- Instance `sin_7b6bdb1a6b1196fe` was confirmed dead after STOP
+- Three inferences completed
+- Intake was stopped, the next send recorded `Connection refused` with one report queued, and restoring intake delivered later periodic reports
+- The test prompt was not in the Command Center database
+
+Violated invariant: after STOP, RELEASE must free the deployment reservation. A finished qualification probe must not become the chain merely because its instance id sorts later.

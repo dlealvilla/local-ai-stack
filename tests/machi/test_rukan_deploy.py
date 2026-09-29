@@ -353,6 +353,39 @@ def test_ready_emits_a_material_reason(tmp_path: Path) -> None:
     coordinator.close()
 
 
+def test_stopped_chain_keeps_the_unreleased_deployment_hold() -> None:
+    from machi.adapters.rukan.project import _latest_instance
+    from machi.admit.contracts import ReservationRelease
+    from machi.serve.contracts import HealthState, InstanceState, ServingInstance
+
+    def instance(instance_id: str, reservation_id: str) -> ServingInstance:
+        return ServingInstance(
+            instance_id=instance_id,
+            plan_id="plan_test",
+            fingerprint="finger",
+            reservation_id=reservation_id,
+            generation_id="fgen_test",
+            artifact_id="mart_test",
+            serve_provider="vllm",
+            executor_kind="native_process",
+            endpoint_id="ep_test",
+            state=InstanceState.STOPPED,
+            health=HealthState.UNREADY,
+            evidence_id="sev_test",
+            policy_version="m9.serve.1",
+        )
+
+    probe = instance("sin_bd7cf6045525c630", "rsv_probe")
+    deployment = instance("sin_7b6bdb1a6b1196fe", "rsv_deploy")
+    release = ReservationRelease(
+        release_id="rel_probe",
+        reservation_id="rsv_probe",
+        plan_id="plan_probe",
+    )
+    _kind, chosen = _latest_instance((probe, deployment), (), (release,))
+    assert chosen.reservation_id == "rsv_deploy"
+
+
 def test_distribution_declares_the_hub_client() -> None:
     text = Path("pyproject.machi.toml").read_text(encoding="utf-8")
     assert 'huggingface_hub>=0.26,<1' in text
