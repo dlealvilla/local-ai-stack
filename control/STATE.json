@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "run_rukan_v0_3_closure_and_server_campaign",
-  "expected_pasteback_instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
-  "instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
+  "expected_cursor_action": "close_product_deployment_path_and_resume_server_campaign",
+  "expected_pasteback_instruction_id": "RUKAN-V0.3-DEPLOYMENT-CLOSURE-AND-CAMPAIGN-RESUME-001",
+  "instruction_id": "RUKAN-V0.3-DEPLOYMENT-CLOSURE-AND-CAMPAIGN-RESUME-001",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_finish_accountability_fix_then_autonomously_run_bounded_server_campaign",
+    "next_action": "cursor_fix_clean_model_acquisition_add_real_admin_deploy_orchestrator_then_resume_server_campaign_at_d2",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -255,10 +255,29 @@
       "paid_infrastructure": true,
       "persistent_campaign_command_center": true,
       "prerequisite_instruction": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
-      "state": "AUTHORIZED_QUEUED",
+      "state": "D1_NOT_READY_PRODUCT_FIX_AUTHORIZED",
       "terminal_statuses": [
         "RUKAN_V0_3_SERVER_CAMPAIGN_PASS",
         "RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY"
+      ],
+      "d1": {
+        "source_sha": "6dcc91239750e8390530963bb6508e79545a0798",
+        "campaign_sha": "7a17b3b346e7c36cdc087b206e34b6a3c86dc4e7",
+        "result": "NOT_READY",
+        "blockers": [
+          "hub_model_acquisition_dependency_not_declared",
+          "no_complete_product_deploy_orchestration_path"
+        ],
+        "pod_id": "l6x2ct2u5soz9b",
+        "pod_terminated": true
+      },
+      "next_diagnostic": "D2",
+      "clean_streak": 0,
+      "diagnostic_iterations_remaining": [
+        "D2",
+        "D3",
+        "D4",
+        "D5"
       ]
     },
     "runpod_policy": {
@@ -273,10 +292,29 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "rukan_v0_3_deployment_closure": {
+      "instruction_id": "RUKAN-V0.3-DEPLOYMENT-CLOSURE-AND-CAMPAIGN-RESUME-001",
+      "branch": "rukan/v0.3-server-campaign",
+      "starting_sha": "7a17b3b346e7c36cdc087b206e34b6a3c86dc4e7",
+      "requirements": [
+        "declare_supported_huggingface_hub_dependency",
+        "clean_wheel_public_model_acquisition",
+        "rukan_owned_deployment_orchestrator",
+        "admin_deploy_api_and_ui",
+        "recompute_plan_admit_serve_from_trusted_local_state",
+        "idempotent_restart_safe_workflow",
+        "real_ready_inference_stop_release_path",
+        "resume_campaign_at_D2"
+      ],
+      "terminal_statuses": [
+        "RUKAN_V0_3_SERVER_CAMPAIGN_PASS",
+        "RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY"
+      ]
+    }
   },
-  "published_instruction_id": "RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001",
+  "published_instruction_id": "RUKAN-V0.3-DEPLOYMENT-CLOSURE-AND-CAMPAIGN-RESUME-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_RUKAN_V0_3_DEPLOYMENT_CLOSURE_AND_CAMPAIGN_RESUME"
 }
