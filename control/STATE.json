@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "close_v0_3_confidence_then_build_v0_4_user_access_gateway",
-  "expected_pasteback_instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
-  "instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
+  "expected_cursor_action": "accept_v0_3_with_physical_confidence_pending_then_execute_v0_4_buildout",
+  "expected_pasteback_instruction_id": "RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001",
+  "instruction_id": "RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_finish_v0_3_c2_c3_promote_then_design_build_and_physically_test_v0_4_user_access_gateway",
+    "next_action": "cursor_merge_v0_3_as_implementation_accepted_physical_confidence_pending_then_build_and_test_v0_4",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -293,11 +293,18 @@
       "paid_infrastructure": true,
       "persistent_campaign_command_center": true,
       "prerequisite_instruction": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
-      "state": "D1_NOT_READY_PRODUCT_FIX_AUTHORIZED",
+      "state": "IMPLEMENTATION_ACCEPTED_PENDING_LEAD_MERGE_REVIEW",
       "terminal_statuses": [
         "RUKAN_V0_3_SERVER_CAMPAIGN_PASS",
         "RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY"
-      ]
+      ],
+      "physical_confidence_debt": [
+        "C2",
+        "C3"
+      ],
+      "historical_confidence_complete": false,
+      "downstream_development_blocked": false,
+      "bounded_acceptance_status": "RUKAN_V0_3_IMPLEMENTATION_ACCEPTED_PHYSICAL_CONFIDENCE_PENDING"
     },
     "rukan_v0_4_user_access_gateway": {
       "branch": "rukan/user-access-gateway-v0.4",
@@ -336,7 +343,8 @@
         "RUKAN_V0_4_BLOCKED_BY_V0_3_CONFIDENCE",
         "RUKAN_V0_4_USER_ACCESS_NOT_READY",
         "RUKAN_V0_4_USER_ACCESS_GATEWAY_SERVER_CAMPAIGN_PASS"
-      ]
+      ],
+      "prerequisite_policy": "v0_3_bounded_acceptance_permitted_with_stock_only_confidence_debt"
     },
     "runpod_policy": {
       "amd_max_hourly_usd": 4,
@@ -352,8 +360,8 @@
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
     "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
-  "published_instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
+  "published_instruction_id": "RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_V0_3_BOUNDED_ACCEPTANCE_AND_V0_4_BUILDOUT"
 }
