@@ -259,4 +259,6 @@ Clean on the frozen wheel. Confidence streak is 1. C1 included the intake outage
 
 ## Confidence C2
 
-Not started. After C1, secure L40S stock returned `NONE`. Three placement attempts created no pod. C3 was not started. Confidence streak stays 1 of 3 on the frozen wheel above.
+Still not started. A later placement window was checked again.
+
+Secure L40S read `NONE`, then `LOW` only in `OC-AU-1` at `$1.09/hour`. Creating there returned no instance. RTX 6000 Ada, the same Ada class at `$0.84/hour`, also read `LOW` and then returned no instance. A following catalog read showed both `NONE`. No pod id was created. C3 was not started. Confidence streak stays 1 of 3. Gate 1 does not start until C2 and C3 pass on this wheel.
