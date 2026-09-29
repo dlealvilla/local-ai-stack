@@ -1,5 +1,372 @@
 # Open Decisions
 
+## Rukan v0.3 autonomous server campaign — binding
+
+The post-audit accountability correction is followed by one autonomous bounded server campaign. This campaign is authorized only after the correction reaches:
+
+`RUKAN_V0_3_PRODUCTION_CANDIDATE_READY_FOR_SERVER_ACCEPTANCE`
+
+and Lead-review blockers from `RUKAN-V0.3-PRODUCTION-READINESS-FIX-001` are closed.
+
+### Campaign purpose
+
+The campaign exists to discover server-only integration defects, not merely to repeat local tests.
+
+It must exercise the frozen release artifact on real disposable servers, collect real operational evidence, repair server/pilot blockers through normal version-controlled development, and iterate without requiring additional user instructions unless a safety/authentication/hang gate requires intervention.
+
+The desired end state is:
+- bounded Rukan v0.3 works reproducibly from its release artifact on fresh supported server hosts;
+- automatic 2-minute Development telemetry works during acceptance;
+- deployment/inference/usage/People/Admin/Command Center workflows are exercised;
+- failures discovered on servers become local regression tests before fixes are accepted;
+- campaign telemetry/support evidence is preserved after disposable servers are destroyed;
+- three final fresh-server confidence runs pass on a frozen candidate without code changes between those three runs.
+
+### Iteration model
+
+Use two phases.
+
+#### Phase A — diagnostic/corrective campaign
+
+Maximum **5 server diagnostic iterations**.
+
+An iteration is:
+1. freeze exact source commit and wheel SHA;
+2. provision or reuse one authorized disposable server;
+3. install artifact-only;
+4. execute the campaign acceptance slice;
+5. collect evidence;
+6. classify every deviation;
+7. if a product defect exists:
+   - reproduce locally where feasible;
+   - write a failing regression test;
+   - design the smallest robust architectural correction;
+   - fix on the campaign branch;
+   - run local QA;
+   - commit and push;
+   - build one new immutable RC artifact;
+   - continue to the next server iteration;
+8. never hot-patch source code on the server as the accepted fix.
+
+Diagnostic phase may end before iteration 5 only after **two consecutive clean server iterations** on the same source candidate/behavioral design with no SERVER_ACCEPTANCE_BLOCKER or PILOT_BLOCKER and no unexplained data mismatch.
+
+If iteration 5 still exposes a server/pilot blocker, stop and return NOT_READY with evidence rather than continue spending.
+
+#### Phase B — confidence campaign
+
+Once diagnostic robustness is established, run **3 additional fresh-server confidence tries**.
+
+Requirements:
+- each starts from a newly provisioned disposable server or demonstrably fresh host image/state;
+- install only the exact frozen wheel selected after Phase A;
+- no source checkout;
+- no code changes between the three runs;
+- if any of the three finds a product defect, confidence phase fails:
+  - fix via version control;
+  - candidate is no longer frozen;
+  - return to diagnostic mode, counting against the maximum diagnostic budget if still available;
+  - after robustness is re-established, confidence run count resets to 0;
+- terminal PASS requires three consecutive clean fresh-server confidence runs on one identical source commit and wheel SHA.
+
+### Server minimization
+
+- One disposable server at a time.
+- NVIDIA only for this campaign unless a test requirement proves otherwise.
+- Prefer the cheapest available previously supported/qualified NVIDIA shape that safely runs the tiny acceptance model and the complete Rukan control plane.
+- Prefer A40/L40S or another already-supported NVIDIA family over introducing hardware breadth during a software robustness campaign.
+- Do not use AMD in this campaign solely for breadth.
+- Diagnostic iterations may reuse the same pod when the next test does not require a fresh host, but must use:
+  - fresh virtual environment;
+  - fresh Rukan state root;
+  - fresh Command Center data root;
+  - fresh telemetry credential;
+  - fresh InstallId;
+  - exact new RC artifact where code changed.
+- Recreate the pod whenever:
+  - installation/bootstrap/fresh-host behavior is under test;
+  - host contamination could mask the defect;
+  - the current pod is unstable;
+  - confidence phase begins.
+- Confidence runs use fresh servers.
+
+### RunPod policy
+
+All existing RunPod safety limits remain binding:
+- Cursor may manage only disposable RunPod Pods it creates for this campaign;
+- never modify/stop/terminate a pre-existing or ambiguously owned Pod;
+- official RunPod agent skill/MCP/runpodctl only; no custom cloud client;
+- max concurrent Pods: 1;
+- NVIDIA max hourly price: $1.50/hour;
+- no network volume;
+- max Pod lifetime: 90 minutes;
+- max provisioning retries: 3;
+- session max: $40;
+- daily max: $80;
+- remaining account balance floor: $0.50;
+- live account balance must be established before creation;
+- projected test must preserve the $0.50 floor;
+- on success or terminal product failure: capture evidence then terminate the owned Pod;
+- on hang: STOP the owned Pod and ask Daniel before termination, per binding policy.
+
+Additional campaign target:
+- target total campaign infrastructure spend <= $15 when availability permits;
+- if projected campaign spend will exceed $15, stop before creating another Pod and report why;
+- this additional cap is a campaign economy guard, not permission to violate any stricter existing limit.
+
+### Server topology
+
+The default low-cost test topology may co-locate the two product planes on one disposable server while keeping them logically separate:
+
+```text
+Disposable server
+
+Customer Rukan plane
+  - separate state root
+  - Admin on 127.0.0.1
+  - Serve/runtime/model
+  - telemetry sender
+
+Business plane
+  - separate Command Center data root
+  - Command Center UI on 127.0.0.1
+  - telemetry intake
+  - separate credential database
+```
+
+The planes must communicate through the real telemetry HTTP/TLS/machine-auth path, not by writing each other's databases.
+
+For TLS on a single host:
+- use a campaign-local CA/server certificate with SAN matching the test endpoint;
+- run telemetry client with normal certificate/hostname verification;
+- do not use `local_test=true` to bypass TLS verification for the acceptance result;
+- do not weaken production client code solely for the campaign.
+
+If a real owned external HTTPS endpoint is already available and can be used safely without new product architecture, one confidence run may exercise it. It is not required to create unrelated infrastructure solely to satisfy this campaign.
+
+### Real-user behavior exercised
+
+Each server run should exercise the current bounded product like a customer administrator would:
+- install/start from wheel;
+- open packaged Admin through loopback/SSH tunnel semantics;
+- inspect Overview/System;
+- inspect Models;
+- deploy/start the accepted small model/runtime path;
+- perform multiple inference requests;
+- record input/output tokens and latency;
+- inspect Admin Analytics/Activity;
+- create/edit/suspend/reactivate/deactivate test users where appropriate;
+- create/edit/archive/reactivate teams;
+- add/remove membership;
+- set access intent and inspect effective access;
+- configure automatic reporting with Development 120-second cadence;
+- receive periodic and material-event reports;
+- trigger a permitted monitoring/configuration change;
+- stop serving;
+- release reservation;
+- verify corresponding reports;
+- restart Admin and Command Center/intake;
+- simulate a brief telemetry outage;
+- verify queued resend/recovery;
+- verify no content/People PII crosses the telemetry boundary.
+
+Use synthetic acceptance identities/emails only.
+
+### Data collection and preservation
+
+Every run must have a durable campaign run id.
+
+Collect at least:
+- source commit;
+- wheel name/SHA/build id;
+- RunPod Pod id owned by campaign;
+- provider GPU shape;
+- hourly rate;
+- OS/arch;
+- driver/runtime versions;
+- CPU/RAM/VRAM/storage observations;
+- InstallId;
+- telemetry stream id(s);
+- model/artifact/runtime/macropath;
+- deployment/plan/reservation/ServingInstance/Witness identifiers where appropriate;
+- report ids/sequences/triggers/timestamps;
+- generated_at/received_at/ACK timing;
+- heartbeat intervals;
+- inference request count;
+- input/output tokens when reported;
+- latency;
+- failure counts/types;
+- usage-accounting degradation state;
+- People workflow outcomes using synthetic PII;
+- restart/outage behavior;
+- retention/stream-reset behavior when exercised;
+- test PASS/FAIL;
+- defects discovered;
+- code commit that fixes each defect;
+- approximate server spend.
+
+Do not commit:
+- real credentials;
+- private keys;
+- bearer secrets;
+- customer content;
+- raw prompts/responses;
+- proprietary files.
+
+Before terminating a Pod, copy sanitized evidence back to the campaign evidence root on the operator machine.
+
+Also export the existing privacy-safe support snapshot / analytics bundle from the server run and import it into a persistent local campaign Command Center inbox where possible, so the final local Command Center accumulates a list of campaign deployments and historical analytics after the Pods are gone.
+
+Automatic telemetry itself is still tested on the server topology; manual bundle import is used only for durable cross-run aggregation after teardown.
+
+### Version control discipline
+
+Use one campaign branch after the accountability fix, suggested:
+
+`rukan/v0.3-server-campaign`
+
+Never rewrite accepted history.
+
+For each iteration record:
+- run manifest;
+- tested source SHA;
+- tested wheel SHA;
+- result;
+- defect IDs;
+- evidence path.
+
+If code changes:
+- add regression test first where feasible;
+- code fix commit;
+- QA;
+- build artifact;
+- separate sanitized evidence/update commit when useful.
+
+Commit messages should identify the campaign iteration, for example:
+- `server-campaign(i2): reproduce telemetry reset defect`
+- `server-campaign(i2): preserve stream currentness across reset`
+- `server-campaign(i2): record acceptance evidence`
+
+Do not commit generated secrets or raw sensitive logs.
+
+### Defect handling
+
+Every server deviation gets one classification:
+- PRODUCT_DEFECT;
+- TEST_HARNESS_DEFECT;
+- PROVIDER_ENVIRONMENT_DEFECT;
+- UNSUPPORTED_HOST;
+- EXPECTED_LIMITATION;
+- OPERATOR_ERROR.
+
+For PRODUCT_DEFECT:
+1. write minimal causal hypothesis;
+2. identify violated invariant;
+3. design robust solution before patching;
+4. prefer domain-owner fix over UI workaround;
+5. add local regression;
+6. fix;
+7. run targeted QA;
+8. run full bounded regression appropriate to changed domain;
+9. freeze new artifact;
+10. retest server.
+
+Never:
+- disable safety checks just to pass;
+- hardcode one RunPod machine;
+- suppress an error instead of fixing state semantics;
+- change expected output to match a bug;
+- mark provider failures as product PASS without evidence.
+
+### Robustness criteria before confidence phase
+
+Must have two consecutive clean diagnostic runs with:
+- artifact-only install;
+- Admin packaged UI works;
+- Command Center packaged UI works;
+- model deploy/start/inference/stop/release works;
+- usage/token accounting reconciles exactly;
+- 2-minute periodic telemetry observed for at least three slots;
+- one event-trigger report between slots;
+- telemetry outage/retry works;
+- restart works;
+- no duplicate/lost report or usage;
+- People workflow works;
+- privacy canaries absent from Command Center;
+- no unexplained SQLite lock/migration errors;
+- no stale stream/current-state errors;
+- no hidden manual repair;
+- no source checkout/Node runtime;
+- all SERVER_ACCEPTANCE_BLOCKER and PILOT_BLOCKER findings closed.
+
+### Confidence run minimum
+
+Each of the 3 final fresh tries should remain economical but must include enough time to prove:
+- clean install;
+- one deployment;
+- at least 3 real inference requests;
+- at least 3 periodic 120-second reports;
+- at least 1 material event report;
+- one restart of a product service;
+- stop/release;
+- evidence export;
+- clean teardown.
+
+If prior diagnostic evidence proves a long outage/retry path repeatedly, confidence runs do not need to repeat every expensive destructive scenario; at least one confidence run must still exercise a brief intake outage/recovery.
+
+### Final campaign result
+
+PASS only if:
+- post-audit accountability fix passed before campaign;
+- no unresolved SERVER_ACCEPTANCE_BLOCKER;
+- no unresolved PILOT_BLOCKER in the declared POSIX/NVIDIA pilot envelope;
+- three consecutive fresh confidence runs pass on the exact same source SHA + wheel SHA;
+- final wheel hash is recorded;
+- final branch is clean/pushed;
+- campaign evidence and aggregate summary exist locally;
+- persistent local Command Center contains/imports the campaign deployment/support/analytics evidence where existing product import paths permit;
+- all owned Pods are terminated.
+
+Terminal PASS:
+
+`RUKAN_V0_3_SERVER_CAMPAIGN_PASS`
+
+Failure terminal:
+
+`RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY`
+
+Use NOT_READY if:
+- diagnostic iteration 5 still finds blocker;
+- cost/safety gate prevents adequate testing;
+- provider availability prevents confidence evidence;
+- a hang requires Daniel input;
+- three consecutive confidence runs cannot be obtained;
+- data/evidence is contradictory.
+
+### Autonomous scope
+
+Within these bounds, Cursor is authorized to:
+- provision/stop/terminate owned disposable campaign Pods;
+- install the frozen Rukan wheel;
+- configure synthetic acceptance data;
+- run current supported tiny models;
+- inspect logs/state/evidence;
+- modify repository code/tests/docs in response to discovered product defects;
+- commit/push campaign work;
+- build successive RC wheels;
+- repeat diagnostic loops;
+- perform final confidence runs.
+
+Cursor is not authorized to:
+- touch pre-existing Pods;
+- use network volumes;
+- exceed cost/balance limits;
+- deploy unrelated cloud infrastructure;
+- weaken security;
+- add remote customer control;
+- add employee auth/chat/RAG/Agent Builder/licensing;
+- perform destructive cleanup outside campaign-owned paths;
+- upload customer content.
+
 ## Rukan v0.3 bounded production-readiness gate — binding
 
 The next gate is not a claim that the entire long-term Company Brain is GA-ready. It is a **bounded production-readiness gate for the currently implemented Rukan v0.3 pilot product**:
