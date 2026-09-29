@@ -1,343 +1,1404 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-Instruction ID: `RUKAN-CONNECTED-MONITORING-V0.3-FIX-001`
-Status: `AUTHORIZED_CORRECTION`
-Predecessor: `RUKAN-CONNECTED-MONITORING-V0.3-001`
-Correction starting source: `0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4`
-Branch: `rukan/connected-monitoring-v0.3`
+Instruction ID: `RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001`  
+Status: `AUTHORIZED_IMPLEMENTATION_WITH_BOUNDED_ARCHITECTURE_REVIEW`  
+Canonical baseline: `machi` at `d38a8e855f099f353e1ac090b990014eed67a826`  
+Continue candidate branch: `rukan/connected-monitoring-v0.3`  
+Current candidate source: `0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4`
 
-The v0.3 product increment is architecturally strong and is close to acceptance, but Lead review found delivery/scheduling semantics that must be corrected before promotion.
+This instruction supersedes `RUKAN-CONNECTED-MONITORING-V0.3-FIX-001`.
 
-Do NOT broaden scope. Preserve all accepted UI/product/security work. Fix only the telemetry correctness/accountability items below, add regression tests, rerun full QA, publish paste-back, and STOP.
+The goal is to **finish the connected-monitoring/product-cockpit section to a locally accepted, real-server-test-ready state**, while adding the customer-local People / Teams / future access foundation required by the Product Vision.
 
-# 1. SIX-HOUR PERIODIC REPORTING MUST BE INDEPENDENT OF EVENT REPORTS
+Do not perform paid or external server acceptance in this run.  
+Do perform full local/internal integration testing and leave a precise real-server acceptance package ready for Daniel to execute later as the actual administrator/user.
 
-Current defect:
+The target product after this increment is:
 
-`_compose()` always sets:
+```text
+CUSTOMER RUKAN
+├── Admin AI operations cockpit
+│   ├── Overview
+│   ├── Models
+│   ├── Deployment
+│   ├── Inference
+│   ├── Analytics
+│   ├── Activity
+│   ├── People / Users & Teams
+│   ├── System
+│   └── Settings
+│
+├── local identity directory
+│   ├── users
+│   ├── teams
+│   ├── memberships
+│   └── future access intent
+│
+├── non-content usage accounting
+├── material-change reporting
+├── 2-minute DEVELOPMENT heartbeat
+├── durable ACK-owned telemetry outbox
+└── secure machine-authenticated upload
+          |
+          | one-way only
+          v
+RUKAN COMMAND CENTER
+├── Overview
+├── Deployments
+├── Analytics
+├── Model landscape
+├── Reporting / Intake
+├── Support
+└── Settings
+```
 
-`next_periodic_at = now + cadence + jitter`
+Future employee endpoint, authentication, chat, agent builder, LibreChat, Knowledge/RAG and remote control remain deferred.
 
-This happens for periodic reports AND event/settings/test reports.
+---
 
-Consequences:
-- every deployment/model/settings-triggered report postpones the next periodic report;
-- sufficiently active deployments may never emit a true periodic heartbeat;
-- the deterministic jitter is added again every cycle, so the nominal six-hour phase drifts by up to 15 minutes on every report.
+# 0. REQUIRED ARCHITECTURE / PRODUCT REVIEW
 
-This violates the required semantics:
+Before code changes, re-read and reconcile:
 
-**periodic every six hours + event-triggered reports**, not “six hours after whichever report happened last.”
+- `docs/PRODUCT_VISION.md`
+- `docs/machi/ARCHITECTURE.md`
+- `docs/machi/ROADMAP.md`
+- `docs/machi/TELEMETRY.md`
+- `docs/machi/RUKAN.md`
+- `docs/machi/RUKAN-ADMIN.md`
+- `docs/machi/RUKAN-COMMAND-CENTER.md`
+- `docs/machi/RUKAN-ANALYTICS.md`
+- `docs/machi/RUKAN-CONNECTED-MONITORING-V0.3.md`
+- `src/kultrun/identity/contracts.py` as historical design precedent only
+- current Kernel/EventRecord/Store/ID patterns
+- current Admin API/service composition
+- current Command Center/intake
+- current model catalog/warehouse/access seams
+- current Plan/ResourceManager/Serve authority.
 
-Required behavior:
+Extend the v0.3 design note with a section for:
 
-- jitter is a stable deployment phase offset, not a per-report additive delay;
-- event-triggered reports MUST NOT move the periodic schedule;
-- test reports MUST NOT move the periodic schedule;
-- periodic due times recur at the configured cadence from a stable periodic schedule;
-- after a delayed/outage period, do not generate an unbounded backfill storm;
-- if multiple periodic slots were missed, one bounded catch-up report is sufficient and the next due time must advance to the next future slot;
-- cadence changes should intentionally establish a new schedule and also trigger the existing settings report;
-- default remains 6 hours;
-- bounded cadence override remains 1..24 hours.
+- corrected telemetry state machine;
+- cadence/profile architecture;
+- development-vs-production heartbeat policy;
+- People/Teams directory;
+- access-intent semantics;
+- future gateway seam;
+- privacy/PII boundary;
+- real-server acceptance topology.
 
-A simple implementation is preferred:
-- maintain `next_periodic_at` as an independent schedule;
-- initial/configure schedule applies the deterministic phase once;
-- only a periodic-due composition advances that periodic schedule;
-- advance by whole cadence intervals until the next due timestamp is in the future;
-- do not add jitter repeatedly.
+## Cursor discretion
 
-Add deterministic tests proving:
-1. event report at T+2h does not change the periodic due at approximately T+6h+phase;
-2. repeated event reports cannot postpone periodic indefinitely;
-3. first periodic advances by exactly cadence, without accumulating jitter;
-4. missed slots produce one catch-up then next future slot;
-5. cadence change establishes the new cadence schedule;
-6. test report does not move periodic schedule.
+Cursor may challenge or modify exact Lead proposals where repository truth or a stronger product architecture supports it.
 
-# 2. DELIVERY CURSORS MUST ADVANCE ONLY AFTER ACKNOWLEDGEMENT
+Material deviations must:
+1. be written down;
+2. state the alternatives considered;
+3. explain Product Vision alignment;
+4. preserve the required user-visible outcomes and invariants.
 
-Current defect:
+Do not use this discretion to remove:
+- 2-minute development heartbeat;
+- configurable cadence;
+- independent periodic schedule;
+- ACK-owned telemetry cursors;
+- machine-authenticated upload;
+- People/Teams backend;
+- Admin management surfaces;
+- test-readiness package.
 
-At report composition, before upload acknowledgement, the client advances:
-- `next_sequence`;
-- `window_start`;
-- `journal_offset`;
-- last-reported model/macropath/version/SAFE observation baseline;
-- periodic schedule.
+---
 
-This contradicts the binding v0.3 transport invariant:
+# 1. FIRST CLOSE THE V0.3 TELEMETRY CORRECTION
 
-> client cursor/outbox state advances only after receiver acknowledgement.
+Before broadening into People/Teams, close all issues identified by Lead review.
 
-The frozen outbox body reduces risk, but the current state transition is still wrong and creates avoidable loss/accountability edges if an unacknowledged outbox entry is damaged, removed, or compacted.
+## 1.1 Periodic schedule independent of event reports
 
-Required architecture:
-
-## Compose
-- determine sequence from last ACKed state;
-- read the current ACKed usage/event cursor;
-- build canonical report;
-- persist the full report body DURABLY;
-- persist the **proposed post-ACK cursor state** with that outbox entry;
-- do NOT advance ACK-owned source cursors yet.
-
-At minimum proposed state should cover:
-- report sequence;
-- usage window end;
-- journal byte/event cursor end;
-- report-state baseline (model/macropath/version/SAFE values used by observation triggers);
-- any periodic schedule advancement attributable specifically to a periodic report.
-
-## Send failure
-- report remains queued;
-- ACK-owned cursor state stays unchanged;
-- no data is considered delivered;
-- inference/local operation unaffected.
-
-## Successful ACK
-In one local transaction where practical:
-- mark report delivered;
-- persist actual delivery/ack timestamp;
-- advance next sequence;
-- advance usage window cursor;
-- advance journal cursor;
-- update last ACKed report id;
-- update report-state baseline;
-- advance periodic schedule only if this report satisfied a periodic due slot;
-- retain report body/history as needed.
-
-Restart before or after ACK must converge safely.
-
-Do not implement distributed exactly-once.
-
-# 3. DO NOT SILENTLY DROP THE OLDEST UNACKNOWLEDGED REPORT
-
-Current code contains a queue-cap path that deletes the oldest queued report when MAX_QUEUED is reached.
-
-That is incompatible with ACK-owned cursor semantics unless an explicit loss/compaction protocol preserves the omitted interval.
-
-Given current architecture already refuses to compose a new report while one queued report exists, use the simplest truthful rule for v0.3:
-
-- only one outstanding unacknowledged report is required;
-- later material triggers remain durable in `pending`;
-- usage/events remain in their local stores;
-- after ACK, next composition includes facts since the last ACKed cursor;
-- no unacknowledged report is silently deleted.
-
-If Cursor can prove multiple outstanding reports are required, it may retain them only with correct independent proposed cursor boundaries and no silent deletion. Simpler single-outstanding design is preferred.
-
-Update queue/status wording accordingly if needed.
-
-# 4. MONITORING "LAST SUCCESS" MUST BE THE ACK/DELIVERY TIME
-
-Current Admin monitoring status reads `created_at` from the most recent delivered outbox row and exposes it as `last_success_at`.
-
-That is report creation time, not successful upload time.
+Current candidate incorrectly lets any report reset the periodic schedule.
 
 Required:
-- persist `delivered_at` / `acked_at`;
-- expose that as last successful upload;
-- keep `created_at` / generated_at distinct;
-- UI wording should reflect this accurately.
 
-Add tests where report is composed at T1, fails, succeeds at T2, and:
-- report generated/created time remains T1;
-- Admin last success is T2.
+- periodic reporting is an independent schedule;
+- event-triggered reports do not postpone it;
+- test reports do not postpone it;
+- reporting-settings changes establish a new periodic schedule only when cadence/profile actually changes;
+- periodic catch-up after an outage is bounded;
+- no backfill storm.
 
-# 5. OUT-OF-ORDER REPORTS MUST NOT REGRESS COMMAND CENTER "LATEST" SUMMARY
+## 1.2 Jitter/phase does not accumulate
 
-Current receiver correctly stores an older out-of-order report, but the deployment summary update writes:
-- `last_report_sequence = incoming sequence`;
-- `last_trigger = incoming trigger`;
-- `report_gap = incoming gap`;
-even if incoming sequence is older than the highest already accepted sequence.
+Jitter establishes a stable per-install phase.
 
-This can make the portfolio row look as if the older report is the latest report state.
+It must not be added again every interval.
 
-Required semantics:
+For example, if the phase is +7 seconds:
 
-Keep distinct:
-- latest **receipt time**: most recent time any valid report was received;
-- highest/latest report sequence/state: highest accepted sequence (or later generated report by the defined ordering);
-- per-report arrival/order evidence.
+```text
+00:00:07
+00:02:07
+00:04:07
+00:06:07
+```
 
-When an older report arrives late:
-- preserve it in report history;
-- update last receipt time if that field truly means receipt;
-- do NOT regress highest report sequence;
-- do NOT replace latest-trigger/latest-report summary with older sequence metadata;
-- record the report itself as out-of-order;
-- preserve truthful current gap state.
+not:
 
-If a late report fills a previously missing sequence, recompute current sequence-gap state from accepted report sequences rather than blindly leaving a stale "gap" or replacing it with "out_of_order".
+```text
+00:00:07
+00:02:14
+00:04:21
+...
+```
 
-Do not infer Online/Offline.
+## 1.3 ACK owns delivery cursors
 
-Add tests:
-- receive seq 1 then 3 → current gap;
-- receive seq 2 late → history has all three, high sequence remains 3, current missing gap resolves, seq 2 is marked out-of-order;
-- receive seq 4 → high 4;
-- last receipt time tracks actual arrival;
-- latest report trigger/state corresponds to highest/latest report, not late old report.
+Composition persists a frozen report and proposed post-ACK state.
 
-# 6. REPORT ACK VALIDATION
+It does NOT advance authoritative delivery cursors.
 
-Current HTTP sender treats any receiver JSON with `outcome=accepted` as success.
+Only a validated receiver ACK advances:
 
-Strengthen ACK validation minimally:
-- receiver ACK must identify the same `report_id` sent;
-- where receiver returns install/key identity, validate what is safe/useful;
-- only matching ACK advances local cursor state.
+- next sequence;
+- usage window cursor;
+- journal cursor;
+- last ACKed report id;
+- last-ACKed model/runtime/version/SAFE baseline;
+- periodic schedule if this report satisfied a periodic slot.
 
-A mismatched/malformed ACK must leave report queued.
+Send failure leaves these unchanged.
 
-Do not add a complex signing protocol.
+## 1.4 No silent unacknowledged report deletion
 
-Add tests for:
-- matching ACK advances;
-- accepted response with wrong report id does not advance;
-- malformed ACK does not advance.
+Prefer one outstanding frozen report.
 
-# 7. PRESERVE CURRENT MACHINE AUTH / TLS DESIGN
+While it is queued:
+- new usage remains in the usage store;
+- new journal events remain after the ACK cursor;
+- new triggers remain pending.
 
-The following v0.3 choices remain accepted unless a bug is found:
+After ACK, the next report picks them up.
 
-- high-entropy bearer token over TLS;
-- secret hash stored receiver-side;
-- credential bound to one install id;
-- rotation/revocation;
-- non-loopback plaintext refused;
-- explicit loopback local-test HTTP;
-- separate write-only intake server;
-- no remote-control routes;
-- credential secret never returned after configuration except one-time issue/rotation;
-- customer content excluded.
+Never silently delete an unacknowledged interval merely because a queue cap was reached.
 
-Do not add OAuth/OIDC/tenancy/mTLS in this correction.
+## 1.5 ACK identity
 
-# 8. PRESERVE CURRENT USAGE DESIGN
+A sender advances only after an ACK naming the exact report id sent.
 
-The current new `kernel.inference_usage@1` direction is accepted.
+Malformed/wrong-report acknowledgements leave the report queued.
 
-Preserve:
-- operator_test vs acceptance_probe vs user_request;
-- native prompt/completion token extraction when reported;
-- Ollama prompt_eval_count/eval_count when reported;
-- Rukan-boundary latency;
-- runtime duration separately where available;
-- no prompt/response persistence;
-- recorder failure does not fail inference;
-- local aggregation and vendor rollups/cumulative counters.
+## 1.6 Delivery timestamp
 
-Add tests only where required by corrected ACK/cursor behavior.
+Persist/report:
+- generated_at / created_at;
+- delivered_at / acked_at.
 
-# 9. PRESERVE CURRENT PRODUCT UI DIRECTION
+Admin "Last successful report" means ACK time.
 
-Do not redesign v0.3 UI in this correction.
+## 1.7 Command Center out-of-order semantics
 
-Preserve:
-- Admin as AI operations cockpit;
-- Admin Overview, Models, Deployment, Inference, Analytics, Activity, System, Settings;
-- streaming/Netflix-like model library using truthful family/variant metadata;
-- no invented Recommended row;
-- monitoring settings/preview/test report;
-- Command Center Overview, Deployments, Detail, Analytics, Models, Reporting, Settings, Import;
-- report-centric wording;
-- no Online/Offline;
-- no fake metrics.
+Late reports are useful history but must not regress latest summary.
 
-Update monitoring timestamps/cadence labels only where needed for the corrected semantics.
+For sequence 1 → 3 → late 2:
+- high/latest sequence remains 3;
+- receipt time may update because a report arrived;
+- report 2 remains marked out_of_order;
+- current missing-sequence gap is recomputed and can resolve;
+- latest trigger/latest-reported-state remains from the highest relevant report.
 
-# 10. CROSS-PLATFORM CREDENTIAL LIMITATION
+---
 
-Current credential file adapter deliberately fails when POSIX 0600 permissions cannot be enforced.
+# 2. HEARTBEAT / OPERATIONAL REPORT CADENCE MUST BECOME PARAMETRIC
 
-Do not weaken that security invariant.
+The current hours-only cadence is too rigid.
 
-Document explicitly:
-- v0.3 automatic telemetry credential storage is currently supported on POSIX hosts;
-- Windows secure credential storage is deferred and must use an appropriate Windows secret-storage/ACL adapter rather than pretending chmod 0600 exists.
+Create one authoritative typed telemetry cadence policy expressed internally in **seconds** or a similarly flexible duration unit.
 
-This is a recorded portability limitation, not a reason to store secrets insecurely.
+Do not scatter values across:
+- report contract;
+- scheduler;
+- Admin UI;
+- Command Center;
+- tests;
+- CLI.
 
-# 11. QA
+## Required profiles
 
-Run all prior v0.3 tests plus new tests for:
+### DEVELOPMENT — CURRENT DEFAULT DURING DEVELOPMENT
 
-## Periodic schedule
-- phase jitter applied once;
-- event reports do not postpone periodic;
-- test report does not postpone;
-- no jitter drift;
-- missed periodic catch-up bounded;
-- cadence reconfiguration.
+```text
+profile: development
+periodic interval: 120 seconds
+stable jitter/phase: small, deterministic, test-friendly
+```
 
-## ACK-owned cursors
-- composition does not advance source cursors;
-- failed upload leaves all ACK-owned state unchanged;
-- successful matching ACK advances atomically;
-- restart with queued report preserves old cursor;
-- resend duplicate ACK converges;
-- next report after ACK starts exactly after acknowledged window/cursor;
-- pending events/usage occurring while report queued appear in the following report.
+A maximum phase around 0–10 seconds is reasonable.
 
-## ACK identity
-- wrong report-id ACK refused locally;
-- malformed accepted response refused;
-- matching report-id accepted.
+The intent is that Daniel can observe repeated reports quickly when testing real deployments.
 
-## Outbox
-- no silent deletion of unacknowledged report;
-- bounded behavior remains;
-- prolonged outage keeps service/inference functional.
+### PRODUCTION
 
-## Delivery timestamp
-- created/generated time vs delivered/acked time distinct.
+```text
+profile: production
+periodic interval: 21,600 seconds (6 hours)
+stable phase/jitter: up to the approved ~15 minutes
+```
 
-## Command Center sequence
-- seq 1 → 3 gap;
-- late seq 2 resolves current gap without regressing high sequence;
-- report history retains out-of-order evidence;
-- seq 4 progresses;
-- latest receipt vs latest/high-sequence metadata are truthful.
+Production remains the eventual commercial default.
 
-Then run:
-- full tests/machi;
-- tests/acceptance_lab;
+The **current development build/default must use the 2-minute profile**.
+
+Admin and Command Center must make this visually explicit, for example:
+
+> Development reporting cadence — every 2 minutes
+
+not hide it as if this were the eventual production configuration.
+
+## Custom cadence
+
+Allow a bounded custom duration through one authoritative settings/API/CLI seam if it remains simple.
+
+Suggested bounds:
+- absolute technical minimum no lower than 30–60 seconds;
+- normal customer UI should discourage very frequent production reporting;
+- maximum 24 hours.
+
+Cursor may refine bounds.
+
+Do not require a contract/schema redesign to change from 2 minutes to 6 hours.
+
+## Operational report contract
+
+If the current `cadence_hours` field cannot accurately represent 120 seconds, correct it now.
+
+Because v0.3 has not yet been promoted, it is acceptable to evolve the candidate contract/schema.
+
+Prefer a field such as:
+- cadence_seconds;
+- cadence_profile;
+or another explicit representation.
+
+Preserve schema/version discipline and update golden fingerprints/tests.
+
+---
+
+# 3. DEVELOPMENT REAL-CLOCK LOCAL SOAK
+
+In addition to deterministic fake-clock tests, run one local real-clock acceptance using the actual production service loop.
+
+No paid server.
+
+Use the development profile.
+
+Required demonstration:
+
+1. local customer-side Admin service/TelemetryAgent starts;
+2. local Command Center + secure loopback HTTPS intake starts;
+3. one credential is paired;
+4. reporting is enabled;
+5. one material/test report is sent;
+6. then leave the processes running long enough to cross at least **two 2-minute periodic slots**;
+7. prove those periodic reports arrive even if an event report occurred between them;
+8. prove periodic phase does not drift;
+9. show generated_at vs received_at/acked_at;
+10. stop cleanly.
+
+Do not use the browser as the scheduler.
+
+Record bounded evidence in the paste-back and design/acceptance doc.
+
+---
+
+# 4. PREPARE REAL SERVER / REAL ADMINISTRATOR ACCEPTANCE — DO NOT RUN IT YET
+
+Create:
+
+`docs/machi/RUKAN-REAL-USER-ACCEPTANCE-V0.3.md`
+
+This is an execution playbook for a later session where Daniel acts as the real customer administrator.
+
+The playbook must be sufficiently complete that the next session can begin provisioning servers rather than redesigning the test.
+
+## Test topology
+
+At minimum document:
+
+### Customer Rukan host
+- real Rukan deployment;
+- Admin backend/UI;
+- model/runtime;
+- telemetry agent;
+- local user/team directory.
+
+### Business side
+- Rukan Command Center on Daniel's PC or dedicated operator host;
+- persistent SQLite data;
+- HTTPS telemetry intake reachable by the customer host.
+
+## Admin access during test
+
+Human authentication is not built.
+
+Therefore do NOT expose Rukan Admin directly to the Internet.
+
+Preferred test access:
+
+```text
+Daniel browser
+   ↓
+SSH local port forward
+   ↓
+127.0.0.1 Rukan Admin on customer server
+```
+
+Document exact generic SSH forwarding commands.
+
+Alternative secure forwarding may be documented only if it does not weaken the no-auth boundary.
+
+## Later test workflow
+
+Prepare steps for Daniel to:
+
+1. install/start Rukan from the accepted artifact;
+2. open Admin through the tunnel;
+3. inspect Overview/System;
+4. browse Models;
+5. select/deploy using only currently real controls;
+6. run inference;
+7. observe input/output token and latency analytics;
+8. create users;
+9. create teams;
+10. assign memberships/access intent;
+11. configure telemetry pairing;
+12. observe event-trigger report in Command Center;
+13. wait for 2-minute heartbeat reports;
+14. change a permitted reporting/configuration setting;
+15. observe settings-trigger report;
+16. stop serving;
+17. release reservation;
+18. observe STOP/Release reports;
+19. simulate telemetry outage;
+20. verify queue/retry while inference/local Admin remain usable;
+21. restore intake and verify delivery;
+22. verify Command Center portfolio/history;
+23. verify no employee PII/content was exported.
+
+## Evidence checklist
+
+Prepare an evidence template covering:
+
+- artifact hash/build;
+- host fingerprint without sensitive hostname/IP in committed docs;
+- Admin screenshots/observations;
+- model/runtime/deployment;
+- usage counts/tokens/latency;
+- report ids/sequences;
+- generated/received/ACK time;
+- heartbeat intervals;
+- event triggers;
+- retry;
+- Command Center state;
+- user/team directory behavior;
+- privacy-negative checks;
+- shutdown/cleanup.
+
+Do not start RunPod or spend money in this run.
+
+---
+
+# 5. PEOPLE / USERS / TEAMS — PRODUCT FOUNDATION
+
+The Product Vision explicitly requires employees, teams, permissions and identity.
+
+We need the exoskeleton **before** building the employee chat/gateway.
+
+Build a real customer-local People domain.
+
+Do not treat this as a visual mock.
+
+## Domain ownership
+
+Rukan owns:
+- user identity;
+- team identity;
+- membership meaning;
+- access-policy intent;
+- future access context semantics.
+
+A future IdP/SSO provider will be an adapter, not the ontology.
+
+## Historical precedent
+
+`src/kultrun/identity/contracts.py` shows the old intent:
+- platform-minted Subject;
+- TeamId;
+- AccessContext;
+- applications/services can eventually be principals;
+- team context travels with authorization.
+
+Reuse the architectural lesson, not necessarily the exact code/schema.
+
+---
+
+# 6. USER CONTRACT
+
+Create the smallest durable User concept appropriate for Rukan.
+
+Required data:
+
+- stable platform-minted `user_id`;
+- canonical/normalized unique email for matching;
+- display email;
+- display name;
+- status;
+- created_at;
+- updated_at;
+- optional external identity reference seam;
+- provenance/actor-origin metadata where appropriate.
+
+## Status
+
+Use honest local-directory semantics.
+
+Candidate states:
+
+- active;
+- suspended;
+- deactivated.
+
+Do not use:
+- invited;
+- email_verified;
+- logged_in;
+- authenticated;
+unless those actions genuinely exist.
+
+An "active" directory user still cannot log in yet because employee authentication/gateway is deferred.
+
+## Email
+
+Email is required for this stage because it is the future provisioning/reconciliation handle.
+
+Requirements:
+- validate basic structure conservatively;
+- normalize for uniqueness;
+- preserve display/original form where useful;
+- unique within a deployment;
+- changing email is an audited/material directory change.
+
+Do not send email in this increment.
+
+Do not build invitation links.
+
+Do not store passwords.
+
+---
+
+# 7. TEAM CONTRACT
+
+Required:
+
+- stable `team_id`;
+- name;
+- optional description;
+- active/archived state;
+- created_at;
+- updated_at.
+
+Team names are presentation/admin data and not authorization identifiers.
+
+Team id is authoritative.
+
+Support:
+- create;
+- rename/edit description;
+- archive/reactivate where sensible;
+- prevent destructive ambiguity.
+
+If a team has members, archiving should preserve membership history rather than destructive delete.
+
+---
+
+# 8. MEMBERSHIP
+
+Represent explicit user ↔ team membership.
+
+Required:
+
+- user id;
+- team id;
+- active relationship;
+- created_at;
+- actor/provenance.
+
+Add/remove membership.
+
+No hidden membership inferred from email/domain/name.
+
+## Team role
+
+Do not introduce a complex hierarchy.
+
+If a simple role is genuinely useful now, keep it bounded (for example member / team_manager) and document future implications.
+
+Otherwise defer team roles.
+
+The key requirement now is membership, not RBAC depth.
+
+---
+
+# 9. ACCESS INTENT / FUTURE AUTHORIZATION SEED
+
+We want administrators to begin expressing intended employee access before the actual employee endpoint exists.
+
+Create a first-class access-intent contract/service.
+
+It must be explicit that this is **configuration for future gateway enforcement**, not currently enforced employee authentication.
+
+At minimum represent intent for:
+
+- platform access enabled/disabled;
+- future inference access allowed/denied;
+- future user model-selection permission;
+- future agent-builder opt-in/permission.
+
+Cursor may adjust names after Product Vision review.
+
+Do not add Knowledge/RAG permission controls before knowledge exists.
+
+## Enforcement state
+
+The backend/UI must expose something equivalent to:
+
+```text
+configured: true
+enforcement: gateway_not_available
+```
+
+so an admin never believes a future employee can already log in/use inference.
+
+## Team defaults + user override
+
+Implement the smallest understandable model.
+
+Recommended default:
+
+- system default is deny for future end-user capability;
+- active team can provide capability defaults/grants;
+- user can have an explicit override;
+- suspended/deactivated user always resolves to deny;
+- platform access disabled always denies downstream future capabilities.
+
+Do not create a generic ABAC/RBAC engine.
+
+If multi-team composition becomes a real ambiguity, Cursor must explicitly document and choose a conservative deterministic rule.
+
+A reasonable starting rule is:
+- explicit user deny > explicit user allow > inherited team grant > default deny.
+
+If Cursor prefers another rule, it must explain the security/product trade-off.
+
+---
+
+# 10. FUTURE ACCESS CONTEXT SEAM
+
+We are deliberately preparing the future end-user gateway.
+
+Add a pure/queryable resolver capable of producing a bounded future authorization context for a user:
+
+- subject/user id;
+- status;
+- team ids;
+- effective intended access;
+- policy provenance;
+- enforcement readiness.
+
+This resolver does NOT authenticate the caller.
+
+It does NOT expose an employee inference route.
+
+It does NOT create a session/token.
+
+Later gateway/auth can consume it after establishing who the user is.
+
+Keep identity/access policy separate from vLLM/Ollama.
+
+---
+
+# 11. PEOPLE PERSISTENCE
+
+Do not store People data in:
+- telemetry SQLite;
+- Command Center database;
+- model store;
+- browser localStorage.
+
+Use a customer-local Rukan-owned persistence boundary.
+
+Preferred architecture:
+
+```text
+People/Identity domain contracts
+        ↓
+Directory/People service
+        ↓ persistence port
+        ↓
+SQLite local adapter (v0)
+```
+
+or another equally small repository-consistent adapter.
+
+SQLite is a reasonable v0 choice because:
+- search/list/membership queries matter;
+- future gateway reads need concurrency;
+- migrations matter.
+
+But Cursor may use an existing Rukan Store if it cleanly supports the access patterns without creating a second identity truth.
+
+There must be exactly one local directory authority.
+
+Version schema/migrations from the beginning.
+
+---
+
+# 12. PEOPLE PRIVACY
+
+This is a hard boundary.
+
+Names, emails, memberships and external identity refs are PII/restricted customer data.
+
+They stay local.
+
+They must NOT enter:
+- operational reports;
+- Command Center;
+- analytics bundle;
+- vendor telemetry;
+- support snapshot;
+- model usage rollups;
+- raw logs.
+
+Do not even export email hashes in this increment.
+
+Command Center does not need people data.
+
+Later aggregate counts require a separate explicit privacy/product decision.
+
+Activity events intended for vendor export must use no employee PII.
+
+Local Admin activity may reference safe local ids and display local directory details through local joins.
+
+---
+
+# 13. ADMIN API — PEOPLE
+
+Add narrow loopback Admin API seams.
+
+Exact REST style may follow existing conventions.
+
+Needed capabilities:
+
+## Users
+- list/search;
+- read detail;
+- create;
+- edit display name/email;
+- suspend;
+- reactivate;
+- deactivate;
+- update access intent.
+
+## Teams
+- list/search;
+- read;
+- create;
+- edit;
+- archive/reactivate.
+
+## Memberships
+- add user to team;
+- remove;
+- list by user/team.
+
+## Access
+- effective-access-intent projection;
+- enforcement readiness.
+
+Do not add:
+- password reset;
+- invite sending;
+- login token;
+- SSO;
+- API key for end user.
+
+All mutation routes remain loopback-only behind the existing Admin origin boundary.
+
+---
+
+# 14. ADMIN UI — ADD PEOPLE / USERS & TEAMS
+
+Add a real customer-facing Admin surface.
+
+Use the label **People** or **Users & Teams** after UX review.
+
+Recommended navigation after this increment:
+
+- Overview
+- Models
+- Deployment
+- Inference
+- Analytics
+- Activity
+- People
+- System
+- Settings
+
+Do not put the entire user directory on Overview.
+
+A small summary may be shown only if useful:
+- active users;
+- teams;
+- access configuration readiness.
+
+## People landing view
+
+Business-friendly, not IAM jargon-first.
+
+Provide:
+- user count;
+- active/suspended count;
+- team count;
+- search;
+- Users / Teams tabs or equivalent;
+- clear banner:
+  > Employee login and chat endpoint are not enabled yet. Access settings here prepare future provisioning.
+
+## User row/detail
+
+Show:
+- name;
+- email;
+- stable user id in technical details;
+- status;
+- teams;
+- access intent;
+- enforcement readiness;
+- created/updated;
+- recent local activity.
+
+Actions:
+- edit;
+- suspend/reactivate;
+- deactivate;
+- manage teams;
+- manage access intent.
+
+Use confirmation for destructive/deactivation operations.
+
+## Team view
+
+Show:
+- team name;
+- member count;
+- access defaults/intents where supported;
+- active/archive;
+- members.
+
+## Access controls
+
+Where contracts support them:
+
+- Platform access
+- Inference access
+- User model selection
+- Agent Builder
+
+For future-only capabilities display:
+**Configured — enforcement begins when the employee gateway/capability is enabled.**
+
+Do not present them as working employee access today.
+
+---
+
+# 15. DIRECTORY ACCOUNTABILITY / AUDIT
+
+Every meaningful mutation must create local accountability evidence.
+
+Required events/actions:
+
+- user.created;
+- user.updated;
+- user.status_changed;
+- team.created;
+- team.updated;
+- team.archived / reactivated;
+- membership.added;
+- membership.removed;
+- access_intent.changed.
+
+Record:
+- timestamp;
+- actor origin;
+- stable affected user/team id;
+- action;
+- outcome;
+- safe before/after policy state where appropriate.
+
+Do not put email/display name into vendor-exportable EventRecord payloads.
+
+Prefer privacy `restricted` for directory-specific events.
+
+Admin Activity should render friendly local details by joining the local directory.
+
+These events must not trigger vendor telemetry in v0.3 unless they can be projected without PII and there is a clear product need.
+
+Default: directory changes stay local only for this increment.
+
+---
+
+# 16. ADMIN OVERVIEW / PRODUCT COHERENCE PASS
+
+Revisit Admin after adding People.
+
+The goal is not more widgets.
+
+Overview should remain the fast answer to:
+
+1. Is AI ready?
+2. What model/capability is active?
+3. How much is it being used?
+4. Is anything requiring attention?
+5. What changed recently?
+6. Is monitoring working?
+
+Optional small People summary is secondary.
+
+Keep detailed:
+- analytics;
+- user directory;
+- system;
+- settings;
+off the main control pane.
+
+Use progressive disclosure.
+
+---
+
+# 17. MODELS — PRESERVE THE STREAMING-LIBRARY DIRECTION
+
+Do not regress the Netflix-like model browsing experience.
+
+Keep:
+- Family / Series;
+- Generation;
+- concrete Variant.
+
+Variant may show:
+- parameters/size where real;
+- instruct/base;
+- quantization;
+- artifact/provider type;
+- context;
+- runtime;
+- qualification;
+- installed/running;
+- SAFE resource fit;
+- usage.
+
+Do not invent metadata.
+
+Exact artifact/digest remains authoritative.
+
+Do not build employee model access enforcement yet, but the future People access-intent model should be compatible with:
+- managed/default model;
+- user may select from permitted models.
+
+Do not prematurely add per-user model allowlists unless the Product Vision review shows a clear need in this increment.
+
+---
+
+# 18. ADMIN SETTINGS — CADENCE / MONITORING UPDATE
+
+Monitoring Settings must now expose the parametric cadence cleanly.
+
+Show:
+- Reporting enabled;
+- Profile: Development / Production / Custom;
+- Current interval;
+- Current stable phase/jitter;
+- Next periodic report;
+- Last successful ACK time;
+- queued/unacknowledged report;
+- endpoint;
+- credential status/key id;
+- privacy categories;
+- Preview next report;
+- Send test report.
+
+In current development build:
+- default profile = Development;
+- interval = 2 minutes.
+
+The UI should make it hard to mistake this for commercial production behavior.
+
+Do not expose credential secret after initial configuration.
+
+---
+
+# 19. COMMAND CENTER — CADENCE / REPORTING UPDATE
+
+Command Center should understand report cadence in seconds/duration, not hours-only.
+
+For each deployment, show:
+- configured profile/interval from latest report;
+- Last report received;
+- age;
+- expected next-report window where meaningful;
+- reporting later than expected based on latest configured cadence.
+
+Still do NOT say Online/Offline.
+
+During current development profile, a row can truthfully say:
+
+> Development cadence: every 2 min  
+> Last report received: 1m 12s ago
+
+No production SLA inference.
+
+---
+
+# 20. COMMAND CENTER MUST NOT RECEIVE PEOPLE DATA
+
+Explicitly test that the new directory never appears in:
+
+- operational reports;
+- report preview;
+- Command Center reports;
+- support snapshot;
+- cross-deployment analytics;
+- rejected request logs.
+
+Search serialized report bodies for test names/emails and fail if present.
+
+---
+
+# 21. LOCAL END-TO-END FUNCTIONAL TESTING
+
+Perform internal local integration tests only.
+
+Required scenarios:
+
+## Telemetry correctness
+- independent 2-minute periodic schedule;
+- event reports between periodic slots;
+- stable phase;
+- ACK-owned cursor;
+- retry;
+- restart;
+- wrong ACK;
+- out-of-order reports;
+- late gap fill;
+- delivered timestamp;
+- no unacked deletion.
+
+## Usage
+- native parser;
+- Ollama parser;
+- missing token counts;
+- latency;
+- failure record;
+- purpose separation;
+- aggregation.
+
+## People
+- create two users;
+- duplicate email refusal;
+- edit email;
+- suspend/reactivate;
+- deactivate;
+- create two teams;
+- membership add/remove;
+- team archive;
+- access intent changes;
+- deterministic effective policy;
+- inactive user denies;
+- persistence/restart;
+- schema migration;
+- concurrent safe reads if applicable;
+- no password/auth data.
+
+## Privacy
+Create obvious canary:
+- user name;
+- employee email;
+- fake prompt;
+- fake response;
+- fake secret.
+
+Prove none appear in vendor operational report or Command Center database/report surfaces.
+
+---
+
+# 22. REAL-CLOCK 2-MINUTE SOAK
+
+Run after deterministic tests.
+
+Use actual service processes and local HTTPS.
+
+Observe at least two periodic intervals.
+
+Capture:
+
+- periodic report 1;
+- event-triggered report between intervals;
+- periodic report 2 still arrives on original phase;
+- period approximately 120 seconds;
+- no cumulative phase drift;
+- Command Center receives all;
+- Admin shows correct last ACK and next due.
+
+A total local soak around 5–7 minutes is acceptable.
+
+This is local internal testing, not the later server campaign.
+
+---
+
+# 23. REAL-SERVER TEST READINESS ARTIFACTS
+
+In addition to the playbook, leave:
+
+## A. Preconditions checker
+
+Add a small non-mutating command/script that can verify a candidate test setup has:
+- compatible Rukan artifact;
+- required local ports available;
+- SSH access/tunnel prerequisites described;
+- Command Center data root writable;
+- telemetry HTTPS endpoint configuration placeholders;
+- certificate/key paths when later supplied;
+- no need to expose Admin publicly.
+
+It must not provision paid infrastructure.
+
+## B. Evidence directory/template
+
+Provide a gitignored or documented operator evidence layout such as:
+
+```text
+acceptance-evidence/
+  customer-host/
+  command-center/
+  screenshots/
+  report-ids.txt
+  usage-summary.json
+  checklist.md
+```
+
+Do not commit customer/server secrets.
+
+## C. Exact run commands
+
+Document:
+- customer Admin service;
+- Command Center service;
+- telemetry intake;
+- credential issue;
+- customer pairing;
+- SSH tunnel;
+- test-report;
+- stop/restart;
+- evidence queries.
+
+## D. Cleanup
+
+Document safe cleanup of only explicitly test-owned state.
+
+Do not conflate with product Steward cleanup.
+
+---
+
+# 24. SERVICE / ALWAYS-ON READINESS
+
+For testing, the following must be capable of long-running foreground operation:
+
+Customer side:
+- Rukan Admin/backend;
+- TelemetryAgent as composed by it.
+
+Business side:
+- Command Center;
+- telemetry intake.
+
+Ensure:
+- SIGINT/SIGTERM or normal process stop closes DBs cleanly where current architecture supports it;
+- restart resumes outbox/scheduler;
+- data roots explicit;
+- logs/output bounded.
+
+Do not build full OS installers/service registration unless trivially supported.
+
+If useful, provide Linux `systemd` example units in the acceptance doc **as examples only**, not product ontology, and do not install them.
+
+Cross-platform service packaging remains later.
+
+---
+
+# 25. SECURITY / PRIVACY INVARIANTS
+
+Preserve all:
+
+- Admin loopback-only;
+- Admin not exposed unauthenticated;
+- external intake write-only;
+- non-loopback intake requires TLS;
+- per-deployment machine credential;
+- credential bound to install id;
+- secret hashed on receiver;
+- customer secret local and protected;
+- no remote control;
+- telemetry failure never blocks inference/deployment;
+- no prompt/response export;
+- no People PII export;
+- no passwords;
+- no fake login/session;
+- no raw logs shipped.
+
+Document current POSIX-only secure credential-file limitation.
+
+Do not weaken it for Windows.
+
+---
+
+# 26. FUTURE END-USER / GATEWAY BOUNDARY
+
+Do not build it now, but explicitly document what this increment hands to the next stage.
+
+The future employee path should conceptually be:
+
+```text
+employee identity/auth provider
+        ↓ establishes user
+Rukan AccessContext / directory resolver
+        ↓ authorization
+Rukan gateway
+        ↓
+model/routing policy
+        ↓
+authorized ServingInstance
+        ↓
+usage record with user/team attribution
+        ↓
+employee chat / LibreChat / first-party client
+```
+
+The gateway must later enforce:
+- active user;
+- team membership;
+- inference access;
+- model-selection permission;
+- knowledge/tool policy;
+- rate/quota where introduced.
+
+LibreChat/Open WebUI must remain clients behind Rukan policy/gateway, not the identity authority.
+
+Agent Builder later consumes the same subject/team/access foundation.
+
+---
+
+# 27. NON-GOALS
+
+Do NOT implement:
+
+- employee login;
+- passwords;
+- email sending/invite links;
+- OIDC/SAML/LDAP;
+- end-user bearer tokens;
+- employee inference gateway;
+- employee chat;
+- LibreChat/Open WebUI integration;
+- Agent Builder;
+- Knowledge/RAG;
+- per-document permissions;
+- user/team inference attribution in production traffic before gateway exists;
+- general RBAC/ABAC framework;
+- licensing;
+- billing;
+- remote customer control;
+- remote model selection;
+- online/offline semantics;
+- public server test;
+- RunPod spend;
+- physical GPU qualification.
+
+---
+
+# 28. DOCUMENTATION
+
+Update:
+
+- `docs/machi/RUKAN-CONNECTED-MONITORING-V0.3.md`
+- `docs/machi/RUKAN.md`
+- `docs/machi/RUKAN-ADMIN.md`
+- `docs/machi/RUKAN-COMMAND-CENTER.md`
+- `docs/machi/TELEMETRY.md`
+- `docs/machi/ARCHITECTURE.md`
+- `docs/machi/ROADMAP.md`
+- `docs/DEBT.md`
+
+Add:
+
+- `docs/machi/RUKAN-PEOPLE-ACCESS-V0.1.md`
+- `docs/machi/RUKAN-REAL-USER-ACCEPTANCE-V0.3.md`
+
+Keep Product Vision semantics authoritative.
+
+Do not rewrite historical evidence.
+
+---
+
+# 29. QA
+
+Run all prior v0.3 QA plus:
+
+## Telemetry correction suite
+- independent schedule;
+- 2-minute dev profile;
+- production 6-hour profile;
+- custom cadence;
+- stable phase;
+- cadence-change reschedule;
+- event/test reports do not move periodic;
+- ACK-owned cursor;
+- restart before/after ACK;
+- wrong ACK;
+- gap reconciliation;
+- delivery timestamps;
+- no unacknowledged deletion.
+
+## Directory suite
+- IDs;
+- unique normalized email;
+- CRUD;
+- status transitions;
+- teams;
+- membership;
+- access intent;
+- effective resolution;
+- persistence/migrations;
+- restricted privacy;
+- activity/audit;
+- no People export.
+
+## API/UI
+- People list/create/edit/status/team/access flows;
+- Admin cadence/profile UI;
+- current monitoring data;
+- accessibility/empty/error states;
+- Command Center cadence/report-age display.
+
+## Full
+- `tests/machi`;
+- `tests/acceptance_lab`;
 - ruff;
 - mypy strict;
-- Admin frontend tests/typecheck/build;
-- Command Center tests/typecheck/build;
+- Admin Vitest/TypeScript/build;
+- Command Center Vitest/TypeScript/build;
 - wheel build;
-- isolated wheel verify.
+- isolated wheel verification.
 
-No GPU physical test.
-No public Internet endpoint required for this correction.
+---
 
-# 12. TERMINAL STATUS
+# 30. ACCEPTANCE
 
-On success return:
+Pass requires:
 
-`RUKAN_CONNECTED_MONITORING_V0_3_LOCAL_PASS_EXTERNAL_ENDPOINT_REQUIRED`
+### Telemetry
+- correction items are closed;
+- development default cadence is 120 seconds;
+- production profile remains 6 hours;
+- one central parametric cadence seam;
+- local real-clock soak proves repeated periodic reporting;
+- event reports do not postpone heartbeat;
+- ACK owns source cursors;
+- delivery timestamps truthful.
 
-Do not claim CONNECTED_PASS until a real externally reachable owned HTTPS intake has been accepted later.
+### Usage
+- input/output tokens captured where runtimes report;
+- latency persisted;
+- no content persisted/exported.
 
-Paste back:
-A. status
-B. final SHA
-C. periodic scheduling fix
-D. ACK/cursor state machine
-E. outbox behavior
-F. ACK identity validation
-G. delivery timestamp fix
-H. Command Center out-of-order/gap fix
-I. new tests
-J. full QA/build evidence
-K. remaining limitations
-L. git state
-M. STOP
+### People
+- real persisted User/Team/Membership domain;
+- email/stable ids;
+- real Admin CRUD;
+- access-intent configuration;
+- effective future-access resolver;
+- enforcement-readiness explicit;
+- PII remains local;
+- activity/audit exists.
+
+### Product
+- Admin coherent with People added;
+- Models library remains strong;
+- Command Center coherent;
+- no fake functionality.
+
+### Test readiness
+- server acceptance playbook complete;
+- preconditions/evidence/commands prepared;
+- no external/paid test performed.
+
+Terminal status on success:
+
+`RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY`
+
+Do not claim external connected acceptance.
+
+---
+
+# 31. PASTE BACK
+
+Return:
+
+A. exact status  
+B. TL;DR  
+C. starting/final SHA  
+D. branch/worktree  
+E. architecture review/deviations  
+F. telemetry correction state machine  
+G. cadence policy/profile design  
+H. 2-minute dev heartbeat evidence  
+I. 6-hour production profile preservation  
+J. ACK/cursor semantics  
+K. out-of-order/gap semantics  
+L. usage accounting  
+M. People domain contracts  
+N. People persistence/schema  
+O. Users API  
+P. Teams/membership API  
+Q. access-intent/effective resolver  
+R. People privacy  
+S. People/Admin activity auditing  
+T. Admin navigation/Overview  
+U. Admin Models experience  
+V. Admin People experience  
+W. Admin Analytics/Activity  
+X. Admin Settings/Monitoring  
+Y. Command Center cadence/reporting changes  
+Z. Command Center portfolio/analytics/model state  
+AA. local real-clock soak  
+AB. real-server acceptance playbook  
+AC. preconditions checker/evidence layout  
+AD. exact later server test commands/topology  
+AE. privacy/security review  
+AF. frontend QA  
+AG. backend QA  
+AH. build/wheel evidence  
+AI. schema migrations  
+AJ. known limitations/debt  
+AK. precise next stage handoff for employee gateway/chat/agent builder  
+AL. git state  
+AM. STOP
 
 Then STOP for Lead review.
 
