@@ -299,30 +299,9 @@
         "RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY"
       ]
     },
-    "runpod_policy": {
-      "amd_max_hourly_usd": 4,
-      "hang_action": "stop_and_ask",
-      "max_concurrent_pods": 1,
-      "max_pod_lifetime_minutes": 90,
-      "max_provision_retries": 3,
-      "network_volume": false,
-      "nvidia_max_hourly_usd": 1.5,
-      "remaining_balance_floor_usd": 0.5
-    },
-    "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
-    "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
     "rukan_v0_4_user_access_gateway": {
-      "instruction_id": "RUKAN-V0.4-USER-ACCESS-GATEWAY-MCP-001",
-      "orchestrator_instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
-      "prerequisite": {
-        "v0_3_source": "77923d0587a7ca4519a1a90dd5097a89ca4844e2",
-        "v0_3_wheel_sha256": "6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33",
-        "c1": "PASS",
-        "c2": "PENDING_STOCK",
-        "c3": "PENDING"
-      },
       "branch": "rukan/user-access-gateway-v0.4",
+      "confidence_runs_required": 3,
       "core_components": [
         "rukan_user_gateway",
         "identity_verifier",
@@ -335,25 +314,46 @@
         "mcp_catalog_policy",
         "future_rukan_workspace_seam"
       ],
-      "librechat_dependency_policy": "replaceable_adapter_only",
-      "employee_inference_direct_serve": false,
-      "preferred_identity": "OIDC",
-      "generic_openai_api": true,
-      "per_user_usage": true,
-      "mcp_role": "tool_and_data_plane_not_inference",
-      "first_party_workspace_future": true,
-      "diagnostic_server_iterations_max": 8,
       "diagnostic_clean_streak_required": 2,
-      "confidence_runs_required": 3,
+      "diagnostic_server_iterations_max": 8,
+      "employee_inference_direct_serve": false,
+      "first_party_workspace_future": true,
+      "generic_openai_api": true,
+      "instruction_id": "RUKAN-V0.4-USER-ACCESS-GATEWAY-MCP-001",
+      "librechat_dependency_policy": "replaceable_adapter_only",
+      "mcp_role": "tool_and_data_plane_not_inference",
+      "orchestrator_instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
+      "per_user_usage": true,
+      "preferred_identity": "OIDC",
+      "prerequisite": {
+        "c1": "PASS",
+        "c2": "PENDING_STOCK",
+        "c3": "PENDING",
+        "v0_3_source": "77923d0587a7ca4519a1a90dd5097a89ca4844e2",
+        "v0_3_wheel_sha256": "6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33"
+      },
       "terminal_statuses": [
         "RUKAN_V0_4_BLOCKED_BY_V0_3_CONFIDENCE",
         "RUKAN_V0_4_USER_ACCESS_NOT_READY",
         "RUKAN_V0_4_USER_ACCESS_GATEWAY_SERVER_CAMPAIGN_PASS"
       ]
-    }
+    },
+    "runpod_policy": {
+      "amd_max_hourly_usd": 4,
+      "hang_action": "stop_and_ask",
+      "max_concurrent_pods": 1,
+      "max_pod_lifetime_minutes": 90,
+      "max_provision_retries": 3,
+      "network_volume": false,
+      "nvidia_max_hourly_usd": 1.5,
+      "remaining_balance_floor_usd": 0.5
+    },
+    "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
+    "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
   "published_instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_V0_4_USER_ACCESS_BUILDOUT"
+  "status": "PASTEBACK_PUBLISHED"
 }
