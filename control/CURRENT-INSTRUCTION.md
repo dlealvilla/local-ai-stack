@@ -1,524 +1,811 @@
 # CURRENT LEAD DEVELOPER INSTRUCTION
 
-Instruction ID: `RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001`
-Status: `AUTHORIZED_V0_3_ACCEPTANCE_WITH_PHYSICAL_BREADTH_PENDING_THEN_V0_4_BUILD`
+Instruction ID: `RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001`
+Status: `AUTHORIZED_CORRECTION_AND_CONTINUATION`
 
-This instruction supersedes the stock-blocked orchestration in:
-`RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001`.
+Starting implementation source:
+`459d34b34f2238b5af108c0fe822c4637603b754`
 
-The previous Cursor run stopped correctly according to the old instruction because
-C2/C3 could not be allocated.
+Current evidence tip:
+`ff92569a7ce4d644aef9ae2011d8735014c04778`
 
-Lead review changes that gating rule.
+Branch:
+`rukan/user-access-gateway-v0.4`
 
-Provider stock is not a software-development dependency.
+Canonical:
+`machi@16084a5b21a0cca25bfe60070ad862832c80fb51`
 
-The frozen v0.3 candidate has sufficient evidence for bounded implementation
-acceptance and downstream development, while retaining truthful physical-confidence
-debt.
+The previous v0.4 run made substantial progress and correctly returned:
 
----
+`RUKAN_V0_4_USER_ACCESS_NOT_READY`
 
-# 0. REPOSITORY TRUTH
+It implemented:
+- Rukan User Gateway;
+- OIDC identity binding;
+- Rukan API credentials;
+- OpenAI-compatible models/chat API;
+- user usage;
+- Admin per-user analytics;
+- MCP broker/catalog policy;
+- LibreChat replaceable adapter;
+- physical Gateway tests on A40;
+- one server-discovered streaming request-shape fix.
 
-Current v0.3 frozen candidate:
+However Lead review found four unresolved pilot-level defects and one missing physical compatibility proof.
 
-- source: `77923d0587a7ca4519a1a90dd5097a89ca4844e2`
-- wheel: `machi-0.1.0-py3-none-any.whl`
-- SHA256: `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`
-- build: `0.1.0+77923d0587a7`
-- campaign branch: `rukan/v0.3-server-campaign`
-- evidence tip after stock-blocked C2 attempt:
-  `a291fa43cf44d97ea6815bd80aeecd68201c71bb`
+Do not begin the first-party Rukan Workspace yet.
 
-Physical evidence:
-
-- D4 CLEAN;
-- D5 CLEAN;
-- corrected C1 CLEAN;
-- C1 included intake outage/recovery;
-- no known open product defect;
-- C2/C3 unavailable because secure supported NVIDIA stock could not be allocated;
-- no campaign Pod remains running.
-
-Canonical `machi` is still the old pre-v0.3 baseline and must now be updated only
-after the bounded acceptance review below.
+First harden the Gateway as a stable substrate.
 
 ---
 
-# 1. DO NOT RETRY STOCK AS A PREREQUISITE
+# 1. TRUE END-TO-END STREAMING
 
-Do not spend another run repeatedly polling RunPod merely to satisfy historical
-v0.3 C2/C3 before software can progress.
+Current defect:
 
-If compatible stock is trivially available during this run and one opportunistic
-v0.3 confidence test can be run within the existing campaign rules without
-delaying v0.4, it may be run.
+`StoreChat.complete(..., stream=True)` opens the vLLM request and then calls:
 
-It is NOT a prerequisite.
+`response.read()`
 
-Do not return:
+before parsing SSE.
 
-`RUKAN_V0_4_BLOCKED_BY_V0_3_CONFIDENCE`
+This means:
+- upstream finishes;
+- Rukan buffers the entire response;
+- only then does downstream receive chunks.
 
-merely because C2/C3 stock remains unavailable.
+That is not genuine chat streaming.
+
+## Required architecture
+
+Introduce a real upstream streaming path.
+
+Conceptually:
+
+```text
+vLLM SSE socket
+   ↓
+incremental parser
+   ↓
+Gateway streaming iterator
+   ↓
+downstream SSE client
+```
+
+Do not buffer the full completion.
+
+Use a bounded incremental parser.
+
+Requirements:
+- process upstream SSE line/event incrementally;
+- forward content deltas as they arrive;
+- extract final upstream usage when reported;
+- emit downstream usage exactly once;
+- emit final `[DONE]`;
+- close upstream response/socket on downstream generator close;
+- no response text persisted;
+- no full-response buffering for accounting.
+
+## Accounting under streaming
+
+Streaming usage event is recorded once.
+
+Cases:
+- normal completion;
+- upstream sends final usage;
+- upstream closes without usage;
+- client disconnects;
+- upstream disconnects;
+- timeout;
+- malformed event;
+- error event.
+
+If token usage is unavailable:
+- record `not_recorded`;
+- do not estimate from buffered content.
+
+If upstream completed execution but client disconnected:
+- record actual executed usage if known;
+- otherwise record unresolved counts.
+
+## Backpressure
+
+Do not pre-read the entire response faster than downstream can consume.
+
+A bounded read buffer is acceptable.
+
+## Measurements
+
+Add:
+- Gateway time-to-first-chunk;
+- total request duration where current contracts permit;
+- do not overload existing latency semantics silently.
+
+If introducing TTFC/TTFB into product metrics is too large for v0.4, use it in acceptance evidence only.
+
+## Tests
+
+Deterministic fake SSE upstream:
+- chunk 1;
+- deliberate pause;
+- chunk 2;
+- final usage;
+- done.
+
+Assert downstream receives chunk 1 before fake upstream emits chunk 2/final usage.
+
+Also test:
+- client generator close after first chunk;
+- upstream error;
+- malformed SSE;
+- final usage absent;
+- concurrency counters released after all paths.
+
+Physical server:
+- prove visible incremental output timing.
 
 ---
 
-# 2. V0.3 BOUNDED ACCEPTANCE REVIEW
+# 2. ENTERPRISE OIDC DISCOVERY / JWKS ROTATION
 
-Before merging v0.3:
+Current production class uses a static injected JWKS.
 
-Read and independently review:
-- v0.3 campaign result/evidence docs;
-- production-readiness audit;
-- deployment coordinator;
-- lifecycle fix from C1;
-- telemetry/accountability implementation;
-- People;
-- packaged Admin/Command Center;
-- current tests/build evidence.
+Keep static JWKS for deterministic tests.
 
-Verify:
-- campaign implementation branch is strictly ahead of canonical, not divergent;
-- no unresolved SERVER_ACCEPTANCE_BLOCKER;
-- no unresolved PILOT_BLOCKER;
-- D4 and D5 are clean;
-- corrected C1 is clean;
-- C2/C3 missing due provider stock only;
-- wheel/source identity is exact;
-- no hidden server hot patch became accepted source;
-- all campaign Pods are terminated;
-- working tree/branch state is clean/pushed.
+Add a production verifier/provider.
 
-Run a final local regression on the exact candidate where practical:
+Suggested architecture:
+
+```text
+IdentityAssertionVerifier
+   |
+   +-- StaticJwksVerifier      (tests)
+   |
+   +-- OidcDiscoveryVerifier  (production)
+```
+
+Use mature libraries.
+
+Do not implement JWT cryptography manually.
+
+## Configuration
+
+Required:
+- issuer;
+- audience;
+- discovery URL derived from issuer or explicit override;
+- supported algorithms allow-list;
+- clock skew;
+- connect/read timeout;
+- cache TTL;
+- optional CA/trust configuration through normal platform/TLS mechanisms.
+
+Production defaults:
+- HTTPS discovery;
+- HTTPS JWKS;
+- issuer match required.
+
+Local test issuer may explicitly use HTTP.
+
+## Discovery
+
+Fetch:
+`/.well-known/openid-configuration`
+
+Validate:
+- issuer in discovery equals configured issuer;
+- `jwks_uri` valid and allowed;
+- signing algorithms intersection is acceptable where exposed.
+
+## JWKS
+
+Cache keys.
+
+On token with unknown `kid`:
+- refresh JWKS once;
+- retry verification;
+- unknown after refresh => fail.
+
+Avoid refetch for every bad token.
+
+Bound cache and refresh frequency to prevent attacker-driven request storms.
+
+## Failure
+
+If discovery/JWKS unavailable:
+- fail authentication closed;
+- do not use stale keys beyond a deliberately documented stale-if-error policy, if any.
+
+Simplest acceptable v0.4 policy:
+- cached valid keys usable until cache TTL;
+- after TTL and refresh failure, auth unavailable.
+
+Document.
+
+## Tests
+
+Use local fake OIDC server:
+1. discovery + key A;
+2. token A succeeds;
+3. rotate server to key B;
+4. first token B causes bounded refresh and succeeds;
+5. token signed by removed/unknown key fails;
+6. wrong issuer;
+7. wrong audience;
+8. expired;
+9. future nbf;
+10. unsupported alg;
+11. malformed discovery;
+12. JWKS timeout.
+
+Physical diagnostic:
+- run standards-compatible test issuer;
+- Gateway uses discovery path, not injected static JWKS.
+
+---
+
+# 3. API CREDENTIAL SCOPE ENFORCEMENT
+
+API credentials are explicit scoped credentials.
+
+Scopes must be enforced by route.
+
+## Required matrix
+
+For `api_credential` principals:
+
+### `GET /v1/models`
+Require:
+`models`
+
+### `POST /v1/chat/completions`
+Require:
+`inference`
+
+### `GET /v1/me/usage`
+Require:
+`self_usage`
+
+### `GET /v1/me`
+Authenticated identity is sufficient.
+
+It may show current policy/capabilities, but never secrets.
+
+### MCP
+
+Choose and document one v0.4 policy.
+
+Preferred minimal policy:
+
+Add credential scope:
+`mcp`
+
+Then:
+- MCP route requires `mcp`;
+- user must also have effective `mcp_use=allow`;
+- server must be approved.
+
+If adding scope creates unnecessary migration complexity, alternative:
+- MCP rejects all `api_credential` principals;
+- MCP requires OIDC in v0.4.
+
+Cursor should choose the cleaner implementation and explain why.
+
+Do not let an `inference`-only key call MCP.
+
+## Scope/Access intersection
+
+Credential scope never grants capability.
+
+Effective permission is:
+
+```text
+credential scope
+AND
+current user AccessContext
+AND
+resource/model/MCP policy
+```
+
+Suspension/revocation overrides.
+
+## Tests
+
+Create credentials with each individual scope and combinations.
+
+Test every route.
+
+Test revoked and expired.
+
+Test suspended user.
+
+Test user policy denied despite scope.
+
+---
+
+# 4. CRASH-CONSISTENT USER/DEPLOYMENT ACCOUNTING
+
+Current implementation writes one inference request into two stores separately:
+
+```text
+TelemetryStore.record_usage(InferenceUsage)
+        ↓
+GatewayLedger.record(PrincipalUsage)
+```
+
+A crash between writes can permanently break:
+
+`SUM(user usage) == employee deployment usage`.
+
+This must be corrected before confidence.
+
+## Required invariant
+
+Each executed employee Gateway request has one canonical durable usage fact.
+
+That fact contains:
+- one usage id;
+- request id;
+- Rukan user id;
+- one accounting team;
+- client id;
+- auth method;
+- instance/model/runtime;
+- input/output tokens;
+- latency/outcome;
+- occurred_at;
+- no prompt/response.
+
+From this single fact derive:
+- per-user analytics;
+- employee deployment usage;
+- telemetry/report aggregation.
+
+## Preferred design
+
+Create a canonical customer-local:
+
+`GatewayUsageEvent`
+
+or equivalent.
+
+Persist it transactionally in one durable store.
+
+Then use idempotent projections:
+
+```text
+GatewayUsageEvent
+    |
+    +--> Principal/User analytics projection
+    |
+    +--> InferenceUsage / telemetry projection
+```
+
+Track projection state/cursors.
+
+Because `usage_id` is stable and destination writes are idempotent, retries converge.
+
+## Alternative
+
+A transactional outbox spanning existing stores is acceptable if it proves equivalent behavior.
+
+Do not attempt fragile cross-database "best effort" ordering.
+
+## Required failure behavior
+
+If canonical append succeeds but projection fails:
+- request result may still be returned if product policy allows;
+- accounting status becomes degraded/pending;
+- background/on-next-operation reconcile retries;
+- Admin shows projection_pending/degraded;
+- no loss.
+
+If canonical append fails:
+- do not claim the request is fully accounted;
+- record local degraded accounting state where possible.
+
+Inference must not be repeated merely to repair accounting.
+
+## Tests
+
+Inject failure:
+1. canonical append succeeds;
+2. deployment projection fails;
+3. process restart;
+4. reconciliation;
+5. exactly one deployment record and one principal projection.
+
+Also inverse destination failure.
+
+Repeated reconcile:
+- idempotent.
+
+Crash before canonical commit:
+- no event.
+
+Crash after canonical commit:
+- event recovered.
+
+Duplicate usage id:
+- not double counted.
+
+## Admin reconciliation
+
+States:
+- `match`;
+- `projection_pending`;
+- `degraded`;
+- `mismatch`.
+
+Do not render a pending projection as corruption.
+
+---
+
+# 5. GATEWAY SECURITY / PRODUCT COHERENCE AUDIT
+
+After corrections, re-audit:
+
+- no Serve/vLLM endpoint exposed;
+- exact READY instance only;
+- model filtering;
+- suspended/deactivated user;
+- binding conflict;
+- credential scopes;
+- concurrency limits;
+- body/message bounds;
+- TLS configuration;
+- trusted reverse-proxy handling;
+- errors do not leak internals;
+- bearer tokens absent from logs/stores;
+- user cannot query another user's usage;
+- vendor telemetry has no user id/name/email;
+- Command Center contains no prompt.
+
+Test thread/process restart.
+
+---
+
+# 6. LIBRECHAT PIN — RECORD TRUTHFULLY
+
+Current adapter intentionally pins:
+
+- LibreChat `v0.8.8-rc4`;
+- commit `361553f3322d7b9bb547d0a9c2c5aaefc2934901`;
+- container manifest digest
+  `sha256:929f4491cb9a87d6beb02e9e9ce9a54d4ee05bc56b65b1debe5b1f28a327a4fb`.
+
+As of Lead verification, GitHub/LibreChat still identifies rc4 as a pre-release,
+while v0.8.7 is the latest stable tagged image.
+
+The rc4 choice is allowed because its OpenID/MCP header behavior is the capability
+being intentionally tested.
+
+Docs/UI must state:
+- adapter release = pinned pre-release compatibility target;
+- not Rukan core dependency.
+
+Do not call it a stable LibreChat release.
+
+Before confidence:
+- verify the digest again;
+- do not silently follow a newer rc.
+
+---
+
+# 7. PHYSICALLY RUN LIBRECHAT
+
+The A40 diagnostic images did not contain Docker, so LibreChat was never actually
+started.
+
+That evidence is insufficient for adapter acceptance.
+
+## Test environment requirement
+
+Use a host/test topology capable of running the pinned LibreChat artifact.
+
+Preferred options in order:
+
+1. supported server with Docker/container engine already available;
+2. Rukan's existing container-execution capability if it can run the container
+   honestly without weakening product architecture;
+3. a separate inexpensive CPU/container-capable test host for LibreChat while
+   Gateway/model remain on the GPU host, if the existing provider/tooling supports
+   this safely within cost policy.
+
+Do NOT:
+- install Docker through unsafe privileged host mutation if not allowed;
+- change the adapter to a source checkout just because Docker is absent;
+- mark config-render tests as physical LibreChat proof.
+
+## LibreChat physical proof
+
+Use the exact pinned image/digest.
+
+Run required supporting services.
+
+Use a real test OIDC issuer through discovery.
+
+Prove:
+- LibreChat starts;
+- browser/login flow or equivalent real session flow;
+- OIDC token reuse enabled/configured as needed;
+- custom Rukan endpoint;
+- live OpenID bearer forwarded to Gateway;
+- `GET /v1/models`;
+- non-streaming chat;
+- true streaming chat;
+- Rukan usage fields;
+- Rukan authorization denies suspended/unprovisioned user;
+- no direct Serve endpoint;
+- MCP broker endpoint with live identity;
+- allowed user tool call;
+- denied user tool call;
+- ordinary chat still works after MCP denial.
+
+Do not inspect or edit LibreChat database to enforce Rukan policy.
+
+Capture:
+- LibreChat version;
+- image digest;
+- adapter generated config;
+- health;
+- evidence.
+
+---
+
+# 8. AGENT CLAIMS
+
+LibreChat Agent Builder was not physically tested.
+
+Until it is:
+- keep Agents capability as client-local / unqualified;
+- do not claim Rukan agent governance is physically proven.
+
+For v0.4 confidence, Agent Builder is OPTIONAL unless it can be tested without
+broadening scope.
+
+The hard product gate is:
+- Gateway;
+- users;
+- usage;
+- LibreChat chat;
+- MCP.
+
+Agent Builder may remain next-stage functionality for the native Rukan Workspace.
+
+---
+
+# 9. LOCAL QA BEFORE SERVER RETEST
+
+Run:
+
+- focused streaming tests;
+- OIDC discovery/JWKS rotation tests;
+- route×scope matrix;
+- canonical usage/projection failure injection;
+- reconciliation/restart tests;
+- MCP security tests;
 - full `tests/machi`;
 - `tests/acceptance_lab`;
 - ruff;
-- strict mypy;
-- Admin tests/typecheck/build;
-- Command Center tests/typecheck/build;
-- clean wheel build/verify.
-
-Do NOT rebuild and then silently call a different artifact the server-tested wheel.
-If a local rebuild is used only for reproducibility, record both hashes and prove
-source equivalence.
-
----
-
-# 3. ACCEPT V0.3 WITH EXPLICIT PHYSICAL-CONFIDENCE DEBT
-
-If review remains clean, assign:
-
-`RUKAN_V0_3_IMPLEMENTATION_ACCEPTED_PHYSICAL_CONFIDENCE_PENDING`
-
-This is NOT:
-
-`RUKAN_V0_3_SERVER_CAMPAIGN_PASS`
-
-Historical truth remains:
-- diagnostics proved repeatability;
-- one confidence server passed;
-- two further confidence runs were stock-blocked.
+- mypy strict;
+- Admin Vitest/typecheck/build;
+- Command Center Vitest/typecheck/build;
+- wheel build/isolated verify.
 
 Update:
-- campaign result document;
-- architecture/roadmap/debt;
-- control state.
+`docs/machi/RUKAN-USER-ACCESS-GATEWAY-V0.4.md`
 
-Record C2/C3 as:
-`DEFERRED_PROVIDER_STOCK_PHYSICAL_CONFIDENCE`.
-
-Do not classify them as product failures.
+and debt/audit docs.
 
 ---
 
-# 4. MERGE V0.3 TO CANONICAL FOR DEVELOPMENT CONTINUATION
+# 10. RESUME V0.4 SERVER DIAGNOSTICS
 
-After bounded acceptance:
+Existing diagnostics:
 
-1. open a PR from the accepted v0.3 implementation/campaign source into canonical
-   `machi`;
-2. inspect the PR diff;
-3. confirm no evidence-only or secret material pollutes product source;
-4. merge;
-5. fetch canonical;
-6. verify the canonical tree includes the exact accepted implementation;
-7. run/verify a post-merge smoke if practical;
-8. working tree clean;
-9. push canonical.
+- D1: found `stream_options` non-streaming defect;
+- fix commit: `459d34b34f2238b5af108c0fe822c4637603b754`;
+- D2: Gateway path clean;
+- D2 did NOT run LibreChat;
+- D2 predates Lead hardening fixes in this instruction.
 
-Create a checkpoint tag whose name truthfully reflects the status.
+Therefore clean-streak resets after these changes.
 
-Suggested:
+Run new diagnostics as:
+- D3;
+- D4;
+- etc.
 
-`checkpoint/rukan-v0.3-implementation-accepted-physical-confidence-pending-<shortsha>`
+Maximum total diagnostic iterations before mandatory Lead review remains 8.
 
-Do NOT name it `physical-pass` or `server-campaign-pass`.
+## Full-stack clean diagnostic
 
-Update `control/STATE.json` canonical baseline.
+Must prove:
 
----
-
-# 5. IMMEDIATELY BEGIN V0.4
-
-Do not stop for Lead review after the v0.3 merge.
-
-Read and execute completely:
-
-`control/instructions/RUKAN-V0.4-USER-ACCESS-GATEWAY-MCP-001.md`
-
-Create:
-
-`rukan/user-access-gateway-v0.4`
-
-from the new canonical `machi`.
-
-The detailed instruction file is authoritative.
-
-Do not merely write a design document and stop.
-
-Required flow:
-
-```text
-architecture/product review
-        ↓
-technical specification
-        ↓
-implementation
-        ↓
-local integration/security/privacy tests
-        ↓
-LibreChat adapter physical/local proof
-        ↓
-Gateway / identity / user accounting / MCP
-        ↓
-v0.4 iterative real-server campaign
-        ↓
-two clean diagnostics
-        ↓
-three fresh confidence runs
-```
-
----
-
-# 6. LIBRECHAT REMAINS REPLACEABLE
-
-Hard requirement:
-
-```text
-Rukan User Gateway / identity / policy / usage / MCP governance
-                     |
-          UserWorkspaceAdapter
-             /             \
-            /               \
-LibreChatAdapter       future RukanWorkspaceAdapter
-```
-
-LibreChat must not become:
-- Rukan identity authority;
-- policy authority;
-- usage authority;
-- model-routing authority;
-- MCP canonical policy store;
-- canonical agent ontology.
-
-No direct dependency on LibreChat database schemas.
-
-Pin and capability-test one exact LibreChat release/container digest.
-
-Generic OpenAI-compatible clients must work without LibreChat.
-
----
-
-# 7. FIRST-PARTY WORKSPACE PATH
-
-The v0.4 design must explicitly preserve a later Rukan-owned employee product:
-
-```text
-Rukan Workspace
-  - Chat
-  - My Usage
-  - Model access
-  - Connections
-  - MCP tools
-  - Agents
-  - later Git Brain / Team Brain
-```
-
-Do not build all of this now if it delays the infrastructure milestone.
-
-But do build the Rukan-owned contracts now so replacing LibreChat later does NOT
-require redesigning:
-- identity;
-- Gateway;
-- routing;
-- usage;
-- MCP policy;
-- People;
-- model/Serve.
-
-At the end of v0.4, produce an evidence-based recommendation on whether the next
-increment should be:
-- thin first-party Workspace;
-- native Agent Builder;
-- Git Brain foundation;
-- or keep LibreChat longer.
-
----
-
-# 8. ENTERPRISE ACCESS ARCHITECTURE
-
-Implement exactly as the detailed instruction requires.
-
-Employee/application path:
-
-```text
-enterprise identity / Rukan user credential
-        ↓
-LibreChat or generic client
-        ↓
-Rukan User Gateway
-        ↓
-Rukan User + Team AccessContext
-        ↓
-authorized READY ServingInstance
-```
-
-Never give employee clients a direct Serve/vLLM/Ollama endpoint.
-
-Approved email is initial provisioning identity.
-
-After verified federation, stable:
-`issuer + subject`
-becomes authoritative external identity.
-
-A raw email header from LibreChat is never enough.
-
-Enterprise security remains layered around Rukan:
-- private network/VPN/ZTNA;
-- reverse proxy/load balancer/WAF;
-- IdP;
-- customer security products.
-
-Rukan provides compatible boundaries, not a proprietary cybersecurity stack.
-
----
-
-# 9. USER TOKEN ACCOUNTING
-
-This is a hard product invariant.
-
-Every employee inference request must resolve exactly one Rukan user before model
-execution.
-
-Record non-content:
-- user id;
-- optional one accounting-team context;
-- client/application;
-- model;
-- runtime;
-- input tokens;
-- output tokens;
-- latency;
-- outcome.
-
-Required reconciliation:
-
-```text
-SUM(user request counts) = employee deployment request count
-
-SUM(user input tokens) = employee deployment input tokens
-
-SUM(user output tokens) = employee deployment output tokens
-
-SUM(user total tokens) = employee deployment total tokens
-```
-
-Operator tests and acceptance probes remain separate.
-
-No multi-team double counting.
-
-User has an authenticated `My Usage` surface/API.
-
-Admin has per-user analytics plus reconciliation.
-
-Vendor Command Center receives no names/emails/user list.
-
----
-
-# 10. MCP
-
-MCP remains tools/data connectivity, separate from inference.
-
-```text
-INFERENCE
-Workspace -> Rukan Gateway -> model
-
-TOOLS/DATA
-Workspace/Agent MCP Host -> approved MCP server -> enterprise tool/data
-```
-
-Rukan owns:
-- MCP server catalog;
-- approval;
-- user/team policy;
-- connection metadata;
-- security policy.
-
-Prefer LibreChat-native MCP execution behind the adapter in v0.4 if it can enforce
-the policy honestly.
-
-Only build a Rukan MCP broker if the architecture review proves it is required.
-
-Use official MCP SDKs/spec.
-
-Physically test at least one Streamable HTTP MCP server.
-
----
-
-# 11. V0.4 SERVER CAMPAIGN MUST RE-PROVE V0.3
-
-The later v0.4 physical campaign must include the full underlying v0.3 path on
-every confidence run:
-
-- artifact-only Rukan install;
-- model acquisition;
-- deployment coordinator;
+Underlying v0.3:
+- clean install;
+- model acquire;
+- Deploy;
 - Plan;
 - ResourceManager;
-- Serve;
+- Serve READY;
 - inference;
 - STOP;
 - RELEASE;
-- telemetry;
-- People;
-- Command Center.
+- telemetry.
 
-Therefore a v0.4 campaign with:
-- two clean diagnostics;
-- three fresh confidence runs;
-- no regression in underlying v0.3 functionality
+v0.4:
+- production OIDC discovery verifier;
+- two allowed users;
+- unprovisioned;
+- suspended;
+- Rukan API credentials and scope matrix;
+- generic client;
+- true streaming;
+- per-user usage;
+- exact eventual reconciliation;
+- MCP allowed/denied;
+- actual pinned LibreChat running;
+- live OIDC forwarding;
+- LibreChat chat through Gateway;
+- privacy.
 
-is sufficient forward physical evidence for the current product line.
+Two consecutive full-stack clean diagnostics required.
 
-It does not rewrite the historical fact that v0.3 C2/C3 were stock-blocked.
-
----
-
-# 12. ITERATIVE DEFECT CORRECTION
-
-The user explicitly authorizes autonomous iterative correction.
-
-Within v0.4 scope:
-
-server failure
-→ classify
-→ violated invariant
-→ reproduce/regression
-→ robust architecture fix
-→ commit
-→ QA
-→ immutable artifact
-→ retest.
-
-Do not stop on the first ordinary product defect.
-
-Maximum diagnostics before mandatory Lead review remains the detailed instruction's
-limit unless safety/cost stops earlier.
-
-No hot patches as accepted fixes.
+A config-only LibreChat test does not count as full-stack clean.
 
 ---
 
-# 13. RUNPOD SAFETY
+# 11. CONFIDENCE PHASE
 
-All existing RunPod rules remain binding.
+After two consecutive full-stack diagnostics:
 
-One Pod at a time.
+Freeze:
+- Rukan source SHA;
+- wheel SHA;
+- LibreChat version/image digest;
+- deployment manifest;
+- identity test provider config/artifact;
+- MCP fixture artifact.
 
-Use inexpensive supported NVIDIA host.
+Run C1/C2/C3 on fresh environments.
 
-Do not insist on L40S if another existing in-envelope NVIDIA host is allocatable and
-Rukan itself finds it feasible without source change.
+No Rukan code changes.
 
-No network volumes.
+Each confidence run:
+- full v0.3 deployment path;
+- Gateway;
+- OIDC;
+- at least two users;
+- generic client;
+- LibreChat physical;
+- true streaming;
+- per-user accounting;
+- exact reconciliation;
+- MCP smoke;
+- restart;
+- privacy;
+- teardown.
 
-Respect:
-- hourly cap;
-- balance floor;
-- max lifetime;
-- provisioning retry;
-- session/daily limits;
-- hang rule.
+At least one:
+- JWKS rotation;
+- API credential revoke;
+- Gateway restart;
+- MCP denial;
+- LibreChat restart.
 
-Provider stock failure is evidence, not a product defect.
+Product defect:
+- confidence resets;
+- robust fix;
+- diagnostics again.
+
+---
+
+# 12. SERVER/COST RULES
+
+Use one GPU Pod at a time.
+
+Prefer cheap supported NVIDIA.
+
+For LibreChat container proof, an inexpensive separate host is allowed only if:
+- tooling supports it;
+- one-Pod limit is preserved if RunPod is used;
+- no unrelated cloud infrastructure is introduced;
+- cost stays within campaign target.
+
+v0.4 campaign target remains <= $20.
+
+Existing RunPod hard limits remain.
+
+Hang:
+- STOP owned Pod;
+- preserve evidence;
+- ask Daniel before termination.
+
+---
+
+# 13. DO NOT START NATIVE WORKSPACE YET
+
+The next planned product increment is first-party Rukan Workspace.
+
+Do not begin it in this instruction.
+
+The purpose of this instruction is to make the Gateway contracts stable enough that
+the first-party UI can be built on them without immediately redesigning:
+- identity;
+- streaming;
+- usage;
+- MCP;
+- credentials.
 
 ---
 
 # 14. TERMINAL STATUS
 
-If v0.3 bounded acceptance itself reveals a real unresolved product blocker:
-
-`RUKAN_V0_4_USER_ACCESS_NOT_READY`
-
-and STOP before v0.4.
-
-Otherwise proceed through v0.4.
-
-Full target:
+PASS:
 
 `RUKAN_V0_4_USER_ACCESS_GATEWAY_SERVER_CAMPAIGN_PASS`
 
-If v0.4 cannot reach that safely within the authorized campaign:
+Only if:
+- four Lead blockers closed;
+- true streaming;
+- enterprise OIDC discovery/rotation;
+- scope enforcement;
+- crash-consistent accounting;
+- physical LibreChat proof;
+- two consecutive clean full-stack diagnostics;
+- C1/C2/C3 clean;
+- no server/pilot blocker.
+
+Otherwise:
 
 `RUKAN_V0_4_USER_ACCESS_NOT_READY`
 
-Do not automatically merge v0.4 canonical unless a later Lead instruction says so.
+Do not merge v0.4 canonical.
 
 ---
 
-# 15. FINAL PASTE BACK
+# 15. PASTE BACK
 
-The final paste-back must include:
+Return:
 
-A. terminal status  
-B. v0.3 bounded acceptance result  
-C. v0.3 historical confidence evidence and deferred C2/C3 debt  
-D. v0.3 canonical merge SHA/tag  
-E. v0.4 branch/start SHA  
-F. v0.4 architecture review  
-G. User Workspace adapter design  
-H. LibreChat adapter/version/digest  
-I. future Rukan Workspace path  
-J. User Gateway  
-K. identity verification/binding  
-L. People/access changes  
-M. user API credentials  
-N. generic OpenAI-compatible client  
-O. streaming  
-P. per-user accounting  
-Q. accounting reconciliation  
-R. My Usage  
-S. Admin user analytics  
-T. MCP architecture/policy  
-U. MCP physical evidence  
-V. agent semantics  
-W. enterprise-security layering  
-X. privacy  
-Y. local QA  
-Z. server diagnostics  
-AA. defects/fixes  
-AB. confidence C1  
-AC. confidence C2  
-AD. confidence C3  
-AE. final source/wheel/LibreChat digest  
-AF. usage/token totals  
-AG. cost  
-AH. remaining GA blockers  
-AI. recommended next product increment  
-AJ. git state  
-AK. cleanup  
-AL. STOP
+A. terminal status
+B. starting/final source SHA
+C. streaming architecture
+D. first-chunk evidence
+E. streaming disconnect/error accounting
+F. OIDC discovery architecture
+G. JWKS rotation evidence
+H. route/scope matrix
+I. MCP credential-scope policy
+J. canonical Gateway usage design
+K. projection/reconciliation state machine
+L. crash/failure-injection evidence
+M. Admin reconciliation behavior
+N. security audit
+O. LibreChat pin truth/status
+P. LibreChat physical environment
+Q. real LibreChat OIDC login
+R. live token forwarding
+S. LibreChat chat/streaming
+T. MCP through LibreChat
+U. user/token reconciliation
+V. diagnostic D3
+W. later diagnostics
+X. clean streak
+Y. confidence C1
+Z. confidence C2
+AA. confidence C3
+AB. final wheel SHA
+AC. LibreChat digest
+AD. usage totals
+AE. privacy evidence
+AF. cost
+AG. remaining GA blockers
+AH. git state
+AI. cleanup
+AJ. recommended native Workspace next step
+AK. STOP
 
 # END INSTRUCTION
