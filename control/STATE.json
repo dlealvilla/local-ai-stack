@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "finish_rukan_v0_3_functional_product",
-  "expected_pasteback_instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
-  "instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
+  "expected_cursor_action": "fix_rukan_v0_3_people_ui_and_trigger_semantics",
+  "expected_pasteback_instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FIX-002",
+  "instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FIX-002",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_finish_v0_3_monitoring_people_and_server_test_readiness_then_lead_review",
+    "next_action": "cursor_fix_people_ui_effective_access_and_trigger_resurrection_then_lead_review",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -159,7 +159,17 @@
           "interval_seconds": 21600
         }
       },
-      "terminal_success_status": "RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY"
+      "terminal_success_status": "RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY",
+      "correction": {
+        "starting_source": "fd13ede7553011033a140d1206982f54536b7032",
+        "issues": [
+          "people_admin_ui_incomplete",
+          "effective_access_platform_parent_gate",
+          "effective_access_per_capability_provenance",
+          "queued_report_trigger_resurrection"
+        ],
+        "status": "CORRECTION_REQUIRED"
+      }
     },
     "rukan_ui_v0_1": {
       "admin": [
@@ -204,8 +214,8 @@
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
     "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
-  "published_instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
+  "published_instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FIX-002",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_RUKAN_V0_3_FINAL_FIX"
 }
