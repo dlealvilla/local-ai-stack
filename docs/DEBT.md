@@ -3125,6 +3125,24 @@ To make real: Discover supplies a compute capability on the envelope and
 Retire when:  a plan on a different capability no longer matches this evidence.
 Status:       OPEN
 
+### R-03-06 — v0.3 confidence C2 and C3 were not allocated
+Label:        PHYSICAL
+Owner stage:  Rukan v0.3 server campaign
+Subsystem:    physical acceptance
+Authorizes:   YES — downstream development may continue
+What:         D4, D5, and corrected C1 passed on wheel
+              `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`.
+              C2 and C3 were not run because secure supported NVIDIA stock
+              could not be allocated. Status
+              `DEFERRED_PROVIDER_STOCK_PHYSICAL_CONFIDENCE`.
+Why now:      Provider inventory is not a software defect and is not a
+              reason to keep the accepted implementation off canonical.
+To make real: two further clean confidence servers on that frozen wheel,
+              or a later campaign that re-proves the same path without
+              rewriting this record.
+Retire when:  that physical evidence exists and is recorded as such.
+Status:       OPEN
+
 ## Retired entries
 
 Retired entries stay in this file with their retiring stage and date,

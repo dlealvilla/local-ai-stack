@@ -257,8 +257,24 @@ Clean on the frozen wheel. Confidence streak is 1. C1 included the intake outage
 - Reports included `deployment_ready`, five `periodic` reports, `deployment_stopped`, and `reservation_released`
 - The test prompt was not stored
 
-## Confidence C2
+## Confidence C2 and C3
 
-Still not started. A later placement window was checked again.
+C2 and C3 were not run. Secure L40S and RTX 6000 Ada both returned no instance during the last placement window, and the following catalog read showed both `NONE`. No pod id was created. That is provider stock, not a product failure. Their status is `DEFERRED_PROVIDER_STOCK_PHYSICAL_CONFIDENCE`.
 
-Secure L40S read `NONE`, then `LOW` only in `OC-AU-1` at `$1.09/hour`. Creating there returned no instance. RTX 6000 Ada, the same Ada class at `$0.84/hour`, also read `LOW` and then returned no instance. A following catalog read showed both `NONE`. No pod id was created. C3 was not started. Confidence streak stays 1 of 3. Gate 1 does not start until C2 and C3 pass on this wheel.
+## Bounded acceptance
+
+Status: `RUKAN_V0_3_IMPLEMENTATION_ACCEPTED_PHYSICAL_CONFIDENCE_PENDING`
+
+This is not `RUKAN_V0_3_SERVER_CAMPAIGN_PASS`.
+
+Local regression on this branch, with the frozen wheel left unchanged:
+
+- `ruff check src/machi tests/machi tests/acceptance_lab` passed
+- `mypy --strict src/machi` passed
+- `tests/machi` passed
+- `tests/acceptance_lab` passed
+- Admin and Command Center tests, typecheck, and production builds passed
+- on-disk wheel SHA256 remains `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`
+- commits after `77923d0587a7ca4519a1a90dd5097a89ca4844e2` change only this campaign note
+
+The implementation may be merged for downstream development. Two further confidence servers remain physical-confidence debt. A later v0.4 campaign that re-runs the full v0.3 path does not rewrite this history.

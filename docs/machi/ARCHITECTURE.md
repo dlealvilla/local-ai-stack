@@ -1520,6 +1520,11 @@ serves, or controls the other plane. The contracts are
 `kernel.inference_usage` and `kernel.operational_report`. The design
 note is [RUKAN-CONNECTED-MONITORING-V0.3.md](RUKAN-CONNECTED-MONITORING-V0.3.md).
 
+The v0.3 deployment path is implementation-accepted with physical
+confidence pending (`R-03-06`). It is not a three-run server-campaign
+pass. The employee User Gateway is the next product surface and remains
+a consumer of Serve, not a second admission authority.
+
 ---
 
 # 19. Empirical test model
