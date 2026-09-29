@@ -131,6 +131,16 @@
     },
     "rukan_functional_v0_3_finish": {
       "branch": "rukan/connected-monitoring-v0.3",
+      "correction": {
+        "issues": [
+          "people_admin_ui_incomplete",
+          "effective_access_platform_parent_gate",
+          "effective_access_per_capability_provenance",
+          "queued_report_trigger_resurrection"
+        ],
+        "starting_source": "fd13ede7553011033a140d1206982f54536b7032",
+        "status": "SUPERSEDED_BY_PRODUCTION_READINESS_GATE"
+      },
       "current_candidate": "0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4",
       "instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
       "people_foundation": {
@@ -159,17 +169,7 @@
           "interval_seconds": 21600
         }
       },
-      "terminal_success_status": "RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY",
-      "correction": {
-        "starting_source": "fd13ede7553011033a140d1206982f54536b7032",
-        "issues": [
-          "people_admin_ui_incomplete",
-          "effective_access_platform_parent_gate",
-          "effective_access_per_capability_provenance",
-          "queued_report_trigger_resurrection"
-        ],
-        "status": "SUPERSEDED_BY_PRODUCTION_READINESS_GATE"
-      }
+      "terminal_success_status": "RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY"
     },
     "rukan_ui_v0_1": {
       "admin": [
@@ -200,30 +200,10 @@
       "starting_source": "7ff3dff6972f69ba38214a6d30f7a19f272318e0",
       "terminal_success_status": "RUKAN_DUAL_UI_V0_1_LOCAL_PASS"
     },
-    "runpod_policy": {
-      "amd_max_hourly_usd": 4,
-      "hang_action": "stop_and_ask",
-      "max_concurrent_pods": 1,
-      "max_pod_lifetime_minutes": 90,
-      "max_provision_retries": 3,
-      "network_volume": false,
-      "nvidia_max_hourly_usd": 1.5,
-      "remaining_balance_floor_usd": 0.5
-    },
-    "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
-    "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
     "rukan_v0_3_production_readiness_gate": {
-      "instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
-      "starting_source": "fd13ede7553011033a140d1206982f54536b7032",
       "branch": "rukan/connected-monitoring-v0.3",
       "external_server_test": false,
-      "paid_infrastructure": false,
-      "target": "bounded_production_candidate_ready_for_server_acceptance",
-      "required_terminal_statuses": [
-        "RUKAN_V0_3_PRODUCTION_CANDIDATE_READY_FOR_SERVER_ACCEPTANCE",
-        "RUKAN_V0_3_NOT_READY_FOR_SERVER_ACCEPTANCE"
-      ],
+      "instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
       "mandatory_audits": [
         "authority_and_architecture",
         "telemetry_state_machine",
@@ -240,11 +220,31 @@
         "mini_fleet",
         "ui_backend_coherence",
         "server_acceptance_playbook"
-      ]
-    }
+      ],
+      "paid_infrastructure": false,
+      "required_terminal_statuses": [
+        "RUKAN_V0_3_PRODUCTION_CANDIDATE_READY_FOR_SERVER_ACCEPTANCE",
+        "RUKAN_V0_3_NOT_READY_FOR_SERVER_ACCEPTANCE"
+      ],
+      "starting_source": "fd13ede7553011033a140d1206982f54536b7032",
+      "target": "bounded_production_candidate_ready_for_server_acceptance"
+    },
+    "runpod_policy": {
+      "amd_max_hourly_usd": 4,
+      "hang_action": "stop_and_ask",
+      "max_concurrent_pods": 1,
+      "max_pod_lifetime_minutes": 90,
+      "max_provision_retries": 3,
+      "network_volume": false,
+      "nvidia_max_hourly_usd": 1.5,
+      "remaining_balance_floor_usd": 0.5
+    },
+    "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
+    "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
   "published_instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_V0_3_PRODUCTION_READINESS_GATE"
+  "status": "PASTEBACK_PUBLISHED"
 }

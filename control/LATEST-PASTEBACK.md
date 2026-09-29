@@ -1,159 +1,240 @@
-================================================================================
-=========================== PASTE BACK START ===================================
-================================================================================
+# PASTE BACK
 
-TASK: RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001
-STATE: PASS
-MILESTONE: Rukan functional product v0.3 finish
-STAGE: telemetry correctness, people directory, server-test readiness
-STEP: close monitoring defects and add customer-local people
-PREDECESSOR OUTPUTS: 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4 on rukan/connected-monitoring-v0.3
-CURRENT_COMMIT: fd13ede7553011033a140d1206982f54536b7032
+A. Terminal status
 
-STATUS: RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY
+`RUKAN_V0_3_PRODUCTION_CANDIDATE_READY_FOR_SERVER_ACCEPTANCE`
 
-A. Terminal status: RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY
-B. TL;DR: Telemetry cursors now move only on a matching ACK, the development heartbeat is a stable 120-second phase, and People is a real local directory that does not leave the customer host. No paid server test was run.
-C. Starting SHA 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4. Final SHA fd13ede7553011033a140d1206982f54536b7032.
-D. Branch rukan/connected-monitoring-v0.3. Pushed. Untracked docs/machi/proposals/ only. origin/machi remains d38a8e855f099f353e1ac090b990014eed67a826.
+B. Executive TL;DR
 
-CHANGES:
+Bounded Rukan v0.3 is ready for Daniel's later server acceptance. Usage delivery is owned by an ACK cursor, People access is per capability with a platform parent gate, Admin stays loopback-only, and the frozen wheel serves both UIs without a repository checkout or Node. Production cadence is 21600 seconds. Development, 120 seconds, is explicit. No server-acceptance or pilot blocker remains in this envelope. GA gaps stay documented and were not downgraded.
 
-* machi.kernel.cadence is the only interval table: development 120s, production 21600s, custom 60..86400s.
-* Operational reports carry cadence_profile, cadence_seconds, and cadence_phase_seconds.
-* One queued report is frozen until an ACK names its report id. Cursors, baselines, and the periodic slot move only then.
-* Command Center schema 4 records cadence and recomputes sequence gaps. A late report does not replace a newer summary.
-* directory.sqlite holds users, teams, memberships, and access intent. Admin People API and page use it.
-* docs/machi/RUKAN-REAL-USER-ACCEPTANCE-V0.3.md and `acceptance preflight` prepare the later campaign.
+C. Starting and final SHA
 
-E. Deviations: bearer token remains; phase is epoch-aligned rather than added to each interval; one outstanding report replaces the old 24-report drop; team roles are deferred; access rule is user deny, user allow, team grant, default deny. Enforcement is always gateway_not_available.
+- Starting candidate: `fd13ede7553011033a140d1206982f54536b7032`
+- Final: `5aaa43d81645c8266f3cad11b91aa57e93d59b96`
+- Implementation commit: `43be965` plus packaging commit `5aaa43d`
 
-F. State machine: compose writes the body and proposed journal offset, window end, and periodic flag. Send failure leaves meta cursors unchanged. ACK applies them and sets delivered_at.
+D. Branch, origin, worktree
 
-G. Cadence: development is the current default. Production stays 6 hours. Admin Settings names the development profile explicitly.
+- Branch: `rukan/connected-monitoring-v0.3`
+- Pushed: `origin/rukan/connected-monitoring-v0.3` at `5aaa43d`
+- `origin/machi` was not moved
+- Untracked `docs/machi/proposals/` was left untracked
 
-H. Development heartbeat: real Admin process on 127.0.0.1:8791 and local-test intake on 127.0.0.1:8792. Periodic generated_at values 2026-09-29T03:18:02.474067+00:00 and 2026-09-29T03:20:02.725221+00:00. Gap 120.251 seconds.
+E. Supported production-candidate envelope
 
-I. Production profile remains 21600 seconds with a phase cap of 900 seconds. Tests configure it explicitly.
+POSIX host. Loopback Admin. SSH tunnel for a remote administrator. One-way HTTPS telemetry into Command Center. Production reporting every 21600 seconds. Development every 120 seconds only when selected. Customer-local People directory with no enforcement. One native vLLM serving path already in the product. Packaged Admin and Command Center UIs.
 
-J. ACK: wrong report id leaves the row queued and last_acked empty. Journal offset does not move before ACK. Event reports do not move next_periodic_at.
+F. GA exclusions
 
-K. Sequence 1 then 3 then late 2: high stays 3, the late row is out_of_order, and the gap becomes missing:2 until 2 arrives, then none. Latest trigger stays with the highest sequence. Receipt time still updates.
+No human Admin authentication. No employee gateway, chat, Agent Builder, RAG, licensing, or remote control. No Windows secure-credential adapter. No journal rotation. Physical qualification still pending for AMD native/vLLM, macOS/Ollama, and NVIDIA Ampere/N1.
 
-L. Usage accounting is unchanged: OpenAI and Ollama counts when present, Rukan boundary latency, operator_test versus acceptance_probe, no prompt text.
+G. Architecture audit summary
 
-M. People contracts: kernel.directory_user, kernel.directory_team, kernel.directory_membership, kernel.access_intent, kernel.effective_access.
+ResourceManager remains admission authority. Plan does not admit. Serve does not release. STOP is not RELEASE. Command Center stores reports and does not operate the customer host. Telemetry is one-way. People and customer content stay local. The audit is `docs/machi/RUKAN-V0.3-PRODUCTION-READINESS-AUDIT.md`.
 
-N. Persistence: <store>/directory.sqlite schema 1, separate from telemetry and Command Center. Audit file stores ids, not emails.
+H. Authority and ownership graph
 
-O. Users API: POST /v1/people actions create_user, update_user, set_status, list. Duplicate normalized email is refused. Deactivated users are not reactivated.
+Install identity feeds Plan, then ResourceManager, then Serve, then the local journal and usage rows, then the telemetry outbox, then Command Center intake. People is local Admin only. No observer in that chain authorizes admission or a customer mutation.
 
-P. Teams API: create_team, update_team, set_team_status, add_membership, remove_membership. Archive keeps the membership row.
+I. Findings by classification
 
-Q. Resolver: effective action returns capabilities, provenance, configured true, enforcement gateway_not_available. No session and no inference route.
+- SERVER_ACCEPTANCE_BLOCKER: none remaining
+- PILOT_BLOCKER: none remaining
+- GA_BLOCKER: PR-01 human Admin auth; PR-02 Windows credentials; PR-03 journal rotation; PR-04 physical breadth
+- DEFERRED_PRODUCT: PR-05 employee gateway and chat; PR-06 read-only deployment settings; PR-07 no public intake product
 
-R. Privacy: report dump rejects email keys. Canary name and email were absent from the outbox body, the audit line, and command.sqlite.
+J. Previous defect closure
 
-S. Audit actions: user.created, user.updated, user.status_changed, team.created, team.updated, team.archived, team.reactivated, membership.added, membership.removed, access_intent.changed. They appear on local Admin Activity only.
+- People Admin can search, create, edit, suspend, reactivate, deactivate, manage memberships, edit intent, and show effective access
+- Platform deny closes inference, model selection, and agent builder
+- Provenance is per capability
+- A frozen queued report does not resurrect its triggers; a later reason is reported after ACK
 
-T. Admin navigation adds People. Overview stays the readiness, model, usage, and monitoring summary.
+K. People UI completion
 
-U. Models library is unchanged: exact artifact or digest cards, no Recommended row.
+Verified in the browser against packaged Admin on `127.0.0.1:8794`. Created Ada Example / ada.ui@example.test. Details showed the stable id, timestamps, inherit controls, Suspend, Deactivate, and effective rows: platform `default_deny`, and the other capabilities `platform_parent`. Enforcement text is `gateway_not_available`.
 
-V. People page lists users and teams, creates both, and states that login is not enabled.
+L. Access-policy semantic model
 
-W. Analytics still shows requests, tokens, latency, and purpose. Activity appends directory ids locally.
+User intent may be allow, deny, or inherit per capability. Team intent may be allow or deny. Missing user intent inherits. Active team allows compose by union. Archived teams grant nothing. Suspended and deactivated users deny every capability.
 
-X. Settings shows Development — every 2 minutes, Production — every 6 hours, or custom seconds, plus phase, next slot, and last ACK time.
+M. Per-capability provenance
 
-Y. Command Center deployments show the reported cadence text and judge lateness from that interval, not a fixed 6 hours. They do not say online or offline.
+`platform_provenance`, `inference_provenance`, `model_selection_provenance`, and `agent_builder_provenance`. Values include `user_status`, `platform_parent`, `user_deny`, `user_allow`, `team_grant`, and `default_deny`.
 
-Z. Portfolio, reporting, and model landscape remain report evidence. They do not read directory.sqlite.
+N. Directory install binding
 
-AA. Soak used the real admin serve and command-center intake processes, not the browser. Two periodic reports arrived 120.251 seconds apart. The run exited 0. SIGINT previously printed a KeyboardInterrupt from the server loop; serve paths now catch that interrupt and close the databases.
+`directory.sqlite` records the local InstallId. A later conflicting InstallId fails closed. A fresh directory may bind once. Unresolved identity stays `not_recorded` until a record exists.
 
-AB. Playbook: docs/machi/RUKAN-REAL-USER-ACCEPTANCE-V0.3.md. SSH tunnel to loopback Admin. No public Admin. No RunPod.
+O. Cadence default
 
-AC. `python -m machi.main acceptance preflight --data-dir <dir> --cert <cert> --key <key>` checks writability and optional cert paths. Evidence layout is acceptance-evidence/ and is gitignored.
+Product default is production, 21600 seconds. The Admin API default profile is `production`. Development, 120 seconds, is selected in Settings or by the playbook. A release wheel does not inherit the 2-minute profile from the build tree. Isolated install reported `production 21600`.
 
-AD. Later commands are in the playbook: admin serve, command-center serve, intake with cert and key, credential issue, ssh -L 8765:127.0.0.1:8765. This run did not execute them against a remote host.
+P. Scheduler evidence
 
-AE. Admin stays loopback. Intake write-only. Non-loopback plaintext still fails closed. Credential file remains mode 0600 on POSIX. No passwords.
+Phase stays epoch-aligned. The 15-minute soak produced periodic gaps of 121.8s, 235.5s, 121.7s, 120.3s, and 120.3s. The 235.5s gap is the intake outage: one catch-up report, not a backfill storm. Event and test reports do not move `next_periodic_at`.
 
-AF. Admin vitest 4, tsc, vite build. Command Center vitest 5, tsc, vite build.
+Q. Usage delivery
 
-AG. tests/machi 631 passed. tests/acceptance_lab 51 passed, collected separately. ruff check . passed. mypy --strict src/machi: 200 files, no issues.
+Each usage row gets `usage_seq`. A report includes rows above `ack_usage_seq` through the proposed sequence. Only a matching ACK advances the cursor. `occurred_at` is analytics time. Eight concurrent inserts produced sequences 1..8 once. The next report carried one new request, not a replay of the first eight.
 
-AH. Wheel machi-0.1.0-py3-none-any.whl, build id 0.1.0+fd13ede75530, SHA256 a4c3df4ced22426717bc8f24f3448c1756004a8b7ba5be7696fb5f6c299f8f32, size 398037, clean_source true. verify_ok.
+R. Event journal delivery
 
-AI. Command Center schema 4 adds cadence_profile and cadence_seconds. Version 3 upgrades in place. Directory schema starts at 1. Report contract fields replaced cadence_hours before promotion. Fingerprint regenerated.
+The compose cursor does not consume a trailing partial line. A shrunk journal sets `journal_truncated` and does not skip ahead. Rotation is not supported and is `R-03-04`.
 
-AJ. No employee login, gateway, chat, LibreChat, Agent Builder, RAG, remote control, or public intake. Team roles are deferred. R-03-01 deployment settings remain read-only.
+S. Telemetry stream
 
-AK. Next stage can authenticate a user, call the effective-access resolver, and only then open a gateway in front of an admitted ServingInstance. Do not start it here.
+Each local telemetry database mints `tstream_…` once. Command Center gaps are computed inside install plus stream. A new database is a new stream and does not collide with the old sequence.
 
-AL. Git: branch rukan/connected-monitoring-v0.3, committed YES, pushed YES. origin/machi unchanged.
+T. Duplicate and collision
 
-AM. STOP
+Same report id and same body digest is an idempotent ack. A different body for that id is rejected. The same install, stream, and sequence with a different report id is rejected and does not overwrite.
 
-EVIDENCE:
+U. Clock skew
 
-* focused tests: test_rukan_monitoring.py, test_rukan_people.py, tools/rukan_dev_soak.py
-* regression tests: tests/machi 631; tests/acceptance_lab 51
-* soak gap_s 120.251154
+Freshness uses receiver `received_at`. A generated time more than two hours away is stored as `source_clock_ahead` or `source_clock_behind` and is still accepted. Command Center shows the clock column.
 
-SOURCE SIDE (real-host stages):
+V. Telemetry configuration authority
 
-* predecessor: 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4
-* source commit(s): fd13ede7553011033a140d1206982f54536b7032
-* files changed: cadence, telemetry, intake, people directory, Admin, Command Center, playbook
-* local tests: listed above
-* final source commit: fd13ede7553011033a140d1206982f54536b7032
-* artifact / SHA-256 / build id: machi-0.1.0-py3-none-any.whl / a4c3df4ced22426717bc8f24f3448c1756004a8b7ba5be7696fb5f6c299f8f32 / 0.1.0+fd13ede75530
+The browser supplies endpoint, key, secret, and profile. `install_id` comes from the local install record. Production enablement refuses `not_recorded` unless local-test mode is explicit.
 
-DEPLOYMENT SIDE (real-host stages):
+W. Degraded accounting
 
-* target host and fingerprint: none; playbook only
-* transferred hash == local hash: not applicable
-* installed build identity: not applicable
-* install/upgrade result: not applicable
-* commands under acceptance: local soak and preflight only
-* observations and diagnostics: two periodic reports 120.251 seconds apart
-* acceptance result: local functional pass; server campaign not run
-* attempts, if more than one: one soak
+A failed usage insert returns false, increments `usage_records_dropped`, and does not fail inference. Reports with drops say `usage_accounting_status=degraded`.
 
-BEHAVIOR:
+X. Outbox
 
-* Development reports repeat on a stable 120-second phase.
-* An event report does not postpone that phase.
-* People can be created locally and do not appear in Command Center.
+One queued report stays frozen until a matching ACK. A wrong ACK does not advance cursors. Send failure leaves the row queued. Delivered history compacts to 48. Unacknowledged rows are not deleted.
 
-SCOPE:
+Y. Retention
 
-* non-goals preserved: employee login, gateway, chat, RAG, remote control, paid infrastructure
-* adjacent issues recorded: R-03-01; untracked docs/machi/proposals/ not committed
+Delivered outbox keeps 48. Acknowledged usage keeps the newest 2000. Unacknowledged usage is kept. Directory audit compacts after 200000 bytes to the last 400 lines. Command Center clears raw report documents beyond the newest 200 per install and keeps structured rows. Rejection rows keep the newest 500. The operational journal is not deleted.
 
-GIT:
+Z. Sensitive-file permissions
 
-* branch: rukan/connected-monitoring-v0.3
-* working tree: untracked docs/machi/proposals/ only
-* committed: YES
-* pushed: YES
+POSIX mode `0600` for telemetry SQLite, directory SQLite, Command Center SQLite, credential files, and their WAL/SHM when present. Non-POSIX hosts are not given a weaker mode.
 
-CHECKPOINT:
+AA. SQLite concurrency
 
-* path: none
-* token/hash: none
+WAL and a 4 second busy timeout. Eight processes opening one fresh Command Center database migrate once to schema 5. Ten deployments reported concurrently into one hub without shared usage totals. Admin and intake can share the Command Center database.
 
-QUESTIONS / DECISIONS:
+AB. Mini-fleet
 
-* NONE
+Ten independent install ids and credentials. Nine accepted. One bad credential was rejected. Accepted report count 9, distinct installs 9, request sum 9.
 
-NEXT:
+AC. Admin security
 
-* Lead review of fd13ede7553011033a140d1206982f54536b7032
-* DO NOT begin it
+Non-loopback bind is refused. A POST with `Origin: https://evil.example` returned 403. Request bodies are size-bounded. Malformed JSON is refused. Handler errors return a generic refusal. Static paths cannot escape the UI root.
 
-================================================================================
-============================ PASTE BACK END ====================================
-================================================================================
+AD. Intake security
+
+Write-only. GET returned 404 from the packaged intake. Non-loopback plaintext is refused. Loopback plaintext requires local-test. Production HTTPS uses certificate and hostname verification. Bearer comparison uses `hmac.compare_digest`. The secret is not a URL query. Revoked credentials are rejected.
+
+AE. Command Center rendering
+
+Imported strings are React text. The clock and cadence columns render report metadata. The packaged JavaScript is served as `text/javascript`.
+
+AF. PII and privacy
+
+Canaries for name, email, and team data stay in the local directory. The existing people test and the soak checked that `canary.soak@example.test` and `Canary Soak` did not enter `command.sqlite`. Prompts are not stored on the usage row.
+
+AG. Model and deployment authority
+
+Model cards stay on artifact or digest identity. Deployment settings remain read-only. ResourceManager is still the only admission authority.
+
+AH. Artifact-only install
+
+Clean wheel `machi-0.1.0-py3-none-any.whl`, build `0.1.0+5aaa43d81645`, size 557828, SHA256 `1d6faa228ef5f3cc546e07192f2356ad9d2fcd3bb305c39231cf1b45b2ccd5a3`, `clean true`. `tools/verify_machi.py` printed `verify_ok`. A fresh venv with `PYTHONPATH` unset, started from `/tmp`, served Admin and Command Center HTML, served JavaScript as `text/javascript`, created a person, reported production 21600, answered intake GET with 404, and issued a credential. Node was not used at runtime.
+
+AI. Migration
+
+Command Center schema 1 upgrades to 5. Schema 4 opens as 5. Schema 9 fails closed. Fresh telemetry and directory databases create the current tables. Telemetry adds `usage_seq` and `proposed_usage_seq` when missing.
+
+AJ. I/O and permission failure
+
+Usage insert failure is caught, counted, and does not raise into inference. Directory and telemetry files are owner-only on POSIX. A conflicting directory install binding raises `ValidationError`.
+
+AK. Process signals
+
+`SIGINT` and `SIGTERM` stop Admin, Command Center, and intake through `serve_until_stopped` without a traceback. The soak restarted Admin with SIGTERM and reporting resumed.
+
+AL. Telemetry agent health
+
+The agent starts with Admin, ticks on its own thread, records `last_tick_error` instead of disappearing, and stops when Admin stops. Restart resumes from SQLite.
+
+AM. UI and backend coherence
+
+People controls call `/v1/people`. Settings defaults to Production and labels Development only when that profile is selected. Command Center shows receiver time, cadence, and clock skew. Effective access in the UI matches the API.
+
+AN. Documentation
+
+Updated the monitoring note, people access note, telemetry note, analytics cadence sentence, debt register, acceptance playbook, and the production-readiness audit. Historical evidence docs were left in place.
+
+AO. Preflight
+
+`python -m machi.main acceptance preflight` now checks Python, POSIX credentials, the wheel path, writable data dir, certificate and key together, HTTPS endpoint, optional ports, and packaged UI. It prints PASS or BLOCKED and optional JSON. It does not open a service and does not spend money.
+
+AP. Playbook
+
+`docs/machi/RUKAN-REAL-USER-ACCEPTANCE-V0.3.md` is artifact-only. Customer Admin stays on loopback. Daniel uses an SSH tunnel. Telemetry uses machine-authenticated HTTPS. The test must select Development. Expected observations are listed. No remote campaign was run.
+
+AQ. Local production-like acceptance
+
+Packaged Admin, Command Center, and intake were real processes from the frozen wheel. People, monitoring, the credential CLI, and write-only intake were exercised. The development soak used real processes for Admin, intake, and Command Center.
+
+AR. Soak
+
+`tools/rukan_dev_soak.py` ran 906 seconds and exited 0. Six periodic reports. Generated times:
+
+- 2026-09-29T05:12:03.889210+00:00
+- 2026-09-29T05:14:05.669420+00:00
+- 2026-09-29T05:18:01.203051+00:00
+- 2026-09-29T05:20:02.908986+00:00
+- 2026-09-29T05:22:03.199280+00:00
+- 2026-09-29T05:24:03.462452+00:00
+
+Gaps seconds: 121.78021, 235.533631, 121.705935, 120.290294, 120.263172. Intake was stopped, a slot was crossed, intake was restored, a test report was injected, and Admin was restarted. No trigger storm. The People canary was absent from Command Center. Store: `/var/folders/y9/2yjwrjq143s4dcm4h5639fsr0000gp/T/rukan-soak-po4fyzss`.
+
+AS. Backend QA
+
+`tests/machi` exited 0. `tests/acceptance_lab` exited 0, collected separately. `ruff check .` passed. `mypy --strict src/machi` passed, 201 files. Readiness tests covered usage cursor, trigger non-resurrection, access truth table, collision, skew, retention, permissions, install binding, origin refusal, mini-fleet, and concurrent schema open.
+
+AT. Frontend QA
+
+Admin Vitest 4 passed. Admin `tsc` and production build passed. Command Center Vitest 5 passed. Command Center `tsc` and production build passed.
+
+AU. Wheel
+
+`machi-0.1.0-py3-none-any.whl`  
+SHA256 `1d6faa228ef5f3cc546e07192f2356ad9d2fcd3bb305c39231cf1b45b2ccd5a3`  
+size 557828  
+build `0.1.0+5aaa43d81645`  
+clean source true  
+`verify_ok`
+
+AV. Debt register
+
+| ID | Class | Server acceptance | Pilot | GA |
+| --- | --- | --- | --- | --- |
+| R-03-01 | DEFERRED_PRODUCT | no | no | no |
+| R-03-02 | GA_BLOCKER | no | no | yes |
+| R-03-03 | GA_BLOCKER | no | no | yes |
+| R-03-04 | GA_BLOCKER | no | no | yes |
+| physical lanes | GA_BLOCKER | no | no | yes |
+
+AW. Remaining GA blockers
+
+PR-01 no human Admin auth, loopback plus SSH tunnel is the test path. PR-02 no Windows secure credential adapter. PR-03 no journal rotation. PR-04 AMD, macOS/Ollama, and NVIDIA Ampere/N1 physical qualification remain outside this software gate.
+
+AX. Recommended next action
+
+Server acceptance by Daniel using the frozen wheel and `docs/machi/RUKAN-REAL-USER-ACCEPTANCE-V0.3.md`. Do not start RunPod. Do not redesign this envelope first.
+
+AY. Git state
+
+`rukan/connected-monitoring-v0.3` pushed to origin at `5aaa43d81645c8266f3cad11b91aa57e93d59b96`. Working tree clean except untracked `docs/machi/proposals/`. `origin/machi` was not moved.
+
+AZ. STOP
+
+STOP for Lead review. The next step is not started.
