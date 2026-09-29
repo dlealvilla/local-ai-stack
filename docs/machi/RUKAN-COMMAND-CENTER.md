@@ -18,10 +18,11 @@ envelope was derived. None of these means the deployment is live.
 
 ## Store
 
-The browser keeps imported snapshots in `localStorage` under
-`rukan.command.store.v1`. The same snapshot id replaces itself. A later
-snapshot id for the same install is kept, and the deployments table
-shows the latest `exported_at`. Remove deletes only that local copy.
+SQLite in the Command Center data directory is the durable copy.
+Inbox refresh still imports JSON and JSONL. Operational reports arrive
+on a separate write-only intake. The deployments table shows last
+report received and report age. It does not say online or offline.
+Remove deletes the local copy and leaves inbox files in place.
 
 Malformed JSON, an unknown schema version, and prohibited content keys
 fail closed. Imported documents are not executed.

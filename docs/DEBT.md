@@ -3058,6 +3058,91 @@ it is the natural extension of the capture-once/replay-often principle.
 Revisit:         when a support or customer case first meets unfamiliar
                  hardware, or when the Admin surface needs to export evidence
 
+### R-03-01 — Deployment settings are not mutated from Admin
+Label:        DEFERRED
+Owner stage:  Rukan connected monitoring v0.3
+Subsystem:    Admin settings
+Authorizes:   NO
+What:         Context, concurrency, placement, and reserve are shown
+              read-only. There is no Admin mutation that recomputes Plan.
+Why now:      A control without that path would be frontend-only.
+To make real: a bounded settings change that invalidates dependent state,
+              recomputes the plan, and still admits only through
+              ResourceManager.
+Retire when:  that mutation seam exists and is tested.
+Status:       OPEN
+
+### R-03-02 — Admin has no human authentication
+Label:        GA
+Owner stage:  Rukan v0.3 production readiness
+Subsystem:    Admin
+Authorizes:   NO
+What:         Admin trusts the OS account on the host. It binds to loopback
+              only. Remote use is an SSH tunnel.
+Why now:      Employee and administrator login are not in this product.
+To make real: a human authentication design that does not publish Admin
+              as a workaround.
+Retire when:  that design is accepted and tested.
+Status:       OPEN
+
+### R-03-03 — Windows secure credential files are not implemented
+Label:        GA
+Owner stage:  Rukan v0.3 production readiness
+Subsystem:    telemetry credentials
+Authorizes:   NO
+What:         Owner-only file modes are POSIX. Non-POSIX hosts are not
+              given a weaker substitute.
+Why now:      The pilot envelope is POSIX.
+To make real: a Windows secure-secret adapter.
+Retire when:  that adapter exists and is tested.
+Status:       OPEN
+
+### R-03-04 — Telemetry does not rotate the operational journal
+Label:        GA
+Owner stage:  Rukan v0.3 production readiness
+Subsystem:    telemetry
+Authorizes:   NO
+What:         The report cursor is a byte offset into one journal file.
+              A shrink is visible as `journal_truncated` and does not skip
+              ahead. Rotation is not supported.
+Why now:      The current journal writer does not rotate.
+To make real: an explicit rotation record and a cursor that can follow it.
+Retire when:  rotation is a product behavior and is tested.
+Status:       OPEN
+
+### R-03-05 — Deployment qualification uses an unspecified hardware class
+Label:        PROVISIONAL
+Owner stage:  Rukan v0.3 deployment closure
+Subsystem:    adapters/rukan deploy
+Authorizes:   YES — the class is part of qualification identity
+What:         When the coordinator earns qualification, the hardware class
+              is `unspecified`. The capacity envelope does not carry a
+              compute capability, so the proof is bound to the generation,
+              engine, and execution-environment fingerprint instead.
+Why now:      v0.3 must qualify through Serve without inventing a class.
+To make real: Discover supplies a compute capability on the envelope and
+              the coordinator puts that token in the qualification request.
+Retire when:  a plan on a different capability no longer matches this evidence.
+Status:       OPEN
+
+### R-03-06 — v0.3 confidence C2 and C3 were not allocated
+Label:        PHYSICAL
+Owner stage:  Rukan v0.3 server campaign
+Subsystem:    physical acceptance
+Authorizes:   YES — downstream development may continue
+What:         D4, D5, and corrected C1 passed on wheel
+              `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`.
+              C2 and C3 were not run because secure supported NVIDIA stock
+              could not be allocated. Status
+              `DEFERRED_PROVIDER_STOCK_PHYSICAL_CONFIDENCE`.
+Why now:      Provider inventory is not a software defect and is not a
+              reason to keep the accepted implementation off canonical.
+To make real: two further clean confidence servers on that frozen wheel,
+              or a later campaign that re-proves the same path without
+              rewriting this record.
+Retire when:  that physical evidence exists and is recorded as such.
+Status:       OPEN
+
 ## Retired entries
 
 Retired entries stay in this file with their retiring stage and date,

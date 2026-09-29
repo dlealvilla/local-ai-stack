@@ -122,7 +122,7 @@ def _client() -> tuple[Any, Any]:
     try:
         import huggingface_hub  # type: ignore[import-not-found]
     except ImportError as exc:
-        raise ValidationError("source_unavailable") from exc
+        raise ValidationError("packaging_incomplete") from exc
     return huggingface_hub.HfApi(), huggingface_hub
 
 

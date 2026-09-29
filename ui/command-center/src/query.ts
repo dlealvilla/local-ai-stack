@@ -11,7 +11,44 @@ export type DeploymentRow = {
   model_identity: string;
   witness_verdict: string;
   snapshot_count: number;
+  last_report_received_at?: string;
+  report_gap?: string;
+  last_trigger?: string;
+  cadence_profile?: string;
+  cadence_seconds?: number;
+  clock_skew?: string;
+  telemetry_stream_id?: string;
 };
+
+export function cadenceText(profile: string | undefined, seconds: number | undefined): string {
+  if (profile === "development" || seconds === 120) return "Development cadence: every 2 min";
+  if (profile === "production" || seconds === 21600) return "Production cadence: every 6 h";
+  if (seconds && seconds > 0) return `Custom cadence: every ${seconds}s`;
+  return "Cadence not reported";
+}
+
+export function reportAge(receivedAt: string | undefined, nowMs: number): string {
+  if (!receivedAt || receivedAt === "not_recorded") return "no report yet";
+  const then = Date.parse(receivedAt);
+  if (Number.isNaN(then)) return "report age unavailable";
+  const hours = Math.floor(Math.max(0, nowMs - then) / 3_600_000);
+  if (hours < 1) return "report received under 1h ago";
+  return `report received ${hours}h ago`;
+}
+
+export function cadenceLabel(
+  receivedAt: string | undefined,
+  nowMs: number,
+  cadenceSeconds?: number,
+): string {
+  if (!receivedAt || receivedAt === "not_recorded") return "no report yet";
+  const then = Date.parse(receivedAt);
+  if (Number.isNaN(then)) return "report age unavailable";
+  const interval = cadenceSeconds && cadenceSeconds >= 60 ? cadenceSeconds : 21600;
+  const slack = interval <= 600 ? 15_000 : 900_000;
+  const late = nowMs - then > interval * 1000 + slack;
+  return late ? "reporting later than scheduled" : "report inside the expected cadence";
+}
 
 export function snapshotAge(exportedAt: string, nowMs: number): string {
   const then = Date.parse(exportedAt);

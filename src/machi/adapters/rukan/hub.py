@@ -6,18 +6,20 @@ import hashlib
 import json
 import sqlite3
 import threading
+import time
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from machi.adapters.rukan.secrets import restrict_owned
 from machi.kernel.analytics import AnalyticsBundle, load_bundle
 from machi.kernel.errors import ValidationError
 from machi.kernel.schema import to_dict
 from machi.kernel.snapshot import SupportSnapshot, accept_snapshot
 
 API_NAME = "rukan.command.v1"
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "6"
 _LOOPBACK = "127.0.0.1"
 _MAX_BODY = 64_000
 
@@ -31,11 +33,21 @@ class CommandHub:
         self.inbox.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._db = sqlite3.connect(
-            self.data_dir / "command.sqlite", check_same_thread=False
+            self.data_dir / "command.sqlite",
+            timeout=30,
+            check_same_thread=False,
         )
         self._db.row_factory = sqlite3.Row
+        self._db.execute("PRAGMA journal_mode=WAL")
+        self._db.execute("PRAGMA busy_timeout=30000")
         self._migrate()
+        self._restrict()
         self.refresh()
+
+    def _restrict(self) -> None:
+        restrict_owned(self.data_dir)
+        for name in ("command.sqlite", "command.sqlite-wal", "command.sqlite-shm"):
+            restrict_owned(self.data_dir / name)
 
     def close(self) -> None:
         with self._lock:
@@ -119,7 +131,10 @@ class CommandHub:
                 """
                 SELECT install_id, latest_exported_at, version, os_family,
                        architecture, accelerator_summary, macropath,
-                       model_identity, witness_verdict, snapshot_count
+                       model_identity, witness_verdict, snapshot_count,
+                       last_report_received_at, last_report_sequence,
+                       last_trigger, report_gap, cadence_profile, cadence_seconds,
+                       telemetry_stream_id, clock_skew
                 FROM deployments
                 ORDER BY latest_exported_at DESC
                 """
@@ -162,7 +177,23 @@ class CommandHub:
                     (install_id,),
                 )
             ]
+            reports = [
+                dict(row)
+                for row in self._db.execute(
+                    """
+                    SELECT report_id, sequence, generated_at, received_at, triggers,
+                           version, key_id, gap, event_count, rollup_count, requests
+                    FROM reports WHERE install_id = ? ORDER BY sequence
+                    """,
+                    (install_id,),
+                )
+            ]
+            alias = self._db.execute(
+                "SELECT label FROM aliases WHERE install_id = ?", (install_id,)
+            ).fetchone()
         body = dict(deployment)
+        body["reports"] = reports
+        body["alias"] = alias["label"] if alias else ""
         body["snapshots"] = snapshots
         body["events"] = events
         body["inferences"] = inferences
@@ -231,6 +262,9 @@ class CommandHub:
             self._db.execute("DELETE FROM inferences WHERE install_id = ?", (install_id,))  # noqa: E501
             self._db.execute("DELETE FROM deployments WHERE install_id = ?", (install_id,))  # noqa: E501
             self._db.execute("DELETE FROM sources WHERE install_id = ?", (install_id,))
+            self._db.execute("DELETE FROM reports WHERE install_id = ?", (install_id,))
+            self._db.execute("DELETE FROM usage_rollups WHERE install_id = ?", (install_id,))  # noqa: E501
+            self._db.execute("DELETE FROM report_cursors WHERE install_id = ?", (install_id,))  # noqa: E501
             self._db.commit()
         return _envelope("ok", "local copy removed", {"install_id": install_id})
 
@@ -440,9 +474,29 @@ class CommandHub:
         del bundle_id
 
     def _migrate(self) -> None:
+        for attempt in range(80):
+            try:
+                self._migrate_once()
+                return
+            except sqlite3.OperationalError as exc:
+                message = str(exc).lower()
+                retry = "already exists" in message or "locked" in message
+                if attempt == 79 or not retry:
+                    raise
+                time.sleep(0.25)
+
+    def _migrate_once(self) -> None:
         self._db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")  # noqa: E501
         version = self._meta("schema_version")
         if version is None:
+            present = self._db.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name = 'sources'
+                """
+            ).fetchone()
+            if present is not None:
+                raise sqlite3.OperationalError("schema initialization is locked")
             self._db.executescript(
                 """
                 CREATE TABLE sources (
@@ -471,7 +525,85 @@ class CommandHub:
                     macropath TEXT NOT NULL,
                     model_identity TEXT NOT NULL,
                     witness_verdict TEXT NOT NULL,
-                    snapshot_count INTEGER NOT NULL
+                    snapshot_count INTEGER NOT NULL,
+                    last_report_received_at TEXT NOT NULL DEFAULT 'not_recorded',
+                    last_report_sequence INTEGER NOT NULL DEFAULT 0,
+                    last_trigger TEXT NOT NULL DEFAULT 'not_recorded',
+                    report_gap TEXT NOT NULL DEFAULT 'none',
+                    cadence_profile TEXT NOT NULL DEFAULT 'not_recorded',
+                    cadence_seconds INTEGER NOT NULL DEFAULT 0,
+                    telemetry_stream_id TEXT NOT NULL DEFAULT '',
+                    clock_skew TEXT NOT NULL DEFAULT 'none'
+                );
+                CREATE TABLE credentials (
+                    key_id TEXT PRIMARY KEY,
+                    install_id TEXT NOT NULL,
+                    secret_sha256 TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    revoked_at TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX credentials_secret ON credentials(secret_sha256);
+                CREATE TABLE reports (
+                    report_id TEXT PRIMARY KEY,
+                    install_id TEXT NOT NULL,
+                    sequence INTEGER NOT NULL,
+                    generated_at TEXT NOT NULL,
+                    received_at TEXT NOT NULL,
+                    triggers TEXT NOT NULL,
+                    version TEXT NOT NULL,
+                    build_id TEXT NOT NULL,
+                    key_id TEXT NOT NULL,
+                    body_sha256 TEXT NOT NULL,
+                    outcome TEXT NOT NULL,
+                    event_count INTEGER NOT NULL,
+                    rollup_count INTEGER NOT NULL,
+                    requests INTEGER NOT NULL,
+                    output_tokens TEXT NOT NULL,
+                    input_tokens TEXT NOT NULL,
+                    latency_ms_sum TEXT NOT NULL,
+                    latency_sample_count INTEGER NOT NULL,
+                    gap TEXT NOT NULL,
+                    document TEXT NOT NULL,
+                    stream_id TEXT NOT NULL DEFAULT ''
+                );
+                CREATE TABLE usage_rollups (
+                    report_id TEXT NOT NULL,
+                    install_id TEXT NOT NULL,
+                    model_identity TEXT NOT NULL,
+                    model_identity_kind TEXT NOT NULL,
+                    macropath TEXT NOT NULL,
+                    purpose TEXT NOT NULL,
+                    outcome TEXT NOT NULL,
+                    requests INTEGER NOT NULL,
+                    input_tokens TEXT NOT NULL,
+                    input_samples INTEGER NOT NULL,
+                    output_tokens TEXT NOT NULL,
+                    output_samples INTEGER NOT NULL,
+                    latency_ms_sum TEXT NOT NULL,
+                    latency_samples INTEGER NOT NULL,
+                    latency_min_ms TEXT NOT NULL,
+                    latency_max_ms TEXT NOT NULL,
+                    PRIMARY KEY (
+                        report_id, model_identity, macropath, purpose, outcome
+                    )
+                );
+                CREATE TABLE report_cursors (
+                    install_id TEXT NOT NULL,
+                    stream_id TEXT NOT NULL,
+                    high_sequence INTEGER NOT NULL,
+                    gap TEXT NOT NULL,
+                    PRIMARY KEY (install_id, stream_id)
+                );
+                CREATE TABLE intake_rejections (
+                    id INTEGER PRIMARY KEY,
+                    seen_at TEXT NOT NULL,
+                    key_id TEXT NOT NULL,
+                    reason TEXT NOT NULL
+                );
+                CREATE TABLE aliases (
+                    install_id TEXT PRIMARY KEY,
+                    label TEXT NOT NULL
                 );
                 CREATE TABLE snapshots (
                     snapshot_id TEXT PRIMARY KEY,
@@ -507,6 +639,8 @@ class CommandHub:
                     failure TEXT NOT NULL,
                     outcome TEXT NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS reports_stream_seq
+                    ON reports(install_id, stream_id, sequence);
                 """
             )
             self._set_meta("schema_version", SCHEMA_VERSION)
@@ -528,11 +662,176 @@ class CommandHub:
                     ON sources(install_id, logical_id);
                 """
             )
+            self._set_meta("schema_version", "2")
+            self._db.commit()
+            version = "2"
+        if version == "2":
+            self._upgrade_reports()
+            version = "3"
+        if version == "3":
+            self._upgrade_cadence()
+            version = "4"
+        if version == "4":
+            self._upgrade_stream()
+            version = "5"
+        if version == "5":
+            self._upgrade_cursors()
             self._set_meta("schema_version", SCHEMA_VERSION)
             self._db.commit()
             return
         if version != SCHEMA_VERSION:
             raise ValidationError("command center schema version is not supported")
+
+    def _upgrade_cursors(self) -> None:
+        columns = {
+            row[1] for row in self._db.execute("PRAGMA table_info(report_cursors)")
+        }
+        if "stream_id" in columns:
+            return
+        self._db.executescript(
+            """
+            CREATE TABLE report_cursors_v6 (
+                install_id TEXT NOT NULL,
+                stream_id TEXT NOT NULL,
+                high_sequence INTEGER NOT NULL,
+                gap TEXT NOT NULL,
+                PRIMARY KEY (install_id, stream_id)
+            );
+            INSERT INTO report_cursors_v6(install_id, stream_id, high_sequence, gap)
+            SELECT cursors.install_id,
+                   COALESCE(NULLIF(deployments.telemetry_stream_id, ''), 'legacy'),
+                   cursors.high_sequence,
+                   cursors.gap
+            FROM report_cursors AS cursors
+            LEFT JOIN deployments
+              ON deployments.install_id = cursors.install_id;
+            DROP TABLE report_cursors;
+            ALTER TABLE report_cursors_v6 RENAME TO report_cursors;
+            """
+        )
+
+    def _upgrade_stream(self) -> None:
+        deployment_columns = {
+            row[1] for row in self._db.execute("PRAGMA table_info(deployments)")
+        }
+        if "telemetry_stream_id" not in deployment_columns:
+            self._db.execute(
+                "ALTER TABLE deployments ADD COLUMN telemetry_stream_id "
+                "TEXT NOT NULL DEFAULT ''"
+            )
+            self._db.execute(
+                "ALTER TABLE deployments ADD COLUMN clock_skew "
+                "TEXT NOT NULL DEFAULT 'none'"
+            )
+        report_columns = {
+            row[1] for row in self._db.execute("PRAGMA table_info(reports)")
+        }
+        if report_columns and "stream_id" not in report_columns:
+            self._db.execute(
+                "ALTER TABLE reports ADD COLUMN stream_id TEXT NOT NULL DEFAULT ''"
+            )
+        self._db.execute(
+            """
+            CREATE INDEX IF NOT EXISTS reports_stream_seq
+            ON reports(install_id, stream_id, sequence)
+            """
+        )
+
+    def _upgrade_cadence(self) -> None:
+        columns = {row[1] for row in self._db.execute("PRAGMA table_info(deployments)")}
+        if "cadence_profile" not in columns:
+            self._db.execute(
+                "ALTER TABLE deployments ADD COLUMN cadence_profile TEXT NOT NULL DEFAULT 'not_recorded'"  # noqa: E501
+            )
+            self._db.execute(
+                "ALTER TABLE deployments ADD COLUMN cadence_seconds INTEGER NOT NULL DEFAULT 0"  # noqa: E501
+            )
+
+    def _upgrade_reports(self) -> None:
+        columns = {row[1] for row in self._db.execute("PRAGMA table_info(deployments)")}
+        if "last_report_received_at" not in columns:
+            self._db.executescript(
+                """
+                ALTER TABLE deployments ADD COLUMN last_report_received_at
+                    TEXT NOT NULL DEFAULT 'not_recorded';
+                ALTER TABLE deployments ADD COLUMN last_report_sequence
+                    INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE deployments ADD COLUMN last_trigger
+                    TEXT NOT NULL DEFAULT 'not_recorded';
+                ALTER TABLE deployments ADD COLUMN report_gap
+                    TEXT NOT NULL DEFAULT 'none';
+                """
+            )
+        self._db.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS credentials (
+                key_id TEXT PRIMARY KEY,
+                install_id TEXT NOT NULL,
+                secret_sha256 TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                revoked_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS credentials_secret
+                ON credentials(secret_sha256);
+            CREATE TABLE IF NOT EXISTS reports (
+                report_id TEXT PRIMARY KEY,
+                install_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                generated_at TEXT NOT NULL,
+                received_at TEXT NOT NULL,
+                triggers TEXT NOT NULL,
+                version TEXT NOT NULL,
+                build_id TEXT NOT NULL,
+                key_id TEXT NOT NULL,
+                body_sha256 TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                event_count INTEGER NOT NULL,
+                rollup_count INTEGER NOT NULL,
+                requests INTEGER NOT NULL,
+                output_tokens TEXT NOT NULL,
+                input_tokens TEXT NOT NULL,
+                latency_ms_sum TEXT NOT NULL,
+                latency_sample_count INTEGER NOT NULL,
+                gap TEXT NOT NULL,
+                document TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS usage_rollups (
+                report_id TEXT NOT NULL,
+                install_id TEXT NOT NULL,
+                model_identity TEXT NOT NULL,
+                model_identity_kind TEXT NOT NULL,
+                macropath TEXT NOT NULL,
+                purpose TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                requests INTEGER NOT NULL,
+                input_tokens TEXT NOT NULL,
+                input_samples INTEGER NOT NULL,
+                output_tokens TEXT NOT NULL,
+                output_samples INTEGER NOT NULL,
+                latency_ms_sum TEXT NOT NULL,
+                latency_samples INTEGER NOT NULL,
+                latency_min_ms TEXT NOT NULL,
+                latency_max_ms TEXT NOT NULL,
+                PRIMARY KEY (report_id, model_identity, macropath, purpose, outcome)
+            );
+            CREATE TABLE IF NOT EXISTS report_cursors (
+                install_id TEXT PRIMARY KEY,
+                high_sequence INTEGER NOT NULL,
+                gap TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS intake_rejections (
+                id INTEGER PRIMARY KEY,
+                seen_at TEXT NOT NULL,
+                key_id TEXT NOT NULL,
+                reason TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS aliases (
+                install_id TEXT PRIMARY KEY,
+                label TEXT NOT NULL
+            );
+            """
+        )
 
     def _meta(self, key: str) -> str | None:
         row = self._db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()  # noqa: E501
@@ -555,7 +854,9 @@ def serve_command_center(
         raise ValidationError("Rukan Command Center binds to loopback only")
     httpd = _server(hub, host, port, static_dir)
     try:
-        httpd.serve_forever()
+        from machi.adapters.rukan.server import serve_until_stopped
+
+        serve_until_stopped(httpd)
     finally:
         httpd.server_close()
         hub.close()
@@ -586,6 +887,12 @@ def _server(
         def log_message(self, *_args: object) -> None:
             return
 
+        def handle_error(self, _request: object, _client: object) -> None:
+            try:
+                _write(self, 500, _envelope("refused", "request failed", {}))
+            except (OSError, RuntimeError):
+                return
+
     return ThreadingHTTPServer((host, port), Handler)
 
 
@@ -613,6 +920,21 @@ def _dispatch(
         return
     if method == "GET" and path == "/v1/analytics":
         _write(handler, 200, hub.analytics())
+        return
+    if method == "GET" and path == "/v1/portfolio":
+        _write(handler, 200, _portfolio(hub))
+        return
+    if method == "GET" and path == "/v1/reporting":
+        _write(handler, 200, _reporting(hub))
+        return
+    if method == "GET" and path == "/v1/landscape":
+        _write(handler, 200, _landscape(hub))
+        return
+    if method == "POST" and path == "/v1/credentials":
+        _write(handler, 200, _credential_action(hub, handler))
+        return
+    if method == "POST" and path == "/v1/aliases":
+        _write(handler, 200, _alias_action(hub, handler))
         return
     if path.startswith("/v1/deployments/"):
         install_id = unquote(path.removeprefix("/v1/deployments/"))
@@ -657,8 +979,15 @@ def _static(handler: BaseHTTPRequestHandler, root: Path, path: str) -> bool:
     if not candidate.is_file():
         return False
     data = candidate.read_bytes()
+    kind = "application/octet-stream"
+    if candidate.suffix == ".html":
+        kind = "text/html"
+    elif candidate.suffix == ".js":
+        kind = "text/javascript"
+    elif candidate.suffix == ".css":
+        kind = "text/css"
     handler.send_response(200)
-    handler.send_header("Content-Type", "text/html" if candidate.suffix == ".html" else "application/octet-stream")  # noqa: E501
+    handler.send_header("Content-Type", kind)
     handler.send_header("Content-Length", str(len(data)))
     handler.end_headers()
     handler.wfile.write(data)
@@ -686,3 +1015,70 @@ def _reason(exc: Exception) -> str:
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _portfolio(hub: CommandHub) -> dict[str, object]:
+    from machi.adapters.rukan.intake import portfolio_view
+
+    return _envelope("ok", "portfolio", portfolio_view(hub, datetime.now(UTC)))
+
+
+def _reporting(hub: CommandHub) -> dict[str, object]:
+    from machi.adapters.rukan.intake import reporting_view
+
+    return _envelope("ok", "reporting", reporting_view(hub, datetime.now(UTC)))
+
+
+def _landscape(hub: CommandHub) -> dict[str, object]:
+    from machi.adapters.rukan.intake import landscape
+
+    return _envelope("ok", "model landscape", landscape(hub))
+
+
+def _json_body(handler: BaseHTTPRequestHandler) -> dict[str, object]:
+    length = int(handler.headers.get("Content-Length", "0") or "0")
+    raw = handler.rfile.read(length) if length else b"{}"
+    document = json.loads(raw.decode("utf-8"))
+    if not isinstance(document, dict):
+        raise ValidationError("body is not an object")
+    return document
+
+
+def _credential_action(hub: CommandHub, handler: BaseHTTPRequestHandler) -> dict[str, object]:  # noqa: E501
+    from machi.adapters.rukan.intake import (
+        issue_credential,
+        revoke_credential,
+        rotate_credential,
+    )
+
+    body = _json_body(handler)
+    action = body.get("action")
+    now = datetime.now(UTC)
+    if action == "issue":
+        install_id = body.get("install_id")
+        if not isinstance(install_id, str) or not install_id:
+            return _envelope("refused", "install id is required", {})
+        issued: dict[str, object] = dict(issue_credential(hub, install_id, now))
+        return _envelope("ok", "credential issued", issued)
+    key_id = body.get("key_id")
+    if not isinstance(key_id, str) or not key_id:
+        return _envelope("refused", "key id is required", {})
+    if action == "revoke":
+        revoked: dict[str, object] = dict(revoke_credential(hub, key_id, now))
+        return _envelope("ok", "credential revoked", revoked)
+    if action == "rotate":
+        rotated: dict[str, object] = dict(rotate_credential(hub, key_id, now))
+        return _envelope("ok", "credential rotated", rotated)
+    return _envelope("refused", "credential action is unknown", {})
+
+
+def _alias_action(hub: CommandHub, handler: BaseHTTPRequestHandler) -> dict[str, object]:  # noqa: E501
+    from machi.adapters.rukan.intake import set_alias
+
+    body = _json_body(handler)
+    install_id = body.get("install_id")
+    label = body.get("label")
+    if not isinstance(install_id, str) or not isinstance(label, str):
+        return _envelope("refused", "alias requires install id and label", {})
+    saved: dict[str, object] = dict(set_alias(hub, install_id, label))
+    return _envelope("ok", "alias saved", saved)

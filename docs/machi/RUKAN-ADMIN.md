@@ -17,6 +17,16 @@ Customer-local loopback UI over the Stage-1 spine.
   starting, ready, or stopping.
 - System: OS, memory evidence, accelerators, mounts, SAFE capacity, and
   the product qualification register.
+- Analytics: usage requests, tokens, latency, purpose, and runtime,
+  plus the existing operational-event view.
+- Activity: local action rows with actor origin, not a person name.
+- People: local users, teams, memberships, and future access intent.
+  Employee login is not enabled. The directory is not exported.
+- Settings: monitoring enablement, development or production profile, endpoint, key id,
+  privacy categories, preview, and send test report. Deployment
+  performance controls stay read-only until Plan recomputation exists.
+- Models are a library of exact artifacts and digests. Family is shown
+  only when the catalog stored it. There is no Recommended row.
 
 ## Lifecycle
 

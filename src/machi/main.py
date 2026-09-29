@@ -79,6 +79,8 @@ from machi.foundation.contracts import (
     FoundationSet,
     ManagedGeneration,
     ProvisionMode,
+    RuntimeCapability,
+    SupportState,
 )
 from machi.foundation.events import foundation_events
 from machi.foundation.policy import BACKEND_CHOICES, default_foundation_settings
@@ -113,6 +115,7 @@ from machi.kernel.alive import kernel_alive
 from machi.kernel.build import identity as build_identity
 from machi.kernel.clock import FixedClock, SystemClock
 from machi.kernel.errors import (
+    ConflictError,
     MachiError,
     NotFoundError,
     PersistenceError,
@@ -732,7 +735,7 @@ def inspect_foundation(
     journal_dir_path: Path | None,
     mode: ProvisionMode,
     backend: str,
-) -> tuple[FoundationSet, tuple[EventRecord, ...], Path | None]:
+) -> tuple[FoundationSet, tuple[EventRecord, ...], Path | None, CapacityEnvelope]:
     """Resolve native vLLM. Inspection does not install. Provision is explicit."""
     validate_registry(module_prefix="machi.")
     if explicit is None and environment is None:
@@ -813,7 +816,32 @@ def inspect_foundation(
     if target is not None:
         journal = JsonlJournal(target)
         events = tuple(journal.append(event) for event in events)
-    return result, events, target
+    return result, events, target, envelope
+
+
+def _persist_foundation(
+    store_dir: Path, result: FoundationSet, envelope: CapacityEnvelope
+) -> None:
+    """Remember the verified generation. Identical re-entry keeps the first record."""
+    store = FileStore(store_dir)
+
+    def remember(key: str, record: Contract) -> None:
+        try:
+            store.create(key, record)
+        except ConflictError:
+            return
+
+    remember(envelope.evidence_id, envelope)
+    selection = result.selection
+    if selection.support is not SupportState.READY:
+        return
+    remember(selection.selection_id, selection)
+    generation = result.generation
+    if isinstance(generation, ManagedGeneration):
+        remember(generation.generation_id, generation)
+    capability = result.capability
+    if isinstance(capability, RuntimeCapability):
+        remember("runtime_capability", capability)
 
 
 def evaluate_prerequisites(
@@ -1397,6 +1425,162 @@ def _export_rukan_analytics(ns: argparse.Namespace) -> int:
     return 0
 
 
+def _ui_dir(explicit: str | None, product: str) -> Path | None:
+    if explicit:
+        return Path(explicit)
+    from machi.adapters.rukan.assets import packaged_static
+
+    return packaged_static(product)
+
+
+def _acceptance_preflight(ns: argparse.Namespace) -> int:
+    """Check a later real-server test. This does not open ports or spend money."""
+    import json
+    import os
+    import socket
+    import ssl
+    import sys
+
+    checks: list[dict[str, str]] = []
+
+    def add(name: str, ok: bool, detail: str) -> None:
+        checks.append(
+            {"name": name, "result": "PASS" if ok else "BLOCKED", "detail": detail}
+        )
+
+    add("python", sys.version_info >= (3, 11), sys.version.split()[0])
+    add("posix_credentials", os.name == "posix", os.name)
+    add("admin_loopback", True, "Admin refuses a non-loopback bind")
+    add("public_admin", True, "do not publish Admin; use an SSH tunnel")
+    wheel = getattr(ns, "wheel", None)
+    if wheel:
+        add("wheel", Path(wheel).is_file(), str(wheel))
+    else:
+        add("wheel", False, "pass --wheel with the frozen artifact")
+    for product in ("admin", "command-center"):
+        present = _ui_dir(None, product) is not None
+        add(f"packaged_{product}", present, "wheel static" if present else "missing")
+    if ns.data_dir:
+        root = Path(ns.data_dir)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            probe = root / ".preflight-write"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            add("data_dir", True, str(root))
+        except OSError as exc:
+            add("data_dir", False, str(exc))
+    else:
+        add("data_dir", False, "pass --data-dir")
+    for label, value in (("cert", ns.cert), ("key", ns.key)):
+        if not value:
+            add(label, False, f"pass --{label}")
+            continue
+        add(label, Path(value).is_file(), str(value))
+    if ns.cert and ns.key and Path(ns.cert).is_file() and Path(ns.key).is_file():
+        try:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(ns.cert, ns.key)
+            add("cert_key_pair", True, "loaded together")
+        except (OSError, ssl.SSLError) as exc:
+            add("cert_key_pair", False, str(exc))
+    endpoint = getattr(ns, "endpoint", None)
+    if endpoint:
+        add("endpoint_https", str(endpoint).startswith("https://"), str(endpoint))
+    else:
+        add("endpoint_https", False, "pass --endpoint https://...")
+    for label, value in (
+        ("admin_port", getattr(ns, "admin_port", None)),
+        ("ui_port", getattr(ns, "ui_port", None)),
+        ("intake_port", getattr(ns, "intake_port", None)),
+    ):
+        if not value:
+            continue
+        sock = socket.socket()
+        try:
+            sock.bind(("127.0.0.1", int(value)))
+            add(label, True, f"127.0.0.1:{value} available")
+        except OSError as exc:
+            add(label, False, str(exc))
+        finally:
+            sock.close()
+    blocked = [item for item in checks if item["result"] == "BLOCKED"]
+    result = "BLOCKED" if blocked else "PASS"
+    for item in checks:
+        print(f"{item['result']:7} {item['name']:22} {item['detail']}")
+    print(f"result   {result}")
+    print("cadence  select Development (120 seconds) explicitly for this test")
+    print("tunnel   ssh -L 8765:127.0.0.1:8765 <user>@<customer-host>")
+    print("spend    none")
+    if getattr(ns, "json", False):
+        print(json.dumps({"result": result, "checks": checks}))
+    return 1 if blocked else 0
+
+
+def _serve_rukan_intake(ns: argparse.Namespace) -> int:
+    """Bind the write-only intake. Command Center reads stay on the other port."""
+    from machi.adapters.rukan.hub import CommandHub
+    from machi.adapters.rukan.intake import bind_intake
+
+    hub = CommandHub(Path(ns.data_dir))
+    httpd = bind_intake(
+        hub,
+        ns.host,
+        ns.port,
+        certfile=ns.cert,
+        keyfile=ns.key,
+        local_test=bool(ns.local_test),
+    )
+    print("product  Rukan telemetry intake")
+    print(f"bind     {ns.host}:{ns.port}")
+    print("write    POST /v1/telemetry/reports")
+    try:
+        from machi.adapters.rukan.server import serve_until_stopped
+
+        serve_until_stopped(httpd)
+    finally:
+        httpd.server_close()
+        hub.close()
+    return 0
+
+
+def _rukan_credential(ns: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+
+    from machi.adapters.rukan.hub import CommandHub
+    from machi.adapters.rukan.intake import (
+        issue_credential,
+        revoke_credential,
+        rotate_credential,
+    )
+
+    hub = CommandHub(Path(ns.data_dir))
+    now = datetime.now(UTC)
+    try:
+        if ns.credential_action == "issue":
+            if not ns.install_id:
+                raise ValidationError("install id is required")
+            issued = issue_credential(hub, ns.install_id, now)
+            print(f"key_id   {issued['key_id']}")
+            print(f"secret   {issued['secret']}")
+            print("shown    once")
+            return 0
+        if not ns.key_id:
+            raise ValidationError("key id is required")
+        if ns.credential_action == "revoke":
+            revoked = revoke_credential(hub, ns.key_id, now)
+            print(f"key_id   {revoked['key_id']}")
+            print("status   revoked")
+            return 0
+        rotated = rotate_credential(hub, ns.key_id, now)
+        print(f"key_id   {rotated['key_id']}")
+        print(f"secret   {rotated['secret']}")
+        print("shown    once")
+        return 0
+    finally:
+        hub.close()
+
+
 def _serve_rukan_command_center(ns: argparse.Namespace) -> int:
     """Bind the loopback Command Center. The browser is not the store."""
     from machi.adapters.rukan.hub import CommandHub, serve_command_center
@@ -1408,7 +1592,7 @@ def _serve_rukan_command_center(ns: argparse.Namespace) -> int:
     serve_command_center(
         hub,
         port=ns.port,
-        static_dir=Path(ns.static_dir) if ns.static_dir else None,
+        static_dir=_ui_dir(ns.static_dir, "command-center"),
     )
     return 0
 
@@ -1430,7 +1614,7 @@ def _serve_rukan_admin(ns: argparse.Namespace) -> int:
         Path(ns.store_dir),
         identity(),
         journal_dir=Path(ns.journal_dir) if ns.journal_dir else None,
-        static_dir=Path(ns.static_dir) if ns.static_dir else None,
+        static_dir=_ui_dir(ns.static_dir, "admin"),
         handlers=AdminHandlers(
             complete=store_completer(Path(ns.store_dir), ns.provider_base),
             inspect_model=lambda body: _admin_inspect(ns, body),
@@ -1516,6 +1700,32 @@ def _admin_import(
     }
 
 
+def _acquire_runtime(ns: argparse.Namespace) -> tuple[str | None, str, str]:
+    """Use the verified generation interpreter. Do not import vLLM here."""
+    root = Path(ns.store_dir) if getattr(ns, "store_dir", None) else None
+    if root is None:
+        return None, "foundation_unspecified", "unknown"
+    from machi.adapters.rukan.read import load_records
+
+    selections = [
+        item
+        for item in load_records(root, FoundationSelection)
+        if isinstance(item, FoundationSelection)
+        and item.support is SupportState.READY
+        and isinstance(item.generation_id, str)
+    ]
+    if not selections:
+        return None, "foundation_unspecified", "unknown"
+    selection = selections[-1]
+    generation_id = selection.generation_id
+    assert isinstance(generation_id, str)
+    python_path = None
+    for item in load_records(root, ManagedGeneration):
+        if isinstance(item, ManagedGeneration) and item.generation_id == generation_id:
+            python_path = item.python_path
+    return python_path, generation_id, "qualified"
+
+
 def _admin_acquire(
     ns: argparse.Namespace, body: dict[str, object]
 ) -> tuple[str, str, dict[str, object]]:
@@ -1525,15 +1735,16 @@ def _admin_acquire(
     revision = body.get("revision")
     if not isinstance(repository, str) or not isinstance(revision, str):
         return "refused", "acquire requires repository and revision", {}
+    python_path, foundation_id, qualification = _acquire_runtime(ns)
     holder = argparse.Namespace(
         state_root=ns.state_root,
         repository=repository,
         revision=revision,
         store_dir=ns.store_dir,
         journal_dir=None,
-        foundation_id="foundation_unspecified",
-        qualification="unknown",
-        runtime_python=None,
+        foundation_id=foundation_id,
+        qualification=qualification,
+        runtime_python=python_path,
     )
     try:
         code = _acquire_hub(holder)
@@ -1943,6 +2154,42 @@ def main(argv: Sequence[str] | None = None) -> int:
     command_serve.add_argument("--data-dir", required=True)
     command_serve.add_argument("--port", type=int, default=8780)
     command_serve.add_argument("--static-dir", default=None)
+    command_intake = command_sub.add_parser(
+        "intake",
+        help="bind the write-only telemetry intake; this does not serve models",
+    )
+    command_intake.add_argument("--data-dir", required=True)
+    command_intake.add_argument("--host", default="127.0.0.1")
+    command_intake.add_argument("--port", type=int, default=8781)
+    command_intake.add_argument("--cert", default=None)
+    command_intake.add_argument("--key", default=None)
+    command_intake.add_argument("--local-test", action="store_true")
+    command_key = command_sub.add_parser(
+        "credential",
+        help="issue, rotate, or revoke a deployment upload key",
+    )
+    command_key.add_argument("credential_action", choices=["issue", "rotate", "revoke"])
+    command_key.add_argument("--data-dir", required=True)
+    command_key.add_argument("--install-id", default=None)
+    command_key.add_argument("--key-id", default=None)
+    acceptance = sub.add_parser(
+        "acceptance",
+        help="non-mutating checks for a later real-user Rukan test",
+    )
+    acceptance_sub = acceptance.add_subparsers(dest="acceptance_command", required=True)
+    preflight = acceptance_sub.add_parser(
+        "preflight",
+        help="describe test prerequisites without provisioning or spending",
+    )
+    preflight.add_argument("--data-dir", default=None)
+    preflight.add_argument("--cert", default=None)
+    preflight.add_argument("--key", default=None)
+    preflight.add_argument("--wheel", default=None)
+    preflight.add_argument("--endpoint", default=None)
+    preflight.add_argument("--admin-port", default=None, type=int)
+    preflight.add_argument("--ui-port", default=None, type=int)
+    preflight.add_argument("--intake-port", default=None, type=int)
+    preflight.add_argument("--json", action="store_true")
     admin_serve.add_argument(
         "--provider-base",
         default="http://127.0.0.1:11434",
@@ -2372,7 +2619,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if ns.foundation_command == "inspect"
                 else ProvisionMode.PROVISION
             )
-            foundation_set, foundation_events_out, journal_target = inspect_foundation(
+            (
+                foundation_set,
+                foundation_events_out,
+                journal_target,
+                foundation_envelope,
+            ) = inspect_foundation(
                 explicit=ns.state_root,
                 environment=_environment_override(),
                 store_dir=Path(ns.store_dir) if ns.store_dir else None,
@@ -2380,6 +2632,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 mode=mode,
                 backend=ns.backend,
             )
+            if ns.store_dir:
+                _persist_foundation(
+                    Path(ns.store_dir), foundation_set, foundation_envelope
+                )
             selection = foundation_set.selection
             print(f"support  {selection.support.value}")
             print(f"failure  {selection.failure.value}")
@@ -2450,6 +2706,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _export_rukan_analytics(ns)
         if ns.command == "command-center" and ns.command_center_command == "serve":
             return _serve_rukan_command_center(ns)
+        if ns.command == "command-center" and ns.command_center_command == "intake":
+            return _serve_rukan_intake(ns)
+        if ns.command == "command-center" and ns.command_center_command == "credential":
+            return _rukan_credential(ns)
+        if ns.command == "acceptance" and ns.acceptance_command == "preflight":
+            return _acceptance_preflight(ns)
         if ns.command == "serve" and ns.serve_command == "policy":
             print(f"policy   {SERVE_POLICY_VERSION}")
             print(f"bind     {BIND_SCOPE}")

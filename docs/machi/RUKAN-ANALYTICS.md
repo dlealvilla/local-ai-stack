@@ -70,3 +70,16 @@ included. `public_ops` and `operational` events are eligible.
 | SLA or availability | not persisted |
 
 Completion tokens are included only when a stored proof reports them.
+
+## Connected reporting
+
+A deployment can also compose `kernel.operational_report` version 1.
+The product default cadence is production: 21600 seconds, with a stable
+phase of 0–900 seconds. Development, 120 seconds, is explicit.
+Material lifecycle, model, runtime, capacity, and telemetry-setting
+changes coalesce into one report. The report carries usage rollups and
+cumulative counters, not prompts or responses. Upload uses HTTPS and a
+per-deployment bearer credential. Loopback HTTP exists only in explicit
+local-test mode. The receiver is write-only. A report age is not an
+online or offline claim. See
+[RUKAN-CONNECTED-MONITORING-V0.3.md](RUKAN-CONNECTED-MONITORING-V0.3.md).

@@ -11,7 +11,13 @@ Stage-1 deployment spine status stays
 
 Rukan Admin is the customer-facing, deployment-local application. It
 binds to loopback and renders stored contracts. It does not own
-admission, model identity, or serving.
+admission, model identity, or serving. When monitoring is enabled, the
+same process composes operational reports and retries a local outbox.
+That work never blocks inference, stop, or release.
+
+Command Center intake is a separate write-only HTTPS listener. It
+authenticates a deployment credential and stores the report. It does
+not start, stop, or reconfigure the deployment.
 
 Rukan Command Center is the business-operator application. v0 runs on
 the operator PC and imports a non-content deployment summary. It is not

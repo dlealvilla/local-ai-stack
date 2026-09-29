@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import type { SupportSnapshot } from "../../shared/snapshot";
-import { filterRows, history, snapshotAge, type DeploymentRow } from "./query";
+import { cadenceLabel, cadenceText, filterRows, history, reportAge, snapshotAge, type DeploymentRow } from "./query";
+import { CommandSettings, ModelLandscape, Portfolio, Reporting } from "./surfaces";
 
-const PAGES = ["Deployments", "Detail", "Support", "Analytics", "Import", "Settings"] as const;
+const PAGES = ["Overview", "Deployments", "Detail", "Analytics", "Models", "Reporting", "Settings", "Import"] as const;
 type Page = (typeof PAGES)[number];
 
 type Status = {
@@ -16,10 +17,11 @@ type DetailBody = {
   snapshots: SupportSnapshot[];
   events: { event_id: string; event_type: string; occurred_at: string; outcome: string; block_id: string }[];
   inferences: { proof_id: string; outcome: string; completion_tokens: string; failure: string; model_identity: string }[];
+  reports?: { report_id: string; sequence: number; received_at: string; generated_at: string; triggers: string; gap: string; key_id: string }[];
 };
 
 export function App() {
-  const [page, setPage] = useState<Page>("Deployments");
+  const [page, setPage] = useState<Page>("Overview");
   const [rows, setRows] = useState<DeploymentRow[]>([]);
   const [status, setStatus] = useState<Status | null>(null);
   const [selected, setSelected] = useState("");
@@ -94,17 +96,20 @@ export function App() {
         ) : null}
         {notice ? <p role="status">{notice}</p> : null}
         {error ? <p role="alert">{error}</p> : null}
+        {page === "Overview" ? <Portfolio /> : null}
         {page === "Deployments" ? (
           <Deployments rows={rows} query={query} onQuery={setQuery} onOpen={(installId) => void open(installId)} />
         ) : null}
         {page === "Detail" ? (
           <>
-            <Detail snapshot={snapshot} snapshots={snapshots} onSelect={setSnapshotId} />
+            <Detail snapshot={snapshot} snapshots={snapshots} reports={detail?.reports ?? []} onSelect={setSnapshotId} />
             <InferenceFacts rows={detail?.inferences ?? []} />
+            <Support snapshot={snapshot} events={detail?.events ?? []} />
           </>
         ) : null}
-        {page === "Support" ? <Support snapshot={snapshot} events={detail?.events ?? []} /> : null}
         {page === "Analytics" ? <Analytics /> : null}
+        {page === "Models" ? <ModelLandscape /> : null}
+        {page === "Reporting" ? <Reporting /> : null}
         {page === "Import" ? (
           <Import
             rows={rows}
@@ -114,7 +119,7 @@ export function App() {
             }}
           />
         ) : null}
-        {page === "Settings" ? <Settings /> : null}
+        {page === "Settings" ? <CommandSettings /> : null}
       </main>
     </>
   );
@@ -154,6 +159,11 @@ function Deployments({
               <th>Model</th>
               <th>Witness</th>
               <th>Snapshots</th>
+              <th>Cadence</th>
+              <th>Last report</th>
+              <th>Report age</th>
+              <th>Cadence</th>
+              <th>Clock</th>
               <th>Evidence exported</th>
               <th>Snapshot age</th>
             </tr>
@@ -174,6 +184,11 @@ function Deployments({
                 <td>{item.model_identity}</td>
                 <td>{item.witness_verdict}</td>
                 <td>{item.snapshot_count}</td>
+                <td>{cadenceText(item.cadence_profile, item.cadence_seconds)}</td>
+                <td>{item.last_report_received_at ?? "not_recorded"}</td>
+                <td>{reportAge(item.last_report_received_at, Date.now())}</td>
+                <td>{cadenceLabel(item.last_report_received_at, Date.now(), item.cadence_seconds)}</td>
+                <td>{item.clock_skew ?? "none"}</td>
                 <td>{item.latest_exported_at}</td>
                 <td>{snapshotAge(item.latest_exported_at, Date.now())}</td>
               </tr>
@@ -188,10 +203,12 @@ function Deployments({
 function Detail({
   snapshot,
   snapshots,
+  reports,
   onSelect,
 }: {
   snapshot: SupportSnapshot | null;
   snapshots: SupportSnapshot[];
+  reports: { report_id: string; sequence: number; received_at: string; generated_at: string; triggers: string; gap: string; key_id: string }[];
   onSelect: (snapshotId: string) => void;
 }) {
   if (!snapshot) return <p>Select an imported deployment.</p>;
@@ -199,6 +216,13 @@ function Detail({
     <section>
       <h1>Deployment detail</h1>
       <p className="banner">Imported evidence — not live deployment status</p>
+      <h2>Reports</h2>
+      {reports.length === 0 ? <p>No operational reports for this deployment.</p> : (
+        <table>
+          <thead><tr><th>Received</th><th>Generated</th><th>Sequence</th><th>Triggers</th><th>Gap</th><th>Key</th></tr></thead>
+          <tbody>{reports.map((item) => <tr key={item.report_id}><td>{item.received_at}</td><td>{item.generated_at}</td><td>{item.sequence}</td><td>{item.triggers}</td><td>{item.gap}</td><td>{item.key_id}</td></tr>)}</tbody>
+        </table>
+      )}
       {snapshots.length > 1 ? (
         <p>
           <label>

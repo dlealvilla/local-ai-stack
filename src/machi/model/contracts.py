@@ -112,6 +112,7 @@ class SelectionProvenance(StrEnum):
 class ModelFailure(StrEnum):
     NONE = "none"
     SOURCE_UNAVAILABLE = "source_unavailable"
+    PACKAGING_INCOMPLETE = "packaging_incomplete"
     REPOSITORY_NOT_FOUND = "repository_not_found"
     REVISION_NOT_FOUND = "revision_not_found"
     AUTHENTICATION_REQUIRED = "authentication_required"

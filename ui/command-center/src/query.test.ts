@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterRows, history, snapshotAge, type DeploymentRow } from "./query";
+import { cadenceLabel, filterRows, history, reportAge, snapshotAge, type DeploymentRow } from "./query";
 import type { SupportSnapshot } from "../../shared/snapshot";
 
 const row = (id: string, exported: string, macropath: string): DeploymentRow => ({
@@ -26,6 +26,11 @@ describe("command center query", () => {
     expect(filterRows(rows, "missing-host")).toHaveLength(0);
     const text = JSON.stringify(filterRows(rows, ""));
     expect(text.includes("Online")).toBe(false);
+    const now = Date.parse("2026-09-28T08:00:00+00:00");
+    expect(reportAge("2026-09-28T06:00:00+00:00", now)).toBe("report received 2h ago");
+    expect(cadenceLabel("2026-09-28T06:00:00+00:00", now)).toBe("report inside the expected cadence");
+    expect(cadenceLabel("2026-09-27T00:00:00+00:00", now)).toBe("reporting later than scheduled");
+    expect(cadenceLabel(undefined, now)).not.toMatch(/offline/i);
   });
 
   it("labels age as snapshot age and orders history", () => {
