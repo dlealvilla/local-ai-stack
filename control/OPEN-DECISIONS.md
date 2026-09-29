@@ -1,5 +1,77 @@
 # Open Decisions
 
+## v0.3 physical-confidence stock deferral / v0.4 forward-development gate — binding
+
+The v0.3 frozen candidate:
+- source `77923d0587a7ca4519a1a90dd5097a89ca4844e2`
+- wheel SHA256 `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`
+
+has:
+- D4 CLEAN;
+- D5 CLEAN;
+- corrected C1 CLEAN;
+- no known open SERVER_ACCEPTANCE_BLOCKER or PILOT_BLOCKER;
+- C2/C3 unexecuted only because supported secure NVIDIA inventory was unavailable after bounded placement attempts.
+
+Provider inventory is NOT a software architecture dependency.
+
+Therefore:
+
+### Development-continuation status
+
+v0.3 may be accepted as:
+
+`RUKAN_V0_3_IMPLEMENTATION_ACCEPTED_PHYSICAL_CONFIDENCE_PENDING`
+
+This status means:
+- implementation may be merged to canonical for downstream development;
+- the exact frozen v0.3 artifact does NOT receive the stronger historical claim `RUKAN_V0_3_SERVER_CAMPAIGN_PASS`;
+- C2/C3 remain deferred physical-confidence evidence debt;
+- docs/state must preserve that only one confidence run passed.
+
+### Canonical merge
+
+The frozen v0.3 candidate may be merged to canonical `machi` after:
+- repository diff review;
+- full local QA confirmation;
+- D4/D5/C1 evidence review;
+- branch clean/pushed;
+- no known open product blocker.
+
+Create a checkpoint tag that says implementation accepted / physical confidence pending. Do NOT use a tag or release name implying full three-run server campaign PASS.
+
+### v0.4 progression
+
+After that bounded acceptance:
+- create v0.4 branch from canonical;
+- execute the User Access Gateway / Workspace Adapter / LibreChat / MCP buildout immediately;
+- do not block local v0.4 architecture/implementation/testing on v0.3 C2/C3 stock.
+
+### Physical confidence supersession
+
+The future v0.4 physical server campaign must re-exercise the complete underlying v0.3 product path:
+- install;
+- model acquisition;
+- deploy;
+- Plan;
+- ResourceManager;
+- Serve;
+- inference;
+- STOP;
+- RELEASE;
+- telemetry;
+- People;
+- Command Center.
+
+If v0.4 obtains its required two clean diagnostics plus three fresh confidence runs on one frozen v0.4 candidate with no regression in v0.3 functionality, that evidence supersedes the need to block product progression on the historical v0.3 C2/C3 runs.
+
+The v0.3 historical record still remains truthful:
+- C1 passed;
+- C2/C3 were stock-blocked;
+- full v0.3 three-confidence campaign was not completed.
+
+If supported v0.3 stock later becomes available before v0.4 confidence begins, Cursor may opportunistically run C2/C3 on the exact frozen v0.3 artifact within existing cost rules, but this is no longer a prerequisite for v0.4 development.
+
 ## Rukan v0.4 User Access Gateway / LibreChat / MCP — binding direction
 
 This phase begins only after Rukan v0.3 server campaign closure. The v0.3 confidence candidate is currently source `77923d0587a7ca4519a1a90dd5097a89ca4844e2`, wheel SHA256 `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`; C1 passed and C2/C3 remain pending only because L40S placement was unavailable.
