@@ -364,5 +364,5 @@
   "published_instruction_id": "RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_V0_3_BOUNDED_ACCEPTANCE_AND_V0_4_BUILDOUT"
+  "status": "PASTEBACK_PUBLISHED"
 }
