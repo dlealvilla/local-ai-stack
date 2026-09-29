@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from machi.adapters.rukan.read import load_records
+from machi.adapters.rukan.tokens import ollama_usage, openai_usage
 from machi.serve.native import NativeProcessEvidence
 from machi.serve.provider import ProviderServingInstance
 
@@ -31,6 +32,9 @@ class Completion:
     provider: str
     instance_id: str
     model_identity: str
+    input_tokens: int | None = None
+    status_code: int = 0
+    runtime_duration_ms: int | None = None
 
 
 Completer = Callable[..., Completion]
@@ -59,22 +63,28 @@ def complete_openai(
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
+            status = int(response.status)
             payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError:
-        return _failed(provider, instance_id, model, "runtime refused the request")
+    except urllib.error.HTTPError as exc:
+        return _failed(
+            provider, instance_id, model, "runtime refused the request", status_code=exc.code  # noqa: E501
+        )
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
         return _failed(provider, instance_id, model, "runtime did not answer")
-    text, tokens = _openai_text(payload)
+    text, _ignored = _openai_text(payload)
+    prompt_tokens, completion_tokens = openai_usage(payload)
     if text is None:
-        return _failed(provider, instance_id, model, "runtime response was not text")
+        return _failed(provider, instance_id, model, "runtime response was not text", status_code=status)  # noqa: E501
     return Completion(
         outcome="completed",
         reason="runtime returned text",
         text=text,
-        completion_tokens=tokens,
+        completion_tokens=completion_tokens,
         provider=provider,
         instance_id=instance_id,
         model_identity=model,
+        input_tokens=prompt_tokens,
+        status_code=status,
     )
 
 
@@ -110,30 +120,41 @@ def complete_provider(
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
+            status = int(response.status)
             payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError:
+    except urllib.error.HTTPError as exc:
         return _failed(
-            provider, instance_id, model_identity, "provider refused the request"
+            provider,
+            instance_id,
+            model_identity,
+            "provider refused the request",
+            status_code=exc.code,
         )
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
         return _failed(
             provider, instance_id, model_identity, "provider did not answer"
         )
     text = payload.get("response") if isinstance(payload, dict) else None
-    tokens = payload.get("eval_count") if isinstance(payload, dict) else None
+    prompt_tokens, completion_tokens, duration_ms = ollama_usage(payload)
     if not isinstance(text, str):
         return _failed(
-            provider, instance_id, model_identity, "provider response was not text"
+            provider,
+            instance_id,
+            model_identity,
+            "provider response was not text",
+            status_code=status,
         )
-    count = tokens if isinstance(tokens, int) and tokens >= 0 else None
     return Completion(
         outcome="completed",
         reason="provider returned text",
         text=text,
-        completion_tokens=count,
+        completion_tokens=completion_tokens,
         provider=provider,
         instance_id=instance_id,
         model_identity=model_identity,
+        input_tokens=prompt_tokens,
+        status_code=status,
+        runtime_duration_ms=duration_ms,
     )
 
 
@@ -212,7 +233,11 @@ def store_completer(store_root: Path, provider_base: str) -> Completer:
 
 
 def _failed(
-    provider: str, instance_id: str, model_identity: str, reason: str
+    provider: str,
+    instance_id: str,
+    model_identity: str,
+    reason: str,
+    status_code: int = 0,
 ) -> Completion:
     return Completion(
         outcome="failed",
@@ -222,4 +247,5 @@ def _failed(
         provider=provider,
         instance_id=instance_id,
         model_identity=model_identity,
+        status_code=status_code,
     )

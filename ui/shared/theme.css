@@ -55,3 +55,9 @@ th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var
 textarea { width: 100%; min-height: 7rem; }
 
 .banner { border: 1px solid var(--warn); color: var(--warn); padding: 0.6rem 0.8rem; border-radius: 8px; }
+.hero { font-size: 1.6rem; margin: 0.2rem 0 0.8rem; }
+.row { display: flex; gap: 0.8rem; overflow-x: auto; padding-bottom: 0.4rem; }
+.model-card { min-width: 220px; max-width: 260px; }
+.model-card h3 { margin: 0.2rem 0; }
+.badge { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.5rem; margin-right: 0.3rem; color: var(--muted); }
+form.stack { display: grid; gap: 0.6rem; max-width: 36rem; }

@@ -178,6 +178,11 @@ Default export adapter is **disabled**. Enabling settings does not
 send data by itself. Export failure never blocks inference (Kultrun
 analytics-failure rule).
 
+Rukan v0.3 adds an explicit opt-in operational report. It is still not
+required for local inference. The customer Admin process owns the
+outbox. Command Center intake accepts the report and does not operate
+the deployment. Human identity is not part of the report.
+
 Sanitizer is allow-list, not denylist. Paths, prompts, purpose strings
 that encode customer intent, and ownership IDs that are filesystem
 paths do not export.

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Activity, CockpitOverview, ModelLibrary, MonitoringSettings, UsageAnalytics } from "./cockpit";
 import {
   canSendInference,
   formatBytes,
@@ -9,7 +10,7 @@ import {
   type Summary,
 } from "./logic";
 
-const PAGES = ["Overview", "Inference", "Models", "Deployment", "System", "Analytics"] as const;
+const PAGES = ["Overview", "Models", "Deployment", "Inference", "Analytics", "Activity", "System", "Settings"] as const;
 type Page = (typeof PAGES)[number];
 
 export function App() {
@@ -61,13 +62,18 @@ export function App() {
           <p role="alert">{summary?.reason ?? "The seam refused the summary."}</p>
         ) : null}
         {!loading && summary?.outcome === "ok" && page === "Overview" ? (
-          <Overview summary={summary} />
+          <CockpitOverview summary={summary} open={(next) => {
+            if ((PAGES as readonly string[]).includes(next)) setPage(next as Page);
+          }} />
         ) : null}
         {!loading && summary?.outcome === "ok" && page === "Inference" ? (
           <Inference summary={summary} />
         ) : null}
         {!loading && summary?.outcome === "ok" && page === "Models" ? (
-          <Models summary={summary} onChanged={() => void reload()} />
+          <>
+            <ModelLibrary />
+            <Models summary={summary} onChanged={() => void reload()} />
+          </>
         ) : null}
         {!loading && summary?.outcome === "ok" && page === "Deployment" ? (
           <Deployment summary={summary} onChanged={() => void reload()} />
@@ -75,41 +81,11 @@ export function App() {
         {!loading && summary?.outcome === "ok" && page === "System" ? (
           <System summary={summary} />
         ) : null}
-        {!loading && page === "Analytics" ? <Analytics /> : null}
+        {!loading && page === "Analytics" ? <><UsageAnalytics /><Analytics /></> : null}
+        {!loading && page === "Activity" ? <Activity /> : null}
+        {!loading && page === "Settings" ? <MonitoringSettings /> : null}
       </main>
     </>
-  );
-}
-
-function Overview({ summary }: { summary: Summary }) {
-  const body = summary.body;
-  const host = formatBytes(body.host.safe_host_bytes);
-  const accel = formatBytes(body.host.safe_accelerator_bytes);
-  return (
-    <section>
-      <h1>Can I use this deployment?</h1>
-      <p className={`status ${witnessClass(body.witness.verdict)}`}>
-        {usabilityLabel(body.chain.basis, body.chain.contradictory)}
-      </p>
-      <p>{body.witness.reason}</p>
-      <section className="grid">
-        <Card title="Active model" value={body.chain.model_identity} detail={modelKindLabel(body.chain.model_identity_kind)} />
-        <Card title="How it is running" value={body.chain.macropath} detail={body.chain.instance_state} />
-        <Card title="Reservation" value={body.chain.reservation_state} />
-        <Card title="SAFE host memory" value={host.shown} detail={host.exact} />
-        <Card title="SAFE accelerator memory" value={accel.shown} detail={accel.exact} />
-        <Card title="Needs attention" value="PHYSICAL_PENDING" detail={body.pending_coverage} />
-      </section>
-      <details>
-        <summary>Build and evidence identifiers</summary>
-        <p>
-          {body.product_name} {body.version} · build {body.build_id}
-        </p>
-        <p>Witness {body.witness.verdict} · {body.witness.witness_id}</p>
-        <p>Instance {body.chain.instance_id}</p>
-        <p>Reservation {body.chain.reservation_id}</p>
-      </details>
-    </section>
   );
 }
 

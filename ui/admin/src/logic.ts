@@ -85,6 +85,13 @@ export function modelKindLabel(kind: string): string {
   return kind;
 }
 
+export function readinessHero(basis: string, contradictory: boolean, verdict: string): string {
+  if (contradictory || verdict === "contradictory" || verdict === "failed") return "Needs attention";
+  if (basis === "authorised_ready_instance" && verdict === "supported") return "Ready to serve AI";
+  if (basis === "authorised_ready_instance") return "Running with limitations";
+  return "Deployment incomplete";
+}
+
 export function usabilityLabel(basis: string, contradictory: boolean): string {
   if (contradictory || basis === "contradictory_ready_instances") {
     return "Not usable — more than one ready instance";

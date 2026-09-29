@@ -3553,6 +3553,303 @@
       }
     }
   },
+  "kernel.inference_usage@1": {
+    "python": "InferenceUsage",
+    "fields": {
+      "usage_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable usage identity"
+      },
+      "request_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "request correlation"
+      },
+      "occurred_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC time at the Rukan boundary"
+      },
+      "purpose": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "operator_test, acceptance_probe, or user_request"
+      },
+      "install_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "install id, or not_recorded"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "serving instance, or not_recorded"
+      },
+      "plan_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "plan, or not_recorded"
+      },
+      "reservation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reservation, or not_recorded"
+      },
+      "generation_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "foundation generation, or not_recorded"
+      },
+      "model_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "artifact id or provider digest"
+      },
+      "model_identity_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "warehouse_artifact, provider_digest, or not_recorded"
+      },
+      "macropath": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime family, or not_recorded"
+      },
+      "outcome": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "completed or failed"
+      },
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed failure, or none"
+      },
+      "status_code": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "protocol status; 0 when the call had none"
+      },
+      "input_tokens": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reported input tokens, or not_recorded"
+      },
+      "output_tokens": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reported output tokens, or not_recorded"
+      },
+      "latency_ms": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "Rukan boundary latency in milliseconds, or not_recorded"
+      },
+      "runtime_duration_ms": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime-reported duration, or not_recorded"
+      },
+      "version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "Rukan version"
+      },
+      "build_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "build id, or not_recorded"
+      }
+    }
+  },
+  "kernel.operational_report@1": {
+    "python": "OperationalReport",
+    "fields": {
+      "report_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable report identity"
+      },
+      "schema_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rukan.operational_report"
+      },
+      "install_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "deployment install id"
+      },
+      "sequence": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "deployment report sequence, starting at 1"
+      },
+      "generated_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC composition time"
+      },
+      "cadence_hours": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "configured periodic interval"
+      },
+      "trigger_reasons": {
+        "type": "tuple[str, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why this report was composed"
+      },
+      "version": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "Rukan version"
+      },
+      "build_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "build id, or not_recorded"
+      },
+      "source_commit": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "source commit, or not_recorded"
+      },
+      "previous_report_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "previous report id, or not_recorded"
+      },
+      "window_start": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "start of incremental facts"
+      },
+      "window_end": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "end of incremental facts"
+      },
+      "privacy_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "telemetry allow-list version"
+      },
+      "snapshot": {
+        "type": "SupportSnapshot",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "latest safe deployment summary"
+      },
+      "events": {
+        "type": "tuple[AnalyticsEvent, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "incremental event envelopes"
+      },
+      "rollups": {
+        "type": "tuple[UsageRollup, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "incremental usage groups"
+      },
+      "cumulative": {
+        "type": "UsageCumulative",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "lifetime usage counters"
+      },
+      "event_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "event envelopes in this report"
+      },
+      "rollup_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "usage groups in this report"
+      }
+    }
+  },
   "kernel.store.proof@1": {
     "python": "StoreProof",
     "fields": {
@@ -3857,6 +4154,203 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "bounded operational events without payloads"
+      }
+    }
+  },
+  "kernel.usage_cumulative@1": {
+    "python": "UsageCumulative",
+    "fields": {
+      "requests": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "usage records retained locally"
+      },
+      "succeeded": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "completed usage records"
+      },
+      "failed": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "failed usage records"
+      },
+      "input_tokens_total": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "lifetime reported input tokens, or not_recorded"
+      },
+      "input_sample_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "records that reported input tokens"
+      },
+      "output_tokens_total": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "lifetime reported output tokens, or not_recorded"
+      },
+      "output_sample_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "records that reported output tokens"
+      },
+      "latency_ms_sum": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "lifetime boundary latency sum, or not_recorded"
+      },
+      "latency_sample_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "records with boundary latency"
+      }
+    }
+  },
+  "kernel.usage_failure_count@1": {
+    "python": "UsageFailureCount",
+    "fields": {
+      "failure": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "typed failure class"
+      },
+      "count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "requests in this class"
+      }
+    }
+  },
+  "kernel.usage_rollup@1": {
+    "python": "UsageRollup",
+    "fields": {
+      "model_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "artifact id or provider digest"
+      },
+      "model_identity_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "identity kind"
+      },
+      "macropath": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime family"
+      },
+      "purpose": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "why the request was made"
+      },
+      "outcome": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "completed or failed"
+      },
+      "requests": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "requests in this group"
+      },
+      "input_tokens_total": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "sum of reported input tokens, or not_recorded"
+      },
+      "input_sample_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "requests that reported input tokens"
+      },
+      "output_tokens_total": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "sum of reported output tokens, or not_recorded"
+      },
+      "output_sample_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "requests that reported output tokens"
+      },
+      "latency_ms_sum": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "sum of boundary latency, or not_recorded"
+      },
+      "latency_sample_count": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "requests with boundary latency"
+      },
+      "latency_min_ms": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "minimum boundary latency, or not_recorded"
+      },
+      "latency_max_ms": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "maximum boundary latency, or not_recorded"
+      },
+      "failures": {
+        "type": "tuple[UsageFailureCount, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "failure classes in this group"
       }
     }
   },

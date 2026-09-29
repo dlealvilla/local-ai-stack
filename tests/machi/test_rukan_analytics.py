@@ -395,7 +395,7 @@ def test_schema_v1_sources_gain_install_identity(tmp_path: Path) -> None:
     hub._db.commit()
     hub.close()
     upgraded = CommandHub(tmp_path / "hub")
-    assert upgraded._meta("schema_version") == "2"
+    assert upgraded._meta("schema_version") == "3"
     columns = [
         row[1] for row in upgraded._db.execute("PRAGMA table_info(sources)")
     ]

@@ -11,7 +11,27 @@ export type DeploymentRow = {
   model_identity: string;
   witness_verdict: string;
   snapshot_count: number;
+  last_report_received_at?: string;
+  report_gap?: string;
+  last_trigger?: string;
 };
+
+export function reportAge(receivedAt: string | undefined, nowMs: number): string {
+  if (!receivedAt || receivedAt === "not_recorded") return "no report yet";
+  const then = Date.parse(receivedAt);
+  if (Number.isNaN(then)) return "report age unavailable";
+  const hours = Math.floor(Math.max(0, nowMs - then) / 3_600_000);
+  if (hours < 1) return "report received under 1h ago";
+  return `report received ${hours}h ago`;
+}
+
+export function cadenceLabel(receivedAt: string | undefined, nowMs: number): string {
+  if (!receivedAt || receivedAt === "not_recorded") return "no report yet";
+  const then = Date.parse(receivedAt);
+  if (Number.isNaN(then)) return "report age unavailable";
+  const late = nowMs - then > (6 * 60 + 15) * 60_000;
+  return late ? "reporting later than scheduled" : "report inside the expected cadence";
+}
 
 export function snapshotAge(exportedAt: string, nowMs: number): string {
   const then = Date.parse(exportedAt);

@@ -3058,6 +3058,20 @@ it is the natural extension of the capture-once/replay-often principle.
 Revisit:         when a support or customer case first meets unfamiliar
                  hardware, or when the Admin surface needs to export evidence
 
+### R-03-01 — Deployment settings are not mutated from Admin
+Label:        DEFERRED
+Owner stage:  Rukan connected monitoring v0.3
+Subsystem:    Admin settings
+Authorizes:   NO
+What:         Context, concurrency, placement, and reserve are shown
+              read-only. There is no Admin mutation that recomputes Plan.
+Why now:      A control without that path would be frontend-only.
+To make real: a bounded settings change that invalidates dependent state,
+              recomputes the plan, and still admits only through
+              ResourceManager.
+Retire when:  that mutation seam exists and is tested.
+Status:       OPEN
+
 ## Retired entries
 
 Retired entries stay in this file with their retiring stage and date,

@@ -2,27 +2,37 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from machi.adapters.rukan.complete import Completion
+from machi.adapters.rukan.library import model_library
 from machi.adapters.rukan.lifecycle import LifecycleOwner
 from machi.adapters.rukan.local_analytics import local_analytics
 from machi.adapters.rukan.project import (
+    AdminProjection,
     export_snapshot,
     project_admin,
     projection_document,
     snapshot_document,
 )
+from machi.adapters.rukan.telemetry import (
+    TelemetryAgent,
+    TelemetryStore,
+    activity_feed,
+)
 from machi.kernel.build import BuildIdentity
 from machi.kernel.clock import Clock, SystemClock
 from machi.kernel.errors import ValidationError
 from machi.kernel.snapshot import reject_customer_content
+from machi.kernel.usage import NOT_RECORDED, InferenceUsage
 
 API_NAME = "rukan.admin.v1"
 _MAX_BODY = 65_536
@@ -68,6 +78,7 @@ class AdminApplication:
         self.static_dir = static_dir
         self.clock = clock or SystemClock()
         self.lifecycle = lifecycle
+        self.telemetry = TelemetryStore(self.store_root, self.journal_dir, build)
 
     def summary(self) -> dict[str, object]:
         view = project_admin(
@@ -85,6 +96,116 @@ class AdminApplication:
             "release_attached": attached or self.handlers.release is not None,
         }
         return _envelope("ok", "stored evidence", body)
+
+    def usage(self, span: str) -> dict[str, object]:
+        if span not in {"24h", "7d", "30d", "all"}:
+            return _envelope("refused", "usage range is not supported", {})
+        end = self.clock.now()
+        hours = {"24h": 24, "7d": 24 * 7, "30d": 24 * 30}.get(span)
+        start = None if hours is None else (end - timedelta(hours=hours)).isoformat()
+        body = self.telemetry.aggregate(start=start, end=end.isoformat())
+        body["range"] = span
+        return _envelope("ok", "usage", body)
+
+    def activity(self) -> dict[str, object]:
+        return _envelope(
+            "ok",
+            "activity",
+            {"rows": activity_feed(self.store_root, self.journal_dir), "live_claim": False},  # noqa: E501
+        )
+
+    def library(self) -> dict[str, object]:
+        return _envelope(
+            "ok",
+            "model library",
+            model_library(self.store_root, self.build, self.journal_dir),
+        )
+
+    def monitoring(self) -> dict[str, object]:
+        body = self.telemetry.status(self.clock.now())
+        body["deployment_settings"] = "read_only"
+        body["deployment_settings_reason"] = (
+            "Plan recomputation is not exposed on this Admin seam"
+        )
+        return _envelope("ok", "monitoring", body)
+
+    def configure_monitoring(self, body: dict[str, object]) -> dict[str, object]:
+        view = project_admin(self.store_root, self.build, journal_dir=self.journal_dir)
+        endpoint = body.get("endpoint")
+        key_id = body.get("key_id")
+        secret = body.get("secret")
+        if not all(isinstance(item, str) and item for item in (endpoint, key_id, secret)):  # noqa: E501
+            return _envelope("refused", "endpoint, key id, and secret are required", {})
+        cadence = body.get("cadence_hours", 6)
+        if isinstance(cadence, bool) or not isinstance(cadence, int):
+            return _envelope("refused", "cadence is outside 1..24 hours", {})
+        enabled = body.get("enabled") is True
+        local_test = body.get("local_test") is True
+        try:
+            status = self.telemetry.configure(
+                endpoint=str(endpoint),
+                key_id=str(key_id),
+                secret=str(secret),
+                install_id=view.install_id,
+                enabled=enabled,
+                cadence_hours=cadence,
+                actor="local_admin_ui",
+                now=self.clock.now(),
+                local_test=local_test,
+            )
+        except ValidationError as exc:
+            return _envelope("refused", exc.message, {})
+        return _envelope("ok", "monitoring saved", status)
+
+    def preview_report(self) -> dict[str, object]:
+        try:
+            document = self.telemetry.preview(self.clock.now())
+        except ValidationError as exc:
+            return _envelope("refused", exc.message, {})
+        return _envelope("ok", "preview", document)
+
+    def test_report(self, body: dict[str, object] | None = None) -> dict[str, object]:
+        del body
+        result = self.telemetry.send_test(self.clock.now())
+        return _envelope("ok" if result.get("sent") else "refused", "test report", result)  # noqa: E501
+
+    def _remember(self, view: AdminProjection, result: Completion, elapsed: float, purpose: str) -> bool:  # noqa: E501
+        try:
+            chain = view.chain
+            occurred = self.clock.now().isoformat()
+            request_id = "req_" + hashlib.sha256(
+                f"{result.instance_id}|{occurred}|{elapsed}".encode()
+            ).hexdigest()[:16]
+            kind = chain.model_identity_kind
+            if kind not in {"warehouse_artifact", "provider_digest", "not_recorded"}:
+                kind = NOT_RECORDED
+            failure = "none" if result.outcome == "completed" else result.reason.replace("\n", " ")[:240]  # noqa: E501
+            usage = InferenceUsage(
+                usage_id="usg_" + hashlib.sha256(request_id.encode()).hexdigest()[:16],
+                request_id=request_id,
+                occurred_at=occurred,
+                purpose=purpose,
+                install_id=view.install_id or NOT_RECORDED,
+                instance_id=result.instance_id or NOT_RECORDED,
+                plan_id=chain.plan_id,
+                reservation_id=chain.reservation_id,
+                generation_id=chain.generation_id,
+                model_identity=result.model_identity or NOT_RECORDED,
+                model_identity_kind=str(kind),
+                macropath=result.provider or NOT_RECORDED,
+                outcome="completed" if result.outcome == "completed" else "failed",
+                failure=failure or "none",
+                status_code=result.status_code,
+                input_tokens=_count(result.input_tokens),
+                output_tokens=_count(result.completion_tokens),
+                latency_ms=str(max(0, int(elapsed * 1000))),
+                runtime_duration_ms=_count(result.runtime_duration_ms),
+                version=self.build.version,
+                build_id=self.build.build_id or NOT_RECORDED,
+            )
+            return self.telemetry.record_usage(usage)
+        except (ValidationError, TypeError, ValueError):
+            return False
 
     def analytics(self) -> dict[str, object]:
         """Customer-local facts. This is not the vendor export."""
@@ -139,17 +260,24 @@ class AdminApplication:
             max_tokens=max_tokens,
         )
         elapsed = round(time.monotonic() - started, 3)
+        purpose = body.get("purpose")
+        if purpose != "acceptance_probe":
+            purpose = "operator_test"
+        recorded = self._remember(view, result, elapsed, purpose)
         return _envelope(
             result.outcome,
             result.reason,
             {
                 "text": result.text,
                 "completion_tokens": result.completion_tokens,
+                "input_tokens": result.input_tokens,
                 "elapsed_seconds": elapsed,
                 "provider": result.provider,
                 "instance_id": result.instance_id,
                 "model_identity": result.model_identity,
                 "stored": False,
+                "usage_recorded": recorded,
+                "purpose": purpose,
             },
         )
 
@@ -233,10 +361,13 @@ def serve_admin(
     """Bind loopback and serve until interrupted."""
     if host != _LOOPBACK:
         raise ValidationError("Rukan Admin binds to loopback only")
+    agent = TelemetryAgent(application.telemetry)
+    agent.start()
     httpd = _server(application, host, port)
     try:
         httpd.serve_forever()
     finally:
+        agent.stop()
         httpd.server_close()
 
 
@@ -275,6 +406,22 @@ def _dispatch(
     if method == "GET" and path == "/v1/snapshot":
         _write(handler, 200, application.snapshot())
         return
+    if method == "GET" and path == "/v1/usage":
+        span = parse_qs(urlparse(handler.path).query).get("range", ["24h"])[0]
+        _write(handler, 200, application.usage(span))
+        return
+    if method == "GET" and path == "/v1/activity":
+        _write(handler, 200, application.activity())
+        return
+    if method == "GET" and path == "/v1/models/library":
+        _write(handler, 200, application.library())
+        return
+    if method == "GET" and path == "/v1/monitoring":
+        _write(handler, 200, application.monitoring())
+        return
+    if method == "GET" and path == "/v1/monitoring/preview":
+        _write(handler, 200, application.preview_report())
+        return
     static = application.static_dir
     if method == "GET" and static is not None and _serve_static(handler, static, path):
         return
@@ -289,6 +436,8 @@ def _dispatch(
         "/v1/inference": application.infer,
         "/v1/lifecycle/stop": application.stop,
         "/v1/lifecycle/release": application.release,
+        "/v1/monitoring": application.configure_monitoring,
+        "/v1/monitoring/test": application.test_report,
     }
     if path in routes:
         _write(handler, 200, routes[path](body))
@@ -368,6 +517,12 @@ def _write(
     handler.send_header("Cache-Control", "no-store")
     handler.end_headers()
     handler.wfile.write(encoded)
+
+
+def _count(value: int | None) -> str:
+    if value is None or value < 0:
+        return NOT_RECORDED
+    return str(value)
 
 
 def _overrides(body: dict[str, object]) -> bool:

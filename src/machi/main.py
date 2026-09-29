@@ -1397,6 +1397,68 @@ def _export_rukan_analytics(ns: argparse.Namespace) -> int:
     return 0
 
 
+def _serve_rukan_intake(ns: argparse.Namespace) -> int:
+    """Bind the write-only intake. Command Center reads stay on the other port."""
+    from machi.adapters.rukan.hub import CommandHub
+    from machi.adapters.rukan.intake import bind_intake
+
+    hub = CommandHub(Path(ns.data_dir))
+    httpd = bind_intake(
+        hub,
+        ns.host,
+        ns.port,
+        certfile=ns.cert,
+        keyfile=ns.key,
+        local_test=bool(ns.local_test),
+    )
+    print("product  Rukan telemetry intake")
+    print(f"bind     {ns.host}:{ns.port}")
+    print("write    POST /v1/telemetry/reports")
+    try:
+        httpd.serve_forever()
+    finally:
+        httpd.server_close()
+        hub.close()
+    return 0
+
+
+def _rukan_credential(ns: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+
+    from machi.adapters.rukan.hub import CommandHub
+    from machi.adapters.rukan.intake import (
+        issue_credential,
+        revoke_credential,
+        rotate_credential,
+    )
+
+    hub = CommandHub(Path(ns.data_dir))
+    now = datetime.now(UTC)
+    try:
+        if ns.credential_action == "issue":
+            if not ns.install_id:
+                raise ValidationError("install id is required")
+            issued = issue_credential(hub, ns.install_id, now)
+            print(f"key_id   {issued['key_id']}")
+            print(f"secret   {issued['secret']}")
+            print("shown    once")
+            return 0
+        if not ns.key_id:
+            raise ValidationError("key id is required")
+        if ns.credential_action == "revoke":
+            revoked = revoke_credential(hub, ns.key_id, now)
+            print(f"key_id   {revoked['key_id']}")
+            print("status   revoked")
+            return 0
+        rotated = rotate_credential(hub, ns.key_id, now)
+        print(f"key_id   {rotated['key_id']}")
+        print(f"secret   {rotated['secret']}")
+        print("shown    once")
+        return 0
+    finally:
+        hub.close()
+
+
 def _serve_rukan_command_center(ns: argparse.Namespace) -> int:
     """Bind the loopback Command Center. The browser is not the store."""
     from machi.adapters.rukan.hub import CommandHub, serve_command_center
@@ -1943,6 +2005,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     command_serve.add_argument("--data-dir", required=True)
     command_serve.add_argument("--port", type=int, default=8780)
     command_serve.add_argument("--static-dir", default=None)
+    command_intake = command_sub.add_parser(
+        "intake",
+        help="bind the write-only telemetry intake; this does not serve models",
+    )
+    command_intake.add_argument("--data-dir", required=True)
+    command_intake.add_argument("--host", default="127.0.0.1")
+    command_intake.add_argument("--port", type=int, default=8781)
+    command_intake.add_argument("--cert", default=None)
+    command_intake.add_argument("--key", default=None)
+    command_intake.add_argument("--local-test", action="store_true")
+    command_key = command_sub.add_parser(
+        "credential",
+        help="issue, rotate, or revoke a deployment upload key",
+    )
+    command_key.add_argument("credential_action", choices=["issue", "rotate", "revoke"])
+    command_key.add_argument("--data-dir", required=True)
+    command_key.add_argument("--install-id", default=None)
+    command_key.add_argument("--key-id", default=None)
     admin_serve.add_argument(
         "--provider-base",
         default="http://127.0.0.1:11434",
@@ -2450,6 +2530,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _export_rukan_analytics(ns)
         if ns.command == "command-center" and ns.command_center_command == "serve":
             return _serve_rukan_command_center(ns)
+        if ns.command == "command-center" and ns.command_center_command == "intake":
+            return _serve_rukan_intake(ns)
+        if ns.command == "command-center" and ns.command_center_command == "credential":
+            return _rukan_credential(ns)
         if ns.command == "serve" and ns.serve_command == "policy":
             print(f"policy   {SERVE_POLICY_VERSION}")
             print(f"bind     {BIND_SCOPE}")

@@ -1512,6 +1512,14 @@ policies; they do not add a second admission author.
 | Vendor systems | Machi operator | no |
 | Public web | public | no |
 
+Rukan Admin and Command Center are product surfaces on this split.
+They are not new Blocks. Admin reads the customer store and may record
+non-content usage and a local telemetry outbox. Command Center stores
+imported reports. Its intake is write-only. Neither surface admits,
+serves, or controls the other plane. The contracts are
+`kernel.inference_usage` and `kernel.operational_report`. The design
+note is [RUKAN-CONNECTED-MONITORING-V0.3.md](RUKAN-CONNECTED-MONITORING-V0.3.md).
+
 ---
 
 # 19. Empirical test model

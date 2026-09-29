@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canSendInference,
+  readinessHero,
   formatBytes,
   modelKindLabel,
   releaseBlocked,
@@ -85,6 +86,10 @@ describe("admin state", () => {
     expect(releaseBlocked(summary({ instance_state: "stopped" }))).toBe(false);
     expect(summary().body.model_operations.acquire_hub).toBe(false);
     expect(summary().body.live_claim).toBe(false);
+    expect(readinessHero("authorised_ready_instance", false, "supported")).toBe("Ready to serve AI");
+    expect(readinessHero("no_instance", false, "incomplete")).toBe("Deployment incomplete");
+    expect(readinessHero("authorised_ready_instance", true, "contradictory")).toBe("Needs attention");
+    expect(readinessHero("authorised_ready_instance", false, "supported")).not.toMatch(/\d+\/100/);
   });
 
   it("formats bytes without inventing a measurement", () => {

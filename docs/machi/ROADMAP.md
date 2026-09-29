@@ -727,6 +727,7 @@ existing components. Classifications do not reopen accepted checkpoints.
 | Acceptance lab, coverage-driven physical tests | KEEP | 1–2 | Evidence infrastructure already exists. It is not a benchmark warehouse |
 | Dynamo | DEFER | 2 | Fabric family. No integration until the evidence in strategy |
 | Additional engines (llama.cpp, MLX, SGLang, TensorRT-LLM) | DEFER | 1–2 | Catalogue entries when a coverage gap is real |
+| Rukan Admin, Command Center, connected monitoring | KEEP as product surface | post-spine | Not a Block. One-way non-content reporting. No remote control |
 | Gateway, Admin UI, Knowledge/RAG | DEFER | 3 | Attach after a dependable serve path |
 | Organisational nouns, usage analytics beyond the local event | DEFER | 3 | Typed context before logs are mined. No analytics UI now |
 | Team Brain, memory, agents, learned routing | DEFER | 4 | Downstream of inference, identity, and knowledge |
