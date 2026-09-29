@@ -141,3 +141,27 @@ Clean. Streak is 1. The next diagnostic is D3 on the same wheel.
 - Reports included `deployment_ready`, four `periodic` reports, then `deployment_stopped,reservation_released`
 - The Command Center database did not contain the test prompt
 - No manual database repair and no manual dependency install
+
+## Diagnostic D3
+
+Clean. Streak is 2. The frozen candidate is the D2 wheel. Confidence runs use that artifact and no other.
+
+- Pod `kvf30h5fv6u1o0`, NVIDIA L40S, secure, CUDA 13.0, EU-NL-1, `$1.09/hour`
+- Created `2026-09-29T10:12:17Z`, terminated after the evidence below
+- Install `inst_a1a0922f146dbc80`
+- Deploy operation `dop_7f8429602f2bc43a` reached `ready` on the same wheel
+- Plan `plan_ce0875479ef374e5`
+- Reservation `rsv_f77cf1297fb8da11` stayed reserved after STOP and was released after RELEASE
+- Instance `sin_e19d376e973fa3c6`; recorded pids were absent after STOP
+- Qualification `qev_2bf63adeedf7a811`
+- Three inferences: 3 input tokens, 8 output tokens
+- Admin restart kept that ready operation
+- Reports: `deployment_ready`, three `periodic` reports, then separate `deployment_stopped` and `reservation_released`
+- Command Center usage was 3 requests, 9 input tokens, 24 output tokens
+- The test prompt was not in the Command Center database
+
+## Frozen confidence candidate
+
+- Source: `f08b46ff1d37a28e95c041ddc1da4d77b6068d9b`
+- Wheel SHA256: `a337167aa04dfa48bf35d634254193631b4a979eca72d2ca9cdce612617f921f`
+- Build: `0.1.0+f08b46ff1d37`
