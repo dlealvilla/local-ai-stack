@@ -79,6 +79,8 @@ from machi.foundation.contracts import (
     FoundationSet,
     ManagedGeneration,
     ProvisionMode,
+    RuntimeCapability,
+    SupportState,
 )
 from machi.foundation.events import foundation_events
 from machi.foundation.policy import BACKEND_CHOICES, default_foundation_settings
@@ -113,6 +115,7 @@ from machi.kernel.alive import kernel_alive
 from machi.kernel.build import identity as build_identity
 from machi.kernel.clock import FixedClock, SystemClock
 from machi.kernel.errors import (
+    ConflictError,
     MachiError,
     NotFoundError,
     PersistenceError,
@@ -732,7 +735,7 @@ def inspect_foundation(
     journal_dir_path: Path | None,
     mode: ProvisionMode,
     backend: str,
-) -> tuple[FoundationSet, tuple[EventRecord, ...], Path | None]:
+) -> tuple[FoundationSet, tuple[EventRecord, ...], Path | None, CapacityEnvelope]:
     """Resolve native vLLM. Inspection does not install. Provision is explicit."""
     validate_registry(module_prefix="machi.")
     if explicit is None and environment is None:
@@ -813,7 +816,32 @@ def inspect_foundation(
     if target is not None:
         journal = JsonlJournal(target)
         events = tuple(journal.append(event) for event in events)
-    return result, events, target
+    return result, events, target, envelope
+
+
+def _persist_foundation(
+    store_dir: Path, result: FoundationSet, envelope: CapacityEnvelope
+) -> None:
+    """Remember the verified generation. Identical re-entry keeps the first record."""
+    store = FileStore(store_dir)
+
+    def remember(key: str, record: Contract) -> None:
+        try:
+            store.create(key, record)
+        except ConflictError:
+            return
+
+    remember(envelope.evidence_id, envelope)
+    selection = result.selection
+    if selection.support is not SupportState.READY:
+        return
+    remember(selection.selection_id, selection)
+    generation = result.generation
+    if isinstance(generation, ManagedGeneration):
+        remember(generation.generation_id, generation)
+    capability = result.capability
+    if isinstance(capability, RuntimeCapability):
+        remember("runtime_capability", capability)
 
 
 def evaluate_prerequisites(
@@ -1672,6 +1700,32 @@ def _admin_import(
     }
 
 
+def _acquire_runtime(ns: argparse.Namespace) -> tuple[str | None, str, str]:
+    """Use the verified generation interpreter. Do not import vLLM here."""
+    root = Path(ns.store_dir) if getattr(ns, "store_dir", None) else None
+    if root is None:
+        return None, "foundation_unspecified", "unknown"
+    from machi.adapters.rukan.read import load_records
+
+    selections = [
+        item
+        for item in load_records(root, FoundationSelection)
+        if isinstance(item, FoundationSelection)
+        and item.support is SupportState.READY
+        and isinstance(item.generation_id, str)
+    ]
+    if not selections:
+        return None, "foundation_unspecified", "unknown"
+    selection = selections[-1]
+    generation_id = selection.generation_id
+    assert isinstance(generation_id, str)
+    python_path = None
+    for item in load_records(root, ManagedGeneration):
+        if isinstance(item, ManagedGeneration) and item.generation_id == generation_id:
+            python_path = item.python_path
+    return python_path, generation_id, "qualified"
+
+
 def _admin_acquire(
     ns: argparse.Namespace, body: dict[str, object]
 ) -> tuple[str, str, dict[str, object]]:
@@ -1681,15 +1735,16 @@ def _admin_acquire(
     revision = body.get("revision")
     if not isinstance(repository, str) or not isinstance(revision, str):
         return "refused", "acquire requires repository and revision", {}
+    python_path, foundation_id, qualification = _acquire_runtime(ns)
     holder = argparse.Namespace(
         state_root=ns.state_root,
         repository=repository,
         revision=revision,
         store_dir=ns.store_dir,
         journal_dir=None,
-        foundation_id="foundation_unspecified",
-        qualification="unknown",
-        runtime_python=None,
+        foundation_id=foundation_id,
+        qualification=qualification,
+        runtime_python=python_path,
     )
     try:
         code = _acquire_hub(holder)
@@ -2564,7 +2619,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if ns.foundation_command == "inspect"
                 else ProvisionMode.PROVISION
             )
-            foundation_set, foundation_events_out, journal_target = inspect_foundation(
+            (
+                foundation_set,
+                foundation_events_out,
+                journal_target,
+                foundation_envelope,
+            ) = inspect_foundation(
                 explicit=ns.state_root,
                 environment=_environment_override(),
                 store_dir=Path(ns.store_dir) if ns.store_dir else None,
@@ -2572,6 +2632,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 mode=mode,
                 backend=ns.backend,
             )
+            if ns.store_dir:
+                _persist_foundation(
+                    Path(ns.store_dir), foundation_set, foundation_envelope
+                )
             selection = foundation_set.selection
             print(f"support  {selection.support.value}")
             print(f"failure  {selection.failure.value}")

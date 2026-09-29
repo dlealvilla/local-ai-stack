@@ -185,6 +185,30 @@ function Inference({ summary }: { summary: Summary }) {
 
 function Models({ summary, onChanged }: { summary: Summary; onChanged: () => void }) {
   const ops = summary.body.model_operations;
+  const [retryKey, setRetryKey] = useState<Record<string, string>>({});
+  const [deployError, setDeployError] = useState("");
+  async function deploy(artifactId: string) {
+    const response = await fetch("/v1/deployment", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        artifact_id: artifactId,
+        request_key: retryKey[artifactId] ?? `deploy-${artifactId}`,
+      }),
+    });
+    const document = await response.json();
+    const state = document.body?.state;
+    if (state === "failed" && document.body?.operation_id) {
+      setRetryKey((current) => ({
+        ...current,
+        [artifactId]: `deploy-${artifactId}-${document.body.operation_id}`,
+      }));
+      setDeployError(document.body.failure || document.reason || "Deploy failed");
+    } else {
+      setDeployError("");
+    }
+    onChanged();
+  }
   return (
     <section>
       <h1>Models</h1>
@@ -197,6 +221,7 @@ function Models({ summary, onChanged }: { summary: Summary; onChanged: () => voi
             <th>Kind</th>
             <th>Revision or outcome</th>
             <th>State</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -206,10 +231,18 @@ function Models({ summary, onChanged }: { summary: Summary; onChanged: () => voi
               <td>{modelKindLabel(item.kind)}</td>
               <td>{item.revision}</td>
               <td>{item.lifecycle}</td>
+              <td>
+                {item.kind === "warehouse_artifact" && item.lifecycle === "stored" ? (
+                  <button type="button" onClick={() => void deploy(item.identity)}>
+                    {retryKey[item.identity] ? "Retry deploy" : "Deploy"}
+                  </button>
+                ) : null}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      {deployError ? <p role="alert">{deployError}</p> : null}
       <ModelForm
         title="Inspect local metadata"
         enabled={ops.inspect_local}
@@ -230,6 +263,21 @@ function Models({ summary, onChanged }: { summary: Summary; onChanged: () => voi
 function Deployment({ summary, onChanged }: { summary: Summary; onChanged: () => void }) {
   const chain = summary.body.chain;
   const [message, setMessage] = useState("");
+  const [operation, setOperation] = useState<{
+    state?: string;
+    failure?: string;
+    reason?: string;
+    macropath?: string;
+    artifact_id?: string;
+    stages?: { id: string; label: string; done: boolean }[];
+    next_actions?: string[];
+  } | null>(null);
+  useEffect(() => {
+    void fetch("/v1/deployment").then(async (response) => {
+      const document = await response.json();
+      setOperation(document.body ?? null);
+    });
+  }, [summary]);
   const life = summary.body.lifecycle;
   async function act(path: string) {
     const response = await fetch(path, {
@@ -254,6 +302,25 @@ function Deployment({ summary, onChanged }: { summary: Summary; onChanged: () =>
     <section>
       <h1>Deployment journey</h1>
       <p className="muted">{usabilityLabel(chain.basis, chain.contradictory)}</p>
+      {operation?.state ? (
+        <section>
+          <h2>Deployment operation</h2>
+          <p>
+            {operation.state}
+            {operation.macropath ? ` · ${operation.macropath}` : ""}
+            {operation.artifact_id ? ` · ${operation.artifact_id}` : ""}
+          </p>
+          {operation.failure ? <p role="alert">{operation.failure}{operation.reason ? ` — ${operation.reason}` : ""}</p> : null}
+          {operation.stages ? (
+            <ol>
+              {operation.stages.map((stage) => (
+                <li key={stage.id}>{stage.done ? "Done" : "Pending"}: {stage.label}</li>
+              ))}
+            </ol>
+          ) : null}
+          {operation.next_actions?.includes("release") ? <p>Release stays separate from stop.</p> : null}
+        </section>
+      ) : null}
       <ol>
         {steps.map(([title, meaning, value]) => (
           <li key={title}>

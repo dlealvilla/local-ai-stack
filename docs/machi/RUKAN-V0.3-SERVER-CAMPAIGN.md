@@ -1,5 +1,47 @@
 # Rukan v0.3 server campaign
 
+## D1 product-gap architecture review
+
+D1 omitted `huggingface_hub` because the HUB adapter imports it lazily and the
+Machi wheel declared an empty dependency list. A clean install therefore
+reported `source_unavailable` even though Acquire is a supported product
+action. The control-plane dependency stays separate from the managed vLLM
+environment.
+
+Deployment coordination belongs in a Rukan adapter, not in React and not in
+Plan, ResourceManager, or Serve. Model still owns the stored artifact and
+compatibility. Foundation owns the verified generation. Capacity owns the
+envelope. Plan owns `DeploymentConfiguration`. ResourceManager is the only
+admission authority. Serve owns the process. The coordinator only sequences
+those calls, stores references, and maps failures.
+
+The browser may send an `artifact_id`, a request key, and nothing that names
+a plan, fingerprint, reservation, port, pid, provider, or capacity figure.
+The backend loads the stored artifact, verifies its hashes, recomputes
+capacity, and uses the foundation-cited envelope. A live accelerator ceiling
+that is lower than that envelope refuses the deploy. An unresolved live
+accelerator does not replace the cited envelope and does not invent bytes.
+If stored qualification does not cover the artifact, the coordinator earns
+it with one reserved Serve proof and releases that hold before the
+deployment admission. The qualification id comes from `qualification_identity`.
+The same request key returns the same operation. A different intent with
+that key is refused. A failed operation stays failed until a new key is
+used. A second replica is not created while one deployment is READY.
+
+Before admission, failure leaves no reservation and no process. Admission
+rejection does not start Serve. If Serve fails after a reservation exists,
+the coordinator stops through Serve and releases through ResourceManager only
+when the process is stopped. Otherwise the reservation stays and the
+operation is `recovery_required`. STOP and RELEASE stay separate.
+
+Restart reads the operation record and the Serve store. It does not mint a
+second server because memory was lost. Native vLLM is the path this
+coordinator starts. Provider unload remains on the existing lifecycle owner.
+
+D2 must prove the frozen wheel can acquire the public small model with no
+extra pip install, deploy through the Admin HTTP API to READY, run at least
+three inferences, stop, and release.
+
 Master instruction: `RUKAN-V0.3-CLOSURE-AND-SERVER-CAMPAIGN-001`
 
 Terminal status of this run: `RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY`

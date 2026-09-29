@@ -82,6 +82,17 @@ class AdminApplication:
         self.lifecycle = lifecycle
         self.telemetry = TelemetryStore(self.store_root, self.journal_dir, build)
         self.directory = Directory(self.store_root)
+        from machi.adapters.rukan.deploy import DeploymentCoordinator
+
+        self.coordinator = DeploymentCoordinator(
+            self.store_root,
+            state_root=(
+                lifecycle.state_root if lifecycle is not None else self.store_root
+            ),
+            serve=lifecycle.native if lifecycle is not None else None,
+            manager=lifecycle.manager if lifecycle is not None else None,
+            note=self.telemetry,
+        )
 
     def summary(self) -> dict[str, object]:
         view = project_admin(
@@ -120,6 +131,32 @@ class AdminApplication:
 
         outcome, reason, payload = people_action(self.directory, body, self.clock.now())
         return _envelope(outcome, reason, payload)
+
+    def deploy(self, body: dict[str, object]) -> dict[str, object]:
+        from machi.adapters.rukan.deploy import public_view, reject_deploy_body
+
+        refused = reject_deploy_body(body)
+        if refused is not None:
+            return _envelope("refused", refused, {})
+        try:
+            view = self.coordinator.deploy(
+                artifact_id=str(body["artifact_id"]),
+                request_key=str(body["request_key"]),
+                actor="local_admin_ui",
+                now=self.clock.now(),
+            )
+        except ValidationError as exc:
+            return _envelope("refused", exc.message, {})
+        outcome = "ok" if view.state != "failed" else "failed"
+        return _envelope(outcome, view.reason or view.state, public_view(view))
+
+    def deployment(self) -> dict[str, object]:
+        from machi.adapters.rukan.deploy import public_view
+
+        view = self.coordinator.current()
+        if view is None:
+            return _envelope("ok", "no deployment operation", {})
+        return _envelope("ok", view.state, public_view(view))
 
     def library(self) -> dict[str, object]:
         return _envelope(
@@ -307,6 +344,8 @@ class AdminApplication:
             outcome, reason = self.lifecycle.stop(
                 instance_id, view.chain.model_identity_kind
             )
+            if outcome == "ok":
+                self.coordinator.mark_stopped(self.clock.now())
             return _envelope(outcome, reason, {"instance_id": instance_id})
         if self.handlers.stop is None:
             return _envelope("refused", "lifecycle runtime is not attached", {})
@@ -333,6 +372,8 @@ class AdminApplication:
             outcome, reason = self.lifecycle.release(
                 view.chain.instance_id, view.chain.model_identity_kind
             )
+            if outcome == "ok":
+                self.coordinator.mark_released(self.clock.now())
             return _envelope(outcome, reason, {"reservation_id": reservation_id})
         if self.handlers.release is None:
             return _envelope("refused", "lifecycle runtime is not attached", {})
@@ -403,6 +444,7 @@ def serve_admin(
         httpd.server_close()
         application.telemetry.close()
         application.directory.close()
+        application.coordinator.close()
 
 
 def _server(
@@ -453,6 +495,9 @@ def _dispatch(
     if method == "GET" and path == "/v1/models/library":
         _write(handler, 200, application.library())
         return
+    if method == "GET" and path == "/v1/deployment":
+        _write(handler, 200, application.deployment())
+        return
     if method == "GET" and path == "/v1/monitoring":
         _write(handler, 200, application.monitoring())
         return
@@ -479,6 +524,7 @@ def _dispatch(
         "/v1/monitoring": application.configure_monitoring,
         "/v1/monitoring/test": application.test_report,
         "/v1/people": application.people,
+        "/v1/deployment": application.deploy,
     }
     if path in routes:
         _write(handler, 200, routes[path](body))

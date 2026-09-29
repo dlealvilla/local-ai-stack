@@ -40,7 +40,11 @@ def test_machi_console_script_does_not_require_lab() -> None:
     with (ROOT / "pyproject.machi.toml").open("rb") as handle:
         data = tomllib.load(handle)
     assert data["project"]["scripts"] == {"machi": "machi.main:main"}
-    assert data["project"]["dependencies"] == []
+    assert data["project"]["dependencies"] == ["huggingface_hub>=0.26,<1"]
+    joined = " ".join(data["project"]["dependencies"])
+    assert "acceptance_lab" not in joined
+    assert "vllm" not in joined
+    assert "torch" not in joined
 
 
 def test_live_db_is_gitignored() -> None:

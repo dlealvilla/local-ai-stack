@@ -3110,6 +3110,21 @@ To make real: an explicit rotation record and a cursor that can follow it.
 Retire when:  rotation is a product behavior and is tested.
 Status:       OPEN
 
+### R-03-05 — Deployment qualification uses an unspecified hardware class
+Label:        PROVISIONAL
+Owner stage:  Rukan v0.3 deployment closure
+Subsystem:    adapters/rukan deploy
+Authorizes:   YES — the class is part of qualification identity
+What:         When the coordinator earns qualification, the hardware class
+              is `unspecified`. The capacity envelope does not carry a
+              compute capability, so the proof is bound to the generation,
+              engine, and execution-environment fingerprint instead.
+Why now:      v0.3 must qualify through Serve without inventing a class.
+To make real: Discover supplies a compute capability on the envelope and
+              the coordinator puts that token in the qualification request.
+Retire when:  a plan on a different capability no longer matches this evidence.
+Status:       OPEN
+
 ## Retired entries
 
 Retired entries stay in this file with their retiring stage and date,

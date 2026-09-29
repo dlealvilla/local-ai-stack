@@ -45,6 +45,7 @@ class LifecycleOwner:
     ) -> None:
         store = FileStore(store_root)
         root = state_root or Path(store_root)
+        self.state_root = root
         self._manager = manager or ResourceManager(
             StoreReservationLog(store), FileAdmissionLock(store.root)
         )
@@ -58,6 +59,8 @@ class LifecycleOwner:
             root,
             choose_port,
         )
+        self.native = self._native
+        self.manager = self._manager
         self._provider = provider or ProviderServeService(
             StoreProviderServeLog(store),
             OllamaServeAdapter(LoopbackOllamaClient(provider_base)),

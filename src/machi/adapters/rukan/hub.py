@@ -33,11 +33,13 @@ class CommandHub:
         self.inbox.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._db = sqlite3.connect(
-            self.data_dir / "command.sqlite", check_same_thread=False
+            self.data_dir / "command.sqlite",
+            timeout=30,
+            check_same_thread=False,
         )
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
-        self._db.execute("PRAGMA busy_timeout=4000")
+        self._db.execute("PRAGMA busy_timeout=30000")
         self._migrate()
         self._restrict()
         self.refresh()
@@ -472,14 +474,14 @@ class CommandHub:
         del bundle_id
 
     def _migrate(self) -> None:
-        for attempt in range(40):
+        for attempt in range(80):
             try:
                 self._migrate_once()
                 return
             except sqlite3.OperationalError as exc:
                 message = str(exc).lower()
                 retry = "already exists" in message or "locked" in message
-                if attempt == 39 or not retry:
+                if attempt == 79 or not retry:
                     raise
                 time.sleep(0.05)
 
