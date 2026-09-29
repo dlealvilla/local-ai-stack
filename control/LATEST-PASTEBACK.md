@@ -2,159 +2,136 @@
 =========================== PASTE BACK START ===================================
 ================================================================================
 
-TASK: RUKAN-CONNECTED-MONITORING-V0.3-001
+TASK: RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001
 STATE: PASS
-MILESTONE: Rukan connected monitoring v0.3
-STAGE: local one-way operational reporting
-STEP: usage, outbox, machine auth, intake, Admin and Command Center surfaces
-PREDECESSOR OUTPUTS: d38a8e855f099f353e1ac090b990014eed67a826 on machi
-CURRENT_COMMIT: 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4
+MILESTONE: Rukan functional product v0.3 finish
+STAGE: telemetry correctness, people directory, server-test readiness
+STEP: close monitoring defects and add customer-local people
+PREDECESSOR OUTPUTS: 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4 on rukan/connected-monitoring-v0.3
+CURRENT_COMMIT: fd13ede7553011033a140d1206982f54536b7032
 
-STATUS: RUKAN_CONNECTED_MONITORING_V0_3_LOCAL_PASS_EXTERNAL_ENDPOINT_REQUIRED
+STATUS: RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY
 
-A. Terminal status: RUKAN_CONNECTED_MONITORING_V0_3_LOCAL_PASS_EXTERNAL_ENDPOINT_REQUIRED
-B. TL;DR: Local connected monitoring is implemented and tested, including loopback HTTPS. No owned public endpoint, certificate, or domain was present, so this is not an Internet PASS.
-C. Starting SHA d38a8e855f099f353e1ac090b990014eed67a826. Final SHA 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4.
-D. Branch rukan/connected-monitoring-v0.3. Worktree clean except untracked docs/machi/proposals/. origin/rukan/connected-monitoring-v0.3 is 0e87b9c. origin/machi remains d38a8e8.
+A. Terminal status: RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY
+B. TL;DR: Telemetry cursors now move only on a matching ACK, the development heartbeat is a stable 120-second phase, and People is a real local directory that does not leave the customer host. No paid server test was run.
+C. Starting SHA 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4. Final SHA fd13ede7553011033a140d1206982f54536b7032.
+D. Branch rukan/connected-monitoring-v0.3. Pushed. Untracked docs/machi/proposals/ only. origin/machi remains d38a8e855f099f353e1ac090b990014eed67a826.
 
 CHANGES:
 
-* kernel.inference_usage and kernel.operational_report are new Kernel contracts. InferenceProof is unchanged.
-* Admin records non-content usage, composes reports, and retries a SQLite outbox from a daemon thread.
-* Command Center schema 3 stores credentials, reports, rollups, gaps, and aliases. Intake is a separate write-only server.
-* Admin and Command Center navigation and production assets were rebuilt around the real APIs.
+* machi.kernel.cadence is the only interval table: development 120s, production 21600s, custom 60..86400s.
+* Operational reports carry cadence_profile, cadence_seconds, and cadence_phase_seconds.
+* One queued report is frozen until an ACK names its report id. Cursors, baselines, and the periodic slot move only then.
+* Command Center schema 4 records cadence and recomputes sequence gaps. A late report does not replace a newer summary.
+* directory.sqlite holds users, teams, memberships, and access intent. Admin People API and page use it.
+* docs/machi/RUKAN-REAL-USER-ACCEPTANCE-V0.3.md and `acceptance preflight` prepare the later campaign.
 
-E. Architecture review and deviations, recorded in docs/machi/RUKAN-CONNECTED-MONITORING-V0.3.md:
-* Bearer token over TLS, not HMAC. The secret is the credential; HMAC does not change the threat model once TLS is mandatory.
-* The agent is a thread in the Admin process, not a new daemon.
-* Usage is rukan-telemetry.sqlite, not an EventRecord payload.
-* Vendor reports send rollups plus cumulative counters, not raw request rows.
-* Context, concurrency, placement, and reserve stay read-only. No Plan recompute mutation exists. Debt R-03-01.
-* Family is shown only from stored catalog family. No marketing parser. No Recommended row.
-* Actor origin is recorded for new monitoring actions only.
-* Missed six-hour windows are not backfilled. Cumulative counters and sequence gaps show the miss.
-* Reporting disabled pauses compose and send. Send test report is explicit.
+E. Deviations: bearer token remains; phase is epoch-aligned rather than added to each interval; one outstanding report replaces the old 24-report drop; team roles are deferred; access rule is user deny, user allow, team grant, default deny. Enforcement is always gateway_not_available.
 
-F. Product vision: customer content stays local. Command Center is a portfolio of reports, not host authority. A report is not online, offline, or healthy.
+F. State machine: compose writes the body and proposed journal offset, window end, and periodic flag. Send failure leaves meta cursors unchanged. ACK applies them and sets delivered_at.
 
-G. Telemetry agent: TelemetryAgent in the Admin process. Browser does not schedule.
+G. Cadence: development is the current default. Production stays 6 hours. Admin Settings names the development profile explicitly.
 
-H. Six-hour scheduler: cadence_hours default 6, allowed 1..24. Jitter is sha256(install_id) mod 900 seconds, stable per deployment.
+H. Development heartbeat: real Admin process on 127.0.0.1:8791 and local-test intake on 127.0.0.1:8792. Periodic generated_at values 2026-09-29T03:18:02.474067+00:00 and 2026-09-29T03:20:02.725221+00:00. Gap 120.251 seconds.
 
-I. Event triggers: serve.ready/stopped/failed, admit.released/rejected/reconciliation_detected, plan.created/stale, foundation.selected, model.selected/acquisition/qualification, capacity.safe_envelope.derived, witness contradictory/failed. Coalesce 45 seconds. Failure and admission rejection flush immediately. Send stays off the request path.
+I. Production profile remains 21600 seconds with a phase cap of 900 seconds. Tests configure it explicitly.
 
-J. Settings triggers: telemetry enablement, endpoint, cadence, credential configure, and observed macropath, model, version, or SAFE-byte changes. UI theme and aliases do not trigger a deployment report.
+J. ACK: wrong report id leaves the row queued and last_acked empty. Journal offset does not move before ACK. Event reports do not move next_periodic_at.
 
-K. Outbox: canonical JSON is stored before send. Ack marks delivered and records last_acked. Failure keeps the row, backoff 30s doubling to 1 hour. Cap 24 queued reports. Restart reads the same sqlite file.
+K. Sequence 1 then 3 then late 2: high stays 3, the late row is out_of_order, and the gap becomes missing:2 until 2 arrives, then none. Latest trigger stays with the highest sequence. Receipt time still updates.
 
-L. Report contract: kernel.operational_report version 1, schema rukan.operational_report, privacy rukan.telemetry.export.1. Max 512000 bytes, 64 events, 32 rollups, 16 triggers.
+L. Usage accounting is unchanged: OpenAI and Ollama counts when present, Rukan boundary latency, operator_test versus acceptance_probe, no prompt text.
 
-M. Credential: tkey_ id plus token_urlsafe secret, shown once. Receiver stores sha256 only. Bound to one install_id. Rotate revokes the old key.
+M. People contracts: kernel.directory_user, kernel.directory_team, kernel.directory_membership, kernel.access_intent, kernel.effective_access.
 
-N. TLS: non-loopback without a certificate fails closed. Loopback plaintext requires --local-test. Python ssl with operator cert/key. No reverse proxy in the ontology.
+N. Persistence: <store>/directory.sqlite schema 1, separate from telemetry and Command Center. Audit file stores ids, not emails.
 
-O. Usage record: kernel.inference_usage version 1. Purposes operator_test, acceptance_probe, user_request. Admin tester cannot label user_request.
+O. Users API: POST /v1/people actions create_user, update_user, set_status, list. Duplicate normalized email is refused. Deactivated users are not reactivated.
 
-P. Native tokens: OpenAI usage.prompt_tokens and usage.completion_tokens when present.
+P. Teams API: create_team, update_team, set_team_status, add_membership, remove_membership. Archive keeps the membership row.
 
-Q. Ollama tokens: prompt_eval_count and eval_count when present. total_duration is runtime duration, not Rukan latency.
+Q. Resolver: effective action returns capabilities, provenance, configured true, enforcement gateway_not_available. No session and no inference route.
 
-R. Latency: wall clock at the Admin completion boundary, milliseconds. Not TTFT.
+R. Privacy: report dump rejects email keys. Canary name and email were absent from the outbox body, the audit line, and command.sqlite.
 
-S. Aggregation: requests, success, failure, token sums and sample counts, latency sum/count/min/max and average. No percentile.
+S. Audit actions: user.created, user.updated, user.status_changed, team.created, team.updated, team.archived, team.reactivated, membership.added, membership.removed, access_intent.changed. They appear on local Admin Activity only.
 
-T. Admin navigation: Overview, Models, Deployment, Inference, Analytics, Activity, System, Settings.
+T. Admin navigation adds People. Overview stays the readiness, model, usage, and monitoring summary.
 
-U. Overview: readiness sentence, active model, 24h usage, SAFE capacity, monitoring queue, recent activity. No numeric health score.
+U. Models library is unchanged: exact artifact or digest cards, no Recommended row.
 
-V. Models: exact artifact or digest cards. Family only when stored. Running/Installed/Compatible/Available from real state. Recommended omitted.
+V. People page lists users and teams, creates both, and states that login is not enabled.
 
-W. Analytics: 24h, 7d, 30d, all, plus the existing operational-event view.
+W. Analytics still shows requests, tokens, latency, and purpose. Activity appends directory ids locally.
 
-X. Activity: timestamp, action, outcome, actor origin, subject. No secrets or paths.
+X. Settings shows Development — every 2 minutes, Production — every 6 hours, or custom seconds, plus phase, next slot, and last ACK time.
 
-Y. Settings: reporting, endpoint, key id, secret entry, cadence, categories, exclusions, preview, send test. Deployment controls read-only.
+Y. Command Center deployments show the reported cadence text and judge lateness from that interval, not a fixed 6 hours. They do not say online or offline.
 
-Z. Command Center navigation: Overview, Deployments, Detail, Analytics, Models, Reporting, Settings, Import.
+Z. Portfolio, reporting, and model landscape remain report evidence. They do not read directory.sqlite.
 
-AA. Overview counts known deployments, reports, cadence freshness, and rejected reports. Wording stays report-centric.
+AA. Soak used the real admin serve and command-center intake processes, not the browser. Two periodic reports arrived 120.251 seconds apart. The run exited 0. SIGINT previously printed a KeyboardInterrupt from the server loop; serve paths now catch that interrupt and close the databases.
 
-AB. Deployments show last report, report age, and cadence label. Detail includes report history and support evidence.
+AB. Playbook: docs/machi/RUKAN-REAL-USER-ACCEPTANCE-V0.3.md. SSH tunnel to loopback Admin. No public Admin. No RunPod.
 
-AC. Existing deployment analytics remain. Usage rollups feed the landscape.
+AC. `python -m machi.main acceptance preflight --data-dir <dir> --cert <cert> --key <key>` checks writability and optional cert paths. Evidence layout is acceptance-evidence/ and is gitignored.
 
-AD. Model landscape cards use reported model identity, deployment count, requests, tokens, and failures.
+AD. Later commands are in the playbook: admin serve, command-center serve, intake with cert and key, credential issue, ssh -L 8765:127.0.0.1:8765. This run did not execute them against a remote host.
 
-AE. Reporting shows accepted, rejected, gaps, key ids, and rejection reasons. No secrets.
+AE. Admin stays loopback. Intake write-only. Non-loopback plaintext still fails closed. Credential file remains mode 0600 on POSIX. No passwords.
 
-AF. Issue, rotate, and revoke from the loopback settings API and the credential CLI. Secret prints once.
+AF. Admin vitest 4, tsc, vite build. Command Center vitest 5, tsc, vite build.
 
-AG. Privacy: prohibited content keys fail the report. Credential file mode 0600. Rejected bodies are not stored. Intake has no read or control routes.
+AG. tests/machi 631 passed. tests/acceptance_lab 51 passed, collected separately. ruff check . passed. mypy --strict src/machi: 200 files, no issues.
 
-AH. Local acceptance: tests/machi/test_rukan_monitoring.py covers parsers, purpose split, coalesce, outbox retry and restart, good/bad/revoked credentials, install mismatch, idempotency, sequence gap, privacy rejection, plaintext refusal, explicit loopback HTTP, and a temporary OpenSSL HTTPS listener on 127.0.0.1. Production Admin was exercised at http://127.0.0.1:8766/ and Command Center at http://127.0.0.1:8780/.
+AH. Wheel machi-0.1.0-py3-none-any.whl, build id 0.1.0+fd13ede75530, SHA256 a4c3df4ced22426717bc8f24f3448c1756004a8b7ba5be7696fb5f6c299f8f32, size 398037, clean_source true. verify_ok.
 
-AI. External acceptance was not run. The environment had no Rukan intake hostname, certificate, or domain variable. Remaining inputs:
-* a hostname or address customer deployments can reach;
-* a TLS certificate and private key for that name;
-* the intake bind address, port, and firewall opening;
-* the public https URL to save in Admin monitoring settings.
-Command: python -m machi.main command-center intake --data-dir <dir> --host <address> --port 8781 --cert <cert> --key <key>
+AI. Command Center schema 4 adds cadence_profile and cadence_seconds. Version 3 upgrades in place. Directory schema starts at 1. Report contract fields replaced cadence_hours before promotion. Fingerprint regenerated.
 
-AJ. Customer host keeps Admin running: python -m machi.main admin serve --store-dir <store> --journal-dir <journal> --static-dir ui/admin/dist --port 8765. This session used 8766 because 8765 was already listening. Vendor host keeps Command Center on 127.0.0.1:8780 and, separately, the intake process. Outbox and usage survive in <store>/rukan-telemetry.sqlite. Restart Admin to resume the agent. Inbox files are not deleted by Remove.
+AJ. No employee login, gateway, chat, LibreChat, Agent Builder, RAG, remote control, or public intake. Team roles are deferred. R-03-01 deployment settings remain read-only.
 
-AK. Admin production build and Command Center production build succeeded. Browser checks: Admin Overview, Models, Analytics, Settings; Command Center Overview, Reporting, Settings. Command Center JavaScript is served as text/javascript.
+AK. Next stage can authenticate a user, call the effective-access resolver, and only then open a gateway in front of an admitted ServingInstance. Do not start it here.
 
-AL. tests/machi 626 passed on the full rerun. One earlier run had a single unrelated failure in test_slow_progress_outlasts_inactivity_interval; that test passed alone and in the rerun. tests/acceptance_lab 51 passed, collected separately. ruff check . passed. mypy --strict src/machi: 196 files, no issues. Admin vitest 4 passed. Command Center vitest 5 passed. Both tsc and vite builds passed.
+AL. Git: branch rukan/connected-monitoring-v0.3, committed YES, pushed YES. origin/machi unchanged.
 
-AM. Wheel machi-0.1.0-py3-none-any.whl, build id 0.1.0+0e87b9cd80e5, SHA256 c53037f1881ca476d799b5fabc912ae007d493f3fd555228ec4a9fe89d7a4c13, size 387754, clean_source true. verify_machi.py: verify_ok.
-
-AN. Command Center schema 3. Version 2 gains report columns and intake tables. Version 1 still rebuilds sources, then follows the version 2 upgrade. Usage sqlite starts at schema 1. Schema fingerprint regenerated.
-
-AO. Limitations: no human login, no remote control, no percentiles, no Recommended models, no deployment-setting mutation, no backfill of missed windows, no public intake. R-03-01 is open.
-
-AP. Recommended next increment: Lead review, then an owned HTTPS intake endpoint acceptance. Do not start it here.
-
-AQ. Git: branch rukan/connected-monitoring-v0.3, committed YES, pushed YES. Untracked docs/machi/proposals/ only. origin/machi unchanged at d38a8e855f099f353e1ac090b990014eed67a826.
-
-AR. STOP
+AM. STOP
 
 EVIDENCE:
 
-* focused tests: tests/machi/test_rukan_monitoring.py
-* regression tests: tests/machi 626; tests/acceptance_lab 51
-* wheel verify_ok as listed above
+* focused tests: test_rukan_monitoring.py, test_rukan_people.py, tools/rukan_dev_soak.py
+* regression tests: tests/machi 631; tests/acceptance_lab 51
+* soak gap_s 120.251154
 
 SOURCE SIDE (real-host stages):
 
-* predecessor: d38a8e855f099f353e1ac090b990014eed67a826
-* source commit(s): 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4
-* files changed: usage, report, telemetry, intake, Admin, Command Center, docs
+* predecessor: 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4
+* source commit(s): fd13ede7553011033a140d1206982f54536b7032
+* files changed: cadence, telemetry, intake, people directory, Admin, Command Center, playbook
 * local tests: listed above
-* final source commit: 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4
-* artifact / SHA-256 / build id: machi-0.1.0-py3-none-any.whl / c53037f1881ca476d799b5fabc912ae007d493f3fd555228ec4a9fe89d7a4c13 / 0.1.0+0e87b9cd80e5
+* final source commit: fd13ede7553011033a140d1206982f54536b7032
+* artifact / SHA-256 / build id: machi-0.1.0-py3-none-any.whl / a4c3df4ced22426717bc8f24f3448c1756004a8b7ba5be7696fb5f6c299f8f32 / 0.1.0+fd13ede75530
 
 DEPLOYMENT SIDE (real-host stages):
 
-* target host and fingerprint: none; no owned external endpoint
+* target host and fingerprint: none; playbook only
 * transferred hash == local hash: not applicable
 * installed build identity: not applicable
 * install/upgrade result: not applicable
-* commands under acceptance: local only
-* observations and diagnostics: not applicable
-* acceptance result: local connected pass; external endpoint required
-* attempts, if more than one: one
+* commands under acceptance: local soak and preflight only
+* observations and diagnostics: two periodic reports 120.251 seconds apart
+* acceptance result: local functional pass; server campaign not run
+* attempts, if more than one: one soak
 
 BEHAVIOR:
 
-* A deployment can record usage, queue a report, and upload it with a deployment credential.
-* Command Center stores the report, sequence, trigger, and gap without becoming host authority.
-* Upload failure does not block inference.
-* Prompts and responses are not in the usage store or the report.
+* Development reports repeat on a stable 120-second phase.
+* An event report does not postpone that phase.
+* People can be created locally and do not appear in Command Center.
 
 SCOPE:
 
-* non-goals preserved: human auth, remote control, Knowledge, RAG, Team Brain, LibreChat, Dynamo, licensing, Kubernetes, GPU qualification
-* adjacent issues recorded: R-03-01 read-only deployment settings; untracked docs/machi/proposals/ not committed
+* non-goals preserved: employee login, gateway, chat, RAG, remote control, paid infrastructure
+* adjacent issues recorded: R-03-01; untracked docs/machi/proposals/ not committed
 
 GIT:
 
@@ -174,7 +151,7 @@ QUESTIONS / DECISIONS:
 
 NEXT:
 
-* Lead review of 0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4
+* Lead review of fd13ede7553011033a140d1206982f54536b7032
 * DO NOT begin it
 
 ================================================================================

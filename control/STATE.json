@@ -96,6 +96,18 @@
         "reporting_intake",
         "settings"
       ],
+      "correction": {
+        "issues": [
+          "periodic_schedule_independent_of_event_reports",
+          "ack_owned_source_cursors",
+          "no_silent_unacked_report_drop",
+          "delivery_timestamp_truth",
+          "out_of_order_report_summary_and_gap_reconciliation",
+          "ack_report_id_validation"
+        ],
+        "starting_source": "0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4",
+        "status": "SUPERSEDED_BY_FUNCTIONAL_FINISH"
+      },
       "external_acceptance_statuses": [
         "RUKAN_CONNECTED_MONITORING_V0_3_CONNECTED_PASS",
         "RUKAN_CONNECTED_MONITORING_V0_3_LOCAL_PASS_EXTERNAL_ENDPOINT_REQUIRED"
@@ -115,19 +127,39 @@
         "purpose",
         "model",
         "runtime"
-      ],
-      "correction": {
-        "starting_source": "0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4",
-        "status": "SUPERSEDED_BY_FUNCTIONAL_FINISH",
-        "issues": [
-          "periodic_schedule_independent_of_event_reports",
-          "ack_owned_source_cursors",
-          "no_silent_unacked_report_drop",
-          "delivery_timestamp_truth",
-          "out_of_order_report_summary_and_gap_reconciliation",
-          "ack_report_id_validation"
-        ]
-      }
+      ]
+    },
+    "rukan_functional_v0_3_finish": {
+      "branch": "rukan/connected-monitoring-v0.3",
+      "current_candidate": "0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4",
+      "instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
+      "people_foundation": {
+        "access_intent": true,
+        "employee_authentication": false,
+        "employee_gateway": false,
+        "local_only": true,
+        "memberships": true,
+        "teams": true,
+        "users": true,
+        "vendor_export_pii": false
+      },
+      "server_acceptance": {
+        "admin_remote_access": "ssh_tunnel_until_human_auth",
+        "paid_infrastructure": false,
+        "prepare_only": true,
+        "run_external": false
+      },
+      "telemetry_profiles": {
+        "development": {
+          "default_now": true,
+          "interval_seconds": 120
+        },
+        "production": {
+          "default_now": false,
+          "interval_seconds": 21600
+        }
+      },
+      "terminal_success_status": "RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY"
     },
     "rukan_ui_v0_1": {
       "admin": [
@@ -170,42 +202,10 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
-    "rukan_functional_v0_3_finish": {
-      "instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
-      "branch": "rukan/connected-monitoring-v0.3",
-      "current_candidate": "0e87b9cd80e52f2a0c0d528f41076b33f4c1ddf4",
-      "telemetry_profiles": {
-        "development": {
-          "interval_seconds": 120,
-          "default_now": true
-        },
-        "production": {
-          "interval_seconds": 21600,
-          "default_now": false
-        }
-      },
-      "people_foundation": {
-        "local_only": true,
-        "users": true,
-        "teams": true,
-        "memberships": true,
-        "access_intent": true,
-        "employee_authentication": false,
-        "employee_gateway": false,
-        "vendor_export_pii": false
-      },
-      "server_acceptance": {
-        "prepare_only": true,
-        "run_external": false,
-        "admin_remote_access": "ssh_tunnel_until_human_auth",
-        "paid_infrastructure": false
-      },
-      "terminal_success_status": "RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY"
-    }
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
   "published_instruction_id": "RUKAN-FUNCTIONAL-PRODUCT-V0.3-FINISH-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_RUKAN_V0_3_FUNCTIONAL_FINISH"
+  "status": "PASTEBACK_PUBLISHED"
 }
