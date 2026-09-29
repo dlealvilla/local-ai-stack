@@ -111,14 +111,8 @@ class StoreChat:
         if model != self.model_id:
             raise ValidationError("model_not_allowed")
         body = json.dumps(
-            {
-                "model": model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "stream": stream,
-                "stream_options": {"include_usage": True},
-            }
-        ).encode("utf-8")
+            _chat_body(model, messages, max_tokens, stream)
+        ).encode()
         request = urllib.request.Request(
             f"http://127.0.0.1:{self._port}/v1/chat/completions",
             data=body,
@@ -418,6 +412,21 @@ class GatewayService:
 
 def status_for(code: str) -> int:
     return _PUBLIC_ERRORS.get(code, 400)
+
+
+def _chat_body(
+    model: str, messages: list[dict[str, str]], max_tokens: int, stream: bool
+) -> dict[str, object]:
+    """vLLM rejects stream_options unless the request is actually streaming."""
+    payload: dict[str, object] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "stream": stream,
+    }
+    if stream:
+        payload["stream_options"] = {"include_usage": True}
+    return payload
 
 
 def _messages(body: dict[str, object]) -> list[dict[str, str]]:

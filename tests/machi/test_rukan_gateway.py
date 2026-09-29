@@ -15,7 +15,7 @@ from jwt.algorithms import RSAAlgorithm
 
 from machi.adapters.rukan.credentials import issue_credential, verify_credential
 from machi.adapters.rukan.directory import Directory
-from machi.adapters.rukan.gateway import GatewayService, UpstreamResult
+from machi.adapters.rukan.gateway import GatewayService, UpstreamResult, _chat_body
 from machi.adapters.rukan.gateway_http import _server
 from machi.adapters.rukan.librechat import (
     LIBRECHAT_DIGEST,
@@ -467,3 +467,11 @@ def test_directory_migration_keeps_team_grants(tmp_path: Path) -> None:
     assert stored["inference_access"] == "allow"
     assert stored["agent_use"] == "deny"
     migrated.close()
+
+
+def test_non_streaming_request_omits_stream_options() -> None:
+    quiet = _chat_body("mart_test", [{"role": "user", "content": "hi"}], 8, False)
+    flowing = _chat_body("mart_test", [{"role": "user", "content": "hi"}], 8, True)
+    assert "stream_options" not in quiet
+    assert quiet["stream"] is False
+    assert flowing["stream_options"] == {"include_usage": True}
