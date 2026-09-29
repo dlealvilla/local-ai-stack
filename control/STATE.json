@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "run_rukan_v0_3_production_readiness_gate",
-  "expected_pasteback_instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
-  "instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
+  "expected_cursor_action": "fix_rukan_v0_3_post_audit_accountability_blockers",
+  "expected_pasteback_instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
+  "instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
   "program": {
     "canonical_baseline": "d38a8e855f099f353e1ac090b990014eed67a826",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_audit_harden_and_prove_v0_3_production_candidate_then_lead_review",
+    "next_action": "cursor_fix_usage_retention_rollup_migration_and_stream_semantics_then_lead_review",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -227,7 +227,18 @@
         "RUKAN_V0_3_NOT_READY_FOR_SERVER_ACCEPTANCE"
       ],
       "starting_source": "fd13ede7553011033a140d1206982f54536b7032",
-      "target": "bounded_production_candidate_ready_for_server_acceptance"
+      "target": "bounded_production_candidate_ready_for_server_acceptance",
+      "correction": {
+        "starting_source": "5aaa43d81645c8266f3cad11b91aa57e93d59b96",
+        "issues": [
+          "cumulative_usage_regresses_after_retention",
+          "rollup_group_cap_acks_unsent_usage",
+          "legacy_usage_sequence_not_backfilled",
+          "telemetry_stream_reset_not_current_stream_aware"
+        ],
+        "status": "CORRECTION_REQUIRED",
+        "lead_acceptance": "WITHHELD"
+      }
     },
     "runpod_policy": {
       "amd_max_hourly_usd": 4,
@@ -243,8 +254,8 @@
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
     "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
-  "published_instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-GATE-001",
+  "published_instruction_id": "RUKAN-V0.3-PRODUCTION-READINESS-FIX-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_RUKAN_V0_3_POST_AUDIT_FIX"
 }
