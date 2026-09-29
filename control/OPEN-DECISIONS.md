@@ -1,5 +1,149 @@
 # Open Decisions
 
+## Development telemetry cadence / acceptance readiness — binding
+
+- Telemetry cadence becomes a typed, centrally configurable policy expressed internally in **seconds**, not an hours-only field.
+- Preserve the product production target of **6 hours**.
+- During the current development/real-user acceptance phase, the default **development profile is 120 seconds (2 minutes)** so deployment/report behavior can be observed quickly.
+- Use explicit named profiles at minimum:
+  - `development`: interval 120 seconds; small deterministic phase/jitter suitable for tests;
+  - `production`: interval 21600 seconds (6 hours); deterministic fleet-distribution phase up to the approved production jitter.
+- A bounded custom interval may be supported through one authoritative setting/CLI/API seam. Do not scatter cadence constants across scheduler, report contracts, UI and tests.
+- The periodic schedule is independent from event-triggered reports. Event/model/settings/test reports never postpone the next periodic slot.
+- Jitter establishes a stable phase; it does not accumulate on each interval.
+- Admin/Command Center must display the active cadence/profile truthfully.
+- Before commercial release, switching the default from development to production must be one central product-policy change, not a code sweep.
+
+### Real-user/server acceptance preparation
+
+- Prepare, document and locally validate a repeatable server acceptance workflow, but **do not run external/server acceptance yet** unless Daniel explicitly starts that campaign.
+- Acceptance should be designed for Daniel to act as the real customer administrator:
+  - deploy/start Rukan;
+  - access Rukan Admin safely;
+  - browse/select/inspect models;
+  - perform inference tests;
+  - observe usage;
+  - change permitted monitoring/configuration settings;
+  - manage people/teams/access intent;
+  - stop/release deployment;
+  - observe event and 2-minute periodic reports arrive in Command Center.
+- Until human authentication exists, customer Admin remains loopback-only. Remote browser testing should use an operator-controlled SSH tunnel or equivalent local forwarding rather than exposing Admin unauthenticated on the network.
+- The only externally exposed surface in this stage is the bounded machine-authenticated HTTPS telemetry intake.
+- Prepare an evidence checklist and exact commands for at least:
+  - customer Rukan host;
+  - business/operator Command Center host/PC;
+  - secure telemetry pairing;
+  - 2-minute reporting;
+  - deployment READY/STOP/report triggers;
+  - inference token/latency accounting;
+  - telemetry outage/retry;
+  - privacy/content-negative checks;
+  - user/team directory administration.
+- Do not consume RunPod or other paid server capacity during preparation.
+
+## People / Teams / future employee access foundation — binding
+
+Rukan now needs a first-class customer-local people directory so identity is not retrofitted after the employee gateway/chat experience.
+
+### Product boundary
+
+- Build the **directory, team membership, access-policy intent, administration UI/API, persistence, audit/accountability and future authorization seam now**.
+- Do **not** build employee login, authentication sessions, email delivery, invite links, employee inference endpoint, chat UI, agent builder, LibreChat/Open WebUI integration, RAG/knowledge permissions or remote provisioning yet.
+- Until an employee gateway actually consumes the policy, UI must not claim that a configured person can already log in or that inference access is enforced.
+
+### Directory concepts
+
+Use Rukan-owned typed identities. Cursor may refine exact contract names after architecture review, but the model must distinguish at least:
+
+- **User**:
+  - platform-minted stable user id;
+  - normalized unique email plus display email;
+  - display name;
+  - lifecycle/status such as active/suspended/deactivated (do not invent "invited" if no invitation was sent);
+  - created/updated timestamps;
+  - optional external identity reference seam for future IdP reconciliation;
+- **Team**:
+  - stable team id;
+  - name;
+  - optional description;
+  - active/archived state;
+- **Membership**:
+  - explicit user ↔ team relationship;
+  - timestamps/provenance;
+  - optional bounded membership role only if repository/product review demonstrates a current need;
+- **Access intent/policy seed**:
+  - whether the user is intended to have platform access;
+  - whether future inference access is allowed;
+  - whether future end-user model selection is allowed;
+  - whether future agent-builder access is opted in/allowed;
+  - explicit enforcement state showing that future employee gateway enforcement is not active yet.
+
+Do not store passwords.
+
+Do not build a generic enterprise RBAC engine prematurely.
+
+### Authorization seam
+
+Preserve the Product Vision principle that one future `AccessContext` / subject model should serve gateway, analytics, knowledge, agents and audit.
+
+The old `src/kultrun/identity/contracts.py` may be used as design precedent, not copied blindly.
+
+Create the smallest Rukan-owned resolver/projection needed so a future gateway can ask:
+
+- who is this subject?;
+- which teams do they belong to?;
+- is the directory record active?;
+- what is the current intended inference/access policy?;
+- what team/user policy provenance produced that result?
+
+Default-deny and conservative composition are preferred. If multiple-team policy composition creates a material design choice, document and challenge it rather than inventing complex RBAC.
+
+### Privacy
+
+- User emails, names, memberships and external identity references are **customer-local restricted PII**.
+- They must never enter vendor/Command Center telemetry in this increment.
+- Command Center may not receive user lists.
+- If later product telemetry needs user/team counts, that requires an explicit privacy/product decision.
+- Admin activity events may cite stable local user/team ids where locally appropriate, but vendor export must exclude directory PII.
+
+### Admin product surface
+
+Add a customer Admin surface named **People** or **Users & Teams** based on UX review.
+
+It should support real local CRUD/state changes backed by persistence:
+- list/search users;
+- create/edit user;
+- suspend/reactivate/deactivate;
+- show stable id and email;
+- list/create/edit/archive teams;
+- assign/remove team membership;
+- inspect effective access intent;
+- configure supported access-intent toggles;
+- show clearly which future capabilities are not yet enforceable;
+- show recent directory/access changes in Activity.
+
+Do not clutter the main Overview. A small truthful summary such as active users/team count may appear only if useful.
+
+### Future capability controls
+
+Where the backend contract is implemented, allow the administrator to configure intent such as:
+- platform access enabled/disabled;
+- future inference access enabled/disabled;
+- future user model-selection permission;
+- future agent-builder opt-in/permission.
+
+Every future-only control must display an enforcement/readiness state such as **Configured — employee gateway not yet enabled**. Never imply that toggling it changes a non-existent employee endpoint.
+
+### Accountability
+
+Record actor origin and before/after-safe change evidence for:
+- user created/updated/status changed;
+- team created/updated/archived;
+- membership added/removed;
+- access intent changed.
+
+Do not put email addresses/secrets into vendor-exportable operational events.
+
 ## Automatic monitoring / telemetry loop — binding direction
 
 Rukan is moving from manual analytics-file transfer to a **one-way automatic operational reporting loop**. This is monitoring and accountability, not remote control.
