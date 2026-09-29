@@ -186,3 +186,28 @@ Not clean. The confidence streak is 0. The clean diagnostic streak is 0. The nex
 - The test prompt was not in the Command Center database
 
 Violated invariant: after STOP, RELEASE must free the deployment reservation. A finished qualification probe must not become the chain merely because its instance id sorts later.
+
+## Corrected wheel
+
+- Source: `77923d0587a7ca4519a1a90dd5097a89ca4844e2`
+- Wheel SHA256: `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`
+- Build: `0.1.0+77923d0587a7`
+- Clean streak after C1: 0. D4 is the next diagnostic.
+
+## Diagnostic D4
+
+Clean on the corrected wheel. Streak is 1. Next is D5 on this same wheel.
+
+- Pod `2kc05bh8umsytx`, NVIDIA L40S, secure, CUDA 13.0, US-TX-4, `$1.09/hour`
+- Created `2026-09-29T10:56:56Z`, terminated after the evidence below
+- Install `inst_5cb1ca809d89c788`
+- First deploy `dop_3255ab5443cf799e`, reservation `rsv_4b2a5cce97937d11`
+- After STOP the chain still named that reservation and it stayed reserved
+- RELEASE freed that reservation. No active hold remained
+- Second deploy `dop_7d12e3c700d93369`, reservation `rsv_db2109103171ac49`, instance `sin_992726a53676e728`
+- Admin restart kept that ready operation
+- STOP left that second reservation held; RELEASE released it
+- Three inferences on the first deployment: 3 input tokens, 8 output tokens
+- Development cadence 120. Reports included `deployment_ready`, `deployment_stopped`, `reservation_released`, and three `periodic` reports
+- Command Center usage was 3 requests, 9 input tokens, 24 output tokens
+- The test prompt was not stored
