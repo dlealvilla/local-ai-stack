@@ -1,5 +1,116 @@
 # Open Decisions
 
+## v0.5 Lead review — preliminary closure merged, Lead acceptance withheld pending correction
+
+Cursor reported `RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED` and merged PR #6 to canonical:
+
+- canonical: `machi@124a1424ab20e6fd3e2ca96ee7fedb0cef539198`
+- tested source: `8c68bdedb71f0faeec957bc14eb8b5062f9807fb`
+- evidence tree: `4f42c170ea624f10e0f07e56710376b8cae9b2e9`
+- wheel SHA256: `29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204`
+- historical tag: `checkpoint/rukan-core-product-closed-nvidia-vllm-124a142`
+
+Independent Lead review accepts the substantial implementation and physical evidence but WITHHOLDS final product-closure acceptance.
+
+Do not delete or rewrite the existing merge/tag. Preserve it as historical preliminary closure evidence. A corrected closure must supersede it.
+
+### Lead blockers
+
+1. **Workspace model selection is not actually implemented in the UI.**
+   - Backend route exists.
+   - Conversation stores `model_id`.
+   - Workspace Chat does not fetch/render/select allowed models.
+   - New chat posts no model id.
+   - Physical campaign therefore proved only the implicit single-model path.
+
+2. **Agent Builder is materially thinner than the requested product.**
+   - UI supports create + archive with name/instructions only.
+   - It does not provide actual model selection.
+   - It does not provide MCP server/tool selection.
+   - It does not provide edit/revision.
+   - It does not provide a clear "start chat with this agent" workflow.
+   - New agent submissions send `model_id: ""`.
+
+3. **Production automatic tool calling is not wired.**
+   - `StoreChat._chat_body` does not send OpenAI-compatible `tools` / `tool_choice`.
+   - `_messages` does not accept the `tool` role or structured tool-call continuation.
+   - `_sse_piece` does not parse standard `delta.tool_calls`.
+   - No production `StreamPiece("tool_call", ...)` is created.
+   - Workspace expects a custom `{"tool_call": "..."}` event that only the deterministic test double can produce.
+   - Therefore the local tool-loop test proves the loop controller, not real vLLM/OpenAI-compatible tool calling.
+
+4. **MCP official-SDK integration is tool-only.**
+   - Current provider lists tools and calls tools.
+   - It does not normalize/list/read Resources.
+   - It does not list/get Prompts.
+   - Acceptance fixture exposes only `ping`.
+   - Product requirement asked for a useful MCP connector, not only one ping tool.
+
+5. **OIDC browser flow lacks nonce verification.**
+   - Authorization Code + PKCE + state exist.
+   - No OIDC `nonce` is generated, sent, retained, or checked against the ID token.
+   - `_exchange` falls back to using `access_token` as login identity if `id_token` is absent.
+   - For an `openid` login, require and verify the ID token; do not treat an arbitrary OAuth access token as the OIDC identity token.
+
+6. **Secure-cookie semantics are wrong for reverse-proxy TLS termination.**
+   - Cookie `Secure` currently depends on direct backend TLS flag.
+   - A normal enterprise deployment may terminate HTTPS at a trusted reverse proxy while Workspace backend is HTTP.
+   - Secure cookie policy must derive from the configured external/public HTTPS origin or an explicit trusted deployment mode, not only the backend socket.
+
+7. **Static file containment check uses string-prefix logic.**
+   - `str(target).startswith(str(root))` is not a robust filesystem containment test.
+   - Replace with `Path.is_relative_to(root)` or equivalent canonical containment.
+
+8. **Per-message usage is not durably linked to the canonical Gateway usage id.**
+   - Workspace message rows have a `usage_id` column.
+   - Streaming Gateway accounting does not return the canonical usage id to Workspace.
+   - Workspace therefore stores token counts but not the authoritative usage-id relationship.
+   - Fix without double accounting.
+
+9. **Physical acceptance sequencing did not meet the written gate.**
+   - D1 was resumed after an initial timeout and did not prove bounded overload.
+   - D2 was the only explicitly clean diagnostic.
+   - Confidence C1 began before two consecutive clean diagnostics existed.
+   - Correction campaign must earn two consecutive clean diagnostics before freezing C1.
+
+10. **Physical Command Center privacy was not actually proven.**
+    - The campaign explicitly says Command Center was not sent a report.
+    - Scanning local operational telemetry is useful but is not equivalent to proving the vendor/Command Center allow-list boundary.
+    - At least one corrected physical run must deliver a real permitted telemetry report to a test Command Center receiver and prove conversation prompt/response, agent instructions, MCP payload, user email/name are absent.
+
+11. **Physical restore was not proven.**
+    - Campaign proves Workspace DB was included in backups.
+    - It does not prove a restore followed by service restart and preservation of conversation/agent/usage/provider state.
+    - One corrected physical run must perform the restore exercise.
+
+12. **Bounded load evidence is thinner than requested.**
+    - Three overlapping chats proved the overload path.
+    - Run a deterministic >=10-principal local test and a practical physical concurrency smoke that proves user isolation/accounting/conversation separation.
+
+### Non-blocking items that may remain deferred
+
+- conversation search;
+- conversation export;
+- richer themes;
+- RAG/documents;
+- voice/images;
+- arbitrary plugins;
+- team-shared agents;
+- AMD/macOS hardware breadth;
+- perfect MCP DNS address pinning (`R-04-01`) if admin-approved endpoint + TLS hostname validation + redirect refusal remain enforced and residual risk is documented.
+
+### Lead closure rule
+
+The current canonical merge remains usable as a strong preliminary core candidate.
+
+However, authoritative closure status is:
+
+`RUKAN_V0_5_PRELIMINARY_CORE_MERGED_LEAD_CORRECTION_REQUIRED`
+
+until the correction campaign passes.
+
+A corrected PASS must create a new truthful checkpoint tag on the new canonical SHA and mark the old `...124a142` tag as superseded in control/docs without deleting history.
+
 ## Rukan first-party Workspace becomes default; LibreChat becomes fallback — binding
 
 Rukan will no longer depend on Docker or LibreChat for the default employee product experience.
