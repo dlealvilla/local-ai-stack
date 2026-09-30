@@ -44,3 +44,26 @@ across an Admin restart, then stop and release both returned ok.
 The pod was terminated. get-pod for both campaign pods returns 404.
 This is one clean gateway diagnostic on the corrected wheel. It is not two
 clean diagnostics and it is not three confidence runs.
+
+## Hardening and D3
+
+Source `cae6a352717b8717ec96d840eb45ab17fd080bca`.
+Wheel SHA256 `ed2e8f8d49e156edd18ad17d9addaf134ac17af36d97e784cc0378adcf94eba1`.
+Build `0.1.0+cae6a352717b`.
+
+Local `tests/machi` and `tests/acceptance_lab` passed. Streaming now forwards
+each delta before the next upstream event. OIDC discovery refreshes an unknown
+key id once. Credential scopes are enforced per route, including `mcp`.
+Employee usage is one canonical event with an idempotent telemetry projection.
+
+Pod `k9py6sl7nn3csh`, secure A40, CUDA 13.0, EU-SE-1, `$0.49/hour`.
+Install `inst_6be942a1d8b960fb`. Deploy `dop_ebab978e859653c3` stayed ready
+across Admin restart. Gateway used discovery, not a static JWKS file.
+The same user matrix, scope revoke, MCP denial, reconciliation `match`, and
+privacy checks passed. Stop and release returned ok. Five reports were accepted.
+
+The pod image has neither Docker nor a working container engine. Rootless
+podman installed from the image packages and then failed with
+`cannot clone: Operation not permitted`. The pinned LibreChat container was
+not started. D3 is therefore not a full-stack clean diagnostic. Confidence
+was not started. The first-party workspace was not started.
