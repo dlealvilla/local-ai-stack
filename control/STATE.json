@@ -307,8 +307,37 @@
         "RUKAN_V0_3_SERVER_CAMPAIGN_NOT_READY"
       ]
     },
+    "rukan_v0_4_employee_access_product_closure": {
+      "branch": "rukan/user-access-gateway-v0.4",
+      "do_not_build_native_workspace_yet": true,
+      "master_instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
+      "next_product_increment": "first_party_rukan_workspace",
+      "phase_1_instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
+      "phase_2_instruction_id": "RUKAN-V0.4-EMPLOYEE-ACCESS-PRODUCT-CLOSURE-001",
+      "required_final_evidence": [
+        "true_end_to_end_streaming",
+        "enterprise_oidc_discovery_and_jwks_rotation",
+        "complete_api_credential_scope_enforcement",
+        "crash_consistent_usage_accounting",
+        "physical_librechat",
+        "user_lifecycle_and_identity_recovery",
+        "gateway_tls_and_proxy_boundary",
+        "workspace_adapter_lifecycle",
+        "mcp_governance_and_target_security",
+        "migrations_backup_recovery",
+        "load_and_failure_injection",
+        "two_clean_full_stack_diagnostics",
+        "three_fresh_confidence_runs"
+      ],
+      "terminal_statuses": [
+        "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_CLOSED",
+        "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_NOT_READY"
+      ]
+    },
     "rukan_v0_4_user_access_gateway": {
       "branch": "rukan/user-access-gateway-v0.4",
+      "clean_streak": 0,
+      "confidence_runs_completed": 0,
       "confidence_runs_required": 3,
       "core_components": [
         "rukan_user_gateway",
@@ -328,8 +357,21 @@
       "first_party_workspace_future": true,
       "generic_openai_api": true,
       "instruction_id": "RUKAN-V0.4-USER-ACCESS-GATEWAY-MCP-001",
+      "lead_review": {
+        "blockers": [
+          "gateway_streaming_is_buffered_not_end_to_end",
+          "production_oidc_lacks_discovery_and_jwks_rotation",
+          "api_credential_scopes_not_enforced_on_all_routes",
+          "principal_and_deployment_usage_writes_not_crash_consistent",
+          "librechat_not_physically_run"
+        ],
+        "evidence_tip": "ff92569a7ce4d644aef9ae2011d8735014c04778",
+        "source_sha": "459d34b34f2238b5af108c0fe822c4637603b754",
+        "status": "CORRECTION_REQUIRED"
+      },
       "librechat_dependency_policy": "replaceable_adapter_only",
       "mcp_role": "tool_and_data_plane_not_inference",
+      "next_diagnostic": "D3",
       "orchestrator_instruction_id": "RUKAN-V0.4-CLOSE-V0.3-THEN-USER-ACCESS-001",
       "per_user_usage": true,
       "preferred_identity": "OIDC",
@@ -345,22 +387,7 @@
         "RUKAN_V0_4_BLOCKED_BY_V0_3_CONFIDENCE",
         "RUKAN_V0_4_USER_ACCESS_NOT_READY",
         "RUKAN_V0_4_USER_ACCESS_GATEWAY_SERVER_CAMPAIGN_PASS"
-      ],
-      "lead_review": {
-        "source_sha": "459d34b34f2238b5af108c0fe822c4637603b754",
-        "evidence_tip": "ff92569a7ce4d644aef9ae2011d8735014c04778",
-        "status": "CORRECTION_REQUIRED",
-        "blockers": [
-          "gateway_streaming_is_buffered_not_end_to_end",
-          "production_oidc_lacks_discovery_and_jwks_rotation",
-          "api_credential_scopes_not_enforced_on_all_routes",
-          "principal_and_deployment_usage_writes_not_crash_consistent",
-          "librechat_not_physically_run"
-        ]
-      },
-      "next_diagnostic": "D3",
-      "clean_streak": 0,
-      "confidence_runs_completed": 0
+      ]
     },
     "runpod_policy": {
       "amd_max_hourly_usd": 4,
@@ -374,37 +401,10 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
-    "rukan_v0_4_employee_access_product_closure": {
-      "master_instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
-      "phase_1_instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
-      "phase_2_instruction_id": "RUKAN-V0.4-EMPLOYEE-ACCESS-PRODUCT-CLOSURE-001",
-      "branch": "rukan/user-access-gateway-v0.4",
-      "next_product_increment": "first_party_rukan_workspace",
-      "do_not_build_native_workspace_yet": true,
-      "terminal_statuses": [
-        "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_CLOSED",
-        "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_NOT_READY"
-      ],
-      "required_final_evidence": [
-        "true_end_to_end_streaming",
-        "enterprise_oidc_discovery_and_jwks_rotation",
-        "complete_api_credential_scope_enforcement",
-        "crash_consistent_usage_accounting",
-        "physical_librechat",
-        "user_lifecycle_and_identity_recovery",
-        "gateway_tls_and_proxy_boundary",
-        "workspace_adapter_lifecycle",
-        "mcp_governance_and_target_security",
-        "migrations_backup_recovery",
-        "load_and_failure_injection",
-        "two_clean_full_stack_diagnostics",
-        "three_fresh_confidence_runs"
-      ]
-    }
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
   "published_instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_V0_4_HARDEN_AND_PRODUCT_CLOSE"
+  "status": "PASTEBACK_PUBLISHED"
 }

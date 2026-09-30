@@ -1,77 +1,85 @@
-# RUKAN-V0.4-PROCEED-WITH-V0.3-CONFIDENCE-DEBT-001
+# RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001
 
-A. `RUKAN_V0_4_USER_ACCESS_NOT_READY`
+A. `RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_NOT_READY`
 
-B. v0.3 bounded acceptance is `RUKAN_V0_3_IMPLEMENTATION_ACCEPTED_PHYSICAL_CONFIDENCE_PENDING`. It is not `RUKAN_V0_3_SERVER_CAMPAIGN_PASS`.
+Phase 1 status: `RUKAN_V0_4_USER_ACCESS_NOT_READY`
 
-C. D4, D5, and corrected C1 were clean, including intake outage and recovery. C2 and C3 are `DEFERRED_PROVIDER_STOCK_PHYSICAL_CONFIDENCE`. Frozen source `77923d0587a7ca4519a1a90dd5097a89ca4844e2`. Wheel SHA256 `6c5482508806facf0d1b19d13325387ccdc2fd1bbc8ca24bba36ac89e27aeb33`. Build `0.1.0+77923d0587a7`.
+Phase 2 was not started. The product-closure phase does not begin until Phase 1 has a physical LibreChat proof, two full-stack clean diagnostics, and three confidence runs.
 
-D. Canonical `machi` is `16084a5b21a0cca25bfe60070ad862832c80fb51`. Tag `checkpoint/rukan-v0.3-implementation-accepted-physical-confidence-pending-16084a5`. Pull request 5.
+## Phase 1
 
-E. Branch `rukan/user-access-gateway-v0.4` was created from that canonical SHA. Evidence tip `ff92569a7ce4d644aef9ae2011d8735014c04778`.
+B. Starting implementation `459d34b34f2238b5af108c0fe822c4637603b754`. Hardening commit `cae6a352717b8717ec96d840eb45ab17fd080bca`. Evidence tip `b2cc72610a081c92558201e67889bd220a5216c2`.
 
-F. The User Gateway is the employee authority. LibreChat is the first replaceable workspace adapter. OIDC verification uses PyJWT. MCP uses Streamable HTTP. No product decision was left open.
+C. Streaming reads the upstream SSE socket incrementally. Each content delta is forwarded before the next upstream event is read. A local test pauses the fake upstream after the first chunk and observes that the downstream client already has that chunk.
 
-G. The workspace contract is the LibreChat adapter in `adapters/rukan`. It renders config and compose. It does not read LibreChat's database.
+D. That first-chunk test passed locally. The D3 server run completed streaming chats with usage. It did not record a separate first-byte clock against vLLM.
 
-H. LibreChat `v0.8.8-rc4`, commit `361553f3322d7b9bb547d0a9c2c5aaefc2934901`, image `ghcr.io/danny-avila/librechat@sha256:929f4491cb9a87d6beb02e9e9ce9a54d4ee05bc56b65b1debe5b1f28a327a4fb`. That release substitutes `{{LIBRECHAT_OPENID_ACCESS_TOKEN}}`.
+E. Client close, upstream error, malformed SSE, and missing usage are covered by the iterator. Missing usage is stored as `not_recorded`. The request is not replayed to repair accounting.
 
-I. A later thin Rukan workspace can use the same gateway, People, usage, and MCP catalog. `AgentDefinition` is a Rukan contract. LibreChat agents stay client-local.
+F. Production verification is `OidcDiscoveryVerifier`. It fetches `/.well-known/openid-configuration`, requires the issuer to match, and caches JWKS until the TTL. Static JWKS remains for deterministic tests. HTTP discovery is explicit and is only for a local test issuer.
 
-J. Routes: `GET /v1/models`, `POST /v1/chat/completions`, `GET /v1/me`, `GET /v1/me/usage`, `POST /mcp/{server_id}`. The runtime port is not returned.
+G. A local discovery server rotated from key A to key B. The first token for B refreshed the JWKS and verified. A token for the removed key then failed. D3 started the gateway with `--allow-http-discovery` and no static JWKS file. Issuer `http://127.0.0.1:40357/realms/rukan`.
 
-K. `OIDCBearerVerifier` checks signature, issuer, audience, expiry, not-before, and subject. The first matching approved email binds issuer and subject. A different subject cannot take over a bound email. Admin can reset the binding.
+H. API credential routes: `GET /v1/models` requires `models`, chat requires `inference`, `GET /v1/me/usage` requires `self_usage`, `GET /v1/me` requires only authentication. A scope does not grant a People capability. An inference-only key was denied for models, usage, and MCP, and was allowed to chat.
 
-L. Capabilities now include workspace, API credentials, MCP use, MCP connect, and agent use. Platform remains the parent gate. One request uses the earliest active team, or `unassigned`.
+I. MCP requires credential scope `mcp` and effective `mcp_use=allow` on an approved server. An inference-only key cannot call MCP. OIDC sessions are not scoped credentials; People policy still applies.
 
-M. API credentials are scrypt-hashed, shown once, and fail closed on suspend or revoke.
+J. One `gateway_events` row is the canonical employee fact. Telemetry is an idempotent projection marked on that row.
 
-N. A generic client used an API credential against the gateway. After revoke the same credential returned `authentication_required`.
+K. States are `match`, `projection_pending`, `degraded`, and `mismatch`. A pending projection is not reported as corruption.
 
-O. Streaming returns SSE. `stream_options` is included only when the request is streaming.
+L. A test blocked the telemetry projection, restarted the ledger, projected once, and found exactly one deployment usage row. A second projection did not double-count.
 
-P. Every employee call records one `user_request` and one principal row with the same usage id, one user, and one team context.
+M. D3 Admin reconciliation was `accounting_state=match` for 6 requests, 186 input tokens, and 44 output tokens.
 
-Q. On the corrected server, 6 requests, 186 input tokens, and 44 output tokens matched on the user ledger and the deployment ledger.
+N. The runtime port is not returned. Suspended and unprovisioned users were denied. The test email and the test prompt were absent from Command Center.
 
-R. `GET /v1/me/usage` and the `/me` page are the Rukan usage surface.
+O. LibreChat remains the pre-release compatibility target `v0.8.8-rc4`, commit `361553f3322d7b9bb547d0a9c2c5aaefc2934901`, digest `sha256:929f4491cb9a87d6beb02e9e9ce9a54d4ee05bc56b65b1debe5b1f28a327a4fb`. It is not a stable LibreChat release and not a Rukan core dependency.
 
-S. Admin analytics shows per-user totals and whether the user sum matches the deployment sum. Emails are not in that rollup.
+P. Pod `k9py6sl7nn3csh` was a secure A40 at `$0.49/hour`. The image had no Docker. Rootless podman then failed with `cannot clone: Operation not permitted`.
 
-T. Rukan owns the MCP catalog and the allow/deny decision. LibreChat-native execution cannot enforce two users without its database, so the gateway brokers approved Streamable HTTP servers.
+Q. LibreChat was not started. There was no OIDC login through LibreChat.
 
-U. D2 called a local Streamable HTTP fixture. The allowed user received the tool result. The restricted user was denied and could still chat.
+R. Live OpenID forwarding through LibreChat was not run. The gateway itself verified discovery tokens.
 
-V. LibreChat Agent Builder was not run. Agents created there would stay client-local. The adapter does not claim per-user agent ACL.
+S. LibreChat chat and streaming were not run.
 
-W. Rukan does not provide a VPN, firewall, WAF, or IdP. The gateway accepts an Authorization bearer and optional TLS.
+T. MCP through LibreChat was not run. The gateway broker allowed one user and denied the other.
 
-X. Command Center did not contain the test email or the test prompt.
+U. D3 user and deployment totals matched: 6 requests, 186 input tokens, 44 output tokens.
 
-Y. ruff passed. Strict mypy passed. `tests/machi` passed after one isolated rerun of the known concurrent Command Center lock test. `tests/acceptance_lab` passed. Both UIs typechecked and tested. Local Docker was unavailable.
+V. D3 is a clean gateway diagnostic on the hardened wheel. It is not a full-stack clean diagnostic because LibreChat did not run.
 
-Z. D1, pod `m5szhim516dyst`, secure A40, `$0.49/hour`, source `75ef24c`. Non-streaming requests failed because `stream_options` was sent on a non-streaming call. D2, pod `avwv1gaiyf4ewx`, same price and GPU class, corrected wheel, gateway path clean. Neither pod image had Docker, so the pinned LibreChat container did not start.
+W. No later full-stack diagnostic was run. The full-stack clean streak is 0.
 
-AA. Fix `459d34b34f2238b5af108c0fe822c4637603b754`. No server hot patch.
+X. Clean streak for the full stack is 0 of 2.
 
-AB. Confidence C1 was not started. The corrected wheel has one clean diagnostic, not two.
+Y. Confidence C1 was not started.
 
-AC. Confidence C2 was not started.
+Z. Confidence C2 was not started.
 
-AD. Confidence C3 was not started.
+AA. Confidence C3 was not started.
 
-AE. Corrected source `459d34b34f2238b5af108c0fe822c4637603b754`. Wheel SHA256 `9e37b427b06baa1f3856fa97c3038d49569dc38189b5774471c7b8f1cd59fc0d`. LibreChat digest as in H.
+AB. Wheel SHA256 `ed2e8f8d49e156edd18ad17d9addaf134ac17af36d97e784cc0378adcf94eba1`. Build `0.1.0+cae6a352717b`.
 
-AF. D2 totals: 6 requests, 186 input tokens, 44 output tokens. Ada 5 requests, 155 input, 36 output. Bob 1 request.
+AC. LibreChat digest unchanged, as in O. The container was not pulled.
 
-AG. Balance moved from `$39.2946230194` to `$39.035918236`. Both pods were `$0.49/hour` and both now 404.
+AD. D3 totals: 6 requests, 186 input, 44 output. Ada 5 requests, 155 input, 36 output. Bob 1 request.
 
-AH. Remaining GA blockers: `R-03-02`, `R-03-03`, `R-03-04`, `R-03-05`, `R-03-06`, `R-04-01`, plus the AMD, macOS/Ollama, and broader NVIDIA physical lanes.
+AE. Command Center did not contain `ada@example.invalid` or the test prompt. Admin user rollup did not contain the email.
 
-AI. Next product increment: a thin first-party Rukan workspace for chat, My Usage, and connections.
+AF. Balance moved from `$37.9012268042` to `$37.8286437283`. The pod was `$0.49/hour` and get-pod now returns 404. Other burn returned to `$0.113/hour`.
 
-AJ. `rukan/user-access-gateway-v0.4` is pushed at `ff92569a7ce4d644aef9ae2011d8735014c04778`. v0.4 was not merged to canonical. Proposals remain untracked.
+AG. Remaining blockers: physical LibreChat on a host that can run the pinned container; then two full-stack clean diagnostics and three confidence runs. GA debt remains `R-03-02`, `R-03-03`, `R-03-04`, `R-03-05`, `R-03-06`, and `R-04-01`.
 
-AK. Both campaign pods are terminated.
+## Phase 2
 
-AL. STOP
+Not started. Employee-access product closure waits for a Phase 1 pass.
+
+AH. Branch `rukan/user-access-gateway-v0.4` is pushed at `b2cc72610a081c92558201e67889bd220a5216c2`. Canonical `machi` was not moved. Proposals remain untracked.
+
+AI. The D3 pod is terminated.
+
+AJ. The next product increment remains a thin first-party Rukan workspace, after this backend can run the pinned LibreChat container and finish confidence. Do not start that UI on this result.
+
+AK. STOP
