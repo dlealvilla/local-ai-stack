@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "stop_for_lead_review_complete",
-  "expected_pasteback_instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
-  "instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
+  "expected_cursor_action": "deploy_real_rukan_admin_workspace_and_local_command_center_for_daniel",
+  "expected_pasteback_instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
+  "instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
   "program": {
     "canonical_baseline": "70e7c4571deb181b3b5478d10f5bbc74f2ee02e7",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "rukan_v0_5_core_closed_choose_next_product_phase",
+    "next_action": "deploy_accepted_rukan_on_real_nvidia_server_and_present_admin_workspace_plus_local_command_center",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -478,10 +478,23 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
+    "real_deployed_ui_demo": {
+      "instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
+      "canonical": "70e7c4571deb181b3b5478d10f5bbc74f2ee02e7",
+      "checkpoint": "checkpoint/rukan-core-product-lead-corrected-nvidia-vllm-70e7c45",
+      "admin_location": "customer_server_loopback",
+      "workspace_location": "customer_server_loopback",
+      "command_center_location": "operator_local_machine",
+      "docker_required": false,
+      "librechat_used": false,
+      "keep_server_running_until_daniel_finishes": true,
+      "terminal_success": "RUKAN_REAL_DEPLOYED_UI_DEMO_READY_FOR_DANIEL",
+      "terminal_blocked": "RUKAN_REAL_DEPLOYED_UI_DEMO_BLOCKED"
+    }
   },
-  "published_instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
+  "published_instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "LEAD_ACCEPTED_RUKAN_V0_5_CORE_PRODUCT_CLOSED"
+  "status": "AWAITING_CURSOR_REAL_DEPLOYED_UI_DEMO"
 }
