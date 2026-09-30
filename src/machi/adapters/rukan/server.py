@@ -263,12 +263,29 @@ class AdminApplication:
         ledger = GatewayLedger(self.store_root)
         try:
             users = ledger.analytics()
+            recon = _reconcile(self.store_root, users["employee"])
+            requests = recon["deployment_requests"]
+            state = ledger.accounting_state(
+                requests if isinstance(requests, int) else 0,
+                str(recon["deployment_input_tokens"]),
+                str(recon["deployment_output_tokens"]),
+            )
         finally:
             ledger.close()
+        if state == "projection_pending":
+            recon["match"] = False
+            recon["statement"] = "projection pending"
+        elif state == "degraded":
+            recon["match"] = False
+            recon["statement"] = "accounting degraded"
+        elif state == "mismatch":
+            recon["match"] = False
+            recon["statement"] = "accounting gap"
+        recon["accounting_state"] = state
         body["gateway_users"] = users["users"]
         body["gateway_teams"] = users["teams"]
         body["employee_usage"] = users["employee"]
-        body["reconciliation"] = _reconcile(self.store_root, users["employee"])
+        body["reconciliation"] = recon
         raw_missing = body["missing"]
         if isinstance(raw_missing, list):
             body["missing"] = [

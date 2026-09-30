@@ -15,7 +15,12 @@ from jwt.algorithms import RSAAlgorithm
 
 from machi.adapters.rukan.credentials import issue_credential, verify_credential
 from machi.adapters.rukan.directory import Directory
-from machi.adapters.rukan.gateway import GatewayService, UpstreamResult, _chat_body
+from machi.adapters.rukan.gateway import (
+    GatewayService,
+    StreamPiece,
+    UpstreamResult,
+    _chat_body,
+)
 from machi.adapters.rukan.gateway_http import _server
 from machi.adapters.rukan.librechat import (
     LIBRECHAT_DIGEST,
@@ -25,7 +30,7 @@ from machi.adapters.rukan.librechat import (
     require_supported,
 )
 from machi.adapters.rukan.mcp_policy import assert_endpoint
-from machi.adapters.rukan.oidc import OIDCBearerVerifier
+from machi.adapters.rukan.oidc import OIDCBearerVerifier, OidcDiscoveryVerifier
 from machi.adapters.rukan.server import AdminApplication
 from machi.kernel.build import BuildIdentity, BuildOrigin
 from machi.kernel.errors import ValidationError
@@ -62,6 +67,23 @@ class FakeChat:
         if model != self.model_id:
             raise ValidationError("model_not_allowed")
         return UpstreamResult("completed", "ok", 3, 5, ("ok",))
+
+    def iter_stream(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+    ):
+        del messages, max_tokens
+        self.calls += 1
+        if self.model_id is None:
+            raise ValidationError("no_ready_model")
+        if model != self.model_id:
+            raise ValidationError("model_not_allowed")
+        yield StreamPiece("delta", "ok")
+        yield StreamPiece("usage", "", 3, 5)
+        yield StreamPiece("done")
 
 
 def _material() -> tuple[rsa.RSAPrivateKey, dict[str, object]]:
@@ -475,3 +497,192 @@ def test_non_streaming_request_omits_stream_options() -> None:
     assert "stream_options" not in quiet
     assert quiet["stream"] is False
     assert flowing["stream_options"] == {"include_usage": True}
+
+
+class _PausingChat:
+    def __init__(self) -> None:
+        self.model_id: str | None = "mart_test"
+        self.instance_id = "sin_test"
+        self.macropath = "vllm"
+        self.release = threading.Event()
+        self.second_started = False
+
+    def refresh(self) -> None:
+        return None
+
+    def iter_stream(
+        self, *, model: str, messages: list[dict[str, str]], max_tokens: int
+    ):
+        del model, messages, max_tokens
+        yield StreamPiece("delta", "one")
+        if not self.release.wait(2):
+            raise TimeoutError("paused")
+        self.second_started = True
+        yield StreamPiece("delta", "two")
+        yield StreamPiece("usage", "", 2, 2)
+        yield StreamPiece("done")
+
+
+def test_stream_forwards_the_first_chunk_before_the_rest(tmp_path: Path) -> None:
+    service, _chat, key = _service(tmp_path)
+    pausing = _PausingChat()
+    service.upstream = pausing  # type: ignore[assignment]
+    ada = service.directory.create_user(
+        email="ada@example.invalid", display_name="Ada", actor="local_admin_ui", now=NOW
+    )
+    _allow(service.directory, str(ada["user_id"]))
+    token = _token(key)
+    principal = service.authenticate(f"Bearer {token}", client_id="generic", now=NOW)
+    generated = service.stream(
+        principal,
+        {"model": "mart_test", "messages": [{"role": "user", "content": "hi"}]},
+        now=NOW,
+    )
+    first = next(generated)
+    assert b"one" in first
+    assert pausing.second_started is False
+    pausing.release.set()
+    rest = b"".join(generated)
+    assert b"two" in rest
+    assert b"[DONE]" in rest
+    service.close()
+
+
+def test_credential_scopes_are_enforced_per_route(tmp_path: Path) -> None:
+    service, _chat, _key = _service(tmp_path)
+    ada = service.directory.create_user(
+        email="ada@example.invalid", display_name="Ada", actor="local_admin_ui", now=NOW
+    )
+    _allow(service.directory, str(ada["user_id"]))
+    issued = issue_credential(
+        service.directory,
+        user_id=str(ada["user_id"]),
+        label="infer-only",
+        scopes=("inference",),
+        ttl_seconds=3600,
+        now=NOW,
+        actor="local_admin_ui",
+    )
+    principal = service.authenticate(
+        f"Bearer {issued['secret']}", client_id="generic", now=NOW
+    )
+    with pytest.raises(ValidationError, match="scope_denied"):
+        service.models(principal)
+    with pytest.raises(ValidationError, match="scope_denied"):
+        service.my_usage(principal, "all", NOW)
+    with pytest.raises(ValidationError, match="scope_denied"):
+        service.mcp_call(principal, "status", {"method": "tools/list"}, now=NOW)
+    service.chat(
+        principal,
+        {"model": "mart_test", "messages": [{"role": "user", "content": "hi"}]},
+        now=NOW,
+        stream=False,
+    )
+    service.close()
+
+
+def test_projection_failure_reconciles_after_restart(tmp_path: Path) -> None:
+    service, _chat, key = _service(tmp_path)
+    ada = service.directory.create_user(
+        email="ada@example.invalid", display_name="Ada", actor="local_admin_ui", now=NOW
+    )
+    _allow(service.directory, str(ada["user_id"]))
+    bearer = f"Bearer {_token(key)}"
+    principal = service.authenticate(bearer, client_id="generic", now=NOW)
+    service.ledger.fail_projection = True
+    service.chat(
+        principal,
+        {"model": "mart_test", "messages": [{"role": "user", "content": "hi"}]},
+        now=NOW,
+        stream=False,
+    )
+    assert service.ledger.unprojected()
+    service.ledger.fail_projection = False
+    service.close()
+    restarted, _chat2, key2 = _service(tmp_path)
+    assert restarted.ledger.unprojected()
+    restarted._project_usage()
+    assert restarted.ledger.unprojected() == []
+    restarted._project_usage()
+    rows = restarted.telemetry._db.execute(
+        "SELECT COUNT(*) AS n FROM usage WHERE purpose = 'user_request'"
+    ).fetchone()
+    assert int(rows["n"]) == 1
+    assert restarted.ledger.accounting_state(1, "3", "5") == "match"
+    del key2
+    restarted.close()
+
+
+def test_discovery_refreshes_when_the_signing_key_rotates() -> None:
+    material = [_rsa_jwk("a"), _rsa_jwk("b")]
+    served = {"index": 0}
+    holder: dict[str, str] = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            issuer = holder["issuer"]
+            if self.path.endswith("openid-configuration"):
+                payload = {
+                    "issuer": issuer,
+                    "jwks_uri": issuer + "/jwks",
+                }
+            else:
+                payload = {"keys": [material[served["index"]]["public"]]}
+            raw = json.dumps(payload).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def log_message(self, *_args: object) -> None:
+            return
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    port = int(httpd.server_address[1])
+    issuer = f"http://127.0.0.1:{port}/realms/rukan"
+    holder["issuer"] = issuer
+    verifier = OidcDiscoveryVerifier(
+        issuer=issuer,
+        audience=AUDIENCE,
+        allow_http=True,
+    )
+    first = _signed(material[0], issuer)
+    assert verifier.verify(first)["subject"] == "subject-ada"
+    served["index"] = 1
+    second = _signed(material[1], issuer)
+    assert verifier.verify(second)["subject"] == "subject-ada"
+    gone = _signed(material[0], issuer)
+    with pytest.raises(ValidationError, match="authentication_required"):
+        verifier.verify(gone)
+    httpd.shutdown()
+
+
+def _rsa_jwk(kid: str) -> dict[str, object]:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public = json.loads(RSAAlgorithm.to_jwk(key.public_key()))
+    public["kid"] = kid
+    public["alg"] = "RS256"
+    public["use"] = "sig"
+    return {"private": key, "public": public}
+
+
+def _signed(material: dict[str, object], issuer: str) -> str:
+    private = material["private"]
+    public = material["public"]
+    assert isinstance(public, dict)
+    encoded = jwt.encode(
+        {
+            "iss": issuer,
+            "aud": AUDIENCE,
+            "sub": "subject-ada",
+            "email": "ada@example.invalid",
+            "exp": int((NOW + timedelta(minutes=5)).timestamp()),
+        },
+        private,  # type: ignore[arg-type]
+        algorithm="RS256",
+        headers={"kid": str(public["kid"])},
+    )
+    return encoded if isinstance(encoded, str) else encoded.decode()

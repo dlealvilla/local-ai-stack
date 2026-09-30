@@ -46,6 +46,31 @@ class GatewayLedger:
                 outcome TEXT NOT NULL,
                 occurred_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS gateway_events (
+                usage_id TEXT PRIMARY KEY,
+                request_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                accounting_team_id TEXT NOT NULL,
+                client_id TEXT NOT NULL,
+                auth_method TEXT NOT NULL,
+                model_identity TEXT NOT NULL,
+                macropath TEXT NOT NULL,
+                instance_id TEXT NOT NULL,
+                input_tokens TEXT NOT NULL,
+                output_tokens TEXT NOT NULL,
+                latency_ms TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                occurred_at TEXT NOT NULL,
+                install_id TEXT NOT NULL,
+                plan_id TEXT NOT NULL,
+                reservation_id TEXT NOT NULL,
+                generation_id TEXT NOT NULL,
+                failure TEXT NOT NULL,
+                status_code INTEGER NOT NULL,
+                version TEXT NOT NULL,
+                build_id TEXT NOT NULL,
+                telemetry_projected INTEGER NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS mcp_servers (
                 server_id TEXT PRIMARY KEY,
                 display_name TEXT NOT NULL,
@@ -60,6 +85,9 @@ class GatewayLedger:
             """
         )
         self._db.commit()
+        self.fail_append = False
+        self.fail_projection = False
+        self.degraded = 0
         restrict_owned(self.store_root)
         restrict_owned(self.store_root / "gateway.sqlite")
 
@@ -87,6 +115,92 @@ class GatewayLedger:
             )
             self._db.commit()
 
+    def append_canonical(self, usage: PrincipalUsage, **extra: str | int) -> bool:
+        """One durable employee fact. Projection to telemetry is separate."""
+        if self.fail_append:
+            self.degraded += 1
+            return False
+        with self._lock:
+            self._db.execute(
+                """
+                INSERT OR IGNORE INTO gateway_events(
+                    usage_id, request_id, user_id, accounting_team_id, client_id,
+                    auth_method, model_identity, macropath, instance_id,
+                    input_tokens, output_tokens, latency_ms, outcome, occurred_at,
+                    install_id, plan_id, reservation_id, generation_id, failure,
+                    status_code, version, build_id, telemetry_projected
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
+                """,
+                (
+                    usage.usage_id, usage.request_id, usage.user_id,
+                    usage.accounting_team_id, usage.client_id, usage.auth_method,
+                    usage.model_identity, usage.macropath, usage.instance_id,
+                    usage.input_tokens, usage.output_tokens, usage.latency_ms,
+                    usage.outcome, usage.occurred_at,
+                    str(extra.get("install_id", "not_recorded")),
+                    str(extra.get("plan_id", "not_recorded")),
+                    str(extra.get("reservation_id", "not_recorded")),
+                    str(extra.get("generation_id", "not_recorded")),
+                    str(extra.get("failure", "none")),
+                    int(extra.get("status_code", 0)),
+                    str(extra.get("version", "0")),
+                    str(extra.get("build_id", "not_recorded")),
+                ),
+            )
+            self._db.commit()
+        return True
+
+    def unprojected(self) -> list[sqlite3.Row]:
+        with self._lock:
+            return list(self._db.execute(
+                "SELECT * FROM gateway_events WHERE telemetry_projected = 0"
+            ))
+
+    def mark_projected(self, usage_id: str) -> None:
+        if self.fail_projection:
+            return
+        with self._lock:
+            self._db.execute(
+                """
+                UPDATE gateway_events SET telemetry_projected = 1
+                WHERE usage_id = ?
+                """,
+                (usage_id,),
+            )
+            self._db.commit()
+
+    def accounting_state(self, deployment_requests: int, deployment_input: str, deployment_output: str) -> str:  # noqa: E501
+        with self._lock:
+            pending = self._db.execute(
+                "SELECT COUNT(*) AS n FROM gateway_events WHERE telemetry_projected = 0"
+            ).fetchone()
+            rows = list(self._db.execute(
+                "SELECT input_tokens, output_tokens FROM gateway_events"
+            ))
+        if self.degraded:
+            return "degraded"
+        if pending is not None and int(pending["n"]) > 0:
+            return "projection_pending"
+        requests = len(rows)
+        unresolved = any(
+            str(row["input_tokens"]) == "not_recorded"
+            or str(row["output_tokens"]) == "not_recorded"
+            for row in rows
+        )
+        if unresolved:
+            inputs = "not_recorded"
+            outputs = "not_recorded"
+        else:
+            inputs = str(sum(int(row["input_tokens"]) for row in rows))
+            outputs = str(sum(int(row["output_tokens"]) for row in rows))
+        if (
+            requests == deployment_requests
+            and inputs == deployment_input
+            and outputs == deployment_output
+        ):
+            return "match"
+        return "mismatch"
+
     def user_usage(self, user_id: str, *, period: str, now: datetime) -> dict[str, object]:  # noqa: E501
         if period not in {"24h", "7d", "30d", "all"}:
             raise ValidationError("usage period is unknown")
@@ -96,7 +210,7 @@ class GatewayLedger:
         with self._lock:
             rows = self._db.execute(
                 """
-                SELECT * FROM principal_usage
+                SELECT * FROM gateway_events
                 WHERE user_id = ? AND (? = '' OR occurred_at >= ?)
                 ORDER BY occurred_at
                 """,
@@ -188,7 +302,7 @@ class GatewayLedger:
     def analytics(self) -> dict[str, object]:
         with self._lock:
             rows = self._db.execute(
-                "SELECT * FROM principal_usage ORDER BY user_id, occurred_at"
+                "SELECT * FROM gateway_events ORDER BY user_id, occurred_at"
             ).fetchall()
         by_user: dict[str, list[sqlite3.Row]] = {}
         by_team: dict[str, list[sqlite3.Row]] = {}

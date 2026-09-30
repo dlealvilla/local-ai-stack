@@ -34,7 +34,8 @@ pinned, not imported.
 `LibreChatAdapter` is `machi.adapters.rukan.librechat`. It renders config and
 a compose file. It does not open LibreChat's database.
 
-Pinned release:
+Pinned compatibility target. This is a LibreChat pre-release, not a stable
+LibreChat release, and it is not a Rukan core dependency:
 
 - version `v0.8.8-rc4`
 - commit `361553f3322d7b9bb547d0a9c2c5aaefc2934901`
@@ -91,6 +92,29 @@ address (`R-04-01`).
 The gateway, People, usage, MCP catalog, and `AgentDefinition` contract stay
 Rukan-owned. A later thin workspace can call the same `/v1` surface. Git
 Brain can appear later as another approved MCP server. Neither is built here.
+
+## Hardening
+
+Streaming reads upstream SSE incrementally and forwards each content delta
+before the next upstream event is read. The socket closes when the client
+generator closes. Token totals come only from the upstream usage event.
+
+Production OIDC uses discovery and JWKS. A static JWKS remains for tests.
+An unknown `kid` refreshes the key set once, and repeated unknown keys are
+not allowed to stampede the issuer. Cached keys are used until the TTL.
+After the TTL, a failed refresh fails authentication closed. HTTP discovery
+is explicit and is for a local test issuer.
+
+API credentials are enforced by route. `models`, `inference`, `self_usage`,
+and `mcp` are separate scopes. A scope never grants a People capability the
+user does not already have. MCP requires the `mcp` scope so an inference-only
+key cannot call tools. OIDC sessions are not scoped credentials; People
+policy still applies.
+
+Employee usage is one canonical `gateway_events` row. Telemetry is an
+idempotent projection of that row. A failed projection stays
+`projection_pending` and is retried. It is not reported as a mismatch.
+A failed canonical append is `degraded` and does not invent a second request.
 
 ## Recommendation
 

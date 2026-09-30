@@ -1637,19 +1637,27 @@ def _serve_rukan_gateway(ns: argparse.Namespace) -> int:
     """Bind the employee gateway. It does not admit and does not expose Serve."""
     from machi.adapters.rukan.gateway import GatewayService, StoreChat
     from machi.adapters.rukan.gateway_http import serve_gateway
-    from machi.adapters.rukan.oidc import OIDCBearerVerifier
+    from machi.adapters.rukan.oidc import OIDCBearerVerifier, OidcDiscoveryVerifier
     from machi.kernel.build import identity
 
-    document = json.loads(Path(ns.jwks).read_text(encoding="utf-8"))
-    if not isinstance(document, dict):
-        raise ValidationError("oidc jwks is empty")
     build = identity()
+    if ns.jwks:
+        document = json.loads(Path(ns.jwks).read_text(encoding="utf-8"))
+        if not isinstance(document, dict):
+            raise ValidationError("oidc jwks is empty")
+        verifier: OIDCBearerVerifier | OidcDiscoveryVerifier = OIDCBearerVerifier(
+            issuer=ns.issuer, audience=ns.audience, jwks=document
+        )
+    else:
+        verifier = OidcDiscoveryVerifier(
+            issuer=ns.issuer,
+            audience=ns.audience,
+            allow_http=bool(ns.allow_http_discovery),
+        )
     service = GatewayService(
         Path(ns.store_dir),
         build,
-        OIDCBearerVerifier(
-            issuer=ns.issuer, audience=ns.audience, jwks=document
-        ),
+        verifier,
         StoreChat(Path(ns.store_dir), build),
     )
     print("product  Rukan User Gateway")
@@ -2170,7 +2178,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     gateway_serve.add_argument("--store-dir", required=True)
     gateway_serve.add_argument("--issuer", required=True)
     gateway_serve.add_argument("--audience", required=True)
-    gateway_serve.add_argument("--jwks", required=True)
+    gateway_serve.add_argument("--jwks", default=None)
+    gateway_serve.add_argument("--allow-http-discovery", action="store_true")
     gateway_serve.add_argument("--host", default="127.0.0.1")
     gateway_serve.add_argument("--port", type=int, default=8787)
     gateway_serve.add_argument("--tls-cert", default=None)

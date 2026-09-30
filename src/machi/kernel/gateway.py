@@ -10,7 +10,7 @@ from machi.kernel.schema import Contract, contract, meaning
 NOT_RECORDED = "not_recorded"
 BINDING_STATUSES = frozenset({"bound", "mismatch", "reset"})
 CREDENTIAL_STATUSES = frozenset({"active", "revoked", "expired"})
-SCOPES = frozenset({"inference", "models", "self_usage"})
+SCOPES = frozenset({"inference", "models", "self_usage", "mcp"})
 MCP_TRANSPORTS = frozenset({"streamable_http"})
 AGENT_AUTHORITY = "rukan"
 _TOKEN_MAX = 500
@@ -62,7 +62,7 @@ class ApiCredentialMetadata(Contract):
 
     key_id: str = meaning("credential id")
     user_id: str = meaning("owning user")
-    scopes: tuple[str, ...] = meaning("inference, models, self_usage")
+    scopes: tuple[str, ...] = meaning("inference, models, self_usage, or mcp")
     client_label: str = meaning("application label")
     issued_at: str = meaning("UTC")
     expires_at: str = meaning("UTC")

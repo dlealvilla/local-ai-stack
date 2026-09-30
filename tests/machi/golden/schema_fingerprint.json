@@ -3615,7 +3615,7 @@
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "inference, models, self_usage"
+        "meaning": "inference, models, self_usage, or mcp"
       },
       "client_label": {
         "type": "str",

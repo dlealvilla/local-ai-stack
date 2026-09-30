@@ -18,7 +18,7 @@ from machi.adapters.rukan.credentials import verify_credential
 from machi.adapters.rukan.directory import Directory
 from machi.adapters.rukan.gateway_store import GatewayLedger
 from machi.adapters.rukan.mcp_policy import assert_endpoint, forward_json
-from machi.adapters.rukan.oidc import OIDCBearerVerifier
+from machi.adapters.rukan.oidc import OIDCBearerVerifier, OidcDiscoveryVerifier
 from machi.adapters.rukan.project import project_admin
 from machi.adapters.rukan.read import load_records
 from machi.adapters.rukan.telemetry import TelemetryStore
@@ -39,11 +39,12 @@ _PUBLIC_ERRORS = {
     "inference_access_denied": 403,
     "model_not_allowed": 403,
     "no_ready_model": 409,
-    "overloaded": 429,
-    "upstream_failure": 502,
-    "mcp_access_denied": 403,
-    "mcp_target_denied": 403,
-}
+        "overloaded": 429,
+        "upstream_failure": 502,
+        "mcp_access_denied": 403,
+        "mcp_target_denied": 403,
+        "scope_denied": 403,
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +62,16 @@ class UpstreamResult:
     input_tokens: int | None
     output_tokens: int | None
     chunks: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class StreamPiece:
+    """One incremental upstream event. Text is not stored after it is forwarded."""
+
+    kind: str
+    text: str = ""
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 class StoreChat:
@@ -110,22 +121,14 @@ class StoreChat:
             raise ValidationError("no_ready_model")
         if model != self.model_id:
             raise ValidationError("model_not_allowed")
-        body = json.dumps(
-            _chat_body(model, messages, max_tokens, stream)
-        ).encode()
-        request = urllib.request.Request(
-            f"http://127.0.0.1:{self._port}/v1/chat/completions",
-            data=body,
-            headers={"content-type": "application/json"},
-            method="POST",
-        )
+        del stream
+        body = json.dumps(_chat_body(model, messages, max_tokens, False)).encode()
+        request = _upstream_request(self._port, body)
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 raw = response.read()
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise ValidationError("upstream_failure") from exc
-        if stream:
-            return _parse_sse(raw)
         try:
             payload = json.loads(raw.decode("utf-8"))
         except json.JSONDecodeError as exc:
@@ -133,6 +136,35 @@ class StoreChat:
         text = _message_text(payload)
         prompt, completion = _usage_pair(payload)
         return UpstreamResult("completed", text, prompt, completion, (text,))
+
+    def iter_stream(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+    ) -> Iterator[StreamPiece]:
+        """Forward upstream SSE as it arrives. The socket closes with this generator."""
+        self.refresh()
+        if self.model_id is None or self._port < 1:
+            raise ValidationError("no_ready_model")
+        if model != self.model_id:
+            raise ValidationError("model_not_allowed")
+        body = json.dumps(_chat_body(model, messages, max_tokens, True)).encode()
+        request = _upstream_request(self._port, body)
+        try:
+            response = urllib.request.urlopen(request, timeout=60)
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise ValidationError("upstream_failure") from exc
+        try:
+            for raw_line in response:
+                piece = _sse_piece(raw_line.decode("utf-8", "replace"))
+                if piece is not None:
+                    yield piece
+                    if piece.kind in {"done", "error"}:
+                        break
+        finally:
+            response.close()
 
 
 class GatewayService:
@@ -142,7 +174,7 @@ class GatewayService:
         self,
         store_root: Path,
         build: BuildIdentity,
-        verifier: OIDCBearerVerifier,
+        verifier: OIDCBearerVerifier | OidcDiscoveryVerifier,
         upstream: StoreChat,
         *,
         max_tokens: int = 256,
@@ -184,9 +216,10 @@ class GatewayService:
             email=claims["email"],
             now=now,
         )
-        return Principal(str(bound["user_id"]), "oidc", ("inference", "models", "self_usage"), client_id)  # noqa: E501
+        return Principal(str(bound["user_id"]), "oidc", ("inference", "models", "self_usage", "mcp"), client_id)  # noqa: E501
 
     def models(self, principal: Principal) -> dict[str, object]:
+        self._require_scope(principal, "models")
         access = self._access(principal)
         self.upstream.refresh()
         if access["inference_access"] != "allow" or self.upstream.model_id is None:
@@ -223,30 +256,46 @@ class GatewayService:
         messages, model, limit = self._prepare(principal, body)
         self._enter(principal.user_id)
         started = time.monotonic()
+        inputs: int | None = None
+        outputs: int | None = None
+        failed = False
+        iterator = self.upstream.iter_stream(
+            model=model, messages=messages, max_tokens=limit
+        )
         try:
-            result = self.upstream.complete(
-                model=model, messages=messages, max_tokens=limit, stream=True
-            )
-        except ValidationError as exc:
-            self._leave(principal.user_id)
-            if exc.message == "upstream_failure":
-                self._account(
-                    principal, model,
-                    UpstreamResult("failed", "", None, None, ()),
-                    max(0, int((time.monotonic() - started) * 1000)),
-                    now, failed=True,
-                )
+            for piece in iterator:
+                if piece.kind == "delta" and piece.text:
+                    yield _sse({"choices": [{"delta": {"content": piece.text}}]})
+                elif piece.kind == "usage":
+                    if piece.text:
+                        yield _sse({"choices": [{"delta": {"content": piece.text}}]})
+                    inputs = piece.input_tokens
+                    outputs = piece.output_tokens
+                elif piece.kind == "error":
+                    failed = True
+                    break
+                elif piece.kind == "done":
+                    break
+            if not failed:
+                yield _sse({"usage": _usage_json(UpstreamResult(
+                    "completed", "", inputs, outputs, ()
+                ))})
+                yield b"data: [DONE]\n\n"
+        except ValidationError:
+            failed = True
             raise
-        try:
-            for piece in result.chunks:
-                yield _sse({"choices": [{"delta": {"content": piece}}]})
-            yield _sse({"usage": _usage_json(result)})
-            yield b"data: [DONE]\n\n"
         finally:
+            close = getattr(iterator, "close", None)
+            if close is not None:
+                close()
             self._account(
-                principal, model, result,
+                principal, model,
+                UpstreamResult(
+                    "failed" if failed else "completed", "", inputs, outputs, ()
+                ),
                 max(0, int((time.monotonic() - started) * 1000)),
-                now, failed=result.outcome != "completed",
+                now,
+                failed=failed,
             )
             self._leave(principal.user_id)
 
@@ -270,8 +319,7 @@ class GatewayService:
         }
 
     def my_usage(self, principal: Principal, period: str, now: datetime) -> dict[str, object]:  # noqa: E501
-        if "self_usage" not in principal.scopes and principal.auth_method == "api_credential":  # noqa: E501
-            raise ValidationError("authentication_required")
+        self._require_scope(principal, "self_usage")
         return self.ledger.user_usage(principal.user_id, period=period, now=now)
 
     def mcp_call(
@@ -283,6 +331,7 @@ class GatewayService:
         now: datetime,
         upstream_authorization: str | None = None,
     ) -> dict[str, object]:
+        self._require_scope(principal, "mcp")
         access = self._access(principal)
         if access["mcp_use"] != "allow":
             self.ledger.audit(now, "mcp.access_denied", principal.user_id, server_id)
@@ -313,8 +362,7 @@ class GatewayService:
             raise ValidationError("platform_access_denied")
         if access["inference_access"] != "allow":
             raise ValidationError("inference_access_denied")
-        if principal.auth_method == "api_credential" and "inference" not in principal.scopes:  # noqa: E501
-            raise ValidationError("inference_access_denied")
+        self._require_scope(principal, "inference")
         self.upstream.refresh()
         if self.upstream.model_id is None:
             raise ValidationError("no_ready_model")
@@ -385,33 +433,119 @@ class GatewayService:
             version=self.build.version,
             build_id=self.build.build_id or USAGE_UNRECORDED,
         )
-        self.telemetry.record_usage(inference)
-        self.ledger.record(
-            PrincipalUsage(
-                usage_id=usage_id,
-                request_id=request_id,
-                user_id=principal.user_id,
-                accounting_team_id=str(
-                    self.directory.accounting_team(principal.user_id)
-                ),
-                client_id=principal.client_id,
-                auth_method=principal.auth_method,
-                model_identity=model,
-                macropath=self.upstream.macropath,
-                instance_id=self.upstream.instance_id,
-                input_tokens=_count(result.input_tokens),
-                output_tokens=_count(result.output_tokens),
-                latency_ms=str(elapsed),
-                outcome=outcome,
-                occurred_at=now.isoformat(),
-            )
+        canonical = PrincipalUsage(
+            usage_id=usage_id,
+            request_id=request_id,
+            user_id=principal.user_id,
+            accounting_team_id=str(
+                self.directory.accounting_team(principal.user_id)
+            ),
+            client_id=principal.client_id,
+            auth_method=principal.auth_method,
+            model_identity=model,
+            macropath=self.upstream.macropath,
+            instance_id=self.upstream.instance_id,
+            input_tokens=_count(result.input_tokens),
+            output_tokens=_count(result.output_tokens),
+            latency_ms=str(elapsed),
+            outcome=outcome,
+            occurred_at=now.isoformat(),
         )
+        stored = self.ledger.append_canonical(
+            canonical,
+            install_id=inference.install_id,
+            plan_id=inference.plan_id,
+            reservation_id=inference.reservation_id,
+            generation_id=inference.generation_id,
+            failure=inference.failure,
+            status_code=inference.status_code,
+            version=inference.version,
+            build_id=inference.build_id,
+        )
+        if stored:
+            self._project_usage()
         self.ledger.audit(now, "user.inference_allowed", principal.user_id, outcome)
         return usage_id
+
+    def _require_scope(self, principal: Principal, scope: str) -> None:
+        if principal.auth_method != "api_credential":
+            return
+        if scope not in principal.scopes:
+            raise ValidationError("scope_denied")
+
+    def _project_usage(self) -> None:
+        """Idempotent telemetry projection. A failed projection stays pending."""
+        for row in self.ledger.unprojected():
+            if self.ledger.fail_projection:
+                return
+            inference = InferenceUsage(
+                usage_id=str(row["usage_id"]),
+                request_id=str(row["request_id"]),
+                occurred_at=str(row["occurred_at"]),
+                purpose="user_request",
+                install_id=str(row["install_id"]),
+                instance_id=str(row["instance_id"]),
+                plan_id=str(row["plan_id"]),
+                reservation_id=str(row["reservation_id"]),
+                generation_id=str(row["generation_id"]),
+                model_identity=str(row["model_identity"]),
+                model_identity_kind="warehouse_artifact",
+                macropath=str(row["macropath"]),
+                outcome=str(row["outcome"]),
+                failure=str(row["failure"]),
+                status_code=int(row["status_code"]),
+                input_tokens=str(row["input_tokens"]),
+                output_tokens=str(row["output_tokens"]),
+                latency_ms=str(row["latency_ms"]),
+                runtime_duration_ms=USAGE_UNRECORDED,
+                version=str(row["version"]),
+                build_id=str(row["build_id"]),
+            )
+            if not self.telemetry.record_usage(inference):
+                return
+            self.ledger.mark_projected(str(row["usage_id"]))
 
 
 def status_for(code: str) -> int:
     return _PUBLIC_ERRORS.get(code, 400)
+
+
+def _upstream_request(port: int, body: bytes) -> urllib.request.Request:
+    return urllib.request.Request(
+        f"http://127.0.0.1:{port}/v1/chat/completions",
+        data=body,
+        headers={"content-type": "application/json"},
+        method="POST",
+    )
+
+
+def _sse_piece(line: str) -> StreamPiece | None:
+    text = line.strip()
+    if not text.startswith("data:"):
+        return None
+    payload = text[5:].strip()
+    if payload == "[DONE]":
+        return StreamPiece("done")
+    try:
+        document = json.loads(payload)
+    except json.JSONDecodeError:
+        return StreamPiece("error")
+    if not isinstance(document, dict):
+        return StreamPiece("error")
+    if document.get("error"):
+        return StreamPiece("error")
+    prompt, completion = _usage_pair(document)
+    delta = ""
+    choices = document.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        item = choices[0].get("delta")
+        if isinstance(item, dict) and isinstance(item.get("content"), str):
+            delta = str(item["content"])
+    if prompt is not None or completion is not None:
+        return StreamPiece("usage", delta, prompt, completion)
+    if delta:
+        return StreamPiece("delta", delta)
+    return None
 
 
 def _chat_body(
