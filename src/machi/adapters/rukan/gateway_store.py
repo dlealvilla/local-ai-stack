@@ -193,11 +193,14 @@ class GatewayLedger:
         else:
             inputs = str(sum(int(row["input_tokens"]) for row in rows))
             outputs = str(sum(int(row["output_tokens"]) for row in rows))
-        if (
+        counts_match = (
             requests == deployment_requests
             and inputs == deployment_input
             and outputs == deployment_output
-        ):
+        )
+        if counts_match and unresolved:
+            return "partial_token_coverage"
+        if counts_match:
             return "match"
         return "mismatch"
 

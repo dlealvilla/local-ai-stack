@@ -222,7 +222,11 @@ class GatewayService:
         self._require_scope(principal, "models")
         access = self._access(principal)
         self.upstream.refresh()
-        if access["inference_access"] != "allow" or self.upstream.model_id is None:
+        if (
+            access["inference_access"] != "allow"
+            or access["model_selection"] != "allow"
+            or self.upstream.model_id is None
+        ):
             return {"object": "list", "data": []}
         return {
             "object": "list",
@@ -318,6 +322,19 @@ class GatewayService:
             "accounting_team_id": access["accounting_team_id"],
         }
 
+    def revoke_own(
+        self, principal: Principal, key_id: str, now: datetime
+    ) -> dict[str, str]:
+        from machi.adapters.rukan.credentials import revoke_credential
+
+        return revoke_credential(
+            self.directory,
+            user_id=principal.user_id,
+            key_id=key_id,
+            now=now,
+            actor="self",
+        )
+
     def my_usage(self, principal: Principal, period: str, now: datetime) -> dict[str, object]:  # noqa: E501
         self._require_scope(principal, "self_usage")
         return self.ledger.user_usage(principal.user_id, period=period, now=now)
@@ -362,6 +379,8 @@ class GatewayService:
             raise ValidationError("platform_access_denied")
         if access["inference_access"] != "allow":
             raise ValidationError("inference_access_denied")
+        if access["model_selection"] != "allow":
+            raise ValidationError("model_not_allowed")
         self._require_scope(principal, "inference")
         self.upstream.refresh()
         if self.upstream.model_id is None:

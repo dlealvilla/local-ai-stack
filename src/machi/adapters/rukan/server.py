@@ -275,6 +275,9 @@ class AdminApplication:
         if state == "projection_pending":
             recon["match"] = False
             recon["statement"] = "projection pending"
+        elif state == "partial_token_coverage":
+            recon["match"] = False
+            recon["statement"] = "token coverage incomplete"
         elif state == "degraded":
             recon["match"] = False
             recon["statement"] = "accounting degraded"

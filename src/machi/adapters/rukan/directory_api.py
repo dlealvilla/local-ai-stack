@@ -10,6 +10,11 @@ from machi.adapters.rukan.credentials import (
     revoke_credential,
 )
 from machi.adapters.rukan.directory import Directory
+from machi.adapters.rukan.employee_ops import (
+    employee_preflight,
+    list_providers,
+    save_provider,
+)
 from machi.adapters.rukan.gateway_store import GatewayLedger
 from machi.kernel.errors import ValidationError
 
@@ -154,6 +159,23 @@ def people_action(
             return ("ok", "credentials", {
                 "credentials": list_credentials(directory, user_id),
             })
+        if action == "save_provider":
+            return ("ok", "identity provider saved", save_provider(
+                directory.store_root,
+                provider_id=str(payload.get("provider_id", "primary")),
+                label=str(payload.get("label", "Enterprise IdP")),
+                issuer=str(payload.get("issuer", "")),
+                audience=str(payload.get("audience", "rukan")),
+                discovery_url=str(payload.get("discovery_url", "")),
+                enabled=payload.get("enabled", True) is True,
+                now=now,
+            ))
+        if action == "list_providers":
+            providers = list_providers(directory.store_root)
+            return ("ok", "identity providers", {"providers": providers})
+        if action == "preflight":
+            report = employee_preflight(directory.store_root)
+            return ("ok", "employee access preflight", report)
         if action == "approve_mcp":
             ledger = GatewayLedger(directory.store_root)
             try:

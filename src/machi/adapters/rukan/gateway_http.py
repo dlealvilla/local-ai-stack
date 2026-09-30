@@ -85,8 +85,10 @@ def _route(
     clock: Callable[[], datetime],
 ) -> None:
     peer = handler.client_address[0]
-    if peer not in trusted_peers and "X-Forwarded-For" in handler.headers:
-        del handler.headers["X-Forwarded-For"]
+    if peer not in trusted_peers:
+        for name in ("X-Forwarded-For", "X-Real-IP", "Forwarded"):
+            if name in handler.headers:
+                del handler.headers[name]
     length = int(handler.headers.get("content-length", "0") or "0")
     if length > _MAX_BODY:
         _error(handler, "overloaded")
@@ -95,10 +97,21 @@ def _route(
     now = clock()
     path = urlsplit(handler.path).path
     query = parse_qs(urlsplit(handler.path).query)
-    client = handler.headers.get("X-Rukan-Client", "generic")
-    if len(client) > 80:
-        client = "generic"
+    client = _client_id(handler.headers.get("X-Rukan-Client", ""))
     try:
+        if method == "GET" and path == "/v1/version":
+            _json(handler, 200, {
+                "api": "rukan.user_gateway.v0.4",
+                "version": service.build.version,
+                "build_id": service.build.build_id or "not_recorded",
+                "supported": [
+                    "GET /v1/models",
+                    "POST /v1/chat/completions",
+                    "GET /v1/me",
+                    "GET /v1/me/usage",
+                ],
+            })
+            return
         if method == "GET" and path == "/me":
             _bytes(handler, 200, _PAGE.encode("utf-8"), "text/html; charset=utf-8")
             return
@@ -109,6 +122,15 @@ def _route(
             return
         if method == "GET" and path == "/v1/me":
             _json(handler, 200, service.me(principal))
+            return
+        if method == "POST" and path == "/v1/me/credentials/revoke":
+            body = json.loads(raw.decode("utf-8")) if raw else {}
+            if not isinstance(body, dict):
+                raise ValidationError("overloaded")
+            revoked = service.revoke_own(
+                principal, str(body.get("key_id", "")), now
+            )
+            _json(handler, 200, dict(revoked))
             return
         if method == "GET" and path == "/v1/me/usage":
             period = query.get("period", ["all"])[0]
@@ -139,6 +161,16 @@ def _route(
         _error(handler, exc.message)
     except json.JSONDecodeError:
         _error(handler, "overloaded")
+
+
+def _client_id(value: str) -> str:
+    """Approved client names only. Unknown labels cannot inflate analytics."""
+    cleaned = "".join(
+        char for char in value.lower() if char.isalnum() or char == "_"
+    )[:40]
+    if cleaned in {"librechat", "generic_api", "rukan_future_workspace"}:
+        return cleaned
+    return "generic_api"
 
 
 def _json(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import socket
+import urllib.request
 from urllib.parse import urlsplit
 
 from machi.kernel.errors import ValidationError
@@ -48,25 +49,58 @@ def assert_endpoint(
 def forward_json(url: str, payload: dict[str, object], authorization: str | None) -> dict[str, object]:  # noqa: E501
     """One JSON-RPC POST. The caller already authorized the user and target."""
     import urllib.error
-    import urllib.request
 
     headers = {"content-type": "application/json", "accept": "application/json"}
     if authorization:
         headers["authorization"] = authorization
+    pinned = _pin(url)
     request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
+        pinned,
+        data=json.dumps(payload).encode(),
         headers=headers,
         method="POST",
     )
+    opener = urllib.request.build_opener(_NoRedirect())
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            body = json.loads(response.read().decode("utf-8"))
+        with opener.open(request, timeout=15) as response:
+            raw = response.read(1_000_001)
+    except ValidationError:
+        raise
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        raise ValidationError("mcp_upstream_failed") from exc
+    if len(raw) > 1_000_000:
+        raise ValidationError("mcp_upstream_failed")
+    try:
+        body = json.loads(raw.decode("utf-8"))
+    except json.JSONDecodeError as exc:
         raise ValidationError("mcp_upstream_failed") from exc
     if not isinstance(body, dict):
         raise ValidationError("mcp_upstream_failed")
     return body
+
+
+class _NoRedirect(urllib.request.HTTPErrorProcessor):
+    def http_response(self, request, response):  # type: ignore[no-untyped-def]
+        if getattr(response, "status", 0) in {301, 302, 303, 307, 308}:
+            raise ValidationError("mcp_target_denied")
+        return response
+
+    https_response = http_response
+
+
+def _pin(url: str) -> str:
+    """Connect to the address that was classified, not a later lookup."""
+    parsed = urlsplit(url)
+    host = parsed.hostname or ""
+    addresses = _addresses(host)
+    if any(_dangerous(item) for item in addresses):
+        raise ValidationError("mcp_target_denied")
+    chosen = str(addresses[0])
+    port = parsed.port
+    netloc = f"[{chosen}]:{port}" if ":" in chosen and port else (
+        f"{chosen}:{port}" if port else chosen
+    )
+    return parsed._replace(netloc=netloc).geturl()
 
 
 def _addresses(host: str) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:

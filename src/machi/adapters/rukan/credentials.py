@@ -15,6 +15,9 @@ _N = 2**14
 _R = 8
 _P = 1
 _DUMMY_SALT = bytes(16)
+MIN_TTL_SECONDS = 60
+MAX_TTL_SECONDS = 365 * 24 * 3600
+DEFAULT_TTL_SECONDS = 30 * 24 * 3600
 
 
 def issue_credential(
@@ -35,6 +38,8 @@ def issue_credential(
     chosen = tuple(item for item in scopes if item in SCOPES)
     if not chosen:
         raise ValidationError("gateway credential scope is unknown")
+    if ttl_seconds < MIN_TTL_SECONDS or ttl_seconds > MAX_TTL_SECONDS:
+        raise ValidationError("credential lifetime is outside the allowed range")
     if "inference" in chosen and access["inference_access"] != "allow":
         raise ValidationError("inference_access_denied")
     key_id = "rkey_" + secrets.token_hex(8)
