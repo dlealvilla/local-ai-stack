@@ -67,3 +67,25 @@ podman installed from the image packages and then failed with
 `cannot clone: Operation not permitted`. The pinned LibreChat container was
 not started. D3 is therefore not a full-stack clean diagnostic. Confidence
 was not started. The first-party workspace was not started.
+
+## Product closure and D4
+
+Source `7115852c984d8d5860bf29cdd49e2b42f61b12f7`.
+Wheel SHA256 `cb232d39f3b0ec6de1db264f2adb3e28a1904eda381c954ffa5512d1c4bcf468`.
+Build `0.1.0+7115852c984d`.
+
+Employee-access contracts added after D3: credential lifetime bounds, client
+label normalization, identity-provider rows, read-only preflight, ledger
+backup/restore, MCP redirect refusal, and connection to the classified
+address. `partial_token_coverage` is a reconciliation state.
+
+Pod `pfesqmnmt0pq16`, secure A40, CUDA 13.0, EU-SE-1, `$0.49/hour`.
+Install `inst_8eb53856ead06343`. Deploy `dop_b4e5a0c9e2c42fcd`. The gateway
+diagnostic matched D3: 6 requests, 186 input tokens, 44 output tokens,
+`accounting_state=match`, stop and release ok. The pod was terminated.
+
+LibreChat was attempted on the operator machine with Docker Desktop, which
+was already installed. The pinned digest pull extracted until the data volume
+was full (`67Mi` free) and containerd reported a read-only snapshot. The
+image did not start. Status `LIBRECHAT_PHYSICAL_PENDING_ENVIRONMENT`.
+Full-stack clean streak remains 0. Confidence was not started.
