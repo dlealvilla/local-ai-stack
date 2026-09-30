@@ -1,5 +1,55 @@
 # Open Decisions
 
+## v0.4 physical Workspace acceptance topology — do not couple LibreChat to the GPU host
+
+The D3 hardened Gateway run proved that forcing LibreChat onto the disposable GPU host is an unnecessary infrastructure coupling. The A40 image had no Docker and rootless Podman was prohibited, even though Rukan/Gateway itself worked.
+
+Binding direction:
+
+- Rukan/inference may run on the disposable NVIDIA host.
+- LibreChat/Mongo/test IdP/test MCP services may run on a separate container-capable operator/CPU environment.
+- Prefer the existing operator/development machine if it has a supported container engine; this is cheaper and more representative than installing a container stack into the GPU test image.
+- A second cloud host is optional, not required, and must only be used if existing authorized tooling supports it safely and economically.
+- Product acceptance is about the real network/auth/application path, not co-location.
+
+Preferred economical topology:
+
+```text
+OPERATOR / CPU ENVIRONMENT
+  - exact pinned LibreChat container
+  - pinned Mongo dependency
+  - test OIDC issuer
+  - test MCP server
+  - browser/session automation where available
+           |
+           | secure SSH forwards/reverse-forwards or equally bounded test networking
+           v
+GPU SERVER
+  - Rukan control plane
+  - Rukan User Gateway
+  - ResourceManager
+  - Serve / vLLM
+  - model
+```
+
+The test must still use:
+- real HTTP/TLS;
+- real OIDC discovery/JWKS;
+- live bearer forwarding from LibreChat to Rukan Gateway;
+- no direct vLLM endpoint in LibreChat;
+- real MCP through the Rukan-governed path;
+- no database shortcut.
+
+An SSH tunnel is transport only; it does not replace Rukan authentication/authorization.
+
+If the operator machine hosts the test OIDC/MCP services, reverse tunnels may expose those services only to the remote campaign host so that the same issuer/endpoint identity can be reached by both sides. Use campaign-local CA certificates and explicit trust rather than disabling TLS verification.
+
+Physical LibreChat availability must no longer block development of the remaining v0.4 Employee Access product closure. If the exact container cannot be run in the current environment:
+- continue all local/product implementation, migrations, failure/recovery, Admin UX, MCP governance, usage/accounting, observability, and documentation work;
+- preserve physical LibreChat as an explicit acceptance debt;
+- return to physical testing once a container-capable environment is available;
+- final product PASS still requires real LibreChat compatibility evidence.
+
 ## Rukan v0.4 Lead review — Gateway hardening before first-party Workspace
 
 Independent Lead review of source `459d34b34f2238b5af108c0fe822c4637603b754` accepts the overall v0.4 architecture but finds four unresolved PILOT_BLOCKER-level correctness/security/UX issues before the User Access Gateway can be treated as a stable foundation for the first-party Rukan Workspace.
