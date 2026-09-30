@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "stop_for_lead_review",
-  "expected_pasteback_instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
-  "instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
+  "expected_cursor_action": "correct_preliminary_v0_5_closure_and_reearn_full_pass",
+  "expected_pasteback_instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
+  "instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
   "program": {
     "canonical_baseline": "124a1424ab20e6fd3e2ca96ee7fedb0cef539198",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "lead_review_of_nvidia_workspace_core_closure",
+    "next_action": "cursor_correct_workspace_model_selector_agents_tool_calling_mcp_oidc_and_acceptance_then_reearn_corrected_core_closure",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -405,7 +405,27 @@
       "terminal_status": "RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED",
       "tested_source": "8c68bdedb71f0faeec957bc14eb8b5062f9807fb",
       "wheel_build": "0.1.0+8c68bdedb71f",
-      "wheel_sha256": "29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204"
+      "wheel_sha256": "29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204",
+      "lead_acceptance": "WITHHELD_CORRECTION_REQUIRED",
+      "preliminary_canonical": "124a1424ab20e6fd3e2ca96ee7fedb0cef539198",
+      "preliminary_tag": "checkpoint/rukan-core-product-closed-nvidia-vllm-124a142",
+      "authoritative_interim_status": "RUKAN_V0_5_PRELIMINARY_CORE_MERGED_LEAD_CORRECTION_REQUIRED",
+      "correction_instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
+      "correction_branch": "rukan/v0.5-lead-closure-correction",
+      "correction_blockers": [
+        "workspace_model_selector_missing",
+        "agent_builder_incomplete",
+        "production_tool_calling_not_wired",
+        "mcp_resources_prompts_missing",
+        "oidc_nonce_missing_and_access_token_fallback",
+        "reverse_proxy_secure_cookie_semantics",
+        "static_path_prefix_containment",
+        "workspace_message_usage_id_not_linked",
+        "two_clean_diagnostics_not_earned_before_confidence",
+        "command_center_privacy_delivery_not_physically_proven",
+        "backup_restore_not_physically_proven",
+        "ten_user_isolation_load_not_proven"
+      ]
     },
     "rukan_v0_5_native_workspace_core_closure": {
       "agents": "rukan_owned_bounded_agent_builder_no_arbitrary_code",
@@ -447,8 +467,8 @@
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
     "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
-  "published_instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
+  "published_instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_V0_5_LEAD_CLOSURE_CORRECTION"
 }
