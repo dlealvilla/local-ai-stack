@@ -78,6 +78,9 @@ class StreamPiece:
     text: str = ""
     input_tokens: int | None = None
     output_tokens: int | None = None
+    tool_index: int = 0
+    tool_id: str = ""
+    tool_name: str = ""
 
 
 class StoreChat:
@@ -118,9 +121,10 @@ class StoreChat:
         self,
         *,
         model: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, object]],
         max_tokens: int,
         stream: bool,
+        tools: list[dict[str, object]] | None = None,
     ) -> UpstreamResult:
         self.refresh()
         if self.model_id is None or self._port < 1:
@@ -128,7 +132,9 @@ class StoreChat:
         if model != self.model_id:
             raise ValidationError("model_not_allowed")
         del stream
-        body = json.dumps(_chat_body(model, messages, max_tokens, False)).encode()
+        body = json.dumps(
+            _chat_body(model, messages, max_tokens, False, tools)
+        ).encode()
         request = _upstream_request(self._port, body)
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
@@ -147,8 +153,9 @@ class StoreChat:
         self,
         *,
         model: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, object]],
         max_tokens: int,
+        tools: list[dict[str, object]] | None = None,
     ) -> Iterator[StreamPiece]:
         """Forward upstream SSE as it arrives. The socket closes with this generator."""
         self.refresh()
@@ -156,7 +163,9 @@ class StoreChat:
             raise ValidationError("no_ready_model")
         if model != self.model_id:
             raise ValidationError("model_not_allowed")
-        body = json.dumps(_chat_body(model, messages, max_tokens, True)).encode()
+        body = json.dumps(
+            _chat_body(model, messages, max_tokens, True, tools)
+        ).encode()
         request = _upstream_request(self._port, body)
         try:
             response = urllib.request.urlopen(request, timeout=60)
@@ -164,8 +173,7 @@ class StoreChat:
             raise ValidationError("upstream_failure") from exc
         try:
             for raw_line in response:
-                piece = _sse_piece(raw_line.decode("utf-8", "replace"))
-                if piece is not None:
+                for piece in _sse_pieces(raw_line.decode("utf-8", "replace")):
                     yield piece
                     if piece.kind in {"done", "error"}:
                         break
@@ -236,16 +244,25 @@ class GatewayService:
             return {"object": "list", "data": []}
         return {
             "object": "list",
-            "data": [{"id": self.upstream.model_id, "object": "model", "owned_by": "rukan"}],  # noqa: E501
+            "data": [{
+                "id": self.upstream.model_id,
+                "object": "model",
+                "owned_by": "rukan",
+                "tool_calling": _tool_calling(self.store_root, self.upstream.model_id),
+            }],
         }
 
     def chat(self, principal: Principal, body: dict[str, object], *, now: datetime, stream: bool) -> dict[str, object]:  # noqa: E501
-        messages, model, limit = self._prepare(principal, body)
+        messages, model, limit, tools = self._prepare(principal, body)
         self._enter(principal.user_id)
         started = time.monotonic()
         try:
             result = self.upstream.complete(
-                model=model, messages=messages, max_tokens=limit, stream=stream
+                model=model,
+                messages=messages,
+                max_tokens=limit,
+                stream=stream,
+                tools=tools,
             )
         except ValidationError as exc:
             self._leave(principal.user_id)
@@ -263,19 +280,22 @@ class GatewayService:
         return _completion(usage_id, model, result)
 
     def stream(self, principal: Principal, body: dict[str, object], *, now: datetime) -> Iterator[bytes]:  # noqa: E501
-        messages, model, limit = self._prepare(principal, body)
+        messages, model, limit, tools = self._prepare(principal, body)
         self._enter(principal.user_id)
         started = time.monotonic()
         inputs: int | None = None
         outputs: int | None = None
         failed = False
+        accounted = False
         iterator = self.upstream.iter_stream(
-            model=model, messages=messages, max_tokens=limit
+            model=model, messages=messages, max_tokens=limit, tools=tools
         )
         try:
             for piece in iterator:
-                if piece.kind == "tool_call" and piece.text:
-                    yield _sse({"tool_call": piece.text})
+                if piece.kind == "tool_delta":
+                    yield _sse({
+                        "choices": [{"delta": {"tool_calls": [_tool_delta(piece)]}}]
+                    })
                 elif piece.kind == "delta" and piece.text:
                     yield _sse({"choices": [{"delta": {"content": piece.text}}]})
                 elif piece.kind == "usage":
@@ -289,9 +309,22 @@ class GatewayService:
                 elif piece.kind == "done":
                     break
             if not failed:
+                usage_id = self._account(
+                    principal, model,
+                    UpstreamResult("completed", "", inputs, outputs, ()),
+                    max(0, int((time.monotonic() - started) * 1000)),
+                    now, failed=False,
+                )
+                accounted = True
                 yield _sse({"usage": _usage_json(UpstreamResult(
                     "completed", "", inputs, outputs, ()
                 ))})
+                yield _sse({"rukan": {
+                    "usage_id": usage_id,
+                    "input_tokens": inputs,
+                    "output_tokens": outputs,
+                    "outcome": "completed",
+                }})
                 yield b"data: [DONE]\n\n"
         except ValidationError:
             failed = True
@@ -300,15 +333,13 @@ class GatewayService:
             close = getattr(iterator, "close", None)
             if close is not None:
                 close()
-            self._account(
-                principal, model,
-                UpstreamResult(
-                    "failed" if failed else "completed", "", inputs, outputs, ()
-                ),
-                max(0, int((time.monotonic() - started) * 1000)),
-                now,
-                failed=failed,
-            )
+            if not accounted:
+                self._account(
+                    principal, model,
+                    UpstreamResult("failed", "", inputs, outputs, ()),
+                    max(0, int((time.monotonic() - started) * 1000)),
+                    now, failed=True,
+                )
             self._leave(principal.user_id)
 
     def me(self, principal: Principal) -> dict[str, object]:
@@ -381,7 +412,7 @@ class GatewayService:
 
     def _prepare(
         self, principal: Principal, body: dict[str, object]
-    ) -> tuple[list[dict[str, str]], str, int]:
+    ) -> tuple[list[dict[str, object]], str, int, list[dict[str, object]] | None]:
         access = self._access(principal)
         if access["platform_access"] != "allow":
             raise ValidationError("platform_access_denied")
@@ -397,12 +428,13 @@ class GatewayService:
         if not isinstance(requested, str) or requested != self.upstream.model_id:
             raise ValidationError("model_not_allowed")
         messages = _messages(body)
+        tools = _tools(body)
         limit = body.get("max_tokens", 16)
         if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
             raise ValidationError("overloaded")
         if limit > self.max_tokens:
             limit = self.max_tokens
-        return messages, requested, limit
+        return messages, requested, limit, tools
 
     def _access(self, principal: Principal) -> dict[str, object]:
         access = self.directory.effective(principal.user_id)
@@ -546,6 +578,49 @@ def _upstream_request(port: int, body: bytes) -> urllib.request.Request:
     )
 
 
+def _sse_pieces(line: str) -> list[StreamPiece]:
+    piece = _sse_piece(line)
+    if piece is None:
+        return []
+    if piece.kind != "tool_delta":
+        return [piece]
+    return _tool_pieces(line) or [piece]
+
+
+def _tool_pieces(line: str) -> list[StreamPiece]:
+    text = line.strip()
+    if not text.startswith("data:"):
+        return []
+    try:
+        document = json.loads(text[5:].strip())
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(document, dict):
+        return []
+    choices = document.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return []
+    delta = choices[0].get("delta")
+    if not isinstance(delta, dict) or not isinstance(delta.get("tool_calls"), list):
+        return []
+    found: list[StreamPiece] = []
+    for call in delta["tool_calls"]:
+        if not isinstance(call, dict):
+            continue
+        function = call.get("function")
+        if not isinstance(function, dict):
+            function = {}
+        index = call.get("index", 0)
+        found.append(StreamPiece(
+            "tool_delta",
+            str(function.get("arguments") or ""),
+            tool_index=index if isinstance(index, int) else 0,
+            tool_id=str(call.get("id") or ""),
+            tool_name=str(function.get("name") or ""),
+        ))
+    return found
+
+
 def _sse_piece(line: str) -> StreamPiece | None:
     text = line.strip()
     if not text.startswith("data:"):
@@ -566,6 +641,8 @@ def _sse_piece(line: str) -> StreamPiece | None:
     choices = document.get("choices")
     if isinstance(choices, list) and choices and isinstance(choices[0], dict):
         item = choices[0].get("delta")
+        if isinstance(item, dict) and isinstance(item.get("tool_calls"), list):
+            return StreamPiece("tool_delta")
         if isinstance(item, dict) and isinstance(item.get("content"), str):
             delta = str(item["content"])
     if prompt is not None or completion is not None:
@@ -576,7 +653,11 @@ def _sse_piece(line: str) -> StreamPiece | None:
 
 
 def _chat_body(
-    model: str, messages: list[dict[str, str]], max_tokens: int, stream: bool
+    model: str,
+    messages: list[dict[str, object]],
+    max_tokens: int,
+    stream: bool,
+    tools: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     """vLLM rejects stream_options unless the request is actually streaming."""
     payload: dict[str, object] = {
@@ -585,29 +666,89 @@ def _chat_body(
         "max_tokens": max_tokens,
         "stream": stream,
     }
+    if tools:
+        payload["tools"] = tools
+        payload["tool_choice"] = "auto"
     if stream:
         payload["stream_options"] = {"include_usage": True}
     return payload
 
 
-def _messages(body: dict[str, object]) -> list[dict[str, str]]:
+def _tools(body: dict[str, object]) -> list[dict[str, object]] | None:
+    raw = body.get("tools")
+    if raw is None:
+        return None
+    if not isinstance(raw, list) or len(raw) > 8:
+        raise ValidationError("overloaded")
+    tools: list[dict[str, object]] = []
+    for item in raw:
+        if not isinstance(item, dict) or item.get("type") != "function":
+            raise ValidationError("overloaded")
+        tools.append(item)
+    return tools
+
+
+def _messages(body: dict[str, object]) -> list[dict[str, object]]:
     raw = body.get("messages")
     if not isinstance(raw, list) or not raw:
         raise ValidationError("overloaded")
-    messages: list[dict[str, str]] = []
+    messages: list[dict[str, object]] = []
     size = 0
     for item in raw:
         if not isinstance(item, dict):
             raise ValidationError("overloaded")
         role = item.get("role")
-        content = item.get("content")
-        if role not in {"system", "user", "assistant"} or not isinstance(content, str):
+        content = item.get("content", "")
+        if role not in {"system", "user", "assistant", "tool"}:
+            raise ValidationError("overloaded")
+        if not isinstance(content, str):
             raise ValidationError("overloaded")
         size += len(content)
         if size > _MAX_MESSAGES:
             raise ValidationError("overloaded")
-        messages.append({"role": role, "content": content})
+        message: dict[str, object] = {"role": role, "content": content}
+        if role == "tool":
+            call_id = item.get("tool_call_id")
+            if not isinstance(call_id, str) or not call_id:
+                raise ValidationError("overloaded")
+            message["tool_call_id"] = call_id
+        calls = item.get("tool_calls")
+        if calls is not None:
+            if not isinstance(calls, list) or len(calls) > 2:
+                raise ValidationError("overloaded")
+            message["tool_calls"] = calls
+        messages.append(message)
     return messages
+
+
+def _tool_delta(piece: StreamPiece) -> dict[str, object]:
+    function: dict[str, str] = {}
+    if piece.tool_name:
+        function["name"] = piece.tool_name
+    if piece.text:
+        function["arguments"] = piece.text
+    payload: dict[str, object] = {"index": piece.tool_index, "function": function}
+    if piece.tool_id:
+        payload["id"] = piece.tool_id
+        payload["type"] = "function"
+    return payload
+
+
+def _tool_calling(store_root: Path, model_id: str | None) -> str:
+    if not model_id:
+        return "unresolved"
+    try:
+        from machi.adapters.model.warehouse import load_artifact
+        from machi.adapters.serve.vllm import documented_tool_parser
+
+        artifact = load_artifact(store_root, model_id)
+    except Exception:
+        return "unresolved"
+    if artifact is None:
+        return "unresolved"
+    if documented_tool_parser(artifact.repository):
+        return "supported"
+    return "unsupported"
 
 
 def _count(value: int | None) -> str:

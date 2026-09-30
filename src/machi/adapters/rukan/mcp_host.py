@@ -26,6 +26,21 @@ def serve_acceptance(host: str = "127.0.0.1", port: int = 8766) -> None:
         """Return a fixed token so a caller can see the tool ran."""
         return "pong"
 
+    @server.tool()
+    def add(a: int, b: int) -> int:
+        """Add two integers."""
+        return a + b
+
+    @server.resource("status://project")
+    def project_status() -> str:
+        """Fixed project status resource."""
+        return "ok"
+
+    @server.prompt()
+    def summarize_status() -> str:
+        """Prompt the model to summarize project status."""
+        return "Summarize the project status."
+
     server.run(transport="streamable-http")
 
 
@@ -34,6 +49,79 @@ def tool_names(url: str) -> list[str]:
         return list_tool_names(url)
     except Exception:
         return []
+
+
+def describe_server(url: str) -> dict[str, object]:
+    async def action() -> dict[str, object]:
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamable_http_client
+
+        async with streamable_http_client(url) as streams:
+            read, write, _session_id = streams
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                tools = await session.list_tools()
+                resources = await session.list_resources()
+                prompts = await session.list_prompts()
+                schemas: list[dict[str, object]] = []
+                for item in tools.tools:
+                    schema: dict[str, object] = dict(item.inputSchema)
+                    schemas.append({
+                        "name": item.name,
+                        "description": item.description or item.name,
+                        "parameters": schema,
+                    })
+                return {
+                    "tools": [item.name for item in tools.tools],
+                    "resources": [str(item.uri) for item in resources.resources],
+                    "prompts": [item.name for item in prompts.prompts],
+                    "schemas": schemas,
+                }
+
+    return _run(action)
+
+
+def read_resource(url: str, uri: str) -> str:
+    async def action() -> str:
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamable_http_client
+
+        async with streamable_http_client(url) as streams:
+            read, write, _session_id = streams
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                from pydantic import AnyUrl
+
+                result = await session.read_resource(AnyUrl(uri))
+                texts: list[str] = []
+                for block in result.contents:
+                    text = getattr(block, "text", "")
+                    if isinstance(text, str):
+                        texts.append(text)
+                return "".join(texts)
+
+    return _run(action)
+
+
+def get_prompt_text(url: str, name: str) -> str:
+    async def action() -> str:
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamable_http_client
+
+        async with streamable_http_client(url) as streams:
+            read, write, _session_id = streams
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.get_prompt(name)
+                texts: list[str] = []
+                for message in result.messages:
+                    content = getattr(message, "content", None)
+                    text = getattr(content, "text", "")
+                    if isinstance(text, str):
+                        texts.append(text)
+                return "\n".join(texts)
+
+    return _run(action)
 
 
 def list_tool_names(url: str) -> list[str]:

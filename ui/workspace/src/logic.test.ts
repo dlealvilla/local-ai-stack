@@ -1,10 +1,14 @@
 import { expect, test } from "vitest";
-import { blocks, parseSse } from "./logic";
+import { blocks, conversationBody, parseSse } from "./logic";
 
 test("splits fenced code without treating it as markup", () => {
   const parts = blocks("Hello\n```\nprint(1)\n```\n");
-  expect(parts.map((item) => item.kind)).toEqual(["text", "code", "text"]);
+  expect(parts.map((item) => item.kind)).toEqual(["text", "code"]);
   expect(parts[1].text).toContain("print(1)");
+});
+
+test("sends the selected model when a chat is created", () => {
+  expect(conversationBody("mart_demo").model_id).toBe("mart_demo");
 });
 
 test("reads one streamed delta and the done marker", () => {

@@ -119,8 +119,9 @@ class ServeService:
                     python_path=generation.python_path,
                     model_path=str(model_path),
                     artifact_id=artifact.artifact_id,
-                    settings=tuple(
-                        (item.name, item.value) for item in configuration.settings
+                    settings=(
+                        *((item.name, item.value) for item in configuration.settings),
+                        ("source_repository", artifact.repository),
                     ),
                     port=port,
                     stdout_path=self._log_path(identity, "stdout"),

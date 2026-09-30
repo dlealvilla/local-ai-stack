@@ -1,10 +1,23 @@
-export type Block = { kind: "text" | "code"; text: string };
+export type Block = { kind: "text" | "code" | "heading"; text: string };
 
 export function blocks(source: string): Block[] {
-  return source.split("```").map((text, index) => ({
-    kind: index % 2 === 1 ? "code" : "text",
-    text,
-  }));
+  const parts = source.split("```");
+  const found: Block[] = [];
+  parts.forEach((part, index) => {
+    if (index % 2 === 1) {
+      found.push({ kind: "code", text: part });
+      return;
+    }
+    for (const line of part.split("\n")) {
+      if (line.startsWith("# ")) found.push({ kind: "heading", text: line.slice(2) });
+      else if (line.trim()) found.push({ kind: "text", text: line });
+    }
+  });
+  return found;
+}
+
+export function conversationBody(modelId: string, title = "New chat") {
+  return { title, model_id: modelId };
 }
 
 export function parseSse(chunk: string): { delta: string; done: boolean } {

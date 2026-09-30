@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { blocks, parseSse } from "./logic";
+import { blocks, conversationBody, parseSse } from "./logic";
 
 type Me = { user_id: string; csrf: string };
 type Conversation = { conversation_id: string; title: string; model_id: string; agent_id: string };
-type Message = { role: string; content: string };
+type Message = { role: string; content: string; input_tokens?: string; output_tokens?: string };
+type Model = { id: string; tool_calling?: string };
 type Agent = { agent_id: string; display_name: string; model_id: string };
 type Usage = { requests?: number; input_tokens?: string; output_tokens?: string; total_tokens?: string };
 
@@ -76,6 +77,8 @@ function Chat({ csrf, onError }: { csrf: string; onError: (text: string) => void
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [title, setTitle] = useState("New chat");
+  const [models, setModels] = useState<Model[]>([]);
+  const [modelId, setModelId] = useState("");
   const [busy, setBusy] = useState(false);
   const [stop, setStop] = useState<AbortController | null>(null);
 
@@ -83,7 +86,14 @@ function Chat({ csrf, onError }: { csrf: string; onError: (text: string) => void
     const result = await api("/api/workspace/v1/conversations", csrf);
     setRows((result.body?.conversations as Conversation[]) ?? []);
   }
-  useEffect(() => { void reload(); }, []);
+  useEffect(() => {
+    void reload();
+    void api("/api/workspace/v1/models", csrf).then((result) => {
+      const data = (result.body?.data as Model[]) ?? [];
+      setModels(data);
+      if (data[0]) setModelId(data[0].id);
+    });
+  }, []);
 
   async function open(id: string) {
     setCurrent(id);
@@ -95,7 +105,7 @@ function Chat({ csrf, onError }: { csrf: string; onError: (text: string) => void
   async function create() {
     const result = await api("/api/workspace/v1/conversations", csrf, {
       method: "POST",
-      body: JSON.stringify({ title: "New chat" }),
+      body: JSON.stringify(conversationBody(modelId)),
     });
     const id = String(result.body?.conversation_id ?? "");
     await reload();
@@ -156,6 +166,11 @@ function Chat({ csrf, onError }: { csrf: string; onError: (text: string) => void
   return (
     <div className="grid">
       <section className="card">
+        <label>Model
+          <select aria-label="Model" value={modelId} onChange={(event) => setModelId(event.target.value)}>
+            {models.map((model) => <option key={model.id} value={model.id}>{model.id}</option>)}
+          </select>
+        </label>
         <button type="button" onClick={() => void create()}>New chat</button>
         <ul>
           {rows.map((row) => (
@@ -182,13 +197,21 @@ function Chat({ csrf, onError }: { csrf: string; onError: (text: string) => void
             {blocks(message.content).map((block, blockIndex) => (
               block.kind === "code"
                 ? <pre key={blockIndex}><code>{block.text}</code></pre>
-                : <p key={blockIndex}>{block.text}</p>
+                : block.kind === "heading"
+                  ? <h3 key={blockIndex}>{block.text}</h3>
+                  : <p key={blockIndex}>{block.text}</p>
             ))}
+            {message.input_tokens ? <p className="muted">tokens {message.input_tokens} / {message.output_tokens}</p> : null}
             <button type="button" onClick={() => void navigator.clipboard.writeText(message.content)}>Copy</button>
           </article>
         ))}
         <form className="stack" onSubmit={(event) => { event.preventDefault(); void send(draft); }}>
-          <textarea aria-label="Message" value={draft} onChange={(event) => setDraft(event.target.value)} />
+          <textarea aria-label="Message" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void send(draft);
+            }
+          }} />
           <button type="submit" disabled={!current || busy}>Send</button>
         </form>
         <button type="button" disabled={!busy} onClick={() => {
@@ -290,6 +313,9 @@ function Agents({ csrf }: { csrf: string }) {
   const [rows, setRows] = useState<Agent[]>([]);
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [modelId, setModelId] = useState("");
+  const [tools, setTools] = useState("");
+  const [editing, setEditing] = useState("");
   async function reload() {
     const document = await api("/api/workspace/v1/agents", csrf);
     setRows((document.body?.agents as Agent[]) ?? []);
@@ -302,6 +328,13 @@ function Agents({ csrf }: { csrf: string }) {
         {rows.map((row) => (
           <li key={row.agent_id}>
             {row.display_name}
+            <button type="button" onClick={() => { setEditing(row.agent_id); setName(row.display_name); }}>Edit</button>
+            <button type="button" onClick={() => {
+              void api("/api/workspace/v1/conversations", csrf, {
+                method: "POST",
+                body: JSON.stringify({ title: row.display_name, agent_id: row.agent_id, model_id: row.model_id }),
+              });
+            }}>Chat</button>
             <button type="button" onClick={() => {
               void api(`/api/workspace/v1/agents/${row.agent_id}/archive`, csrf, { method: "POST", body: "{}" }).then(() => reload());
             }}>Archive</button>
@@ -310,12 +343,15 @@ function Agents({ csrf }: { csrf: string }) {
       </ul>
       <form className="stack" onSubmit={(event) => {
         event.preventDefault();
-        void api("/api/workspace/v1/agents", csrf, {
+        const path = editing ? `/api/workspace/v1/agents/${editing}/revise` : "/api/workspace/v1/agents";
+        void api(path, csrf, {
           method: "POST",
-          body: JSON.stringify({ display_name: name, instructions, model_id: "" }),
-        }).then(() => { setName(""); setInstructions(""); void reload(); });
+          body: JSON.stringify({ display_name: name, instructions, model_id: modelId, tool_refs: tools }),
+        }).then(() => { setName(""); setInstructions(""); setEditing(""); void reload(); });
       }}>
         <input aria-label="Agent name" value={name} onChange={(event) => setName(event.target.value)} />
+        <input aria-label="Agent model" value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="model id" />
+        <input aria-label="Agent tools" value={tools} onChange={(event) => setTools(event.target.value)} placeholder="server/tool" />
         <textarea aria-label="Instructions" value={instructions} onChange={(event) => setInstructions(event.target.value)} />
         <button type="submit">Save agent</button>
       </form>

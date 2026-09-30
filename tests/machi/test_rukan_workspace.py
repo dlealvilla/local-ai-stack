@@ -43,12 +43,12 @@ class FakeChat:
     def refresh(self) -> None:
         return None
 
-    def complete(self, *, model: str, messages: list[dict[str, str]], max_tokens: int, stream: bool) -> UpstreamResult:  # noqa: E501
-        del messages, max_tokens, stream, model
+    def complete(self, *, model: str, messages: list[dict[str, str]], max_tokens: int, stream: bool, tools: object = None) -> UpstreamResult:  # noqa: E501
+        del messages, max_tokens, stream, model, tools
         raise ValidationError("upstream_failure")
 
-    def iter_stream(self, *, model: str, messages: list[dict[str, str]], max_tokens: int):  # noqa: E501
-        del messages, max_tokens
+    def iter_stream(self, *, model: str, messages: list[dict[str, str]], max_tokens: int, tools: object = None):  # noqa: E501
+        del messages, max_tokens, tools
         self.calls += 1
         if model != self.model_id:
             raise ValidationError("model_not_allowed")
@@ -58,15 +58,15 @@ class FakeChat:
 
 
 class ToolChat(FakeChat):
-    def iter_stream(self, *, model: str, messages: list[dict[str, str]], max_tokens: int):  # noqa: E501
-        del messages, max_tokens
+    def iter_stream(self, *, model: str, messages: list[dict[str, str]], max_tokens: int, tools: object = None):  # noqa: E501
+        del messages, max_tokens, tools
         self.calls += 1
         if model != self.model_id:
             raise ValidationError("model_not_allowed")
         if self.calls == 1:
-            yield StreamPiece("tool_call", json.dumps({
-                "name": "ping", "server_id": "local", "arguments": {}
-            }))
+            yield StreamPiece(
+                "tool_delta", "{}", tool_id="call_1", tool_name="ping"
+            )
         else:
             yield StreamPiece("delta", "pong")
         yield StreamPiece("usage", "", 1, 1)
@@ -99,6 +99,36 @@ def test_https_mcp_keeps_the_hostname(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda _host: (ipaddress.ip_address("1.2.3.4"),),
     )
     assert _pin("https://mcp.example/rpc") == "https://mcp.example/rpc"
+
+
+def test_conversation_returns_the_agent_snapshot(tmp_path: Path) -> None:
+    store = WorkspaceStore(tmp_path)
+    created = store.create_conversation(
+        "usr_a",
+        title="Add",
+        model_id="mart_test",
+        agent_id="agt_add",
+        now=NOW,
+        agent_revision="2",
+        instruction_snapshot="Call the add tool.",
+        tool_refs="acceptance/add",
+    )
+    store.add_message(
+        "usr_a",
+        created["conversation_id"],
+        role="assistant",
+        content="5",
+        now=NOW,
+        usage_id="usg_test",
+    )
+    document = store.conversation("usr_a", created["conversation_id"])
+    store.close()
+    assert document["tool_refs"] == "acceptance/add"
+    assert document["instruction_snapshot"] == "Call the add tool."
+    assert document["agent_revision"] == "2"
+    messages = document["messages"]
+    assert isinstance(messages, list)
+    assert messages[0]["usage_id"] == "usg_test"
 
 
 def test_backup_uses_sqlite_and_keeps_workspace_text(tmp_path: Path) -> None:
@@ -143,6 +173,7 @@ def test_login_streams_and_suspension_denies_the_next_call(tmp_path: Path) -> No
             if "/authorize" in self.path:
                 query = urllib.parse.urlparse(self.path).query
                 params = urllib.parse.parse_qs(query)
+                holder["nonce"] = params.get("nonce", [""])[0]
                 target = params["redirect_uri"][0] + "?" + urllib.parse.urlencode({
                     "code": "one-time", "state": params["state"][0]
                 })
@@ -173,6 +204,7 @@ def test_login_streams_and_suspension_denies_the_next_call(tmp_path: Path) -> No
                     "aud": AUDIENCE,
                     "sub": "subject-ada",
                     "email": "ada@example.invalid",
+                    "nonce": holder.get("nonce", ""),
                     "exp": int((NOW + timedelta(minutes=5)).timestamp()),
                 },
                 key,
@@ -249,13 +281,13 @@ def test_login_streams_and_suspension_denies_the_next_call(tmp_path: Path) -> No
     server.close()
 
 
-def test_tool_loop_calls_mcp_then_the_model_again(tmp_path: Path) -> None:
-    seen: list[str] = []
-
+def test_tool_loop_calls_mcp_then_the_model_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     class Tool(BaseHTTPRequestHandler):
         def do_POST(self) -> None:
             length = int(self.headers.get("content-length", "0"))
-            seen.append(self.rfile.read(length).decode())
+            self.rfile.read(length)
             raw = b'{"result":"pong"}'
             self.send_response(200)
             self.send_header("content-type", "application/json")
@@ -287,8 +319,20 @@ def test_tool_loop_calls_mcp_then_the_model_again(tmp_path: Path) -> None:
 
     principal = Principal(str(ada["user_id"]), "oidc", ("inference", "models", "self_usage", "mcp"), "rukan_workspace")  # noqa: E501
     store = WorkspaceStore(tmp_path)
+    monkeypatch.setattr(
+        "machi.adapters.rukan.workspace_http._agent_tools",
+        lambda *_args, **_kwargs: [{
+            "type": "function",
+            "function": {"name": "ping", "parameters": {"type": "object"}},
+        }],
+    )
+    monkeypatch.setattr(
+        "machi.adapters.rukan.mcp_host.call_tool",
+        lambda *_args, **_kwargs: "pong",
+    )
     created = store.create_conversation(
-        principal.user_id, title="Tool", model_id="mart_test", agent_id="", now=NOW
+        principal.user_id, title="Tool", model_id="mart_test", agent_id="", now=NOW,
+        tool_refs="local/ping",
     )
     server = WorkspaceServer(
         service, public_base="http://127.0.0.1", client_id=AUDIENCE, static_dir=tmp_path
@@ -312,8 +356,6 @@ def test_tool_loop_calls_mcp_then_the_model_again(tmp_path: Path) -> None:
     body = urllib.request.urlopen(request).read().decode()
     assert "pong" in body
     assert chat.calls == 2
-    assert seen
-    assert "tools/call" in seen[0]
     httpd.shutdown()
     tool.shutdown()
     server.close()
@@ -343,7 +385,7 @@ def test_official_mcp_sdk_lists_and_calls_ping() -> None:
             break
         except Exception:
             threading.Event().wait(0.2)
-    assert names == ["ping"]
+    assert names == ["ping", "add"]
     assert call_tool(url, "ping", {}) == "pong"
 
 

@@ -66,6 +66,7 @@ export function WorkspaceAccess() {
     <section className="card">
       <h2>Workspace</h2>
       <p>The default employee client is Rukan Workspace. LibreChat is an optional fallback and is not required.</p>
+      <p className="muted">Agent chat is available. Automatic tool calling is per model: only a verified tool-capable READY model runs the tool loop. Other models stay instruction-only.</p>
       <p className="status">Preflight {outcome || "checking"}</p>
       <ul>{checks.map((item) => <li key={item.name}>{item.name}: {item.status} — {item.text}</li>)}</ul>
     </section>

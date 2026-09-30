@@ -48,7 +48,9 @@ class WorkspaceServer:
         self.static_dir = Path(static_dir)
         self.tls = tls
         self.store = WorkspaceStore(service.store_root)
-        self._pending: dict[str, tuple[str, float]] = {}
+        if not public_base.startswith(("https://", "http://")):
+            raise ValidationError("workspace public address is invalid")
+        self._pending: dict[str, tuple[str, str, float]] = {}
         self._cancel: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
 
@@ -152,7 +154,7 @@ def _api(
         session = _session(handler, server, now)
         _csrf(handler, session)
         server.store.drop_session(session["session_id"])
-        _json(handler, 200, {"ok": True}, _clear_cookie())
+        _json(handler, 200, {"ok": True}, _clear_cookie(_cookie_secure(server)))
         return
     if method == "GET" and path == "/api/workspace/v1/me":
         session = _session(handler, server, now)
@@ -196,12 +198,30 @@ def _workspace(
         _json(handler, 200, {"conversations": server.store.list_conversations(user_id)})
         return
     if method == "POST" and path == "/api/workspace/v1/conversations":
+        agent_id = str(body.get("agent_id", ""))
+        snapshot = ""
+        revision = ""
+        model_id = str(body.get("model_id", ""))
+        if agent_id:
+            _capability(server, user_id, "agent_use")
+            agent = server.store.agent(user_id, agent_id)
+            snapshot = agent["instructions"]
+            revision = agent["revision"]
+            tool_refs = agent.get("tool_refs", "")
+            if not model_id:
+                model_id = agent["model_id"]
+        else:
+            tool_refs = ""
+        _require_model(server, principal, model_id)
         created = server.store.create_conversation(
             user_id,
             title=str(body.get("title", "New chat")),
-            model_id=str(body.get("model_id", "")),
-            agent_id=str(body.get("agent_id", "")),
+            model_id=model_id,
+            agent_id=agent_id,
             now=now,
+            agent_revision=revision,
+            instruction_snapshot=snapshot,
+            tool_refs=tool_refs,
         )
         _json(handler, 200, created)
         return
@@ -217,6 +237,9 @@ def _workspace(
             model_id=str(body.get("model_id", "")),
             mcp_server_ids=str(body.get("mcp_server_ids", "")),
             now=now,
+            description=str(body.get("description", "")),
+            max_tokens=_bounded_tokens(body.get("max_tokens", 64)),
+            tool_refs=str(body.get("tool_refs", "")),
         )
         _json(handler, 200, saved)
         return
@@ -226,20 +249,45 @@ def _workspace(
     if len(parts) >= 5 and parts[3] == "conversations":
         _conversation(handler, server, method, parts, principal, body, now)
         return
-    if (
-        method == "POST"
-        and len(parts) >= 5
-        and parts[3] == "agents"
-        and parts[-1] == "archive"
-    ):
-        server.store.archive_agent(user_id, parts[4], now)
-        _json(handler, 200, {"ok": True})
-        return
+    if method == "POST" and len(parts) >= 6 and parts[3] == "agents":
+        _capability(server, user_id, "agent_builder")
+        if parts[5] == "archive":
+            server.store.archive_agent(user_id, parts[4], now)
+            _json(handler, 200, {"ok": True})
+            return
+        if parts[5] == "revise":
+            revised = server.store.revise_agent(
+                user_id,
+                parts[4],
+                display_name=str(body.get("display_name", "Agent")),
+                instructions=str(body.get("instructions", "")),
+                model_id=str(body.get("model_id", "")),
+                description=str(body.get("description", "")),
+                max_tokens=_bounded_tokens(body.get("max_tokens", 64)),
+                tool_refs=str(body.get("tool_refs", "")),
+                now=now,
+            )
+            _json(handler, 200, revised)
+            return
     if len(parts) >= 6 and parts[3] == "tools" and parts[5] == "call":
         _capability(server, user_id, "mcp_use")
         approved = server.service.ledger.server(parts[4])
         if approved is None:
             raise ValidationError("mcp_access_denied")
+        resource = body.get("resource")
+        prompt_name = body.get("prompt")
+        if isinstance(resource, str) and resource:
+            from machi.adapters.rukan.mcp_host import read_resource
+
+            text = read_resource(str(approved["endpoint"]), resource)
+            _json(handler, 200, {"text": text})
+            return
+        if isinstance(prompt_name, str) and prompt_name:
+            from machi.adapters.rukan.mcp_host import get_prompt_text
+
+            text = get_prompt_text(str(approved["endpoint"]), prompt_name)
+            _json(handler, 200, {"text": text})
+            return
         name = body.get("name")
         if isinstance(name, str) and name:
             from machi.adapters.rukan.mcp_host import call_tool
@@ -296,6 +344,12 @@ def _conversation(
         server.store.rename(user_id, identity, str(body.get("title", "")), now)
         _json(handler, 200, {"ok": True})
         return
+    if method == "POST" and action == "model":
+        model_id = str(body.get("model_id", ""))
+        _require_model(server, principal, model_id)
+        server.store.set_model(user_id, identity, model_id, now)
+        _json(handler, 200, {"ok": True})
+        return
     if method == "POST" and action == "archive":
         server.store.archive(user_id, identity, now)
         _json(handler, 200, {"ok": True})
@@ -335,12 +389,11 @@ def _stream(
         raise ValidationError("workspace_conflict")
     document = server.store.conversation(principal.user_id, conversation_id)
     prior = document["messages"]
-    history: list[dict[str, str]] = []
-    agent_id = str(document["agent_id"])
-    if agent_id:
+    history: list[dict[str, object]] = []
+    snapshot = str(document.get("instruction_snapshot", ""))
+    if snapshot:
         _capability(server, principal.user_id, "agent_use")
-        agent = server.store.agent(principal.user_id, agent_id)
-        history.append({"role": "system", "content": agent["instructions"]})
+        history.append({"role": "system", "content": snapshot})
     if isinstance(prior, list):
         for item in prior:
             if isinstance(item, dict) and item.get("role") in {"user", "assistant"}:
@@ -355,19 +408,23 @@ def _stream(
         history.append({"role": "user", "content": content})
     server.service.upstream.refresh()
     model = str(document["model_id"]) or (server.service.upstream.model_id or "")
+    _require_model(server, principal, model)
+    tools = _agent_tools(server, principal, str(document.get("tool_refs", "")), model)
     cancel = threading.Event()
     server._cancel[conversation_id] = cancel
     text: list[str] = []
     inputs = "not_recorded"
     outputs = "not_recorded"
+    usage_id = "not_recorded"
     started = False
     try:
         for _round in range(2):
-            iterator = server.service.stream(
-                principal,
-                {"model": model, "messages": history, "max_tokens": 64},
-                now=now,
-            )
+            body: dict[str, object] = {
+                "model": model, "messages": history, "max_tokens": 64
+            }
+            if tools:
+                body["tools"] = tools
+            iterator = server.service.stream(principal, body, now=now)
             try:
                 try:
                     first = next(iterator)
@@ -382,26 +439,43 @@ def _stream(
                     handler.send_header("cache-control", "no-cache")
                     handler.end_headers()
                     started = True
-                tool_payload, round_in, round_out = _forward(
+                calls, round_usage, round_in, round_out = _forward(
                     handler, iterator, first, cancel, text
                 )
+                if round_usage:
+                    usage_id = round_usage
                 if round_in is not None:
                     inputs = str(round_in)
                 if round_out is not None:
                     outputs = str(round_out)
             finally:
                 _close(iterator)
-            if not tool_payload or cancel.is_set():
+            if not calls or cancel.is_set() or not tools:
                 break
-            result = _invoke_tool(server, principal, tool_payload, now)
-            history.append({"role": "assistant", "content": tool_payload})
-            history.append({"role": "user", "content": json.dumps(result)})
+            call = calls[0]
+            result = _invoke_named_tool(
+                server, principal, call, str(document.get("tool_refs", "")), now
+            )
+            history.append({
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{
+                    "id": call["id"],
+                    "type": "function",
+                    "function": {"name": call["name"], "arguments": call["arguments"]},
+                }],
+            })
+            history.append({
+                "role": "tool",
+                "tool_call_id": call["id"],
+                "content": result,
+            })
         if started:
             handler.wfile.write(b"data: {\"done\": true}\n\n")
             handler.wfile.flush()
     finally:
         server._cancel.pop(conversation_id, None)
-        if text:
+        if text or usage_id != "not_recorded":
             server.store.add_message(
                 principal.user_id,
                 conversation_id,
@@ -410,6 +484,7 @@ def _stream(
                 now=now,
                 input_tokens=inputs,
                 output_tokens=outputs,
+                usage_id=usage_id,
             )
 
 
@@ -431,8 +506,9 @@ def _forward(
     first: bytes,
     cancel: threading.Event,
     text: list[str],
-) -> tuple[str, int | None, int | None]:
-    tool = ""
+) -> tuple[list[dict[str, str]], str, int | None, int | None]:
+    calls: dict[int, dict[str, str]] = {}
+    usage_id = ""
     inputs: int | None = None
     outputs: int | None = None
     pending = first
@@ -448,15 +524,57 @@ def _forward(
                 f"data: {json.dumps({'delta': piece})}\n\n".encode()
             )
             handler.wfile.flush()
-        requested = _tool_call(raw)
-        if requested:
-            tool = requested
+        _absorb_tools(raw, calls)
+        found = _rukan_usage(raw)
+        if found:
+            usage_id = found
         found_in, found_out = _usage(raw)
         if found_in is not None:
             inputs = found_in
         if found_out is not None:
             outputs = found_out
-    return tool, inputs, outputs
+    finished = [
+        item for item in calls.values()
+        if item.get("id") and item.get("name")
+    ]
+    return finished[:1], usage_id, inputs, outputs
+
+
+def _absorb_tools(raw: bytes, calls: dict[int, dict[str, str]]) -> None:
+    payload = _data(raw)
+    if not isinstance(payload, dict):
+        return
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return
+    delta = choices[0].get("delta")
+    if not isinstance(delta, dict) or not isinstance(delta.get("tool_calls"), list):
+        return
+    for call in delta["tool_calls"]:
+        if not isinstance(call, dict):
+            continue
+        index = call.get("index", 0)
+        slot = calls.setdefault(
+            index if isinstance(index, int) else 0,
+            {"id": "", "name": "", "arguments": ""},
+        )
+        if isinstance(call.get("id"), str):
+            slot["id"] = str(call["id"])
+        function = call.get("function")
+        if not isinstance(function, dict):
+            continue
+        if isinstance(function.get("name"), str):
+            slot["name"] += str(function["name"])
+        if isinstance(function.get("arguments"), str):
+            slot["arguments"] += str(function["arguments"])
+
+
+def _rukan_usage(raw: bytes) -> str:
+    payload = _data(raw)
+    if not isinstance(payload, dict) or not isinstance(payload.get("rukan"), dict):
+        return ""
+    usage_id = payload["rukan"].get("usage_id")
+    return usage_id if isinstance(usage_id, str) else ""
 
 
 def _tool_call(raw: bytes) -> str:
@@ -498,16 +616,27 @@ def _tools(
     server: WorkspaceServer, principal: Principal, now: datetime
 ) -> list[dict[str, object]]:
     del now
-    from machi.adapters.rukan.mcp_host import tool_names
+    from machi.adapters.rukan.mcp_host import describe_server
 
     _capability(server, principal.user_id, "mcp_use")
     found: list[dict[str, object]] = []
     for item in server.service.ledger.servers():
         endpoint = str(item.get("endpoint", ""))
+        try:
+            described = describe_server(endpoint)
+        except Exception:
+            described = {
+                "tools": [],
+                "resources": [],
+                "prompts": [],
+                "error": "mcp_unavailable",
+            }
         found.append({
             "server_id": str(item.get("server_id", "")),
             "display_name": item.get("display_name", ""),
-            "tools": tool_names(endpoint),
+            "tools": described.get("tools", []),
+            "resources": described.get("resources", []),
+            "prompts": described.get("prompts", []),
         })
     return found
 
@@ -520,9 +649,10 @@ def _authorize_url(server: WorkspaceServer) -> str:
     if not verifier.authorization_endpoint or not verifier.token_endpoint:
         raise ValidationError("authentication_required")
     verifier_text = secrets.token_urlsafe(48)
+    nonce = secrets.token_urlsafe(24)
     state = secrets.token_urlsafe(24)
     with server._lock:
-        server._pending[state] = (verifier_text, time.monotonic() + 600)
+        server._pending[state] = (verifier_text, nonce, time.monotonic() + 600)
     challenge = base64.urlsafe_b64encode(
         hashlib.sha256(verifier_text.encode()).digest()
     ).decode().rstrip("=")
@@ -534,6 +664,7 @@ def _authorize_url(server: WorkspaceServer) -> str:
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
+        "nonce": nonce,
     })
     return verifier.authorization_endpoint + "?" + query
 
@@ -546,12 +677,14 @@ def _callback(
     code = query.get("code", [""])[0]
     with server._lock:
         pending = server._pending.pop(state, None)
-    if pending is None or pending[1] < time.monotonic() or not code:
+    if pending is None or pending[2] < time.monotonic() or not code:
         raise ValidationError("authentication_required")
     verifier = server.service.verifier
     if not isinstance(verifier, OidcDiscoveryVerifier):
         raise ValidationError("authentication_required")
-    token = _exchange(server, verifier.token_endpoint, code, pending[0])
+    token, nonce = _exchange(server, verifier.token_endpoint, code, pending[0])
+    if nonce != pending[1]:
+        raise ValidationError("authentication_required")
     claims = verifier.verify(token)
     bound = server.service.directory.resolve_oidc(
         issuer=claims["issuer"],
@@ -565,11 +698,13 @@ def _callback(
     _redirect(
         handler,
         server.public_base + "/",
-        _set_cookie(opened["session_id"], server.tls),
+        _set_cookie(opened["session_id"], _cookie_secure(server)),
     )
 
 
-def _exchange(server: WorkspaceServer, endpoint: str, code: str, verifier: str) -> str:
+def _exchange(
+    server: WorkspaceServer, endpoint: str, code: str, verifier: str
+) -> tuple[str, str]:
     form = urllib.parse.urlencode({
         "grant_type": "authorization_code",
         "code": code,
@@ -589,10 +724,19 @@ def _exchange(server: WorkspaceServer, endpoint: str, code: str, verifier: str) 
         raise ValidationError("authentication_required") from exc
     if not isinstance(payload, dict):
         raise ValidationError("authentication_required")
-    token = payload.get("id_token") or payload.get("access_token")
-    if not isinstance(token, str) or not token:
+    token = payload.get("id_token")
+    if not isinstance(token, str) or token.count(".") != 2:
         raise ValidationError("authentication_required")
-    return token
+    try:
+        segment = token.split(".")[1]
+        padded = segment + "=" * (-len(segment) % 4)
+        unverified = json.loads(base64.urlsafe_b64decode(padded))
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise ValidationError("authentication_required") from exc
+    nonce = unverified.get("nonce") if isinstance(unverified, dict) else ""
+    if not isinstance(nonce, str) or not nonce:
+        raise ValidationError("authentication_required")
+    return token, nonce
 
 
 def _session(
@@ -619,6 +763,111 @@ def _principal(server: WorkspaceServer, session: dict[str, str]) -> Principal:
     return Principal(session["user_id"], "oidc", _SCOPES, "rukan_workspace")
 
 
+def _bounded_tokens(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 64
+    return max(1, min(value, 256))
+
+
+def _require_model(
+    server: WorkspaceServer, principal: Principal, model_id: str
+) -> None:
+    if not model_id:
+        raise ValidationError("model_not_allowed")
+    listed = server.service.models(principal)
+    data = listed.get("data")
+    allowed = {
+        str(item.get("id"))
+        for item in data
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    } if isinstance(data, list) else set()
+    if model_id not in allowed:
+        raise ValidationError("model_not_allowed")
+
+
+def _agent_tools(
+    server: WorkspaceServer,
+    principal: Principal,
+    tool_refs: str,
+    model_id: str,
+) -> list[dict[str, object]] | None:
+    listed = server.service.models(principal)
+    data = listed.get("data")
+    capability = "unresolved"
+    if isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict) and item.get("id") == model_id:
+                capability = str(item.get("tool_calling", "unresolved"))
+    if capability != "supported" or not tool_refs.strip():
+        return None
+    from machi.adapters.rukan.mcp_host import describe_server
+
+    known: dict[str, dict[str, object]] = {}
+    for item in server.service.ledger.servers():
+        server_id = str(item.get("server_id", ""))
+        try:
+            described = describe_server(str(item.get("endpoint", "")))
+        except Exception:
+            continue
+        raw = described.get("schemas")
+        if not isinstance(raw, list):
+            continue
+        for spec in raw:
+            if isinstance(spec, dict) and isinstance(spec.get("name"), str):
+                known[f"{server_id}/{spec['name']}"] = spec
+    tools: list[dict[str, object]] = []
+    for ref in tool_refs.split(","):
+        spec = known.get(ref.strip())
+        if spec is None:
+            continue
+        parameters = spec.get("parameters")
+        if not isinstance(parameters, dict):
+            parameters = {"type": "object", "properties": {}}
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": spec["name"],
+                "description": str(spec.get("description") or spec["name"]),
+                "parameters": parameters,
+            },
+        })
+    return tools[:8] or None
+
+
+def _invoke_named_tool(
+    server: WorkspaceServer,
+    principal: Principal,
+    call: dict[str, str],
+    tool_refs: str,
+    now: datetime,
+) -> str:
+    del now
+    _capability(server, principal.user_id, "mcp_use")
+    allowed = {ref.strip() for ref in tool_refs.split(",") if ref.strip()}
+    match = ""
+    for ref in allowed:
+        if ref.endswith("/" + call["name"]) or ref == call["name"]:
+            match = ref
+    if not match:
+        return "tool is not approved"
+    server_id = match.split("/")[0] if "/" in match else match
+    approved = server.service.ledger.server(server_id)
+    if approved is None:
+        return "tool is not approved"
+    try:
+        arguments = json.loads(call["arguments"] or "{}")
+    except json.JSONDecodeError:
+        return "tool arguments are not valid JSON"
+    if not isinstance(arguments, dict):
+        return "tool arguments are not valid JSON"
+    from machi.adapters.rukan.mcp_host import call_tool
+
+    try:
+        return call_tool(str(approved["endpoint"]), call["name"], arguments)
+    except Exception:
+        return "tool is unavailable"
+
+
 def _capability(server: WorkspaceServer, user_id: str, name: str) -> None:
     access = server.service.directory.effective(user_id)
     if access.get(name) != "allow":
@@ -640,10 +889,10 @@ def _static(
     handler: BaseHTTPRequestHandler, server: WorkspaceServer, path: str
 ) -> None:
     relative = "index.html" if path in {"", "/"} else path.lstrip("/")
-    target = (server.static_dir / relative).resolve()
     root = server.static_dir.resolve()
-    if not str(target).startswith(str(root)) or not target.is_file():
-        target = server.static_dir / "index.html"
+    target = (root / relative).resolve()
+    if not target.is_relative_to(root) or not target.is_file():
+        target = root / "index.html"
     if not target.is_file():
         _bytes(handler, 200, _FALLBACK.encode(), "text/html; charset=utf-8")
         return
@@ -712,13 +961,18 @@ def _object(raw: bytes) -> dict[str, object]:
     return payload
 
 
+def _cookie_secure(server: WorkspaceServer) -> bool:
+    return server.public_base.startswith("https://")
+
+
 def _set_cookie(session_id: str, tls: bool) -> str:
     suffix = "; Secure" if tls else ""
     return f"{_SESSION}={session_id}; HttpOnly; SameSite=Lax; Path=/{suffix}"
 
 
-def _clear_cookie() -> str:
-    return f"{_SESSION}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+def _clear_cookie(secure: bool) -> str:
+    suffix = "; Secure" if secure else ""
+    return f"{_SESSION}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0{suffix}"
 
 
 def _redirect(handler: BaseHTTPRequestHandler, location: str, cookie: str = "") -> None:
