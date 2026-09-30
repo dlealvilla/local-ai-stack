@@ -63,10 +63,19 @@ def describe_server(url: str) -> dict[str, object]:
                 tools = await session.list_tools()
                 resources = await session.list_resources()
                 prompts = await session.list_prompts()
+                schemas: list[dict[str, object]] = []
+                for item in tools.tools:
+                    schema: dict[str, object] = dict(item.inputSchema)
+                    schemas.append({
+                        "name": item.name,
+                        "description": item.description or item.name,
+                        "parameters": schema,
+                    })
                 return {
                     "tools": [item.name for item in tools.tools],
                     "resources": [str(item.uri) for item in resources.resources],
                     "prompts": [item.name for item in prompts.prompts],
+                    "schemas": schemas,
                 }
 
     return _run(action)

@@ -800,17 +800,35 @@ def _agent_tools(
                 capability = str(item.get("tool_calling", "unresolved"))
     if capability != "supported" or not tool_refs.strip():
         return None
+    from machi.adapters.rukan.mcp_host import describe_server
+
+    known: dict[str, dict[str, object]] = {}
+    for item in server.service.ledger.servers():
+        server_id = str(item.get("server_id", ""))
+        try:
+            described = describe_server(str(item.get("endpoint", "")))
+        except Exception:
+            continue
+        raw = described.get("schemas")
+        if not isinstance(raw, list):
+            continue
+        for spec in raw:
+            if isinstance(spec, dict) and isinstance(spec.get("name"), str):
+                known[f"{server_id}/{spec['name']}"] = spec
     tools: list[dict[str, object]] = []
     for ref in tool_refs.split(","):
-        name = ref.strip().split("/")[-1]
-        if not name:
+        spec = known.get(ref.strip())
+        if spec is None:
             continue
+        parameters = spec.get("parameters")
+        if not isinstance(parameters, dict):
+            parameters = {"type": "object", "properties": {}}
         tools.append({
             "type": "function",
             "function": {
-                "name": name,
-                "description": name,
-                "parameters": {"type": "object", "properties": {}},
+                "name": spec["name"],
+                "description": str(spec.get("description") or spec["name"]),
+                "parameters": parameters,
             },
         })
     return tools[:8] or None
