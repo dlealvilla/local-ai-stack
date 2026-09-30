@@ -101,6 +101,36 @@ def test_https_mcp_keeps_the_hostname(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _pin("https://mcp.example/rpc") == "https://mcp.example/rpc"
 
 
+def test_conversation_returns_the_agent_snapshot(tmp_path: Path) -> None:
+    store = WorkspaceStore(tmp_path)
+    created = store.create_conversation(
+        "usr_a",
+        title="Add",
+        model_id="mart_test",
+        agent_id="agt_add",
+        now=NOW,
+        agent_revision="2",
+        instruction_snapshot="Call the add tool.",
+        tool_refs="acceptance/add",
+    )
+    store.add_message(
+        "usr_a",
+        created["conversation_id"],
+        role="assistant",
+        content="5",
+        now=NOW,
+        usage_id="usg_test",
+    )
+    document = store.conversation("usr_a", created["conversation_id"])
+    store.close()
+    assert document["tool_refs"] == "acceptance/add"
+    assert document["instruction_snapshot"] == "Call the add tool."
+    assert document["agent_revision"] == "2"
+    messages = document["messages"]
+    assert isinstance(messages, list)
+    assert messages[0]["usage_id"] == "usg_test"
+
+
 def test_backup_uses_sqlite_and_keeps_workspace_text(tmp_path: Path) -> None:
     store = WorkspaceStore(tmp_path)
     created = store.create_conversation(
@@ -295,6 +325,10 @@ def test_tool_loop_calls_mcp_then_the_model_again(
             "type": "function",
             "function": {"name": "ping", "parameters": {"type": "object"}},
         }],
+    )
+    monkeypatch.setattr(
+        "machi.adapters.rukan.mcp_host.call_tool",
+        lambda *_args, **_kwargs: "pong",
     )
     created = store.create_conversation(
         principal.user_id, title="Tool", model_id="mart_test", agent_id="", now=NOW,

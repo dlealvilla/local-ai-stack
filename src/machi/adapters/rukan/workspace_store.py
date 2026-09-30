@@ -191,12 +191,16 @@ class WorkspaceStore:
             "title": str(row["title"]),
             "model_id": str(row["model_id"]),
             "agent_id": str(row["agent_id"]),
+            "agent_revision": str(row["agent_revision"]),
+            "instruction_snapshot": str(row["instruction_snapshot"]),
+            "tool_refs": str(row["tool_refs"]),
             "messages": [
                 {
                     "role": str(item["role"]),
                     "content": str(item["content"]),
                     "input_tokens": str(item["input_tokens"]),
                     "output_tokens": str(item["output_tokens"]),
+                    "usage_id": str(item["usage_id"]),
                 }
                 for item in messages
             ],
