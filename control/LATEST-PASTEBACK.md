@@ -108,7 +108,7 @@ AZ. GA debt remains `R-03-02`, `R-03-03`, `R-03-04`, `R-03-05`, `R-03-06`, and `
 
 BA. After that container can start and confidence passes, the first native workspace increment should be a thin client of `GET /v1/models`, `POST /v1/chat/completions`, `GET /v1/me`, and `GET /v1/me/usage`.
 
-BB. `rukan/user-access-gateway-v0.4` will include this evidence commit. Canonical `machi` was not moved.
+BB. `rukan/user-access-gateway-v0.4` is pushed at `7a0e6180a1e0d40e1d26271d590502d447d761a1`. Canonical `machi` was not moved.
 
 BC. The D4 pod is terminated.
 
