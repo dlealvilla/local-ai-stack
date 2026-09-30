@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "run_v0_4_gateway_hardening_then_employee_access_product_closure",
-  "expected_pasteback_instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
-  "instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
+  "expected_cursor_action": "resume_all_pending_v0_4_employee_access_product_and_physical_work",
+  "expected_pasteback_instruction_id": "RUKAN-V0.4-RESUME-ALL-PENDING-EMPLOYEE-ACCESS-001",
+  "instruction_id": "RUKAN-V0.4-RESUME-ALL-PENDING-EMPLOYEE-ACCESS-001",
   "program": {
     "canonical_baseline": "16084a5b21a0cca25bfe60070ad862832c80fb51",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_complete_gateway_hardening_then_full_employee_access_product_closure_and_physical_confidence",
+    "next_action": "cursor_finish_all_remaining_employee_access_product_closure_then_full_physical_diagnostics_and_confidence",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -332,7 +332,13 @@
       "terminal_statuses": [
         "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_CLOSED",
         "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_NOT_READY"
-      ]
+      ],
+      "resume_instruction_id": "RUKAN-V0.4-RESUME-ALL-PENDING-EMPLOYEE-ACCESS-001",
+      "current_evidence_tip": "b2cc72610a081c92558201e67889bd220a5216c2",
+      "hardened_source": "cae6a352717b8717ec96d840eb45ab17fd080bca",
+      "physical_topology_policy": "gpu_rukan_plus_operator_or_cpu_container_workspace",
+      "librechat_physical_may_block_final_pass_but_not_remaining_development": true,
+      "continue_phase_2_even_if_librechat_environment_pending": true
     },
     "rukan_v0_4_user_access_gateway": {
       "branch": "rukan/user-access-gateway-v0.4",
@@ -403,8 +409,8 @@
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
     "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
-  "published_instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
+  "published_instruction_id": "RUKAN-V0.4-RESUME-ALL-PENDING-EMPLOYEE-ACCESS-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "AWAITING_CURSOR_V0_4_RESUME_ALL_PENDING"
 }
