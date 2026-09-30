@@ -1,6 +1,6 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "stop_for_lead_review",
+  "expected_cursor_action": "stop_for_lead_review_complete",
   "expected_pasteback_instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
   "instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
   "program": {
@@ -8,7 +8,7 @@
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "lead_review_corrected_v0_5_closure_git_brain_not_started",
+    "next_action": "rukan_v0_5_core_closed_choose_next_product_phase",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -422,7 +422,7 @@
       "correction_instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
       "git_brain": "not_started",
       "instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
-      "lead_acceptance": "CORRECTED_CLOSURE_REPORTED",
+      "lead_acceptance": "ACCEPTED",
       "merge_commit": "124a1424ab20e6fd3e2ca96ee7fedb0cef539198",
       "preliminary_canonical": "124a1424ab20e6fd3e2ca96ee7fedb0cef539198",
       "preliminary_tag": "checkpoint/rukan-core-product-closed-nvidia-vllm-124a142",
@@ -433,7 +433,12 @@
       "terminal_status": "RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED",
       "tested_source": "8c68bdedb71f0faeec957bc14eb8b5062f9807fb",
       "wheel_build": "0.1.0+8c68bdedb71f",
-      "wheel_sha256": "29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204"
+      "wheel_sha256": "29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204",
+      "lead_review_notes": [
+        "corrected closure accepted for NVIDIA native vLLM plus first-party Rukan Workspace",
+        "Command Center concurrent migration database-locked test remains flaky/non-blocking and should be hardened before broader GA",
+        "corrected physical campaign evidence should be copied into a dedicated repository evidence document; current control paste-back remains authoritative evidence meanwhile"
+      ]
     },
     "rukan_v0_5_native_workspace_core_closure": {
       "agents": "rukan_owned_bounded_agent_builder_no_arbitrary_code",
@@ -478,5 +483,5 @@
   "published_instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "PASTEBACK_PUBLISHED"
+  "status": "LEAD_ACCEPTED_RUKAN_V0_5_CORE_PRODUCT_CLOSED"
 }
