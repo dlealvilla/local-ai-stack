@@ -1522,8 +1522,18 @@ note is [RUKAN-CONNECTED-MONITORING-V0.3.md](RUKAN-CONNECTED-MONITORING-V0.3.md)
 
 The v0.3 deployment path is implementation-accepted with physical
 confidence pending (`R-03-06`). It is not a three-run server-campaign
-pass. The employee User Gateway is the next product surface and remains
-a consumer of Serve, not a second admission authority.
+pass. The employee User Gateway is a consumer of Serve, not a second
+admission authority. Its contracts live in `kernel.gateway` and
+`kernel.people`. The LibreChat adapter, OIDC verifier, credential hash,
+and MCP broker live in `adapters/rukan`. The design note is
+[RUKAN-USER-ACCESS-GATEWAY-V0.4.md](RUKAN-USER-ACCESS-GATEWAY-V0.4.md).
+
+Rukan Workspace is the default employee frontend. It is not a new
+Block. `machi workspace serve` composes the packaged static UI, the
+browser session, customer-local conversations, and the User Gateway in
+one process. Headless `gateway serve` remains for API-only clients.
+LibreChat stays an optional fallback adapter. The contract note is
+[RUKAN-V0.5-BACKEND-CONTRACT-FREEZE.md](RUKAN-V0.5-BACKEND-CONTRACT-FREEZE.md).
 
 ---
 

@@ -16,6 +16,7 @@ import machi.foundation.events as foundation_events_module
 import machi.foundation.fallback as foundation_fallback_module
 import machi.install.events as install_events_module
 import machi.kernel.analytics as kernel_analytics_module
+import machi.kernel.gateway as kernel_gateway_module
 import machi.kernel.people as kernel_people_module
 import machi.kernel.report as kernel_report_module
 import machi.kernel.snapshot as kernel_snapshot_module
@@ -185,6 +186,7 @@ def test_schema_fingerprint_matches_committed_golden() -> None:
     assert kernel_usage_module.InferenceUsage.kind == "kernel.inference_usage"
     assert kernel_report_module.OperationalReport.kind == "kernel.operational_report"
     assert kernel_people_module.DirectoryUser.kind == "kernel.directory_user"
+    assert kernel_gateway_module.IdentityBinding.kind == "kernel.identity_binding"
     assert prerequisites_module is not None
     assert steward_events_module.OCCUPANCY_TYPE == "steward.occupancy.observed"
     assert foundation_events_module.INSPECTED_TYPE == "foundation.inspected"

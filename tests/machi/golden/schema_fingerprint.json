@@ -3166,6 +3166,130 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "UTC"
+      },
+      "agent_use": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow, deny, or inherit"
+      },
+      "api_credential": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow, deny, or inherit"
+      },
+      "workspace": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow, deny, or inherit"
+      },
+      "mcp_use": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow, deny, or inherit"
+      },
+      "mcp_connect": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "allow, deny, or inherit"
+      }
+    }
+  },
+  "kernel.agent_definition@1": {
+    "python": "AgentDefinition",
+    "fields": {
+      "agent_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable agent id"
+      },
+      "owner_user_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "owning user"
+      },
+      "accounting_team_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "one team context, or unassigned"
+      },
+      "display_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "label"
+      },
+      "revision": {
+        "type": "int",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "monotonic revision"
+      },
+      "instruction_ref": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reference, not instruction text"
+      },
+      "model_policy": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "model constraint"
+      },
+      "mcp_server_ids": {
+        "type": "tuple[str, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "approved server ids"
+      },
+      "status": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "active or retired"
+      },
+      "authority": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rukan"
+      },
+      "created_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      },
+      "updated_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
       }
     }
   },
@@ -3466,6 +3590,74 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "inference projections in this bundle"
+      }
+    }
+  },
+  "kernel.api_credential@1": {
+    "python": "ApiCredentialMetadata",
+    "fields": {
+      "key_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "credential id"
+      },
+      "user_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "owning user"
+      },
+      "scopes": {
+        "type": "tuple[str, ...]",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "inference, models, self_usage, or mcp"
+      },
+      "client_label": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "application label"
+      },
+      "issued_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      },
+      "expires_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      },
+      "revoked_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC, or not_recorded"
+      },
+      "status": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "active, revoked, or expired"
+      },
+      "last_used_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC, or not_recorded"
       }
     }
   },
@@ -3854,7 +4046,145 @@
         "optional": false,
         "nullable": false,
         "may_be_unresolved": false,
-        "meaning": "gateway_not_available until an employee gateway exists"
+        "meaning": "rukan_user_gateway enforces employee access"
+      },
+      "agent_use": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective allow or deny"
+      },
+      "api_credential": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective allow or deny"
+      },
+      "workspace": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective allow or deny"
+      },
+      "mcp_use": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective allow or deny"
+      },
+      "mcp_connect": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "effective allow or deny"
+      },
+      "agent_use_provenance": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rule for agent use"
+      },
+      "api_credential_provenance": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rule for api credentials"
+      },
+      "workspace_provenance": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rule for workspace"
+      },
+      "mcp_use_provenance": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rule for mcp use"
+      },
+      "mcp_connect_provenance": {
+        "type": "str",
+        "optional": true,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "rule for mcp connections"
+      }
+    }
+  },
+  "kernel.identity_binding@1": {
+    "python": "IdentityBinding",
+    "fields": {
+      "binding_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "platform-minted binding id"
+      },
+      "user_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "Rukan user"
+      },
+      "provider_kind": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "oidc"
+      },
+      "issuer": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "configured issuer"
+      },
+      "subject_fingerprint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "sha256 of the external subject"
+      },
+      "email_seen": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "approved email observed at binding"
+      },
+      "status": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "bound, mismatch, or reset"
+      },
+      "created_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      },
+      "updated_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
       }
     }
   },
@@ -4007,6 +4337,74 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "build id, or not_recorded"
+      }
+    }
+  },
+  "kernel.mcp_server@1": {
+    "python": "McpServerDefinition",
+    "fields": {
+      "server_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "stable server id"
+      },
+      "display_name": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "admin label"
+      },
+      "transport": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "streamable_http"
+      },
+      "endpoint": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "approved endpoint"
+      },
+      "approved": {
+        "type": "bool",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "administrator approval"
+      },
+      "auth_method": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "none or per_user_bearer"
+      },
+      "sensitivity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "category label"
+      },
+      "created_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
+      },
+      "updated_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
       }
     }
   },
@@ -4194,6 +4592,109 @@
         "nullable": false,
         "may_be_unresolved": false,
         "meaning": "usage groups in this report"
+      }
+    }
+  },
+  "kernel.principal_usage@1": {
+    "python": "PrincipalUsage",
+    "fields": {
+      "usage_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "same id as the deployment usage row"
+      },
+      "request_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "gateway request id"
+      },
+      "user_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "exactly one Rukan user"
+      },
+      "accounting_team_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "one team context, or unassigned"
+      },
+      "client_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "workspace or generic client"
+      },
+      "auth_method": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "oidc or api_credential"
+      },
+      "model_identity": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "public model id"
+      },
+      "macropath": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "runtime family"
+      },
+      "instance_id": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "serving instance"
+      },
+      "input_tokens": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reported input tokens, or not_recorded"
+      },
+      "output_tokens": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "reported output tokens, or not_recorded"
+      },
+      "latency_ms": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "boundary latency"
+      },
+      "outcome": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "completed or failed"
+      },
+      "occurred_at": {
+        "type": "str",
+        "optional": false,
+        "nullable": false,
+        "may_be_unresolved": false,
+        "meaning": "UTC"
       }
     }
   },

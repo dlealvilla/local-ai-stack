@@ -79,6 +79,7 @@ def _stage_ui(target: Path) -> None:
     mapping = {
         "admin": REPOSITORY / "ui" / "admin" / "dist",
         "command-center": REPOSITORY / "ui" / "command-center" / "dist",
+        "workspace": REPOSITORY / "ui" / "workspace" / "dist",
     }
     for name, source in mapping.items():
         if not (source / "index.html").is_file():

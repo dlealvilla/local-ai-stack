@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import secrets
@@ -15,6 +16,8 @@ from machi.adapters.rukan.secrets import restrict_owned
 from machi.install.contracts import InstallRecord
 from machi.kernel.errors import PersistenceError, UnknownKindError, ValidationError
 from machi.kernel.people import (
+    CAPABILITIES,
+    ENFORCEMENT,
     AccessIntent,
     DirectoryMembership,
     DirectoryTeam,
@@ -23,7 +26,7 @@ from machi.kernel.people import (
 )
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-_CAPABILITIES = ("platform_access", "inference_access", "model_selection", "agent_builder")  # noqa: E501
+_CAPABILITIES = CAPABILITIES
 
 
 class Directory:
@@ -147,6 +150,7 @@ class Directory:
                 found.append(item)
         for item in found:
             item["effective"] = self.effective(str(item["user_id"]))
+            item["binding"] = self.binding_state(str(item["user_id"]))
         return found
 
     def create_team(self, *, name: str, description: str, actor: str, now: datetime) -> dict[str, object]:  # noqa: E501
@@ -294,6 +298,127 @@ class Directory:
             ).fetchall()
         return [str(row["team_id"]) for row in rows]
 
+    def accounting_team(self, user_id: str) -> str:
+        """Earliest active membership. One request never fans out across teams."""
+        with self._lock:
+            row = self._db.execute(
+                """
+                SELECT m.team_id FROM memberships AS m
+                JOIN teams AS t ON t.team_id = m.team_id
+                WHERE m.user_id = ? AND m.active = 1 AND t.status = 'active'
+                ORDER BY m.created_at, m.team_id
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            return "unassigned"
+        return str(row["team_id"])
+
+    def resolve_oidc(
+        self, *, issuer: str, subject: str, email: str, now: datetime
+    ) -> dict[str, object]:
+        """Bind issuer+subject once. A raw email never overrides a binding."""
+        _text(issuer, "issuer")
+        _text(subject, "subject")
+        subject_hash = hashlib.sha256(subject.encode("utf-8")).hexdigest()
+        normalized = ""
+        if email.strip():
+            normalized, _shown = _email(email)
+        with self._lock:
+            row = self._db.execute(
+                """
+                SELECT * FROM identity_bindings
+                WHERE issuer = ? AND subject_hash = ?
+                """,
+                (issuer, subject_hash),
+            ).fetchone()
+            if row is not None:
+                user = self._user(str(row["user_id"]))
+                status = "bound"
+                if normalized and normalized != user.email_normalized:
+                    status = "mismatch"
+                    self._db.execute(
+                        """
+                        UPDATE identity_bindings
+                        SET status = 'mismatch', updated_at = ?
+                        WHERE binding_id = ?
+                        """,
+                        (now.isoformat(), str(row["binding_id"])),
+                    )
+                    self._audit(now, "identity.mismatch", "gateway", user.user_id, "", "mismatch")  # noqa: E501
+                    self._db.commit()
+                if user.status != "active":
+                    raise ValidationError("user_suspended")
+                return _binding_result(user, status, str(row["binding_id"]))
+            if not normalized:
+                raise ValidationError("identity_not_provisioned")
+            owner = self._email_owner(normalized)
+            if owner is None:
+                raise ValidationError("identity_not_provisioned")
+            user = self._user(owner)
+            if user.status != "active":
+                raise ValidationError("user_suspended")
+            taken = self._db.execute(
+                """
+                SELECT subject_hash FROM identity_bindings
+                WHERE user_id = ? AND issuer = ? AND status = 'bound'
+                """,
+                (user.user_id, issuer),
+            ).fetchone()
+            if taken is not None and str(taken["subject_hash"]) != subject_hash:
+                self._audit(now, "identity.conflict", "gateway", user.user_id, "", "conflict")  # noqa: E501
+                self._db.commit()
+                raise ValidationError("identity_binding_conflict")
+            binding_id = "bind_" + secrets.token_hex(8)
+            self._db.execute(
+                """
+                INSERT INTO identity_bindings(
+                    binding_id, user_id, provider_kind, issuer, subject_hash,
+                    email_seen, status, created_at, updated_at
+                ) VALUES (?, ?, 'oidc', ?, ?, ?, 'bound', ?, ?)
+                """,
+                (
+                    binding_id, user.user_id, issuer, subject_hash,
+                    user.email_normalized, now.isoformat(), now.isoformat(),
+                ),
+            )
+            self._audit(now, "identity.bound", "gateway", user.user_id, "", "bound")
+            self._db.commit()
+        return _binding_result(user, "bound", binding_id)
+
+    def reset_binding(self, user_id: str, *, actor: str, now: datetime) -> dict[str, str]:  # noqa: E501
+        with self._lock:
+            self._user(user_id)
+            self._db.execute("DELETE FROM identity_bindings WHERE user_id = ?", (user_id,))  # noqa: E501
+            self._audit(now, "identity.reset", actor, user_id, "", "reset")
+            self._db.commit()
+        return {"user_id": user_id, "status": "reset"}
+
+    def binding_state(self, user_id: str) -> dict[str, str]:
+        with self._lock:
+            row = self._db.execute(
+                """
+                SELECT binding_id, issuer, subject_hash, status, updated_at
+                FROM identity_bindings WHERE user_id = ?
+                ORDER BY updated_at DESC LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            return {
+                "status": "unbound",
+                "issuer": "not_recorded",
+                "subject_fingerprint": "not_recorded",
+                "updated_at": "not_recorded",
+            }
+        return {
+            "status": str(row["status"]),
+            "issuer": str(row["issuer"]),
+            "subject_fingerprint": str(row["subject_hash"])[:12],
+            "updated_at": str(row["updated_at"]),
+        }
+
     def set_intent(
         self,
         *,
@@ -305,7 +430,13 @@ class Directory:
         agent_builder: str,
         actor: str,
         now: datetime,
+        agent_use: str | None = None,
+        api_credential: str | None = None,
+        workspace: str | None = None,
+        mcp_use: str | None = None,
+        mcp_connect: str | None = None,
     ) -> dict[str, object]:
+        fallback = "inherit" if subject_kind == "user" else "deny"
         intent = AccessIntent(
             subject_kind=subject_kind,
             subject_id=subject_id,
@@ -314,42 +445,43 @@ class Directory:
             model_selection=model_selection,
             agent_builder=agent_builder,
             updated_at=now.isoformat(),
+            agent_use=agent_use or fallback,
+            api_credential=api_credential or fallback,
+            workspace=workspace or fallback,
+            mcp_use=mcp_use or fallback,
+            mcp_connect=mcp_connect or fallback,
         )
         with self._lock:
             if subject_kind == "user":
                 self._user(subject_id)
             else:
                 self._team(subject_id)
+            columns = ", ".join(("subject_kind", "subject_id", *_CAPABILITIES, "updated_at"))  # noqa: E501
+            placeholders = ", ".join("?" for _ in ("subject_kind", "subject_id", *_CAPABILITIES, "updated_at"))  # noqa: E501
+            assignments = ", ".join(
+                f"{name} = excluded.{name}" for name in (*_CAPABILITIES, "updated_at")
+            )
             self._db.execute(
-                """
-                INSERT INTO intents(
-                    subject_kind, subject_id, platform_access, inference_access,
-                    model_selection, agent_builder, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(subject_kind, subject_id) DO UPDATE SET
-                    platform_access = excluded.platform_access,
-                    inference_access = excluded.inference_access,
-                    model_selection = excluded.model_selection,
-                    agent_builder = excluded.agent_builder,
-                    updated_at = excluded.updated_at
+                f"""
+                INSERT INTO intents({columns}) VALUES ({placeholders})
+                ON CONFLICT(subject_kind, subject_id) DO UPDATE SET {assignments}
                 """,
                 (
-                    intent.subject_kind, intent.subject_id, intent.platform_access,
-                    intent.inference_access, intent.model_selection, intent.agent_builder,  # noqa: E501
+                    intent.subject_kind,
+                    intent.subject_id,
+                    *(getattr(intent, name) for name in _CAPABILITIES),
                     intent.updated_at,
                 ),
             )
             self._audit(now, "access_intent.changed", actor, subject_id if subject_kind == "user" else "", subject_id if subject_kind == "team" else "", platform_access)  # noqa: E501
             self._db.commit()
-        return {
+        saved = {name: getattr(intent, name) for name in _CAPABILITIES}
+        saved.update({
             "subject_kind": subject_kind,
             "subject_id": subject_id,
-            "platform_access": platform_access,
-            "inference_access": inference_access,
-            "model_selection": model_selection,
-            "agent_builder": agent_builder,
-            "enforcement": "gateway_not_available",
-        }
+            "enforcement": ENFORCEMENT,
+        })
+        return saved
 
     def effective(self, user_id: str) -> dict[str, object]:
         with self._lock:
@@ -379,22 +511,43 @@ class Directory:
             model_selection_provenance=reasons["model_selection"],
             agent_builder_provenance=reasons["agent_builder"],
             configured=True,
-            enforcement="gateway_not_available",
+            enforcement=ENFORCEMENT,
+            agent_use=values["agent_use"],
+            api_credential=values["api_credential"],
+            workspace=values["workspace"],
+            mcp_use=values["mcp_use"],
+            mcp_connect=values["mcp_connect"],
+            agent_use_provenance=reasons["agent_use"],
+            api_credential_provenance=reasons["api_credential"],
+            workspace_provenance=reasons["workspace"],
+            mcp_use_provenance=reasons["mcp_use"],
+            mcp_connect_provenance=reasons["mcp_connect"],
         )
         return {
             "user_id": projection.user_id,
             "status": projection.status,
             "team_ids": list(projection.team_ids),
+            "configured": True,
+            "enforcement": ENFORCEMENT,
+            "accounting_team_id": self.accounting_team(user_id),
             "platform_access": projection.platform_access,
             "inference_access": projection.inference_access,
             "model_selection": projection.model_selection,
             "agent_builder": projection.agent_builder,
+            "agent_use": projection.agent_use,
+            "api_credential": projection.api_credential,
+            "workspace": projection.workspace,
+            "mcp_use": projection.mcp_use,
+            "mcp_connect": projection.mcp_connect,
             "platform_provenance": projection.platform_provenance,
             "inference_provenance": projection.inference_provenance,
             "model_selection_provenance": projection.model_selection_provenance,
             "agent_builder_provenance": projection.agent_builder_provenance,
-            "configured": True,
-            "enforcement": "gateway_not_available",
+            "agent_use_provenance": projection.agent_use_provenance,
+            "api_credential_provenance": projection.api_credential_provenance,
+            "workspace_provenance": projection.workspace_provenance,
+            "mcp_use_provenance": projection.mcp_use_provenance,
+            "mcp_connect_provenance": projection.mcp_connect_provenance,
         }
 
     def audit_rows(self) -> list[dict[str, str]]:
@@ -455,7 +608,7 @@ class Directory:
         ).fetchone()
         if row is None:
             return None
-        return {name: str(row[name]) for name in ("platform_access", "inference_access", "model_selection", "agent_builder")}  # noqa: E501
+        return {name: str(row[name]) for name in _CAPABILITIES}
 
     def _email_owner(self, normalized: str) -> str | None:
         row = self._db.execute(
@@ -540,10 +693,52 @@ class Directory:
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY (subject_kind, subject_id)
             );
+            CREATE TABLE IF NOT EXISTS identity_bindings (
+                binding_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider_kind TEXT NOT NULL,
+                issuer TEXT NOT NULL,
+                subject_hash TEXT NOT NULL,
+                email_seen TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(issuer, subject_hash)
+            );
+            CREATE TABLE IF NOT EXISTS api_credentials (
+                key_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                secret_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                scopes TEXT NOT NULL,
+                client_label TEXT NOT NULL,
+                issued_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                revoked_at TEXT NOT NULL,
+                status TEXT NOT NULL,
+                last_used_at TEXT NOT NULL
+            );
             """
         )
+        present = {
+            str(row[1]) for row in self._db.execute("PRAGMA table_info(intents)")
+        }
+        added: list[str] = []
+        for name in ("agent_use", "api_credential", "workspace", "mcp_use", "mcp_connect"):  # noqa: E501
+            if name in present:
+                continue
+            self._db.execute(
+                f"ALTER TABLE intents ADD COLUMN {name} TEXT NOT NULL DEFAULT 'inherit'"
+            )
+            added.append(name)
+        if added:
+            assignment = ", ".join(f"{name} = 'deny'" for name in added)
+            self._db.execute(
+                f"UPDATE intents SET {assignment} WHERE subject_kind = 'team'"
+            )
         self._db.execute(
-            "INSERT OR IGNORE INTO meta(key, value) VALUES ('schema', '1')"
+            "INSERT INTO meta(key, value) VALUES ('schema', '2') "
+            "ON CONFLICT(key) DO UPDATE SET value = '2'"
         )
         self._db.commit()
 
@@ -660,6 +855,17 @@ def _email(value: str) -> tuple[str, str]:
 def _text(value: str, label: str) -> None:
     if not value.strip() or len(value) > 240 or any(char in value for char in "\n\r\x00"):  # noqa: E501
         raise ValidationError(f"directory {label} is empty or unsafe")
+
+
+def _binding_result(user: DirectoryUser, status: str, binding_id: str) -> dict[str, object]:  # noqa: E501
+    return {
+        "user_id": user.user_id,
+        "email_normalized": user.email_normalized,
+        "display_name": user.display_name,
+        "status": user.status,
+        "binding_status": status,
+        "binding_id": binding_id,
+    }
 
 
 def _user_row(user: DirectoryUser) -> dict[str, object]:

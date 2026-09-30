@@ -257,11 +257,46 @@ class AdminApplication:
 
     def analytics(self) -> dict[str, object]:
         """Customer-local facts. This is not the vendor export."""
-        return _envelope(
-            "ok",
-            "local analytics",
-            local_analytics(self.store_root, self.journal_dir),
-        )
+        body = local_analytics(self.store_root, self.journal_dir)
+        from machi.adapters.rukan.gateway_store import GatewayLedger
+
+        ledger = GatewayLedger(self.store_root)
+        try:
+            users = ledger.analytics()
+            recon = _reconcile(self.store_root, users["employee"])
+            requests = recon["deployment_requests"]
+            state = ledger.accounting_state(
+                requests if isinstance(requests, int) else 0,
+                str(recon["deployment_input_tokens"]),
+                str(recon["deployment_output_tokens"]),
+            )
+        finally:
+            ledger.close()
+        if state == "projection_pending":
+            recon["match"] = False
+            recon["statement"] = "projection pending"
+        elif state == "partial_token_coverage":
+            recon["match"] = False
+            recon["statement"] = "token coverage incomplete"
+        elif state == "degraded":
+            recon["match"] = False
+            recon["statement"] = "accounting degraded"
+        elif state == "mismatch":
+            recon["match"] = False
+            recon["statement"] = "accounting gap"
+        recon["accounting_state"] = state
+        body["gateway_users"] = users["users"]
+        body["gateway_teams"] = users["teams"]
+        body["employee_usage"] = users["employee"]
+        body["reconciliation"] = recon
+        raw_missing = body["missing"]
+        if isinstance(raw_missing, list):
+            body["missing"] = [
+                item.replace("cost, users, and utilization", "cost and utilization")
+                for item in raw_missing
+                if isinstance(item, str)
+            ]
+        return _envelope("ok", "local analytics", body)
 
     def snapshot(self) -> dict[str, object]:
         view = project_admin(
@@ -621,6 +656,56 @@ def _count(value: int | None) -> str:
 
 def _overrides(body: dict[str, object]) -> bool:
     return any(key in body for key in _OVERRIDES)
+
+
+def _reconcile(store_root: Path, principal: object) -> dict[str, object]:
+    import sqlite3
+
+    requests = 0
+    inputs = 0
+    outputs = 0
+    unresolved = False
+    path = Path(store_root) / "rukan-telemetry.sqlite"
+    if path.is_file():
+        database = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            rows = database.execute(
+                """
+                SELECT input_tokens, output_tokens FROM usage
+                WHERE purpose = 'user_request'
+                """
+            ).fetchall()
+        except sqlite3.Error:
+            rows = []
+        finally:
+            database.close()
+        requests = len(rows)
+        for item in rows:
+            if str(item[0]).isdigit() and str(item[1]).isdigit():
+                inputs += int(item[0])
+                outputs += int(item[1])
+            else:
+                unresolved = True
+    facts = principal if isinstance(principal, dict) else {}
+    same = (
+        not unresolved
+        and facts.get("requests") == requests
+        and facts.get("input_tokens") == str(inputs)
+        and facts.get("output_tokens") == str(outputs)
+    )
+    recorded = "not_recorded" if unresolved else str(inputs)
+    produced = "not_recorded" if unresolved else str(outputs)
+    return {
+        "match": same,
+        "deployment_requests": requests,
+        "deployment_input_tokens": recorded,
+        "deployment_output_tokens": produced,
+        "statement": (
+            "Sum of user traffic equals employee deployment traffic"
+            if same
+            else "accounting gap"
+        ),
+    }
 
 
 def _envelope(outcome: str, reason: str, body: dict[str, object]) -> dict[str, object]:

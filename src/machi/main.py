@@ -1633,6 +1633,124 @@ def _serve_rukan_admin(ns: argparse.Namespace) -> int:
     return 0
 
 
+def _identity_verifier(ns: argparse.Namespace) -> tuple[object, str]:
+    """Stored provider is production. CLI issuer/audience is an override."""
+    from machi.adapters.rukan.employee_ops import load_provider
+    from machi.adapters.rukan.oidc import OIDCBearerVerifier, OidcDiscoveryVerifier
+
+    stored = None
+    if ns.provider_id:
+        stored = load_provider(Path(ns.store_dir), ns.provider_id)
+    jwks = getattr(ns, "jwks", None)
+    if jwks:
+        if not ns.issuer or not ns.audience:
+            raise ValidationError("oidc verifier is incomplete")
+        document = json.loads(Path(jwks).read_text(encoding="utf-8"))
+        if not isinstance(document, dict):
+            raise ValidationError("oidc jwks is empty")
+        verifier: OIDCBearerVerifier | OidcDiscoveryVerifier = OIDCBearerVerifier(
+            issuer=ns.issuer, audience=ns.audience, jwks=document
+        )
+        return verifier, "cli_override"
+    if ns.issuer or ns.audience:
+        if not ns.issuer or not ns.audience:
+            raise ValidationError("oidc verifier is incomplete")
+        verifier = OidcDiscoveryVerifier(
+            issuer=ns.issuer,
+            audience=ns.audience,
+            allow_http=bool(ns.allow_http_discovery),
+        )
+        return verifier, "cli_override"
+    if stored is None:
+        raise ValidationError("identity provider is unknown")
+    verifier = OidcDiscoveryVerifier(
+        issuer=stored["issuer"],
+        audience=stored["audience"],
+        discovery_url=stored["discovery_url"] or None,
+        allow_http=bool(ns.allow_http_discovery),
+    )
+    return verifier, "stored_provider"
+
+
+def _serve_rukan_gateway(ns: argparse.Namespace) -> int:
+    """Bind the employee gateway. It does not admit and does not expose Serve."""
+    from machi.adapters.rukan.gateway import GatewayService, StoreChat
+    from machi.adapters.rukan.gateway_http import serve_gateway
+    from machi.adapters.rukan.oidc import OIDCBearerVerifier, OidcDiscoveryVerifier
+    from machi.kernel.build import identity
+
+    build = identity()
+    verifier, source = _identity_verifier(ns)
+    if not isinstance(verifier, OIDCBearerVerifier | OidcDiscoveryVerifier):
+        raise ValidationError("oidc verifier is incomplete")
+    print(f"identity {source}")
+    service = GatewayService(
+        Path(ns.store_dir),
+        build,
+        verifier,
+        StoreChat(Path(ns.store_dir), build),
+    )
+    print("product  Rukan User Gateway")
+    print(f"bind     {ns.host}:{ns.port}")
+    serve_gateway(
+        service,
+        host=ns.host,
+        port=ns.port,
+        tls_cert=Path(ns.tls_cert) if ns.tls_cert else None,
+        tls_key=Path(ns.tls_key) if ns.tls_key else None,
+    )
+    return 0
+
+
+def _serve_rukan_workspace(ns: argparse.Namespace) -> int:
+    """One process for the employee UI, session, and user gateway."""
+    from machi.adapters.rukan.employee_ops import employee_preflight
+    from machi.adapters.rukan.gateway import GatewayService, StoreChat
+    from machi.adapters.rukan.oidc import OIDCBearerVerifier, OidcDiscoveryVerifier
+    from machi.adapters.rukan.workspace_http import WorkspaceServer, serve_workspace
+    from machi.kernel.build import identity
+
+    build = identity()
+    verifier, source = _identity_verifier(ns)
+    if not isinstance(verifier, OIDCBearerVerifier | OidcDiscoveryVerifier):
+        raise ValidationError("oidc verifier is incomplete")
+    static = Path(ns.static_dir) if ns.static_dir else (
+        Path(__file__).resolve().parent / "adapters" / "rukan" / "static" / "workspace"
+    )
+    scheme = "https" if ns.tls_cert else "http"
+    public = ns.public_base or f"{scheme}://{ns.host}:{ns.port}"
+    report = employee_preflight(
+        Path(ns.store_dir),
+        static_dir=static,
+        allow_http=bool(ns.allow_http_discovery),
+    )
+    print("product  Rukan Workspace")
+    print(f"identity {source}")
+    print(f"preflight {report['outcome']}")
+    service = GatewayService(
+        Path(ns.store_dir),
+        build,
+        verifier,
+        StoreChat(Path(ns.store_dir), build),
+    )
+    server = WorkspaceServer(
+        service,
+        public_base=public,
+        client_id=ns.client_id,
+        static_dir=static,
+        tls=bool(ns.tls_cert),
+    )
+    print(f"bind     {ns.host}:{ns.port}")
+    serve_workspace(
+        server,
+        host=ns.host,
+        port=ns.port,
+        tls_cert=Path(ns.tls_cert) if ns.tls_cert else None,
+        tls_key=Path(ns.tls_key) if ns.tls_key else None,
+    )
+    return 0
+
+
 def _admin_inspect(
     ns: argparse.Namespace, body: dict[str, object]
 ) -> tuple[str, str, dict[str, object]]:
@@ -2126,6 +2244,48 @@ def main(argv: Sequence[str] | None = None) -> int:
     admin_serve.add_argument("--static-dir", default=None)
     admin_serve.add_argument("--port", type=int, default=8765)
     admin_serve.add_argument("--state-root", default=None)
+
+    gateway = sub.add_parser(
+        "gateway",
+        help="serve the Rukan User Gateway; this does not admit",
+    )
+    gateway_sub = gateway.add_subparsers(dest="gateway_command", required=True)
+    gateway_serve = gateway_sub.add_parser(
+        "serve",
+        help="authenticate employees and account inference",
+    )
+    gateway_serve.add_argument("--store-dir", required=True)
+    gateway_serve.add_argument("--provider-id", default=None)
+    gateway_serve.add_argument("--issuer", default=None)
+    gateway_serve.add_argument("--audience", default=None)
+    gateway_serve.add_argument("--jwks", default=None)
+    gateway_serve.add_argument("--allow-http-discovery", action="store_true")
+    gateway_serve.add_argument("--host", default="127.0.0.1")
+    gateway_serve.add_argument("--port", type=int, default=8787)
+    gateway_serve.add_argument("--tls-cert", default=None)
+    gateway_serve.add_argument("--tls-key", default=None)
+
+    workspace = sub.add_parser(
+        "workspace",
+        help="serve the Rukan Workspace; this does not admit",
+    )
+    workspace_sub = workspace.add_subparsers(dest="workspace_command", required=True)
+    workspace_serve = workspace_sub.add_parser(
+        "serve",
+        help="employee UI, session, conversations, and the user gateway",
+    )
+    workspace_serve.add_argument("--store-dir", required=True)
+    workspace_serve.add_argument("--provider-id", default=None)
+    workspace_serve.add_argument("--issuer", default=None)
+    workspace_serve.add_argument("--audience", default=None)
+    workspace_serve.add_argument("--client-id", default="rukan")
+    workspace_serve.add_argument("--allow-http-discovery", action="store_true")
+    workspace_serve.add_argument("--host", default="127.0.0.1")
+    workspace_serve.add_argument("--port", type=int, default=8790)
+    workspace_serve.add_argument("--public-base", default=None)
+    workspace_serve.add_argument("--static-dir", default=None)
+    workspace_serve.add_argument("--tls-cert", default=None)
+    workspace_serve.add_argument("--tls-key", default=None)
 
     analytics = sub.add_parser(
         "analytics",
@@ -2702,6 +2862,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if ns.command == "admin" and ns.admin_command == "serve":
             return _serve_rukan_admin(ns)
+        if ns.command == "gateway" and ns.gateway_command == "serve":
+            return _serve_rukan_gateway(ns)
+        if ns.command == "workspace" and ns.workspace_command == "serve":
+            return _serve_rukan_workspace(ns)
         if ns.command == "analytics" and ns.analytics_command == "export":
             return _export_rukan_analytics(ns)
         if ns.command == "command-center" and ns.command_center_command == "serve":

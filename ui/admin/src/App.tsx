@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Identity, McpCatalog, WorkspaceAccess } from "./access";
 import { Activity, CockpitOverview, ModelLibrary, MonitoringSettings, People, UsageAnalytics } from "./cockpit";
 import {
   canSendInference,
@@ -10,7 +11,7 @@ import {
   type Summary,
 } from "./logic";
 
-const PAGES = ["Overview", "Models", "Deployment", "Inference", "Analytics", "Activity", "People", "System", "Settings"] as const;
+const PAGES = ["Overview", "Models", "Deployment", "Inference", "Analytics", "Activity", "People", "Identity", "Workspace", "MCP", "System", "Settings"] as const;
 type Page = (typeof PAGES)[number];
 
 export function App() {
@@ -84,6 +85,9 @@ export function App() {
         {!loading && page === "Analytics" ? <><UsageAnalytics /><Analytics /></> : null}
         {!loading && page === "Activity" ? <Activity /> : null}
         {!loading && page === "People" ? <People /> : null}
+        {!loading && page === "Identity" ? <Identity /> : null}
+        {!loading && page === "Workspace" ? <WorkspaceAccess /> : null}
+        {!loading && page === "MCP" ? <McpCatalog /> : null}
         {!loading && page === "Settings" ? <MonitoringSettings /> : null}
       </main>
     </>

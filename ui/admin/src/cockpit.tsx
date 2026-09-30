@@ -205,8 +205,20 @@ export function UsageAnalytics() {
           ))}
         </tbody>
       </table>
+      <GatewayReconciliation />
     </section>
   );
+}
+
+function GatewayReconciliation() {
+  const [text, setText] = useState("Checking user and deployment totals.");
+  useEffect(() => {
+    void readJson<{ body: { reconciliation?: { match?: boolean; statement?: string } } }>("/v1/analytics").then((document) => {
+      const row = document?.body.reconciliation;
+      setText(row?.statement ?? "User totals are not available yet.");
+    });
+  }, []);
+  return <p>{text}</p>;
 }
 
 export function Activity() {
@@ -217,7 +229,7 @@ export function Activity() {
   return (
     <section>
       <h1>Activity</h1>
-      <p className="muted">Source names the local actor. There is no person identity yet.</p>
+      <p className="muted">Gateway decisions use stable user ids. Names and emails stay on this People page.</p>
       <table>
         <thead><tr><th>When</th><th>Action</th><th>Outcome</th><th>Source</th><th>Subject</th></tr></thead>
         <tbody>
@@ -327,13 +339,24 @@ type Intent = {
   inference_access: Choice;
   model_selection: Choice;
   agent_builder: Choice;
+  agent_use: Choice;
+  api_credential: Choice;
+  workspace: Choice;
+  mcp_use: Choice;
+  mcp_connect: Choice;
 };
 type Effective = Intent & {
   platform_provenance: string;
   inference_provenance: string;
   model_selection_provenance: string;
   agent_builder_provenance: string;
+  agent_use?: Choice;
+  api_credential?: Choice;
+  workspace?: Choice;
+  mcp_use?: Choice;
+  mcp_connect?: Choice;
   enforcement: string;
+  accounting_team_id?: string;
 };
 type Person = {
   user_id: string;
@@ -346,6 +369,7 @@ type Person = {
   team_ids: string[];
   intent: Intent;
   effective: Effective;
+  binding?: { status: string; issuer: string; subject_fingerprint: string };
 };
 type Team = {
   team_id: string;
@@ -358,7 +382,7 @@ type Team = {
   member_ids: string[];
   intent: Intent;
 };
-const CAPABILITIES = ["platform_access", "inference_access", "model_selection", "agent_builder"] as const;
+const CAPABILITIES = ["platform_access", "inference_access", "model_selection", "agent_builder", "agent_use", "api_credential", "workspace", "mcp_use", "mcp_connect"] as const;
 
 export function People() {
   const [users, setUsers] = useState<Person[]>([]);
@@ -396,7 +420,7 @@ export function People() {
   return (
     <section>
       <h1>People</h1>
-      <p className="banner">{notice || "Employee login and chat are not enabled yet. Access settings here prepare future provisioning."}</p>
+      <p className="banner">{notice || "The User Gateway enforces employee access. LibreChat is a replaceable workspace and is not the identity authority."}</p>
       {error ? <p className="banner">{error}</p> : null}
       <p>{users.filter((item) => item.status === "active").length} active users · {teams.length} teams</p>
       <form className="stack" onSubmit={(event) => { event.preventDefault(); void reload(query); }}>
@@ -432,7 +456,9 @@ export function People() {
       {teams.map((item) => (
         <TeamDetail key={item.team_id} team={item} users={users} post={post} />
       ))}
-      <p className="muted">Configured — enforcement begins when the employee gateway is enabled. This directory is not sent to Command Center.</p>
+      <h2>User Access / Workspace</h2>
+      <p>Gateway enforcement is rukan_user_gateway. The workspace adapter is LibreChat and stays replaceable. Approved email is provisioning data. After binding, issuer and subject are the external identity. Command Center does not receive this directory.</p>
+      <p className="muted">Agents created inside LibreChat stay in that workspace. They are not Rukan agent records.</p>
     </section>
   );
 }
@@ -482,7 +508,13 @@ function PersonDetail({ user, teams, post }: { user: Person; teams: Team[]; post
         <li>inference_access: {user.effective?.inference_access} · {user.effective?.inference_provenance}</li>
         <li>model_selection: {user.effective?.model_selection} · {user.effective?.model_selection_provenance}</li>
         <li>agent_builder: {user.effective?.agent_builder} · {user.effective?.agent_builder_provenance}</li>
+        <li>workspace: {user.effective?.workspace}</li>
+        <li>mcp_use: {user.effective?.mcp_use}</li>
+        <li>api_credential: {user.effective?.api_credential}</li>
       </ul>
+      <p>Identity {user.binding?.status ?? "unbound"} · issuer {user.binding?.issuer ?? "not_recorded"} · subject {user.binding?.subject_fingerprint ?? "not_recorded"}</p>
+      <p>Accounting team {user.effective?.accounting_team_id ?? "unassigned"}. One request counts once.</p>
+      <button type="button" onClick={() => void post({ action: "reset_binding", user_id: user.user_id })}>Reset identity binding</button>
       <p>Enforcement {user.effective?.enforcement}. Platform access is the parent gate.</p>
     </article>
   );
