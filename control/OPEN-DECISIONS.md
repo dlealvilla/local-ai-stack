@@ -1,6 +1,16 @@
 # Open Decisions
 
-## v0.5 Lead review — preliminary closure merged, Lead acceptance withheld pending correction
+## v0.5 Lead correction reported closed
+
+The preliminary tag `checkpoint/rukan-core-product-closed-nvidia-vllm-124a142` is superseded and was not deleted. See `control/RUKAN-V0.5-PRELIMINARY-TAG-SUPERSEDED.md`.
+
+Corrected tag: `checkpoint/rukan-core-product-lead-corrected-nvidia-vllm-70e7c45`.
+Canonical: `machi@70e7c4571deb181b3b5478d10f5bbc74f2ee02e7`.
+Reported status: `RUKAN_V0_5_CORE_PRODUCT_LEAD_CORRECTED_CLOSED`.
+Git Brain has not started. This awaits Lead review.
+
+## Historical: v0.5 Lead review — preliminary closure merged, Lead acceptance withheld pending correction
+
 
 Cursor reported `RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED` and merged PR #6 to canonical:
 
