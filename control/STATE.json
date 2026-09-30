@@ -1,6 +1,6 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "deploy_real_rukan_admin_workspace_and_local_command_center_for_daniel",
+  "expected_cursor_action": "wait_for_daniel_to_finish_viewing_do_not_terminate_demo_pod",
   "expected_pasteback_instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
   "instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
   "program": {
@@ -8,7 +8,7 @@
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "deploy_accepted_rukan_on_real_nvidia_server_and_present_admin_workspace_plus_local_command_center",
+    "next_action": "daniel_is_viewing_the_real_ui_demo_do_not_terminate_pod_z0qqtyr43lj1n9",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -16,6 +16,19 @@
       "other_recorded_physical_coverage"
     ],
     "product_name": "Rukan",
+    "real_deployed_ui_demo": {
+      "admin_location": "customer_server_loopback",
+      "canonical": "70e7c4571deb181b3b5478d10f5bbc74f2ee02e7",
+      "checkpoint": "checkpoint/rukan-core-product-lead-corrected-nvidia-vllm-70e7c45",
+      "command_center_location": "operator_local_machine",
+      "docker_required": false,
+      "instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
+      "keep_server_running_until_daniel_finishes": true,
+      "librechat_used": false,
+      "terminal_blocked": "RUKAN_REAL_DEPLOYED_UI_DEMO_BLOCKED",
+      "terminal_success": "RUKAN_REAL_DEPLOYED_UI_DEMO_READY_FOR_DANIEL",
+      "workspace_location": "customer_server_loopback"
+    },
     "rukan_admin": {
       "embedded_inference": "rukan_native_required",
       "librechat": "deferred_optional_end_user_client",
@@ -170,6 +183,17 @@
         }
       },
       "terminal_success_status": "RUKAN_V0_3_FUNCTIONAL_LOCAL_PASS_SERVER_TEST_READY"
+    },
+    "rukan_real_deployed_ui_demo": {
+      "canonical": "70e7c4571deb181b3b5478d10f5bbc74f2ee02e7",
+      "created_at": "2026-09-30T10:29:28Z",
+      "do_not_terminate": true,
+      "hourly_usd": 0.49,
+      "instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
+      "pod_id": "z0qqtyr43lj1n9",
+      "status": "RUKAN_REAL_DEPLOYED_UI_DEMO_READY_FOR_DANIEL",
+      "viewing_deadline_utc": "2026-09-30T11:59:28Z",
+      "wheel_sha256": "57db4f492bea2219813831d67edb3b9604263551625f3c9ad758b43504a498ed"
     },
     "rukan_ui_v0_1": {
       "admin": [
@@ -423,6 +447,11 @@
       "git_brain": "not_started",
       "instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
       "lead_acceptance": "ACCEPTED",
+      "lead_review_notes": [
+        "corrected closure accepted for NVIDIA native vLLM plus first-party Rukan Workspace",
+        "Command Center concurrent migration database-locked test remains flaky/non-blocking and should be hardened before broader GA",
+        "corrected physical campaign evidence should be copied into a dedicated repository evidence document; current control paste-back remains authoritative evidence meanwhile"
+      ],
       "merge_commit": "124a1424ab20e6fd3e2ca96ee7fedb0cef539198",
       "preliminary_canonical": "124a1424ab20e6fd3e2ca96ee7fedb0cef539198",
       "preliminary_tag": "checkpoint/rukan-core-product-closed-nvidia-vllm-124a142",
@@ -433,12 +462,7 @@
       "terminal_status": "RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED",
       "tested_source": "8c68bdedb71f0faeec957bc14eb8b5062f9807fb",
       "wheel_build": "0.1.0+8c68bdedb71f",
-      "wheel_sha256": "29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204",
-      "lead_review_notes": [
-        "corrected closure accepted for NVIDIA native vLLM plus first-party Rukan Workspace",
-        "Command Center concurrent migration database-locked test remains flaky/non-blocking and should be hardened before broader GA",
-        "corrected physical campaign evidence should be copied into a dedicated repository evidence document; current control paste-back remains authoritative evidence meanwhile"
-      ]
+      "wheel_sha256": "29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204"
     },
     "rukan_v0_5_native_workspace_core_closure": {
       "agents": "rukan_owned_bounded_agent_builder_no_arbitrary_code",
@@ -478,20 +502,7 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
-    "real_deployed_ui_demo": {
-      "instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
-      "canonical": "70e7c4571deb181b3b5478d10f5bbc74f2ee02e7",
-      "checkpoint": "checkpoint/rukan-core-product-lead-corrected-nvidia-vllm-70e7c45",
-      "admin_location": "customer_server_loopback",
-      "workspace_location": "customer_server_loopback",
-      "command_center_location": "operator_local_machine",
-      "docker_required": false,
-      "librechat_used": false,
-      "keep_server_running_until_daniel_finishes": true,
-      "terminal_success": "RUKAN_REAL_DEPLOYED_UI_DEMO_READY_FOR_DANIEL",
-      "terminal_blocked": "RUKAN_REAL_DEPLOYED_UI_DEMO_BLOCKED"
-    }
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
   "published_instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
   "schema": "machi.lead_handoff.v1",
