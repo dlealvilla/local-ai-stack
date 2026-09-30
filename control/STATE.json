@@ -507,5 +507,5 @@
   "published_instruction_id": "RUKAN-REAL-DEPLOYED-UI-DEMO-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_REAL_DEPLOYED_UI_DEMO"
+  "status": "PASTEBACK_PUBLISHED"
 }
