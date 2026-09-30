@@ -1,115 +1,101 @@
-# RUKAN-V0.4-RESUME-ALL-PENDING-EMPLOYEE-ACCESS-001
+# RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001
 
-A. `RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_NOT_READY`
+A. Terminal status: `RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED`
 
-LibreChat physical status: `LIBRECHAT_PHYSICAL_PENDING_ENVIRONMENT`
+B. Starting branch/source: `rukan/user-access-gateway-v0.4` at `7a0e6180a1e0d40e1d26271d590502d447d761a1`. v0.5 branch `rukan/native-workspace-v0.5`. Canonical `machi` was `16084a5b21a0cca25bfe60070ad862832c80fb51`.
 
-B. Start `b2cc72610a081c92558201e67889bd220a5216c2`. Hardened source `cae6a352717b8717ec96d840eb45ab17fd080bca`. Product-closure source `7115852c984d8d5860bf29cdd49e2b42f61b12f7`.
+C. Phase 1 result: `RUKAN_V0_5_BACKEND_CONTRACT_FREEZE_PASS`. Note: `docs/machi/RUKAN-V0.5-BACKEND-CONTRACT-FREEZE.md`.
 
-C. The four Lead fixes remain in the tree and their tests passed: incremental streaming, OIDC discovery with one unknown-kid refresh, per-route credential scopes including `mcp`, and one canonical usage event with an idempotent telemetry projection.
+D. Provider config authority: an enabled identity-provider row is what `workspace serve --provider-id` and `gateway serve --provider-id` load. CLI `--issuer`, `--audience`, or `--jwks` prints `identity cli_override`. A change applies on restart. Physical runs printed `identity stored_provider`.
 
-D. Split topology: GPU pod for Rukan and vLLM; operator Docker Desktop for the pinned LibreChat image. The GPU image was not asked to run Docker.
+E. Browser OIDC/session design: Authorization Code with PKCE S256. The token endpoint is a form POST. PyJWT discovery verification checks the ID token. The browser receives an opaque HttpOnly `rukan_session` cookie. Tokens are not stored in the browser or SQLite. Mutating cookie routes require `X-Rukan-CSRF` and reject a foreign Origin. Restart drops in-flight PKCE state.
 
-E. Docker Desktop was already installed and was started. `colima` is installed and was not running. The pinned pull began and failed while extracting: the data volume reached `67Mi` free and containerd reported a read-only snapshot. The image did not start.
+F. Preflight: non-mutating checks for the people store, usage store, enabled provider, discovery issuer, authorize and token endpoints, JWKS, packaged workspace assets, and a READY instance. A missing model does not start one.
 
-F. No tunnel was created because LibreChat never reached a running container.
+G. Backup/restore: SQLite backup API plus `manifest.json`, including `workspace.sqlite`. Not a live WAL file copy.
 
-G. The gateway diagnostics used a local HTTP discovery issuer on the GPU, enabled only with `--allow-http-discovery`. Production discovery still requires HTTPS unless that flag is set.
+H. MCP TLS/network correction: DNS is checked immediately before connect, the original hostname is kept for SNI, and redirects are refused. `R-04-01` remains: the connection is not pinned to the classified address.
 
-H. Active, suspended, and deactivated remain the user states. Suspend and deactivate deny inference. History stays. Deactivate is terminal in the existing directory rule.
+I. Phase 2 result: `RUKAN_V0_5_NATIVE_WORKSPACE_LOCAL_PASS`. The React/Vite app is `ui/workspace` and is copied into the wheel. Node is build-time only.
 
-I. Admin can create and edit users, reset a binding, and see the subject fingerprint. An email change does not retarget a bound subject.
+J. Workspace architecture: `machi workspace serve` is one process for the static UI, `/api/workspace/v1`, and the `/v1` user gateway. Headless `gateway serve` remains for API credentials. The browser does not reach vLLM.
 
-J. Identity providers are stored as rows. One may be enabled. Users do not embed an issuer. Admin can save and list them. Signing keys are not edited.
+K. Conversation schema: `workspace.sqlite` holds sessions, conversations, messages, and agents. Content is customer-local.
 
-K. Gateway bind and TLS are startup settings. Invalid TLS fails startup. Untrusted peers cannot supply `X-Forwarded-For`, `X-Real-IP`, or `Forwarded`.
+L. Login/logout: OIDC login was proved on the server. Logout clears the cookie. Session TTL is 8 hours; that expiry was not waited out on a pod.
 
-L. Credential lifetime is 60 seconds to 365 days. There is no non-expiring credential. The secret is shown once. The owner can revoke it. Suspend makes it fail.
+M. Chat features: new chat, persisted history, rename, archive, streaming, stop, regenerate, and copy in the UI. Markdown and fenced code render as text, not HTML.
 
-M. Client names are `librechat`, `generic_api`, and `rukan_future_workspace`. Any other label becomes `generic_api`.
+N. Streaming/stop/regenerate: physical runs returned a delta, stop 200, and regenerate 200 with another delta.
 
-N. Model list and chat both require inference and model-selection permission. Employees cannot acquire, deploy, stop, or release.
+O. Model selector: the conversation stores the artifact id. These pods had one READY model, `mart_7ff1b147d6c56cd6`.
 
-O. The workspace adapter reports id, version, digest, capabilities, and that agents are client-local. LibreChat stays behind it.
+P. Conversation history/search/export: history, rename, and delete/archive are present. Search and export are not.
 
-P. Managed mode renders a digest-pinned compose file. External mode is the same config without Rukan owning the process.
+Q. My Usage: 24h/7d/30d/all. Physical `all` showed the requests from the proof.
 
-Q. The only supported LibreChat target is pre-release `v0.8.8-rc4`. A different version fails `require_supported`. There is no automatic upgrade.
+R. Connections/API credentials: a credential was issued, `GET /v1/models` returned 200, and the same secret was denied after revoke. The secret is not in the campaign note.
 
-R. `GET /v1/me`, `GET /v1/me/usage`, and `POST /v1/me/credentials/revoke` are the self-service API. `GET /v1/version` names the supported subset.
+S. Markdown/security: fenced code is split into blocks and rendered as text. Cookie is HttpOnly. CSRF is required on mutating routes.
 
-S. Canonical rows survive in `gateway_events`. Reconciliation states include `match`, `projection_pending`, `partial_token_coverage`, `degraded`, and `mismatch`.
+T. Phase 3 result: official MCP SDK and agent chat are in the product. Physical closure is NVIDIA native vLLM plus this Workspace.
 
-T. The accounting team remains the earliest active membership, or `unassigned`. That rule is provisional. One request has one team context.
+U. Official MCP SDK/version: Python package `mcp` `1.30.0`, dependency `mcp>=1.30,<2`.
 
-U. MCP servers are admin-approved. User-created endpoints stay off unless `mcp_connect` is allowed.
+V. Official/reference MCP interoperability: the Workspace lists and calls tools through the SDK streamable HTTP client. The Everything reference server was not required; Node was not used on the pod.
 
-V. The broker does not forward the employee OIDC token as the tool credential. A test upstream may use no credential or a separate test bearer.
+W. Deterministic MCP acceptance server: `mcp_host.serve_acceptance` exposes `ping` and returns `pong`.
 
-W. Redirects are refused. The connection uses the address that was classified. Metadata and link-local targets are refused. Response bodies are capped.
+X. MCP catalog/policy: Admin approves the endpoint. The call still requires `mcp_use`. Hostname preservation and redirect refusal stay in the broker.
 
-X. A denied or failed MCP call does not remove inference. Audits store user id, server, and outcome, not tool payloads.
+Y. AgentDefinition: customer-local `agents` rows in `workspace.sqlite`, owned by the user.
 
-Y. Admin People shows binding, access, and reset. Provider save, list, and preflight are API actions.
+Z. Agent Builder: create and archive in the Workspace UI. Changing instructions is a new agent. There is no separate in-place edit form.
 
-Z. `employee_preflight` is read-only and reports pass or blocked per check.
+AA. Agent execution/tool loop: an agent chat sends the instructions as a system message. A model `tool_call` event runs at most two rounds through the JSON broker. SmolLM does not emit that event.
 
-AA. Gateway start is `machi gateway serve`. Status is the process plus `GET /v1/version`.
+AB. Tool-capability handling: the local fixture proves the automatic loop. The server proved MCP discovery, a manual `ping`, and instruction-only agent chat. No prompt was parsed into a fake tool call.
 
-AB. Directory schema upgrades in place. A v0.3-shaped intents table test still keeps team inference grants.
+AC. Admin product controls: Identity provider, Workspace preflight, and MCP catalog pages.
 
-AC. Backup copies the people, gateway, and telemetry ledgers and not the machine telemetry secret. Restore copies them back. The restore test passed.
+AD. Migrations: workspace schema is created on first open. Provider rows already lived in `gateway.sqlite` and are now loaded at startup.
 
-AD. A failed telemetry projection stays pending and retries from the canonical row. A missing directory user fails access closed.
+AE. Privacy: the proof marker was only in `workspace.sqlite`. The test email was only in `directory.sqlite`. From D2 onward, `telemetry_private` was true. Command Center was not sent a report on these runs.
 
-AE. Global and per-user concurrency limits reject with `overloaded`. There is no unbounded queue. Body size, message size, and max tokens are bounded.
+AF. Local QA: strict mypy on `src/machi` passed, ruff passed, the Machi suite passed, acceptance boundary passed, and Admin, Command Center, and Workspace vitest/tsc/build passed.
 
-AF. Stable errors include `authentication_required`, `identity_not_provisioned`, `identity_binding_conflict`, `user_suspended`, `platform_access_denied`, `inference_access_denied`, `model_not_allowed`, `no_ready_model`, `scope_denied`, `overloaded`, and `upstream_failure`.
+AG. Diagnostics: D1 pod `1bww3tq7ea94ta` and D2 pod `4ne1gcs7molgz2`, both secure A40 at `$0.49/hour` in EU-SE-1. Same wheel.
 
-AG. ruff passed, strict mypy passed, and the employee-access, gateway, and people tests passed. An earlier full `tests/machi` and `tests/acceptance_lab` run passed on the hardening commit.
+AH. Defects/fixes: D1's first deploy POST timed out in the client while the server was still starting vLLM; the deployment reached ready and the proof resumed. No server file was patched. D1's privacy flag was a bad scan of the directory; the files themselves were clean.
 
-AH. Projection failure, credential lifetime, MCP redirect, and client-label tests passed locally.
+AI. Clean streak: D2 was a clean full-stack pass after D1's resumed proof. C1, C2, and C3 then passed on the unchanged wheel.
 
-AI. A 10-user load run was not repeated on a server in this pass.
+AJ. C1: pod `2u2qmk151zl0mx`, CUDA 13.0. Login, stream, stop, regenerate, persistence, usage, revoke, MCP ping, agent chat, suspension, backup, concurrency `429, 200, 200`, stop/release, telemetry private.
 
-AJ. The pinned LibreChat image did not start.
+AK. C2: pod `fzciorngoqqx4a`, CUDA 13.2. Same pass.
 
-AK. No LibreChat OIDC login occurred.
+AL. C3: pod `38a8rxc79dfrt7`, CUDA 12.8. Same pass.
 
-AL. No LibreChat stream occurred.
+AM. Physical Workspace evidence: static UI from the wheel, OIDC login through a Python issuer, real streaming chat, and conversation rows after a Workspace restart.
 
-AM. No LibreChat MCP call occurred. The gateway broker still allowed one user and denied the other.
+AN. Usage/token reconciliation: My Usage `requests` advanced with the proof chats. The campaign summary does not copy token text.
 
-AN. The generic credential client chatted and then failed after revoke, without LibreChat.
+AO. Backup/restore evidence: `workspace.sqlite` was in the SQLite backup on D1, D2, and C1–C3.
 
-AO. D4 on pod `pfesqmnmt0pq16` was a clean gateway diagnostic, not a full-stack one. Install `inst_8eb53856ead06343`. Deploy `dop_b4e5a0c9e2c42fcd`. 6 requests, 186 input tokens, 44 output tokens, `match`. Stop and release ok.
+AP. Concurrency evidence: D2 and C1–C3 returned `429, 200, 200` for three overlapping chats. D1 did not overlap and returned three 200s.
 
-AP. No later full-stack diagnostic.
+AQ. Campaign spend: balance `$37.186` to `$36.804`. Other burn returned to `$0.113/hour`. Five A40 pods at `$0.49/hour`, one at a time, each terminated. Final get-pod for `38a8rxc79dfrt7` was 404.
 
-AQ. Full-stack clean streak is 0 of 2.
+AR. Final wheel/build identities: SHA256 `29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204`, build `0.1.0+8c68bdedb71f`, tested source `8c68bdedb71f0faeec957bc14eb8b5062f9807fb`.
 
-AR. C1 was not started.
+AS. Remaining platform breadth debt: AMD native vLLM, macOS/Ollama, and wider NVIDIA coverage stay physical-pending. `R-04-01` remains. In-place agent edit, conversation search, and conversation export are not in this closure.
 
-AS. C2 was not started.
+AT. PR/merge SHA: pull request 6 merged to `machi` at `124a1424ab20e6fd3e2ca96ee7fedb0cef539198`. The merge tree matches `4f42c170ea624f10e0f07e56710376b8cae9b2e9`.
 
-AT. C3 was not started.
+AU. Checkpoint tag: `checkpoint/rukan-core-product-closed-nvidia-vllm-124a142`. This is NVIDIA native vLLM plus the first-party Workspace. It is not an AMD or macOS claim.
 
-AU. Source `7115852c984d8d5860bf29cdd49e2b42f61b12f7`. Wheel SHA256 `cb232d39f3b0ec6de1db264f2adb3e28a1904eda381c954ffa5512d1c4bcf468`. API `rukan.user_gateway.v0.4`.
+AV. Recommended next phase: Lead review. Do not start another product lane from this paste-back.
 
-AV. LibreChat digest remains `sha256:929f4491cb9a87d6beb02e9e9ce9a54d4ee05bc56b65b1debe5b1f28a327a4fb`. It was not stored as a local image. Mongo `8.0.20` was not pulled.
+AW. Cleanup: all five campaign pods were terminated and returned 404. No campaign GPU remains.
 
-AW. D4 totals matched: 6 requests, 186 input, 44 output.
-
-AX. Command Center did not contain the test email or the test prompt.
-
-AY. Balance moved from `$37.8286437283` at the previous paste-back to `$37.5287993731`. The D4 pod was `$0.49/hour` and get-pod returns 404. Other burn is `$0.113/hour`.
-
-AZ. GA debt remains `R-03-02`, `R-03-03`, `R-03-04`, `R-03-05`, `R-03-06`, and `R-04-01`. The acceptance gap is `LIBRECHAT_PHYSICAL_PENDING_ENVIRONMENT`: the operator disk could not finish extracting the pinned image.
-
-BA. After that container can start and confidence passes, the first native workspace increment should be a thin client of `GET /v1/models`, `POST /v1/chat/completions`, `GET /v1/me`, and `GET /v1/me/usage`.
-
-BB. `rukan/user-access-gateway-v0.4` is pushed at `7a0e6180a1e0d40e1d26271d590502d447d761a1`. Canonical `machi` was not moved.
-
-BC. The D4 pod is terminated.
-
-BD. STOP
+AX. STOP

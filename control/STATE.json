@@ -450,5 +450,5 @@
   "published_instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_V0_5_NATIVE_WORKSPACE_AND_CORE_CLOSURE"
+  "status": "PASTEBACK_PUBLISHED"
 }
