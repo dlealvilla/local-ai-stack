@@ -32,19 +32,25 @@ from machi.serve.native import NativeProcessEvidence
 _MAX_MESSAGES = 32_000
 _PUBLIC_ERRORS = {
     "authentication_required": 401,
+    "session_expired": 401,
     "identity_not_provisioned": 403,
     "identity_binding_conflict": 409,
     "user_suspended": 403,
     "platform_access_denied": 403,
     "inference_access_denied": 403,
     "model_not_allowed": 403,
+    "scope_denied": 403,
     "no_ready_model": 409,
-        "overloaded": 429,
-        "upstream_failure": 502,
-        "mcp_access_denied": 403,
-        "mcp_target_denied": 403,
-        "scope_denied": 403,
-    }
+    "overloaded": 429,
+    "upstream_failure": 502,
+    "mcp_access_denied": 403,
+    "mcp_target_denied": 403,
+    "mcp_unavailable": 502,
+    "mcp_upstream_failed": 502,
+    "conversation_not_found": 404,
+    "agent_not_found": 404,
+    "workspace_conflict": 409,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,7 +274,9 @@ class GatewayService:
         )
         try:
             for piece in iterator:
-                if piece.kind == "delta" and piece.text:
+                if piece.kind == "tool_call" and piece.text:
+                    yield _sse({"tool_call": piece.text})
+                elif piece.kind == "delta" and piece.text:
                     yield _sse({"choices": [{"delta": {"content": piece.text}}]})
                 elif piece.kind == "usage":
                     if piece.text:

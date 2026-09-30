@@ -43,6 +43,7 @@ def test_machi_console_script_does_not_require_lab() -> None:
     assert data["project"]["dependencies"] == [
         "PyJWT[crypto]>=2.10,<3",
         "huggingface_hub>=0.26,<1",
+        "mcp>=1.30,<2",
     ]
     joined = " ".join(data["project"]["dependencies"])
     assert "acceptance_lab" not in joined

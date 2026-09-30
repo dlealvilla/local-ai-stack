@@ -3148,13 +3148,15 @@ Label:        PROVISIONAL
 Owner stage:  Rukan user access gateway v0.4
 Subsystem:    adapters/rukan mcp policy
 Authorizes:   YES — admin-approved exact URLs may be called
-What:         A hostname is resolved and classified before the request.
-              The HTTP client may resolve it again. An approved URL whose
-              name changes address between those steps is not pinned.
-Why now:      The v0.4 broker had to refuse metadata and unapproved
-              private targets without a new network stack.
+What:         DNS is checked immediately before connect. The original
+              hostname is kept so HTTPS SNI still matches. Redirects are
+              refused. A name that changes address in that gap is not
+              pinned. Rewriting the URL to the resolved IP is not used,
+              because that breaks TLS.
+Why now:      The broker has to refuse metadata and unapproved private
+              targets without a custom TLS stack.
 To make real: connect to the address that was classified, with the
-              original host only as the HTTP host.
+              original hostname preserved for SNI and the HTTP host.
 Retire when:  that pinned connection is tested, including a rebinding case.
 Status:       OPEN
 

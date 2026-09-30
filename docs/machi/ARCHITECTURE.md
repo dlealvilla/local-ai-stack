@@ -1528,6 +1528,13 @@ admission authority. Its contracts live in `kernel.gateway` and
 and MCP broker live in `adapters/rukan`. The design note is
 [RUKAN-USER-ACCESS-GATEWAY-V0.4.md](RUKAN-USER-ACCESS-GATEWAY-V0.4.md).
 
+Rukan Workspace is the default employee frontend. It is not a new
+Block. `machi workspace serve` composes the packaged static UI, the
+browser session, customer-local conversations, and the User Gateway in
+one process. Headless `gateway serve` remains for API-only clients.
+LibreChat stays an optional fallback adapter. The contract note is
+[RUKAN-V0.5-BACKEND-CONTRACT-FREEZE.md](RUKAN-V0.5-BACKEND-CONTRACT-FREEZE.md).
+
 ---
 
 # 19. Empirical test model

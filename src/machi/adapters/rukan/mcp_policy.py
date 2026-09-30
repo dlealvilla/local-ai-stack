@@ -89,18 +89,13 @@ class _NoRedirect(urllib.request.HTTPErrorProcessor):
 
 
 def _pin(url: str) -> str:
-    """Connect to the address that was classified, not a later lookup."""
+    """Check DNS, then keep the original hostname so TLS SNI still matches."""
     parsed = urlsplit(url)
     host = parsed.hostname or ""
     addresses = _addresses(host)
     if any(_dangerous(item) for item in addresses):
         raise ValidationError("mcp_target_denied")
-    chosen = str(addresses[0])
-    port = parsed.port
-    netloc = f"[{chosen}]:{port}" if ":" in chosen and port else (
-        f"{chosen}:{port}" if port else chosen
-    )
-    return parsed._replace(netloc=netloc).geturl()
+    return url
 
 
 def _addresses(host: str) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:

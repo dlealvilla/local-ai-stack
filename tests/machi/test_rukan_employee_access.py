@@ -97,7 +97,13 @@ def test_provider_and_preflight(tmp_path: Path) -> None:
     )
     Directory(tmp_path).close()
     report = employee_preflight(tmp_path)
-    assert report["outcome"] == "pass"
+    raw = report["checks"]
+    assert isinstance(raw, list)
+    checks = {str(item["name"]): str(item["status"]) for item in raw}
+    assert checks["people_store"] == "pass"
+    assert checks["enabled_provider"] == "pass"
+    assert checks["discovery"] == "blocked"
+    assert report["outcome"] == "blocked"
 
 
 def test_mcp_redirect_cannot_escape(tmp_path: Path) -> None:

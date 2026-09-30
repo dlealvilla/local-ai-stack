@@ -176,6 +176,13 @@ def people_action(
         if action == "preflight":
             report = employee_preflight(directory.store_root)
             return ("ok", "employee access preflight", report)
+        if action == "list_mcp":
+            ledger = GatewayLedger(directory.store_root)
+            try:
+                rows = ledger.servers()
+            finally:
+                ledger.close()
+            return ("ok", "mcp catalog", {"servers": rows})
         if action == "approve_mcp":
             ledger = GatewayLedger(directory.store_root)
             try:

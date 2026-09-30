@@ -110,6 +110,8 @@ class OidcDiscoveryVerifier:
         self._unknown_refresh_at = 0.0
         self._lock = threading.Lock()
         self.fetches = 0
+        self.authorization_endpoint = ""
+        self.token_endpoint = ""
 
     def verify(self, token: str) -> dict[str, str]:
         if not token or token.count(".") != 2:
@@ -173,6 +175,12 @@ class OidcDiscoveryVerifier:
                 self.fetches += 1
                 if document.get("issuer") != self.issuer:
                     raise ValidationError("authentication_required")
+                authorize = document.get("authorization_endpoint")
+                token = document.get("token_endpoint")
+                if isinstance(authorize, str):
+                    self.authorization_endpoint = authorize
+                if isinstance(token, str):
+                    self.token_endpoint = token
                 jwks_uri = document.get("jwks_uri")
                 if not isinstance(jwks_uri, str) or not _allowed(
                     jwks_uri, self.allow_http
