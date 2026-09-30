@@ -309,11 +309,16 @@
     },
     "rukan_v0_4_employee_access_product_closure": {
       "branch": "rukan/user-access-gateway-v0.4",
+      "continue_phase_2_even_if_librechat_environment_pending": true,
+      "current_evidence_tip": "b2cc72610a081c92558201e67889bd220a5216c2",
       "do_not_build_native_workspace_yet": true,
+      "hardened_source": "cae6a352717b8717ec96d840eb45ab17fd080bca",
+      "librechat_physical_may_block_final_pass_but_not_remaining_development": true,
       "master_instruction_id": "RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001",
       "next_product_increment": "first_party_rukan_workspace",
       "phase_1_instruction_id": "RUKAN-V0.4-GATEWAY-HARDENING-AND-CAMPAIGN-CONTINUE-001",
       "phase_2_instruction_id": "RUKAN-V0.4-EMPLOYEE-ACCESS-PRODUCT-CLOSURE-001",
+      "physical_topology_policy": "gpu_rukan_plus_operator_or_cpu_container_workspace",
       "required_final_evidence": [
         "true_end_to_end_streaming",
         "enterprise_oidc_discovery_and_jwks_rotation",
@@ -329,16 +334,11 @@
         "two_clean_full_stack_diagnostics",
         "three_fresh_confidence_runs"
       ],
+      "resume_instruction_id": "RUKAN-V0.4-RESUME-ALL-PENDING-EMPLOYEE-ACCESS-001",
       "terminal_statuses": [
         "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_CLOSED",
         "RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_NOT_READY"
-      ],
-      "resume_instruction_id": "RUKAN-V0.4-RESUME-ALL-PENDING-EMPLOYEE-ACCESS-001",
-      "current_evidence_tip": "b2cc72610a081c92558201e67889bd220a5216c2",
-      "hardened_source": "cae6a352717b8717ec96d840eb45ab17fd080bca",
-      "physical_topology_policy": "gpu_rukan_plus_operator_or_cpu_container_workspace",
-      "librechat_physical_may_block_final_pass_but_not_remaining_development": true,
-      "continue_phase_2_even_if_librechat_environment_pending": true
+      ]
     },
     "rukan_v0_4_user_access_gateway": {
       "branch": "rukan/user-access-gateway-v0.4",
@@ -412,5 +412,5 @@
   "published_instruction_id": "RUKAN-V0.4-RESUME-ALL-PENDING-EMPLOYEE-ACCESS-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_V0_4_RESUME_ALL_PENDING"
+  "status": "PASTEBACK_PUBLISHED"
 }

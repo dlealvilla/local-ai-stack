@@ -1,85 +1,115 @@
-# RUKAN-V0.4-HARDEN-THEN-CLOSE-EMPLOYEE-ACCESS-001
+# RUKAN-V0.4-RESUME-ALL-PENDING-EMPLOYEE-ACCESS-001
 
 A. `RUKAN_V0_4_EMPLOYEE_ACCESS_PRODUCT_NOT_READY`
 
-Phase 1 status: `RUKAN_V0_4_USER_ACCESS_NOT_READY`
+LibreChat physical status: `LIBRECHAT_PHYSICAL_PENDING_ENVIRONMENT`
 
-Phase 2 was not started. The product-closure phase does not begin until Phase 1 has a physical LibreChat proof, two full-stack clean diagnostics, and three confidence runs.
+B. Start `b2cc72610a081c92558201e67889bd220a5216c2`. Hardened source `cae6a352717b8717ec96d840eb45ab17fd080bca`. Product-closure source `7115852c984d8d5860bf29cdd49e2b42f61b12f7`.
 
-## Phase 1
+C. The four Lead fixes remain in the tree and their tests passed: incremental streaming, OIDC discovery with one unknown-kid refresh, per-route credential scopes including `mcp`, and one canonical usage event with an idempotent telemetry projection.
 
-B. Starting implementation `459d34b34f2238b5af108c0fe822c4637603b754`. Hardening commit `cae6a352717b8717ec96d840eb45ab17fd080bca`. Evidence tip `b2cc72610a081c92558201e67889bd220a5216c2`.
+D. Split topology: GPU pod for Rukan and vLLM; operator Docker Desktop for the pinned LibreChat image. The GPU image was not asked to run Docker.
 
-C. Streaming reads the upstream SSE socket incrementally. Each content delta is forwarded before the next upstream event is read. A local test pauses the fake upstream after the first chunk and observes that the downstream client already has that chunk.
+E. Docker Desktop was already installed and was started. `colima` is installed and was not running. The pinned pull began and failed while extracting: the data volume reached `67Mi` free and containerd reported a read-only snapshot. The image did not start.
 
-D. That first-chunk test passed locally. The D3 server run completed streaming chats with usage. It did not record a separate first-byte clock against vLLM.
+F. No tunnel was created because LibreChat never reached a running container.
 
-E. Client close, upstream error, malformed SSE, and missing usage are covered by the iterator. Missing usage is stored as `not_recorded`. The request is not replayed to repair accounting.
+G. The gateway diagnostics used a local HTTP discovery issuer on the GPU, enabled only with `--allow-http-discovery`. Production discovery still requires HTTPS unless that flag is set.
 
-F. Production verification is `OidcDiscoveryVerifier`. It fetches `/.well-known/openid-configuration`, requires the issuer to match, and caches JWKS until the TTL. Static JWKS remains for deterministic tests. HTTP discovery is explicit and is only for a local test issuer.
+H. Active, suspended, and deactivated remain the user states. Suspend and deactivate deny inference. History stays. Deactivate is terminal in the existing directory rule.
 
-G. A local discovery server rotated from key A to key B. The first token for B refreshed the JWKS and verified. A token for the removed key then failed. D3 started the gateway with `--allow-http-discovery` and no static JWKS file. Issuer `http://127.0.0.1:40357/realms/rukan`.
+I. Admin can create and edit users, reset a binding, and see the subject fingerprint. An email change does not retarget a bound subject.
 
-H. API credential routes: `GET /v1/models` requires `models`, chat requires `inference`, `GET /v1/me/usage` requires `self_usage`, `GET /v1/me` requires only authentication. A scope does not grant a People capability. An inference-only key was denied for models, usage, and MCP, and was allowed to chat.
+J. Identity providers are stored as rows. One may be enabled. Users do not embed an issuer. Admin can save and list them. Signing keys are not edited.
 
-I. MCP requires credential scope `mcp` and effective `mcp_use=allow` on an approved server. An inference-only key cannot call MCP. OIDC sessions are not scoped credentials; People policy still applies.
+K. Gateway bind and TLS are startup settings. Invalid TLS fails startup. Untrusted peers cannot supply `X-Forwarded-For`, `X-Real-IP`, or `Forwarded`.
 
-J. One `gateway_events` row is the canonical employee fact. Telemetry is an idempotent projection marked on that row.
+L. Credential lifetime is 60 seconds to 365 days. There is no non-expiring credential. The secret is shown once. The owner can revoke it. Suspend makes it fail.
 
-K. States are `match`, `projection_pending`, `degraded`, and `mismatch`. A pending projection is not reported as corruption.
+M. Client names are `librechat`, `generic_api`, and `rukan_future_workspace`. Any other label becomes `generic_api`.
 
-L. A test blocked the telemetry projection, restarted the ledger, projected once, and found exactly one deployment usage row. A second projection did not double-count.
+N. Model list and chat both require inference and model-selection permission. Employees cannot acquire, deploy, stop, or release.
 
-M. D3 Admin reconciliation was `accounting_state=match` for 6 requests, 186 input tokens, and 44 output tokens.
+O. The workspace adapter reports id, version, digest, capabilities, and that agents are client-local. LibreChat stays behind it.
 
-N. The runtime port is not returned. Suspended and unprovisioned users were denied. The test email and the test prompt were absent from Command Center.
+P. Managed mode renders a digest-pinned compose file. External mode is the same config without Rukan owning the process.
 
-O. LibreChat remains the pre-release compatibility target `v0.8.8-rc4`, commit `361553f3322d7b9bb547d0a9c2c5aaefc2934901`, digest `sha256:929f4491cb9a87d6beb02e9e9ce9a54d4ee05bc56b65b1debe5b1f28a327a4fb`. It is not a stable LibreChat release and not a Rukan core dependency.
+Q. The only supported LibreChat target is pre-release `v0.8.8-rc4`. A different version fails `require_supported`. There is no automatic upgrade.
 
-P. Pod `k9py6sl7nn3csh` was a secure A40 at `$0.49/hour`. The image had no Docker. Rootless podman then failed with `cannot clone: Operation not permitted`.
+R. `GET /v1/me`, `GET /v1/me/usage`, and `POST /v1/me/credentials/revoke` are the self-service API. `GET /v1/version` names the supported subset.
 
-Q. LibreChat was not started. There was no OIDC login through LibreChat.
+S. Canonical rows survive in `gateway_events`. Reconciliation states include `match`, `projection_pending`, `partial_token_coverage`, `degraded`, and `mismatch`.
 
-R. Live OpenID forwarding through LibreChat was not run. The gateway itself verified discovery tokens.
+T. The accounting team remains the earliest active membership, or `unassigned`. That rule is provisional. One request has one team context.
 
-S. LibreChat chat and streaming were not run.
+U. MCP servers are admin-approved. User-created endpoints stay off unless `mcp_connect` is allowed.
 
-T. MCP through LibreChat was not run. The gateway broker allowed one user and denied the other.
+V. The broker does not forward the employee OIDC token as the tool credential. A test upstream may use no credential or a separate test bearer.
 
-U. D3 user and deployment totals matched: 6 requests, 186 input tokens, 44 output tokens.
+W. Redirects are refused. The connection uses the address that was classified. Metadata and link-local targets are refused. Response bodies are capped.
 
-V. D3 is a clean gateway diagnostic on the hardened wheel. It is not a full-stack clean diagnostic because LibreChat did not run.
+X. A denied or failed MCP call does not remove inference. Audits store user id, server, and outcome, not tool payloads.
 
-W. No later full-stack diagnostic was run. The full-stack clean streak is 0.
+Y. Admin People shows binding, access, and reset. Provider save, list, and preflight are API actions.
 
-X. Clean streak for the full stack is 0 of 2.
+Z. `employee_preflight` is read-only and reports pass or blocked per check.
 
-Y. Confidence C1 was not started.
+AA. Gateway start is `machi gateway serve`. Status is the process plus `GET /v1/version`.
 
-Z. Confidence C2 was not started.
+AB. Directory schema upgrades in place. A v0.3-shaped intents table test still keeps team inference grants.
 
-AA. Confidence C3 was not started.
+AC. Backup copies the people, gateway, and telemetry ledgers and not the machine telemetry secret. Restore copies them back. The restore test passed.
 
-AB. Wheel SHA256 `ed2e8f8d49e156edd18ad17d9addaf134ac17af36d97e784cc0378adcf94eba1`. Build `0.1.0+cae6a352717b`.
+AD. A failed telemetry projection stays pending and retries from the canonical row. A missing directory user fails access closed.
 
-AC. LibreChat digest unchanged, as in O. The container was not pulled.
+AE. Global and per-user concurrency limits reject with `overloaded`. There is no unbounded queue. Body size, message size, and max tokens are bounded.
 
-AD. D3 totals: 6 requests, 186 input, 44 output. Ada 5 requests, 155 input, 36 output. Bob 1 request.
+AF. Stable errors include `authentication_required`, `identity_not_provisioned`, `identity_binding_conflict`, `user_suspended`, `platform_access_denied`, `inference_access_denied`, `model_not_allowed`, `no_ready_model`, `scope_denied`, `overloaded`, and `upstream_failure`.
 
-AE. Command Center did not contain `ada@example.invalid` or the test prompt. Admin user rollup did not contain the email.
+AG. ruff passed, strict mypy passed, and the employee-access, gateway, and people tests passed. An earlier full `tests/machi` and `tests/acceptance_lab` run passed on the hardening commit.
 
-AF. Balance moved from `$37.9012268042` to `$37.8286437283`. The pod was `$0.49/hour` and get-pod now returns 404. Other burn returned to `$0.113/hour`.
+AH. Projection failure, credential lifetime, MCP redirect, and client-label tests passed locally.
 
-AG. Remaining blockers: physical LibreChat on a host that can run the pinned container; then two full-stack clean diagnostics and three confidence runs. GA debt remains `R-03-02`, `R-03-03`, `R-03-04`, `R-03-05`, `R-03-06`, and `R-04-01`.
+AI. A 10-user load run was not repeated on a server in this pass.
 
-## Phase 2
+AJ. The pinned LibreChat image did not start.
 
-Not started. Employee-access product closure waits for a Phase 1 pass.
+AK. No LibreChat OIDC login occurred.
 
-AH. Branch `rukan/user-access-gateway-v0.4` is pushed at `b2cc72610a081c92558201e67889bd220a5216c2`. Canonical `machi` was not moved. Proposals remain untracked.
+AL. No LibreChat stream occurred.
 
-AI. The D3 pod is terminated.
+AM. No LibreChat MCP call occurred. The gateway broker still allowed one user and denied the other.
 
-AJ. The next product increment remains a thin first-party Rukan workspace, after this backend can run the pinned LibreChat container and finish confidence. Do not start that UI on this result.
+AN. The generic credential client chatted and then failed after revoke, without LibreChat.
 
-AK. STOP
+AO. D4 on pod `pfesqmnmt0pq16` was a clean gateway diagnostic, not a full-stack one. Install `inst_8eb53856ead06343`. Deploy `dop_b4e5a0c9e2c42fcd`. 6 requests, 186 input tokens, 44 output tokens, `match`. Stop and release ok.
+
+AP. No later full-stack diagnostic.
+
+AQ. Full-stack clean streak is 0 of 2.
+
+AR. C1 was not started.
+
+AS. C2 was not started.
+
+AT. C3 was not started.
+
+AU. Source `7115852c984d8d5860bf29cdd49e2b42f61b12f7`. Wheel SHA256 `cb232d39f3b0ec6de1db264f2adb3e28a1904eda381c954ffa5512d1c4bcf468`. API `rukan.user_gateway.v0.4`.
+
+AV. LibreChat digest remains `sha256:929f4491cb9a87d6beb02e9e9ce9a54d4ee05bc56b65b1debe5b1f28a327a4fb`. It was not stored as a local image. Mongo `8.0.20` was not pulled.
+
+AW. D4 totals matched: 6 requests, 186 input, 44 output.
+
+AX. Command Center did not contain the test email or the test prompt.
+
+AY. Balance moved from `$37.8286437283` at the previous paste-back to `$37.5287993731`. The D4 pod was `$0.49/hour` and get-pod returns 404. Other burn is `$0.113/hour`.
+
+AZ. GA debt remains `R-03-02`, `R-03-03`, `R-03-04`, `R-03-05`, `R-03-06`, and `R-04-01`. The acceptance gap is `LIBRECHAT_PHYSICAL_PENDING_ENVIRONMENT`: the operator disk could not finish extracting the pinned image.
+
+BA. After that container can start and confidence passes, the first native workspace increment should be a thin client of `GET /v1/models`, `POST /v1/chat/completions`, `GET /v1/me`, and `GET /v1/me/usage`.
+
+BB. `rukan/user-access-gateway-v0.4` will include this evidence commit. Canonical `machi` was not moved.
+
+BC. The D4 pod is terminated.
+
+BD. STOP
