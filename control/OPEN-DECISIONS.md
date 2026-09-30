@@ -1,5 +1,208 @@
 # Open Decisions
 
+## Rukan first-party Workspace becomes default; LibreChat becomes fallback — binding
+
+Rukan will no longer depend on Docker or LibreChat for the default employee product experience.
+
+### Default client
+
+The default employee-facing client is now a first-party **Rukan Workspace**:
+
+- Rukan-owned;
+- packaged with the Rukan Python release artifact;
+- built with the repository's existing React + TypeScript + Vite conventions;
+- static production assets served by a Rukan-owned Python service;
+- no Node.js required at runtime;
+- no Docker/container runtime required;
+- no direct Serve/vLLM/Ollama access;
+- communicates through Rukan-owned Workspace/Gateway APIs only.
+
+LibreChat remains:
+- a replaceable `LibreChatAdapter`;
+- optional fallback/compatibility client;
+- non-authoritative;
+- not required for core product closure;
+- not a physical acceptance blocker for the first-party product.
+
+### First-party Workspace product scope
+
+Prioritize a small, coherent, functional product over feature breadth.
+
+Required core:
+- enterprise OIDC sign-in/sign-out;
+- conversation list/history;
+- new/rename/delete conversation;
+- real token streaming;
+- stop generation;
+- retry/regenerate;
+- edit user message and continue from that point if architecture permits cleanly;
+- Markdown/code rendering with sanitization;
+- copy response;
+- model selector constrained by Rukan access policy;
+- per-message usage where reported;
+- My Usage totals;
+- basic connection/account status;
+- MCP server/tool discovery and invocation;
+- Rukan-owned Agent Builder;
+- saved agent definitions with system instructions, model and allowed MCP tools;
+- agent chat execution;
+- responsive desktop-first UI;
+- clear loading/error/empty states.
+
+Desirable if straightforward:
+- conversation search;
+- duplicate/fork conversation;
+- saved prompt templates;
+- simple user preferences;
+- export one conversation as Markdown/JSON;
+- tool-call rendering;
+- agent revisions/history.
+
+Explicitly deferred unless trivial:
+- RAG/document knowledge;
+- image generation;
+- audio/voice;
+- collaborative channels;
+- arbitrary plugin execution;
+- arbitrary server-side Python functions;
+- web search as a built-in subsystem;
+- memory/learned personalization;
+- complex project/folder systems;
+- SCIM;
+- full general RBAC;
+- native mobile apps;
+- rich document editor;
+- Mermaid/LaTeX if adding them materially increases complexity.
+
+### Conversation data
+
+Rukan Workspace may persist prompts/responses locally because it is the customer-facing content product.
+
+This does NOT change the vendor boundary:
+- conversations remain customer-local;
+- Command Center/vendor telemetry receives no prompts/responses;
+- operational analytics remain non-content;
+- customer owns and controls conversation content.
+
+Conversation storage must be:
+- install-bound;
+- user-scoped;
+- inaccessible across users;
+- migration-versioned;
+- included in customer-local backup/restore policy;
+- excluded from vendor support exports by default.
+
+### Browser authentication
+
+Preferred default is a BFF/session design:
+- Rukan Workspace initiates OIDC Authorization Code + PKCE;
+- use a mature OAuth/OIDC library;
+- Rukan verifies issuer/audience/state/nonce as appropriate;
+- bearer/refresh tokens are not stored in browser localStorage;
+- browser receives a high-entropy HttpOnly session cookie;
+- Secure when TLS is used;
+- SameSite policy explicit;
+- CSRF protection for state-changing cookie-authenticated routes;
+- session expiry/revocation;
+- user suspend/deactivate checked against Rukan People on every sensitive operation or bounded revalidation.
+
+A simpler token-in-browser design requires explicit Lead justification and may not persist bearer tokens in localStorage.
+
+### Rukan Workspace adapter
+
+Promote a Rukan-owned `RukanWorkspaceAdapter` / workspace provider contract.
+
+The adapter boundary remains so:
+- Rukan Workspace is default;
+- LibreChat remains optional;
+- future clients can be added;
+- Gateway/identity/usage/MCP do not depend on one frontend.
+
+### MCP
+
+Rukan Workspace becomes an MCP Host.
+
+Use the official Model Context Protocol SDK rather than maintaining a hand-rolled partial protocol implementation.
+
+Preferred backend integration:
+- official current stable MCP Python SDK;
+- Streamable HTTP as the standard remote transport;
+- Rukan-owned `McpClientProvider` / adapter around the SDK;
+- Rukan policy/catalog remains authoritative;
+- browser never connects directly to arbitrary MCP servers.
+
+Use official open-source MCP reference implementations only as interoperability/test fixtures.
+
+The official `modelcontextprotocol/servers` repository's **Everything** reference server is the preferred broad interoperability fixture because it exposes tools/resources/prompts. It is NOT a production dependency and must not be represented as production-hardened.
+
+A small deterministic Rukan acceptance MCP server built with the official SDK may also exist for CI/physical acceptance.
+
+### MCP user experience
+
+Workspace:
+- show admin-approved MCP servers;
+- show their available tools;
+- allow user to enable/disable allowed tools for a conversation/agent;
+- render tool call name/status/result summary;
+- preserve tool payload content only in the customer conversation when required for the chat experience;
+- do not copy tool payloads into operational analytics/vendor telemetry.
+
+User-created arbitrary MCP server URLs remain disabled by default.
+
+### Agents
+
+Rukan now owns canonical agent definitions.
+
+An AgentDefinition should remain simple:
+- stable agent id;
+- owner user or team where supported;
+- name;
+- description;
+- base model policy/selection;
+- system instructions;
+- allowed MCP server/tool refs;
+- bounded generation settings only if supported;
+- created/updated;
+- active/archived;
+- optional revision number.
+
+No arbitrary executable code.
+
+Agent Builder:
+- create/edit/delete/archive;
+- test agent;
+- choose model;
+- edit instructions;
+- choose approved tools;
+- use agent in chat.
+
+An agent cannot exceed the invoking user's model/MCP/access permissions.
+
+### Backend loose ends before frontend freeze
+
+Before declaring the Workspace foundation stable, close:
+- Admin identity-provider configuration must drive actual Gateway/Workspace auth configuration rather than being disconnected from CLI-only settings;
+- Employee Access preflight must test real configured dependencies instead of unconditional PASS placeholders;
+- SQLite backup/restore must use stopped-service consistency, SQLite backup APIs, or equivalent WAL-safe snapshot semantics;
+- MCP HTTPS destination pinning must preserve original Host/SNI/certificate hostname validation while preventing DNS rebinding/redirect escape;
+- service lifecycle/readiness;
+- stable Workspace/Gateway API contracts;
+- migrations;
+- bounded concurrency/load behavior.
+
+### Product closure
+
+The core infrastructure product may be declared closed for the currently validated NVIDIA/native-vLLM product path once:
+- first-party Workspace is functional;
+- Employee Access backend loose ends are closed;
+- MCP + Agents work through Rukan-owned interfaces;
+- two consecutive full-stack diagnostics pass;
+- three fresh confidence runs pass on one frozen candidate;
+- no SERVER_ACCEPTANCE_BLOCKER/PILOT_BLOCKER remains for that product path;
+- final accepted implementation is merged to canonical and tagged truthfully.
+
+Outstanding AMD/macOS/other hardware breadth remains explicit platform coverage debt and must not be rewritten as validated by this closure.
+
 ## v0.4 physical Workspace acceptance topology — do not couple LibreChat to the GPU host
 
 The D3 hardened Gateway run proved that forcing LibreChat onto the disposable GPU host is an unnecessary infrastructure coupling. The A40 image had no Docker and rootless Podman was prohibited, even though Rukan/Gateway itself worked.
