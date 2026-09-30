@@ -59,8 +59,9 @@ class FakeChat:
         messages: list[dict[str, str]],
         max_tokens: int,
         stream: bool,
+        tools: object = None,
     ) -> UpstreamResult:
-        del messages, max_tokens, stream
+        del messages, max_tokens, stream, tools
         self.calls += 1
         if self.model_id is None:
             raise ValidationError("no_ready_model")
@@ -74,8 +75,9 @@ class FakeChat:
         model: str,
         messages: list[dict[str, str]],
         max_tokens: int,
+        tools: object = None,
     ):
-        del messages, max_tokens
+        del messages, max_tokens, tools
         self.calls += 1
         if self.model_id is None:
             raise ValidationError("no_ready_model")
@@ -511,9 +513,14 @@ class _PausingChat:
         return None
 
     def iter_stream(
-        self, *, model: str, messages: list[dict[str, str]], max_tokens: int
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        tools: object = None,
     ):
-        del model, messages, max_tokens
+        del model, messages, max_tokens, tools
         yield StreamPiece("delta", "one")
         if not self.release.wait(2):
             raise TimeoutError("paused")

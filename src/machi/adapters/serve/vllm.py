@@ -17,6 +17,15 @@ from machi.serve.ports import InferResult, LaunchRequest
 _LOOPBACK = "127.0.0.1"
 _PROMPT = "machi-serve-proof"
 _MODULE = "vllm.entrypoints.openai.api_server"
+# vLLM 0.18 documents the hermes parser for these families.
+_HERMES_PREFIXES = ("Qwen/Qwen2.5-", "Qwen/QwQ-")
+
+
+def documented_tool_parser(repository: str) -> str:
+    """Return a verified vLLM 0.18 parser, or empty when unsupported."""
+    if repository.startswith(_HERMES_PREFIXES):
+        return "hermes"
+    return ""
 
 
 class VllmServeProvider:
@@ -132,6 +141,11 @@ def vllm_argv(
     quantization = settings.get("quantization", "none")
     if quantization and quantization != "none":
         argv.extend(["--quantization", quantization])
+    parser = documented_tool_parser(settings.get("source_repository", ""))
+    if parser == "hermes":
+        argv.extend(["--enable-auto-tool-choice", "--tool-call-parser", "hermes"])
+    elif parser:
+        raise ValueError("tool parser is not verified for this runtime")
     return argv
 
 

@@ -75,6 +75,7 @@ class WorkspaceStore:
         self._db.execute(
             "INSERT OR IGNORE INTO meta(key, value) VALUES ('schema', '1')"
         )
+        self._migrate()
         self._db.commit()
 
     def close(self) -> None:
@@ -117,7 +118,16 @@ class WorkspaceStore:
             self._db.commit()
 
     def create_conversation(
-        self, user_id: str, *, title: str, model_id: str, agent_id: str, now: datetime
+        self,
+        user_id: str,
+        *,
+        title: str,
+        model_id: str,
+        agent_id: str,
+        now: datetime,
+        agent_revision: str = "",
+        instruction_snapshot: str = "",
+        tool_refs: str = "",
     ) -> dict[str, str]:
         identity = "conv_" + secrets.token_hex(8)
         with self._lock:
@@ -125,8 +135,9 @@ class WorkspaceStore:
                 """
                 INSERT INTO conversations(
                     conversation_id, user_id, title, model_id, agent_id, status,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+                    created_at, updated_at, agent_revision,
+                    instruction_snapshot, tool_refs
+                ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
                 """,
                 (
                     identity,
@@ -136,6 +147,9 @@ class WorkspaceStore:
                     agent_id,
                     now.isoformat(),
                     now.isoformat(),
+                    agent_revision,
+                    instruction_snapshot[:4000],
+                    tool_refs[:800],
                 ),
             )
             self._db.commit()
@@ -269,6 +283,21 @@ class WorkspaceStore:
                 )
                 self._db.commit()
 
+    def set_model(
+        self, user_id: str, conversation_id: str, model_id: str, now: datetime
+    ) -> None:
+        with self._lock:
+            changed = self._db.execute(
+                """
+                UPDATE conversations SET model_id = ?, updated_at = ?
+                WHERE conversation_id = ? AND user_id = ? AND status = 'active'
+                """,
+                (model_id, now.isoformat(), conversation_id, user_id),
+            ).rowcount
+            self._db.commit()
+        if not changed:
+            raise ValidationError("conversation_not_found")
+
     def save_agent(
         self,
         user_id: str,
@@ -278,6 +307,9 @@ class WorkspaceStore:
         model_id: str,
         mcp_server_ids: str,
         now: datetime,
+        description: str = "",
+        max_tokens: int = 64,
+        tool_refs: str = "",
     ) -> dict[str, str]:
         identity = "agt_" + secrets.token_hex(8)
         with self._lock:
@@ -285,16 +317,54 @@ class WorkspaceStore:
                 """
                 INSERT INTO agents(
                     agent_id, owner_user_id, display_name, instructions, model_id,
-                    mcp_server_ids, status, revision, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, 'active', 1, ?, ?)
+                    mcp_server_ids, status, revision, created_at, updated_at,
+                    description, max_tokens, tool_refs
+                ) VALUES (?, ?, ?, ?, ?, ?, 'active', 1, ?, ?, ?, ?, ?)
                 """,
                 (
                     identity, user_id, display_name[:80], instructions[:4000],
                     model_id, mcp_server_ids[:240], now.isoformat(), now.isoformat(),
+                    description[:240], max(1, min(max_tokens, 256)), tool_refs[:800],
                 ),
             )
             self._db.commit()
-        return {"agent_id": identity, "display_name": display_name[:80]}
+        return {
+            "agent_id": identity,
+            "display_name": display_name[:80],
+            "revision": "1",
+        }
+
+    def revise_agent(
+        self,
+        user_id: str,
+        agent_id: str,
+        *,
+        display_name: str,
+        instructions: str,
+        model_id: str,
+        description: str,
+        max_tokens: int,
+        tool_refs: str,
+        now: datetime,
+    ) -> dict[str, str]:
+        current = self.agent(user_id, agent_id)
+        revision = int(current["revision"]) + 1
+        with self._lock:
+            self._db.execute(
+                """
+                UPDATE agents SET
+                    display_name = ?, instructions = ?, model_id = ?, description = ?,
+                    max_tokens = ?, tool_refs = ?, revision = ?, updated_at = ?
+                WHERE agent_id = ? AND owner_user_id = ? AND status = 'active'
+                """,
+                (
+                    display_name[:80], instructions[:4000], model_id, description[:240],
+                    max(1, min(max_tokens, 256)), tool_refs[:800], revision,
+                    now.isoformat(), agent_id, user_id,
+                ),
+            )
+            self._db.commit()
+        return {"agent_id": agent_id, "revision": str(revision)}
 
     def list_agents(self, user_id: str) -> list[dict[str, str]]:
         with self._lock:
@@ -333,6 +403,39 @@ class WorkspaceStore:
             self._db.commit()
         if not changed:
             raise ValidationError("agent_not_found")
+
+    def _migrate(self) -> None:
+        version = self._meta("schema") or "1"
+        if version == "2":
+            return
+        if version != "1":
+            raise ValidationError("workspace schema is unknown")
+        self._column("conversations", "agent_revision", "TEXT NOT NULL DEFAULT ''")
+        self._column(
+            "conversations", "instruction_snapshot", "TEXT NOT NULL DEFAULT ''"
+        )
+        self._column("conversations", "tool_refs", "TEXT NOT NULL DEFAULT ''")
+        self._column("agents", "description", "TEXT NOT NULL DEFAULT ''")
+        self._column("agents", "max_tokens", "INTEGER NOT NULL DEFAULT 64")
+        self._column("agents", "tool_refs", "TEXT NOT NULL DEFAULT ''")
+        self._db.execute(
+            "INSERT INTO meta(key, value) VALUES ('schema', '2') "
+            "ON CONFLICT(key) DO UPDATE SET value = '2'"
+        )
+
+    def _column(self, table: str, name: str, declaration: str) -> None:
+        present = {
+            str(row[1]) for row in self._db.execute(f"PRAGMA table_info({table})")
+        }
+        if name in present:
+            return
+        self._db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {declaration}")
+
+    def _meta(self, key: str) -> str:
+        row = self._db.execute(
+            "SELECT value FROM meta WHERE key = ?", (key,)
+        ).fetchone()
+        return "" if row is None else str(row[0])
 
     def _touch(
         self, user_id: str, conversation_id: str, now: datetime, *, title: str
