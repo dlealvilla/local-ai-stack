@@ -1,101 +1,91 @@
-# RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001
+# RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001 paste-back
 
-A. Terminal status: `RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED`
+A. Terminal status: `RUKAN_V0_5_CORE_PRODUCT_LEAD_CORRECTED_CLOSED`
 
-B. Starting branch/source: `rukan/user-access-gateway-v0.4` at `7a0e6180a1e0d40e1d26271d590502d447d761a1`. v0.5 branch `rukan/native-workspace-v0.5`. Canonical `machi` was `16084a5b21a0cca25bfe60070ad862832c80fb51`.
+B. Starting canonical SHA: `124a1424ab20e6fd3e2ca96ee7fedb0cef539198` (`machi`, PR #6). Historical tag `checkpoint/rukan-core-product-closed-nvidia-vllm-124a142` was not deleted.
 
-C. Phase 1 result: `RUKAN_V0_5_BACKEND_CONTRACT_FREEZE_PASS`. Note: `docs/machi/RUKAN-V0.5-BACKEND-CONTRACT-FREEZE.md`.
+C. Correction branch: `rukan/v0.5-lead-closure-correction`. Tested source `50f8d1e5f7bac257d640c218be8b9dcda6492f76`. Merged by PR #7.
 
-D. Provider config authority: an enabled identity-provider row is what `workspace serve --provider-id` and `gateway serve --provider-id` load. CLI `--issuer`, `--audience`, or `--jwks` prints `identity cli_override`. A change applies on restart. Physical runs printed `identity stored_provider`.
+D. Model selector: Workspace loads the ready model list and sends `model_id` when a chat is created. The physically tested server had one READY model, `mart_16a294cbd51b0ffd`.
 
-E. Browser OIDC/session design: Authorization Code with PKCE S256. The token endpoint is a form POST. PyJWT discovery verification checks the ID token. The browser receives an opaque HttpOnly `rukan_session` cookie. Tokens are not stored in the browser or SQLite. Mutating cookie routes require `X-Rukan-CSRF` and reject a foreign Origin. Restart drops in-flight PKCE state.
+E. Agent Builder: create, revise, and archive. A conversation stores the agent revision, instruction snapshot, and tool refs.
 
-F. Preflight: non-mutating checks for the people store, usage store, enabled provider, discovery issuer, authorize and token endpoints, JWKS, packaged workspace assets, and a READY instance. A missing model does not start one.
+F. Agent edit/revision: revise increments the revision. The corrected diagnostics observed revision 2.
 
-G. Backup/restore: SQLite backup API plus `manifest.json`, including `workspace.sqlite`. Not a live WAL file copy.
+G. Agent launch-chat path: a chat can be started from an agent. Later edits do not rewrite the stored snapshot. `conversation()` returns that snapshot, which is what the model loop uses.
 
-H. MCP TLS/network correction: DNS is checked immediately before connect, the original hostname is kept for SNI, and redirects are refused. `R-04-01` remains: the connection is not pinned to the classified address.
+H. Production tool-call request contract: when the selected model is documented as tool-capable and the agent has approved tool refs, the gateway sends OpenAI `tools` and `tool_choice: auto`. At most one tool call is executed per round, with at most two rounds.
 
-I. Phase 2 result: `RUKAN_V0_5_NATIVE_WORKSPACE_LOCAL_PASS`. The React/Vite app is `ui/workspace` and is copied into the wheel. Node is build-time only.
+I. Production tool-call streaming parser: the gateway reads standard `delta.tool_calls`, including fragmented name and arguments, and re-emits them. The custom `tool_call` SSE event is not the production path.
 
-J. Workspace architecture: `machi workspace serve` is one process for the static UI, `/api/workspace/v1`, and the `/v1` user gateway. Headless `gateway serve` remains for API credentials. The browser does not reach vLLM.
+J. Real tool-capability model decision: vLLM 0.18 `--enable-auto-tool-choice --tool-call-parser hermes` for repositories starting with `Qwen/Qwen2.5-` or `Qwen/QwQ-`. The physical model was `Qwen/Qwen2.5-0.5B-Instruct` revision `7ae557604adf67be50417f59c2c2f167def9a775`. Other models stay instruction-only. The UI does not claim tools are universal.
 
-K. Conversation schema: `workspace.sqlite` holds sessions, conversations, messages, and agents. Content is customer-local.
+K. Physical real tool-call evidence: on the frozen wheel, Qwen emitted a structured `add` tool call. The acceptance MCP server logged `add 2 3`. Usage increased by two model rounds. The final assistant answer stated that the result is 5. This passed on corrected D1, D2, C1, C2, and C3. `hermes` was present on the vLLM command line.
 
-L. Login/logout: OIDC login was proved on the server. Logout clears the cookie. Session TTL is 8 hours; that expiry was not waited out on a pod.
+L. MCP SDK normalized provider: official `mcp` 1.30.0 (`mcp>=1.30,<2` in the wheel). Rukan policy remains the authority for approved servers and `mcp_use`.
 
-M. Chat features: new chat, persisted history, rename, archive, streaming, stop, regenerate, and copy in the UI. Markdown and fenced code render as text, not HTML.
+M. MCP tools, resources, and prompts: the acceptance server exposes `ping`, `add`, resource `status://project`, and prompt `summarize_status`. The diagnostics read the resource (`ok`) and the prompt.
 
-N. Streaming/stop/regenerate: physical runs returned a delta, stop 200, and regenerate 200 with another delta.
+N. MCP fixture: `rukan-acceptance` on loopback streamable HTTP, tools `ping` and `add(a, b)`.
 
-O. Model selector: the conversation stores the artifact id. These pods had one READY model, `mart_7ff1b147d6c56cd6`.
+O. MCP network security: redirects are refused and the HTTPS hostname is preserved for SNI. Residual rebinding (`R-04-01`) is not pinned, because pinning would weaken TLS. Non-blocking.
 
-P. Conversation history/search/export: history, rename, and delete/archive are present. Search and export are not.
+P. OIDC nonce: the authorization request sends a nonce, and the callback requires the ID token nonce to match.
 
-Q. My Usage: 24h/7d/30d/all. Physical `all` showed the requests from the proof.
+Q. ID-token-only browser identity: the callback requires `id_token`. There is no access-token fallback.
 
-R. Connections/API credentials: a credential was issued, `GET /v1/models` returned 200, and the same secret was denied after revoke. The secret is not in the campaign note.
+R. Secure-cookie proxy behavior: `rukan_session` is `Secure` when `public_base` is `https://`. Clearing the cookie uses the same flag.
 
-S. Markdown/security: fenced code is split into blocks and rendered as text. Cookie is HttpOnly. CSRF is required on mutating routes.
+S. Static path containment: packaged files are resolved with `Path.is_relative_to`. A sibling prefix does not escape the static root.
 
-T. Phase 3 result: official MCP SDK and agent chat are in the product. Physical closure is NVIDIA native vLLM plus this Workspace.
+T. Per-message usage-id linkage: after a stream, the gateway emits a `rukan` SSE object with `usage_id`, and the workspace stores that id on the assistant message.
 
-U. Official MCP SDK/version: Python package `mcp` `1.30.0`, dependency `mcp>=1.30,<2`.
+U. Workspace UI corrections: model select, Enter to send, Shift+Enter for a newline, per-message token line, agent edit/chat/archive, and a small markdown renderer for headings, text, and fenced code.
 
-V. Official/reference MCP interoperability: the Workspace lists and calls tools through the SDK streamable HTTP client. The Everything reference server was not required; Node was not used on the pod.
+V. Schema migration: workspace schema 2. Schema 1 gains the conversation snapshot columns and the agent description, max-token, and tool-ref columns. An unknown schema fails closed.
 
-W. Deterministic MCP acceptance server: `mcp_host.serve_acceptance` exposes `ping` and returns `pong`.
+W. Admin capability truth: Admin states that automatic tool calling is per model. LibreChat stays an optional fallback and was not on the acceptance path.
 
-X. MCP catalog/policy: Admin approves the endpoint. The call still requires `mcp_use`. Hostname preservation and redirect refusal stay in the broker.
+X. Local security tests: nonce, secure cookie, schema migration, static-path containment, and the tool loop are in `tests/machi`. The full Machi suite passed except one concurrent Command Center migration assertion that saw `database is locked` under the full run and passed when rerun alone. That test was not changed by this correction.
 
-Y. AgentDefinition: customer-local `agents` rows in `workspace.sqlite`, owned by the user.
+Y. 10-user isolation/load: `test_ten_users_stream_without_crossing_conversations` holds eight global streams, requires the extra requests to be 429, checks the per-user limit, and checks that one user cannot read another user's conversation or agent. It passed in the suite run before merge.
 
-Z. Agent Builder: create and archive in the Workspace UI. Changing instructions is a new agent. There is no separate in-place edit form.
+Z. Corrected D1: clean on wheel `0.1.0+50f8d1e5f7ba`, pod `jiqmge2uzkctk1` (secure A40, EU-SE-1, `$0.49/hour`). Install used the stored Qwen artifact, deploy reached ready, stored-provider login, five streamed turns, agent revision 2, physical tool loop, resource and prompt, credential issue and revoke, suspension, concurrency `[429, 200, 200]`, Command Center delivery, backup/restore, STOP and RELEASE. Pod deleted. `get-pod` returned 404.
 
-AA. Agent execution/tool loop: an agent chat sends the instructions as a system message. A model `tool_call` event runs at most two rounds through the JSON broker. SmolLM does not emit that event.
+AA. Corrected D2: same wheel and no product change, same pod after D1, same gates including the physical tool loop. Pod deleted. `get-pod` returned 404.
 
-AB. Tool-capability handling: the local fixture proves the automatic loop. The server proved MCP discovery, a manual `ping`, and instruction-only agent chat. No prompt was parsed into a fake tool call.
+AB. Command Center privacy: intake on loopback with `--local-test`, a real credential, and `POST /v1/monitoring/test` plus the development cadence. Received report documents were scanned in the Command Center database. Absent: the prompt marker, the user email, the display-name canary, the agent instruction, the tool-turn prompt, the resource URI, the MCP `add 2 3` line, and the final answer sentence. This was checked on D1, D2, C1, C2, and C3.
 
-AC. Admin product controls: Identity provider, Workspace preflight, and MCP catalog pages.
+AC. Physical backup/restore: stop workspace and admin, SQLite backup of directory, gateway, telemetry, and workspace, rename the live ledgers away, restore, restart, then read the conversation, agent, enabled provider, and usage. All four survived on D1, D2, C1, C2, and C3.
 
-AD. Migrations: workspace schema is created on first open. Provider rows already lived in `gateway.sqlite` and are now loaded at startup.
+AD. Clean streak: corrected D1 then corrected D2 on `50f8d1e5f7bac257d640c218be8b9dcda6492f76` with no product commit between them. The preliminary v0.5 streak was not reused. Confidence was not reset after the freeze.
 
-AE. Privacy: the proof marker was only in `workspace.sqlite`. The test email was only in `directory.sqlite`. From D2 onward, `telemetry_private` was true. Command Center was not sent a report on these runs.
+AE. C1: fresh pod `i7ol79s8r8g8tq`, secure A40, `$0.49/hour`, frozen wheel, acquire `ok`, deploy ready, physical tool loop, credential revoke, suspension, workspace restart with 10 persisted messages, concurrency `[429, 200, 200]`, Command Center privacy, backup/restore, STOP and RELEASE. Pod deleted. `get-pod` returned 404.
 
-AF. Local QA: strict mypy on `src/machi` passed, ruff passed, the Machi suite passed, acceptance boundary passed, and Admin, Command Center, and Workspace vitest/tsc/build passed.
+AF. C2: fresh pod `rzar4of8w71vbp`, same wheel. The first login attempt after key rotation failed because the fixture still signed the new key with kid `d1` while publishing kid `d1b`. That was a harness defect, not a product change. The rerun on that same fresh install signed with kid `d1b`. `jwks_rotation` was true, and the rest of the C1 gates passed, including the physical tool loop. Pod deleted. `get-pod` returned 404.
 
-AG. Diagnostics: D1 pod `1bww3tq7ea94ta` and D2 pod `4ne1gcs7molgz2`, both secure A40 at `$0.49/hour` in EU-SE-1. Same wheel.
+AG. C3: fresh pod `14px166hlgrksl`, same wheel, acquire `ok`. Physical tool loop passed before the outage. After the MCP listener was killed, `GET /tools` returned an empty tool list rather than the internal `mcp_unavailable` string, and a later chat still streamed (`chat_after_outage` true). A direct probe on that server showed tools `["ping", "add"]` before the kill and `[]` after. Command Center privacy, backup/restore, revoke, suspension, concurrency, STOP and RELEASE passed. Pod deleted. `get-pod` returned 404.
 
-AH. Defects/fixes: D1's first deploy POST timed out in the client while the server was still starting vLLM; the deployment reached ready and the proof resumed. No server file was patched. D1's privacy flag was a bad scan of the directory; the files themselves were clean.
+AH. Exact freeze: source `50f8d1e5f7bac257d640c218be8b9dcda6492f76`. Wheel `machi-0.1.0-py3-none-any.whl`, build `0.1.0+50f8d1e5f7ba`, SHA256 `57db4f492bea2219813831d67edb3b9604263551625f3c9ad758b43504a498ed`. The PR #7 merge tree matches that source. Workspace assets in the wheel: `index.html` `c9e7e3f46c7d87f402e1618ce19c48a29c7c22c77fbf7cdde59c26db42401455`, `assets/index-70csbHkB.js` `5f36d39e9b0388ec82f9636cb23f247ed7595bd4d34c3fcddf22195f0d1f65d4`, `assets/index-FbZ-4GGK.css` `ad0ce8fc146e4158c912cf7c486fe550eef64461024d41e30ca0da4e63c71773`. MCP SDK 1.30.0. Model revision `7ae557604adf67be50417f59c2c2f167def9a775`. OIDC fixture: local RS256 IdP, authorization code plus PKCE, nonce, ID token only.
 
-AI. Clean streak: D2 was a clean full-stack pass after D1's resumed proof. C1, C2, and C3 then passed on the unchanged wheel.
+AI. Usage reconciliation: each clean run recorded usage, linked the assistant message, and still showed requests after restore. D1 on the fresh correction pod reported 6 requests before the later same-pod runs accumulated more. C1, a fresh database, reported 6 requests.
 
-AJ. C1: pod `2u2qmk151zl0mx`, CUDA 13.0. Login, stream, stop, regenerate, persistence, usage, revoke, MCP ping, agent chat, suspension, backup, concurrency `429, 200, 200`, stop/release, telemetry private.
+AJ. Remaining non-blocking debt: AMD (`M-5-AMD-01`), macOS/Ollama (`M-5-OLLAMA-05`), NVIDIA Ampere/N1 breadth, `R-04-01` residual rebinding, eight-hour session expiry not waited out, no conversation search or export, markdown limited to headings, text, and fenced code, and `GET /tools` omits the `mcp_unavailable` error string when the server is down (the list is empty and chat continues). Tiny Llama remains negative evidence (`M-9-02`) and was not the acceptance model.
 
-AK. C2: pod `fzciorngoqqx4a`, CUDA 13.2. Same pass.
+AK. PR: https://github.com/dlealvilla/ai-stack/pull/7 merged to `machi`.
 
-AL. C3: pod `38a8rxc79dfrt7`, CUDA 12.8. Same pass.
+AL. Corrected canonical SHA: `70e7c4571deb181b3b5478d10f5bbc74f2ee02e7`.
 
-AM. Physical Workspace evidence: static UI from the wheel, OIDC login through a Python issuer, real streaming chat, and conversation rows after a Workspace restart.
+AM. Corrected checkpoint tag: `checkpoint/rukan-core-product-lead-corrected-nvidia-vllm-70e7c45`.
 
-AN. Usage/token reconciliation: My Usage `requests` advanced with the proof chats. The campaign summary does not copy token text.
+AN. Historical tag supersession: `checkpoint/rukan-core-product-closed-nvidia-vllm-124a142` is superseded and was not deleted. Recorded in `control/RUKAN-V0.5-PRELIMINARY-TAG-SUPERSEDED.md` on `control/machi-handoff`.
 
-AO. Backup/restore evidence: `workspace.sqlite` was in the SQLite backup on D1, D2, and C1–C3.
+AO. Cost: balance at the start of this correction resume `$36.459066563`, after the last pod was deleted `$34.9952363703`. Movement `$1.46`, which includes the account's other `$0.113/hour` burn. Every correction pod was a secure A40 at `$0.49/hour`, under the `$1.50/hour` cap. The correction spend is under the `$15` target. The balance floor stayed above `$0.50`.
 
-AP. Concurrency evidence: D2 and C1–C3 returned `429, 200, 200` for three overlapping chats. D1 did not overlap and returned three 200s.
+AP. Cleanup: pods `jiqmge2uzkctk1`, `i7ol79s8r8g8tq`, `rzar4of8w71vbp`, and `14px166hlgrksl` were deleted. Each subsequent `get-pod` returned 404. No other pod was started or deleted.
 
-AQ. Campaign spend: balance `$37.186` to `$36.804`. Other burn returned to `$0.113/hour`. Five A40 pods at `$0.49/hour`, one at a time, each terminated. Final get-pod for `38a8rxc79dfrt7` was 404.
+AQ. Recommended next phase: Git Brain, only after Lead review. It was not started.
 
-AR. Final wheel/build identities: SHA256 `29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204`, build `0.1.0+8c68bdedb71f`, tested source `8c68bdedb71f0faeec957bc14eb8b5062f9807fb`.
+AR. STOP. Awaiting Lead review.
 
-AS. Remaining platform breadth debt: AMD native vLLM, macOS/Ollama, and wider NVIDIA coverage stay physical-pending. `R-04-01` remains. In-place agent edit, conversation search, and conversation export are not in this closure.
-
-AT. PR/merge SHA: pull request 6 merged to `machi` at `124a1424ab20e6fd3e2ca96ee7fedb0cef539198`. The merge tree matches `4f42c170ea624f10e0f07e56710376b8cae9b2e9`.
-
-AU. Checkpoint tag: `checkpoint/rukan-core-product-closed-nvidia-vllm-124a142`. This is NVIDIA native vLLM plus the first-party Workspace. It is not an AMD or macOS claim.
-
-AV. Recommended next phase: Lead review. Do not start another product lane from this paste-back.
-
-AW. Cleanup: all five campaign pods were terminated and returned 404. No campaign GPU remains.
-
-AX. STOP
+Post-merge smoke: the frozen wheel installed in a clean virtualenv. `machi --help` ran. The installed conversation reader still returns `tool_refs` and `instruction_snapshot`, and `documented_tool_parser` returns `hermes` for `Qwen/Qwen2.5-0.5B-Instruct`.

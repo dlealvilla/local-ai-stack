@@ -478,5 +478,5 @@
   "published_instruction_id": "RUKAN-V0.5-LEAD-CLOSURE-CORRECTION-001",
   "schema": "machi.lead_handoff.v1",
   "source_repository": "dlealvilla/ai-stack",
-  "status": "AWAITING_CURSOR_V0_5_LEAD_CLOSURE_CORRECTION"
+  "status": "PASTEBACK_PUBLISHED"
 }
