@@ -1,14 +1,14 @@
 {
   "control_branch": "control/machi-handoff",
-  "expected_cursor_action": "build_native_rukan_workspace_close_backend_loose_ends_integrate_mcp_agents_and_close_core_product",
+  "expected_cursor_action": "stop_for_lead_review",
   "expected_pasteback_instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
   "instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
   "program": {
-    "canonical_baseline": "16084a5b21a0cca25bfe60070ad862832c80fb51",
+    "canonical_baseline": "124a1424ab20e6fd3e2ca96ee7fedb0cef539198",
     "canonical_branch": "machi",
     "internal_namespace": "machi",
     "name": "rukan-post-stage1-productisation",
-    "next_action": "cursor_freeze_backend_contracts_build_first_party_workspace_integrate_official_mcp_and_agents_then_physically_close_validated_core_product",
+    "next_action": "lead_review_of_nvidia_workspace_core_closure",
     "physical_pending": [
       "AMD_native_vLLM",
       "macOS_Ollama",
@@ -395,6 +395,44 @@
         "RUKAN_V0_4_USER_ACCESS_GATEWAY_SERVER_CAMPAIGN_PASS"
       ]
     },
+    "rukan_v0_5_native_workspace": {
+      "branch": "rukan/native-workspace-v0.5",
+      "instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
+      "merge_commit": "124a1424ab20e6fd3e2ca96ee7fedb0cef539198",
+      "pull_request": 6,
+      "scope": "nvidia_native_vllm_first_party_workspace",
+      "tag": "checkpoint/rukan-core-product-closed-nvidia-vllm-124a142",
+      "terminal_status": "RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED",
+      "tested_source": "8c68bdedb71f0faeec957bc14eb8b5062f9807fb",
+      "wheel_build": "0.1.0+8c68bdedb71f",
+      "wheel_sha256": "29bef59fa62bccb536b5eeaf1a3ec4a195ce2dc4537bfb40ed87ac80522ec204"
+    },
+    "rukan_v0_5_native_workspace_core_closure": {
+      "agents": "rukan_owned_bounded_agent_builder_no_arbitrary_code",
+      "auth": "oidc_authorization_code_pkce_bff_session",
+      "confidence_runs_required": 3,
+      "default_workspace": "rukan_workspace",
+      "diagnostic_clean_streak_required": 2,
+      "docker_required": false,
+      "fallback_workspace": "librechat_adapter_optional",
+      "final_merge_authorized_on_full_pass": true,
+      "master_instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
+      "mcp": "official_stable_sdk_streamable_http",
+      "mcp_reference_fixture": "modelcontextprotocol_everything_when_available",
+      "new_branch": "rukan/native-workspace-v0.5",
+      "phase_1_instruction_id": "RUKAN-V0.5-BACKEND-CONTRACT-FREEZE-001",
+      "phase_2_instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-001",
+      "phase_3_instruction_id": "RUKAN-V0.5-MCP-AGENTS-AND-CORE-CLOSURE-001",
+      "runtime_node_required": false,
+      "starting_branch": "rukan/user-access-gateway-v0.4",
+      "starting_tip": "7a0e6180a1e0d40e1d26271d590502d447d761a1",
+      "terminal_statuses": [
+        "RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED",
+        "RUKAN_V0_5_NATIVE_WORKSPACE_PRODUCT_NOT_READY"
+      ],
+      "validated_closure_path": "nvidia_native_vllm_first_party_workspace",
+      "workspace_stack": "react_typescript_vite_packaged_in_python_artifact"
+    },
     "runpod_policy": {
       "amd_max_hourly_usd": 4,
       "hang_action": "stop_and_ask",
@@ -407,33 +445,7 @@
     },
     "stage1_closure_tip": "4cb89622a4cd3a1a37bf6ab44c4414e4287e8934",
     "stage1_status": "STAGE1_DEPLOYMENT_SPINE_IMPLEMENTATION_CLOSED_PHYSICAL_BREADTH_PENDING",
-    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS",
-    "rukan_v0_5_native_workspace_core_closure": {
-      "master_instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
-      "phase_1_instruction_id": "RUKAN-V0.5-BACKEND-CONTRACT-FREEZE-001",
-      "phase_2_instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-001",
-      "phase_3_instruction_id": "RUKAN-V0.5-MCP-AGENTS-AND-CORE-CLOSURE-001",
-      "starting_branch": "rukan/user-access-gateway-v0.4",
-      "starting_tip": "7a0e6180a1e0d40e1d26271d590502d447d761a1",
-      "new_branch": "rukan/native-workspace-v0.5",
-      "default_workspace": "rukan_workspace",
-      "fallback_workspace": "librechat_adapter_optional",
-      "docker_required": false,
-      "runtime_node_required": false,
-      "workspace_stack": "react_typescript_vite_packaged_in_python_artifact",
-      "auth": "oidc_authorization_code_pkce_bff_session",
-      "mcp": "official_stable_sdk_streamable_http",
-      "mcp_reference_fixture": "modelcontextprotocol_everything_when_available",
-      "agents": "rukan_owned_bounded_agent_builder_no_arbitrary_code",
-      "diagnostic_clean_streak_required": 2,
-      "confidence_runs_required": 3,
-      "final_merge_authorized_on_full_pass": true,
-      "validated_closure_path": "nvidia_native_vllm_first_party_workspace",
-      "terminal_statuses": [
-        "RUKAN_V0_5_NATIVE_WORKSPACE_AND_CORE_PRODUCT_CLOSED",
-        "RUKAN_V0_5_NATIVE_WORKSPACE_PRODUCT_NOT_READY"
-      ]
-    }
+    "terminal_success_status": "RUKAN_DUAL_UI_V0_LOCAL_PASS"
   },
   "published_instruction_id": "RUKAN-V0.5-NATIVE-WORKSPACE-AND-CORE-CLOSURE-001",
   "schema": "machi.lead_handoff.v1",
