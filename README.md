@@ -4,7 +4,7 @@ Self-hosted enterprise AI deployment and organisational intelligence platform.
 
 `ai-stack` turns a GPU host into a managed local AI stack: discover models, plan capacity, deploy inference + chat UI + gateway, observe usage, and operate the control plane from a CLI and HTTP Platform API. The longer-term product vision is a portable **Company Brain** layer over that stack (see [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md)); this repository’s working code is the deployment and control-plane foundation.
 
-The clean-slate **Company Brain** doctrine and rebuild plan live in the sibling docs repo [local-ai-stack](https://github.com/dlealvilla/local-ai-stack).
+The clean-slate **Company Brain** doctrine and rebuild plan live in [docs/planning](docs/planning/).
 
 > **Status:** Prototypes and vertical slices through Phase 8+ capacity / resource work are implemented; many settings remain provisional (see [`docs/PROVISIONAL.md`](docs/PROVISIONAL.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md)). Treat this as an early open-source release, not a finished commercial appliance.
 
@@ -133,7 +133,7 @@ Active R&D / early open release candidate. Read `docs/ROADMAP.md` for completed 
 
 ## More from Daniel
 
-- Company Brain rebuild doctrine (docs-only): [local-ai-stack](https://github.com/dlealvilla/local-ai-stack)
+- Company Brain rebuild doctrine (docs-only): [docs/planning](docs/planning/)
 - Children’s learning app (live): [https://askwuai.com](https://askwuai.com) — source repo **little-thinker-ai** (same account)
 - Public LMS writing prototype (source): [https://github.com/dlealvilla/lms_ai](https://github.com/dlealvilla/lms_ai)
 
