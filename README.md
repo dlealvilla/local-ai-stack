@@ -133,7 +133,7 @@ Active R&D / early open release candidate. Read `docs/ROADMAP.md` for completed 
 
 ## More from Daniel
 
-- Company Brain rebuild doctrine (docs-only): **kultrun** (sibling repo, same account)
+- Company Brain rebuild doctrine (docs-only): [local-ai-stack](https://github.com/dlealvilla/local-ai-stack)
 - Children’s learning app (live): [https://askwuai.com](https://askwuai.com) — source repo **little-thinker-ai** (same account)
 - Public LMS writing prototype (source): [https://github.com/dlealvilla/lms_ai](https://github.com/dlealvilla/lms_ai)
 
