@@ -1,6 +1,6 @@
-# ai-stack
+# Local AI Stack
 
-Self-hosted enterprise AI deployment and organisational intelligence platform.
+Run private AI on your own GPU servers: model discovery, capacity planning, fast local inference, a secure gateway and a control plane, so sensitive data never leaves your infrastructure.
 
 `ai-stack` turns a GPU host into a managed local AI stack: discover models, plan capacity, deploy inference + chat UI + gateway, observe usage, and operate the control plane from a CLI and HTTP Platform API. The longer-term product vision is a portable **Company Brain** layer over that stack (see [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md)); this repository’s working code is the deployment and control-plane foundation.
 
