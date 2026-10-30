@@ -1,3 +1,10 @@
+<p align="center"><img src="docs/brand/banner.png" alt="Local AI Stack" width="100%"></p>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-22C55E?style=flat-square&labelColor=0A0F0D)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white&labelColor=0A0F0D)](https://www.python.org/)
+[![vLLM](https://img.shields.io/badge/vLLM-Inference-22D3EE?style=flat-square&labelColor=0A0F0D)](https://github.com/vllm-project/vllm)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white&labelColor=0A0F0D)](https://www.docker.com/)
+
 # Local AI Stack
 
 Run private AI on your own GPU servers: model discovery, capacity planning, fast local inference, a secure gateway and a control plane, so sensitive data never leaves your infrastructure.
