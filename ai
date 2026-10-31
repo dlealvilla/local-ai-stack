@@ -74,6 +74,8 @@ if len(sys.argv) < 2:
     print("  stop       Stop the AI deployment")
     print("  restart    Restart the AI deployment")
     print("  logs       Show recent service logs")
+    print("             Usage: ./ai logs [-n|--lines N] [service_id]")
+    print("             Default: 40 lines. Flag may appear before or after service_id.")
 
 elif sys.argv[1] == "inspect":
     hardware = inspect_hardware()
@@ -435,11 +437,59 @@ elif sys.argv[1] == "logs":
         config
     )
 
-    requested_service = (
-        sys.argv[2]
-        if len(sys.argv) >= 3
-        else None
-    )
+    # Parse optional --lines / -n and optional service id.
+    # Accept flag before or after the service id.
+    args = sys.argv[2:]
+    requested_service = None
+    lines = 40
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg in ("-n", "--lines"):
+            if i + 1 >= len(args):
+                print("Error: -n/--lines requires a positive integer value.")
+                sys.exit(1)
+            try:
+                lines = int(args[i + 1])
+            except ValueError:
+                print("Error: -n/--lines value must be a positive integer.")
+                sys.exit(1)
+            if lines <= 0:
+                print("Error: -n/--lines value must be a positive integer.")
+                sys.exit(1)
+            i += 2
+            continue
+        elif arg.startswith("--lines="):
+            try:
+                lines = int(arg.split("=", 1)[1])
+            except ValueError:
+                print("Error: --lines value must be a positive integer.")
+                sys.exit(1)
+            if lines <= 0:
+                print("Error: --lines value must be a positive integer.")
+                sys.exit(1)
+            i += 1
+            continue
+        elif arg.startswith("-n="):
+            try:
+                lines = int(arg.split("=", 1)[1])
+            except ValueError:
+                print("Error: -n value must be a positive integer.")
+                sys.exit(1)
+            if lines <= 0:
+                print("Error: -n value must be a positive integer.")
+                sys.exit(1)
+            i += 1
+            continue
+        else:
+            if requested_service is not None:
+                print(
+                    f"Error: unexpected argument '{arg}'. "
+                    "Usage: ./ai logs [-n|--lines N] [service_id]"
+                )
+                sys.exit(1)
+            requested_service = arg
+            i += 1
 
     enabled_services = [
         service
@@ -476,7 +526,7 @@ elif sys.argv[1] == "logs":
 
         output = tail_log(
             service_id,
-            lines=40,
+            lines=lines,
         )
 
         if output:
