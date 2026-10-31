@@ -718,8 +718,10 @@ Current CLI:
 ./ai logs
 ./ai logs inference
 ./ai logs frontend
+./ai logs -n 5
+./ai logs --lines 100 inference
 
-The CLI currently displays the most recent lines only.
+The CLI currently displays the most recent lines only (default 40; override with -n / --lines).
 
 Future improvements may include:
 
