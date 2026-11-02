@@ -15,7 +15,9 @@ The clean-slate **Company Brain** doctrine and rebuild plan live in [docs/planni
 
 > **Status:** Prototypes and vertical slices through Phase 8+ capacity / resource work are implemented; many settings remain provisional (see [`docs/PROVISIONAL.md`](docs/PROVISIONAL.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md)). Treat this as an early open-source release, not a finished commercial appliance.
 
-**Live demos:** none yet — this is a self-hosted stack you run on your own GPU host. Related public demos from Daniel: [askwuai.com](https://askwuai.com) (children’s app).
+**Live demos:** [clickable design demo](https://local-ai-stack-demo.vercel.app) with sample data (no backend). The real stack still runs on your own GPU host. Related: [askwuai.com](https://askwuai.com) (children’s app).
+
+Want to help without a GPU? See **[Contribute without a GPU](CONTRIBUTING.md#contribute-without-a-gpu)** — unit tests and many issues need only Python 3.12+.
 
 ---
 
