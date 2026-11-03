@@ -9,7 +9,7 @@
 
 Run private AI on your own GPU servers: model discovery, capacity planning, fast local inference, a secure gateway and a control plane, so sensitive data never leaves your infrastructure.
 
-`ai-stack` turns a GPU host into a managed local AI stack: discover models, plan capacity, deploy inference + chat UI + gateway, observe usage, and operate the control plane from a CLI and HTTP Platform API. The longer-term product vision is a portable **Company Brain** layer over that stack (see [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md)); this repository’s working code is the deployment and control-plane foundation.
+**Local AI Stack** turns a GPU host into a managed local AI stack: discover models, plan capacity, deploy inference + chat UI + gateway, observe usage, and operate the control plane from a CLI and HTTP Platform API. The longer-term product vision is a portable **Company Brain** layer over that stack (see [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md)); this repository’s working code is the deployment and control-plane foundation.
 
 The clean-slate **Company Brain** doctrine and rebuild plan live in [docs/planning](docs/planning/).
 
@@ -112,7 +112,7 @@ Additional service-specific variables may appear in Docker or Open WebUI images.
 ## Project structure
 
 ```
-ai-stack/
+local-ai-stack/
 ├── ai                    # CLI entry
 ├── config/defaults.toml  # Default platform configuration
 ├── core/                 # Control plane, state, analytics, capacity, models
@@ -143,11 +143,11 @@ Active R&D / early open release candidate. Read `docs/ROADMAP.md` for completed 
 ## More from Daniel
 
 - Company Brain rebuild doctrine (docs-only): [docs/planning](docs/planning/)
-- Children’s learning app (live): [https://askwuai.com](https://askwuai.com) — source repo **little-thinker-ai** (same account)
-- Public LMS writing prototype (source): [https://github.com/dlealvilla/lms_ai](https://github.com/dlealvilla/lms_ai)
+- Children’s learning app (live): [https://askwuai.com](https://askwuai.com) — source: [ask-wuai](https://github.com/dlealvilla/ask-wuai)
+- Public LMS writing prototype (source): [wildmind-ai-for-education](https://github.com/dlealvilla/wildmind-ai-for-education)
 
 ---
 
 ## License
 
-TODO — choose and add a license file before treating this as a formal open-source release.
+This project is licensed under the [MIT License](LICENSE).

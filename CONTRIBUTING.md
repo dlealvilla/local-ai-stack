@@ -30,9 +30,9 @@ No extra packages are required for the unit tests (stdlib only). `pytest` also w
 
 ## Picking something to work on
 
-- Look for issues labelled [good first issue](https://github.com/dlealvilla/ai-stack/labels/good%20first%20issue) or [help wanted](https://github.com/dlealvilla/ai-stack/labels/help%20wanted).
+- Look for issues labelled [good first issue](https://github.com/dlealvilla/local-ai-stack/labels/good%20first%20issue) or [help wanted](https://github.com/dlealvilla/local-ai-stack/labels/help%20wanted).
 - Comment on the issue before you start so work isn't duplicated.
-- Have an idea? Start a thread in [Discussions](https://github.com/dlealvilla/ai-stack/discussions) first.
+- Have an idea? Start a thread in [Discussions](https://github.com/dlealvilla/local-ai-stack/discussions) first.
 
 ## Pull requests
 
