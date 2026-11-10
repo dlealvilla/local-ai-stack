@@ -1,4 +1,26 @@
-# AI Stack — Exoskeleton Roadmap
+# Local AI Stack Roadmap
+
+## Where we are now
+
+The current public release is [v0.1.0](https://github.com/dlealvilla/local-ai-stack/releases/tag/v0.1.0). The path that works today is **Linux + NVIDIA + vLLM**. Phases 1–7 below are complete foundations: lifecycle, core semantics, Platform API, gateway and analytics, model catalog, and model inventory. Prototypes and vertical slices of later capacity and resource work are already in the tree; many settings remain provisional (see [`PROVISIONAL.md`](PROVISIONAL.md) and the [README](../README.md) status note). This is not a finished commercial appliance.
+
+## What's next
+
+In plain terms, the next work already listed later in this document is:
+
+- a capacity planner (disk, RAM and VRAM feasibility, safety margins, conservative recommendations)
+- a resource manager so more than one model can be admitted, started, and stopped safely
+- a gateway routing skeleton (local provider first, plus an external-provider boundary)
+- a first-party admin UI (the [design demo](https://local-ai-stack-demo.vercel.app) is mock screens only)
+- later: heartbeat / telemetry, a licensing / entitlement skeleton, and a bootstrapper / installer — only after the foundations above stabilize
+
+This section restates existing phases; it does not add new commitments.
+
+## Where newcomers can help
+
+You do not need a GPU to contribute. See [Contribute without a GPU](../CONTRIBUTING.md#contribute-without-a-gpu). Look for issues labelled [good first issue](https://github.com/dlealvilla/local-ai-stack/labels/good%20first%20issue) or [help wanted](https://github.com/dlealvilla/local-ai-stack/labels/help%20wanted), and use [Discussions](https://github.com/dlealvilla/local-ai-stack/discussions) for questions and ideas.
+
+---
 
 ## Completed
 
