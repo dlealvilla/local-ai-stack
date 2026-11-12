@@ -242,13 +242,31 @@ def run_preflight(manifest, config):
             network["inference_port"],
         )
     )
-
-    if config["frontend"]["enabled"]:
+    
+    gateway = config.get("gateway", {})
+    if gateway.get("provider", "direct") != "direct":
         checks.append(
             check_port_available(
-                network["frontend_host"],
-                network["frontend_port"],
+                network["api_host"],
+                network["api_port"],
             )
         )
-
-    return checks
+        
+        if config["frontend"]["enabled"]:
+            checks.append(
+                check_port_available(
+                    network["frontend_host"],
+                    network["frontend_port"],
+                )
+                
+            )
+    platform_api = config.get("platform_api", {})
+    if platform_api.get("enabled"):
+        checks.append(
+            check_port_available(
+                platform_api["host"],
+                platform_api["port"],
+            )
+        )
+        
+        return checks
