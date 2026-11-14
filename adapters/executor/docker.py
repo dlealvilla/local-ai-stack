@@ -93,7 +93,48 @@ class DockerExecutor:
             image,
         ]
 
+    def build_librechat_mongo_command(self, service):
+        spec = service["spec"]
+        return [
+            "docker", "run",
+            "-d",
+            "--rm",
+            "--name", "ai-stack-librechat-mongo",
+            "--network", self.network_name,
+            "-v",
+            f"{spec.get('mongo_data_dir', '/workspace/librechat-mongo')}:/data/db",
+            "mongo:7",
+        ]
 
+    def build_librechat_command(self, service):
+        spec = service["spec"]
+        network = spec["network"]
+
+        return [
+            "docker", "run",
+            "-d",
+            "--rm",
+            "--name", "ai-stack-frontend",
+            "--network", self.network_name,
+            "-p",
+            f"{network['host']}:{network['port']}:3080",
+            "-v",
+            f"{spec.get('config_path', '/workspace/librechat-data/librechat.yaml')}:/app/librechat.yaml:ro",
+            "-v",
+            f"{spec.get('data_dir', '/workspace/librechat-data')}:/app/api/logs",
+            "-e",
+            "MONGO_URI=mongodb://ai-stack-librechat-mongo:27017/LibreChat",
+            "ghcr.io/danny-avila/librechat:latest",
+        ]
+
+    def build_frontend_commands(self, service, manifest):
+        if service["spec"].get("provider") == "librechat":
+            return [
+                self.build_librechat_mongo_command(service),
+                self.build_librechat_command(service),
+            ]
+        return [self.build_frontend_command(service, manifest)]
+        
     def build_command(self, service_spec):
         """
         Compatibility method for the earlier inference-only code.
@@ -135,11 +176,9 @@ class DockerExecutor:
                 )
 
             elif service["role"] == "frontend":
-                command = self.build_frontend_command(
-                    service,
-                    manifest
-                )
-
+                commands.extend(self.build_frontend_commands(service, manifest))
+                continue
+            
             else:
                 raise ValueError(
                     "Docker execution is not yet implemented "

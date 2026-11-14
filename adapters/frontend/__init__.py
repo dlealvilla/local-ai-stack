@@ -1,7 +1,8 @@
-from adapters.frontend import openwebui
+from adapters.frontend import librechat, openwebui
 
 
 FRONTEND_ADAPTERS = {
+    "librechat": librechat,
     "openwebui": openwebui,
 }
 

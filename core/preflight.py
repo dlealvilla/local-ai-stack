@@ -226,13 +226,28 @@ def run_preflight(manifest, config):
             )
         )
 
-    checks.append(
-        check_path(
-            "Open WebUI data",
-            config["platform"]["data_root"]
-            + "/open-webui-data",
+    frontend_provider = config.get("frontend", {}).get("provider", "openwebui")
+    if frontend_provider == "librechat":
+        checks.append(
+            check_path(
+                "LibreChat data",
+                config["platform"]["data_root"] + "/librechat-data",
+            )
         )
-    )
+        checks.append(
+            check_path(
+                "LibreChat MongoDB data",
+                config["platform"]["data_root"] + "/librechat-mongo",
+            )
+        )
+    else:
+        checks.append(
+            check_path(
+                "Open WebUI data",
+                config["platform"]["data_root"]
+                + "/open-webui-data",
+            )
+        )
 
     network = config["network"]
 
