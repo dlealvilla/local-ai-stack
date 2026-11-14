@@ -251,4 +251,22 @@ def run_preflight(manifest, config):
             )
         )
 
+    if config["gateway"]["provider"] != "direct":
+        checks.append(
+            check_port_available(
+                network["api_host"],
+                network["api_port"],
+            )
+        )
+
+    platform_api = config["platform_api"]
+
+    if platform_api["enabled"]:
+        checks.append(
+            check_port_available(
+                platform_api["host"],
+                platform_api["port"],
+            )
+        )
+
     return checks
