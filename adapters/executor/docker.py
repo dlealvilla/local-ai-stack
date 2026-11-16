@@ -1,3 +1,6 @@
+from adapters.frontend.librechat import ensure_librechat_secrets
+
+
 class DockerExecutor:
     """
     Docker deployment executor.
@@ -93,6 +96,57 @@ class DockerExecutor:
             image,
         ]
 
+    def build_librechat_mongo_command(self, service):
+        spec = service["spec"]
+        return [
+            "docker", "run",
+            "-d",
+            "--rm",
+            "--name", "ai-stack-librechat-mongo",
+            "--network", self.network_name,
+            "-v",
+            f"{spec.get('mongo_data_dir', '/workspace/librechat-mongo')}:/data/db",
+            "mongo:7",
+        ]
+
+    def build_librechat_command(self, service):
+        spec = service["spec"]
+        network = spec["network"]
+        secrets_map = ensure_librechat_secrets(spec.get("data_dir", "/workspace/librechat-data"))
+
+        return [
+            "docker", "run",
+            "-d",
+            "--rm",
+            "--name", "ai-stack-frontend",
+            "--network", self.network_name,
+            "-p",
+            f"{network['host']}:{network['port']}:3080",
+            "-v",
+            f"{spec.get('config_path', '/workspace/librechat-data/librechat.yaml')}:/app/librechat.yaml:ro",
+            "-v",
+            f"{spec.get('data_dir', '/workspace/librechat-data')}:/app/api/logs",
+            "-e",
+            "MONGO_URI=mongodb://ai-stack-librechat-mongo:27017/LibreChat",
+            "-e",
+            f"CREDS_KEY={secrets_map['CREDS_KEY']}",
+            "-e",
+            f"CREDS_IV={secrets_map['CREDS_IV']}",
+            "-e",
+            f"JWT_SECRET={secrets_map['JWT_SECRET']}",
+            "-e",
+            f"JWT_REFRESH_SECRET={secrets_map['JWT_REFRESH_SECRET']}",
+            "ghcr.io/danny-avila/librechat:v0.7.7",
+        ]
+
+    def build_frontend_commands(self, service, manifest):
+        provider = service.get("provider") or service["spec"].get("provider")
+        if provider == "librechat":
+            return [
+                self.build_librechat_mongo_command(service),
+                self.build_librechat_command(service),
+            ]
+        return [self.build_frontend_command(service, manifest)]
 
     def build_command(self, service_spec):
         """
@@ -135,10 +189,8 @@ class DockerExecutor:
                 )
 
             elif service["role"] == "frontend":
-                command = self.build_frontend_command(
-                    service,
-                    manifest
-                )
+                commands.extend(self.build_frontend_commands(service, manifest))
+                continue
 
             else:
                 raise ValueError(

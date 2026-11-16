@@ -66,6 +66,7 @@ Local AI Stack is meant to be the **private compute layer** of a company brain: 
 | Control plane | Built-in `platform_api` (ThreadingHTTPServer; provisional) |
 | Inference (default) | vLLM (process or Docker executor) |
 | Chat UI (default) | Open WebUI |
+| Chat UI (optional) | LibreChat (`provider = "librechat"` under `[frontend]`) |
 | Gateway (default) | Builtin OpenAI-compatible proxy |
 | Model sources | Local files, Hugging Face Hub API |
 | Analytics store | Partitioned JSONL under the data root |
