@@ -56,25 +56,29 @@ def print_hardware(profile):
     print(f"Free:             {storage['free_gb']:.1f} GB")
 
 
-if len(sys.argv) < 2:
-    print("AI Platform")
+def print_usage():
+    print("Local AI Stack")
     print("Usage: ./ai <command>")
     print()
     print("Commands:")
-    print("  inspect    Inspect this computer")
-    print("  models     List locally stored models")
-    print("  config     Show current configuration")
-    print("  plan       Build an initial deployment plan")
-    print("  status     Show runtime service status")
-    print("  state      Show normalized platform state")
-    print("  health     Check functional service health")
-    print("  test       Run end-to-end acceptance test")
-    print("  prepare    Prepare local runtimes")
-    print("  preflight  Check deployment readiness")
-    print("  start      Start the AI deployment")
-    print("  stop       Stop the AI deployment")
-    print("  restart    Restart the AI deployment")
-    print("  logs       Show recent logs [service_id] [--lines N | -n N]")
+    print("  inspect     Inspect this computer")
+    print("  models      List locally stored models")
+    print("  config      Show current configuration")
+    print("  plan        Build an initial deployment plan")
+    print("  status      Show runtime service status")
+    print("  state       Show normalized platform state")
+    print("  health      Check functional service health")
+    print("  test        Run end-to-end acceptance test")
+    print("  prepare     Prepare local runtimes")
+    print("  preflight   Check deployment readiness")
+    print("  start       Start the AI deployment")
+    print("  stop        Stop the AI deployment")
+    print("  restart     Restart the AI deployment")
+    print("  logs        Show recent logs [service_id] [--lines N | -n N]")
+
+
+if len(sys.argv) < 2 or sys.argv[1] in ("--help", "-h", "help"):
+    print_usage()
 
 elif sys.argv[1] == "inspect":
     hardware = inspect_hardware()
@@ -800,3 +804,6 @@ elif sys.argv[1] == "models":
 
 else:
     print(f"Unknown command: {sys.argv[1]}")
+    print()
+    print_usage()
+    sys.exit(1)
