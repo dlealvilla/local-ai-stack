@@ -143,6 +143,10 @@ See also [`.env.example`](.env.example). Prefer a secret manager in production; 
 | Name | Purpose |
 | --- | --- |
 | `AI_DATA_ROOT` | Persistent data root (models, analytics, Open WebUI data); defaults.toml also sets `data_root` |
+| `AI_RUNTIME_ROOT` | Managed runtime directory used by `./ai prepare`; defaults to `/opt/ai-stack/runtime` |
+| `AI_VLLM_EXECUTABLE` | Optional path to a vLLM executable; the path must exist and be executable |
+| `AI_OPENWEBUI_EXECUTABLE` | Optional path to an Open WebUI executable; the path must exist and be executable |
+| `AI_PLATFORM_TOOLS_PYTHON` | Optional path to the Python executable used for platform metadata tools |
 | `HF_TOKEN` | Optional Hugging Face credential for gated / higher-rate Hub access |
 | `RUNPOD_ACCOUNT_API_KEY` | Optional; RunPod Network Volume capacity adapter |
 | `RUNPOD_VOLUME_ID` | Optional; RunPod volume id for capacity observation |
