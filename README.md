@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-22C55E?style=flat-square&labelColor=0A0F0D)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white&labelColor=0A0F0D)](https://www.python.org/)
+[![Tests](https://github.com/dlealvilla/local-ai-stack/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/dlealvilla/local-ai-stack/actions/workflows/tests.yml)
 [![vLLM](https://img.shields.io/badge/vLLM-Inference-22D3EE?style=flat-square&labelColor=0A0F0D)](https://github.com/vllm-project/vllm)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white&labelColor=0A0F0D)](https://www.docker.com/)
 
@@ -23,7 +24,11 @@ For many workloads there is a simpler option: use the GPU server you already hav
 
 > **Status:** Early open-source release ([v0.1.0](https://github.com/dlealvilla/local-ai-stack/releases)). The path that works today is **Linux + NVIDIA + vLLM**. Prototypes and vertical slices through Phase 8+ capacity / resource work are implemented; many settings remain provisional (see [`docs/PROVISIONAL.md`](docs/PROVISIONAL.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md)). Not a finished commercial appliance.
 
-**Design demo (mock UI only):** [local-ai-stack-demo.vercel.app](https://local-ai-stack-demo.vercel.app) uses sample data and is not connected to a model or GPU. The real stack runs on your own GPU host.
+<p align="center">
+  <img src="docs/media/demo.gif" alt="Walkthrough of the Local AI Stack design demo, showing the overview and chat screens on mock data">
+</p>
+
+<p align="center"><em>A loop of the <a href="https://local-ai-stack-demo.vercel.app">static design demo</a> on mock data — not connected to a model or GPU. The real stack runs on your own GPU host.</em></p>
 
 Want to help without a GPU? See **[Contribute without a GPU](CONTRIBUTING.md#contribute-without-a-gpu)**. Unit tests (`python3 -m unittest discover -s tests -v`) and many issues need only Python 3.12+.
 
@@ -99,6 +104,21 @@ Default bootstrap binds services to loopback (`127.0.0.1`); public exposure is n
 
 ---
 
+## Quick start without a GPU
+
+You can clone the repo and run the unit tests on any machine with Python 3.12+. No GPU, Docker, or extra packages are required (stdlib only).
+
+```bash
+git clone https://github.com/dlealvilla/local-ai-stack.git
+cd local-ai-stack
+python3 --version   # 3.12 or newer
+python3 -m unittest discover -s tests -v
+```
+
+For the no-GPU contribution path and open starter issues, see [Contribute without a GPU](CONTRIBUTING.md#contribute-without-a-gpu) and issues labelled [good first issue](https://github.com/dlealvilla/local-ai-stack/labels/good%20first%20issue).
+
+---
+
 ## Setup
 
 1. Clone this repository onto a **Linux** host with NVIDIA GPU drivers (Docker + NVIDIA Container Toolkit optional; default executor is native **process**).
@@ -147,13 +167,11 @@ local-ai-stack/
 └── .env.example
 ```
 
-The remote has many experiment / checkpoint / phase branches (~97). The **default branch (`main`)** is the source of truth for this README.
-
 ---
 
 ## Screenshots
 
-Self-hosted CLI / Platform API screenshots are not bundled yet. The [design demo](https://local-ai-stack-demo.vercel.app) shows the planned UI with mock data.
+A loop of the static [design demo](https://local-ai-stack-demo.vercel.app) (mock data) is at the top of this README. Self-hosted CLI / Platform API screenshots are not bundled yet.
 
 ---
 
