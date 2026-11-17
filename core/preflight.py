@@ -3,7 +3,7 @@ import socket
 import subprocess
 from pathlib import Path
 
-from core.runtime_paths import resolve_vllm_executable
+from core.runtime_paths import resolve_openwebui_executable, resolve_vllm_executable
 
 
 def result(name, status, detail):
@@ -171,6 +171,8 @@ def run_preflight(manifest, config):
     checks = []
 
     executor = manifest["runtime"]["executor"]
+    frontend = config["frontend"]
+    openwebui_enabled = frontend["enabled"] and frontend["provider"] == "openwebui"
 
     if executor == "docker":
         checks.append(
@@ -205,6 +207,16 @@ def run_preflight(manifest, config):
                 )
             )
 
+        if openwebui_enabled:
+            executable = resolve_openwebui_executable()
+            checks.append(
+                result(
+                    "Open WebUI runtime",
+                    "pass" if executable else "fail",
+                    executable or "No usable native Open WebUI runtime was found.",
+                )
+            )
+
     else:
         checks.append(
             result(
@@ -226,13 +238,13 @@ def run_preflight(manifest, config):
             )
         )
 
-    checks.append(
-        check_path(
-            "Open WebUI data",
-            config["platform"]["data_root"]
-            + "/open-webui-data",
+    if openwebui_enabled:
+        checks.append(
+            check_path(
+                "Open WebUI data",
+                config["platform"]["data_root"] + "/open-webui-data",
+            )
         )
-    )
 
     network = config["network"]
 
