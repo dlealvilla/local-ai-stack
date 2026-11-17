@@ -145,8 +145,8 @@ elif sys.argv[1] == "start":
         )
         sys.exit(1)
 
-    print("Starting AI Stack")
-    print("=================")
+    print("Starting Local AI Stack")
+    print("=======================")
 
     failed = False
 
@@ -231,8 +231,8 @@ elif sys.argv[1] == "stop":
         )
         sys.exit(1)
 
-    print("Stopping AI Stack")
-    print("=================")
+    print("Stopping Local AI Stack")
+    print("=======================")
 
     failed = False
 
@@ -317,8 +317,8 @@ elif sys.argv[1] == "restart":
         )
         sys.exit(1)
 
-    print("Restarting AI Stack")
-    print("===================")
+    print("Restarting Local AI Stack")
+    print("=========================")
 
     failed = False
 
@@ -475,8 +475,8 @@ elif sys.argv[1] == "logs":
             )
             sys.exit(1)
 
-    print("AI Stack logs")
-    print("=============")
+    print("Local AI Stack logs")
+    print("===================")
 
     for service in enabled_services:
         service_id = service["id"]
@@ -505,8 +505,8 @@ elif sys.argv[1] == "prepare":
 
     runtimes = required_runtimes(config)
 
-    print("Preparing AI Stack")
-    print("==================")
+    print("Preparing Local AI Stack")
+    print("========================")
 
     if not runtimes:
         print(
@@ -618,8 +618,8 @@ elif sys.argv[1] == "test":
         ]
     )
 
-    print("AI Stack acceptance test")
-    print("========================")
+    print("Local AI Stack acceptance test")
+    print("==============================")
 
     analytics = config.get(
         "analytics",
